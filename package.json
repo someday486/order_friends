@@ -1,0 +1,15 @@
+{
+  "name": "order-friends",
+  "private": true,
+  "devDependencies": {
+    "supabase": "^2.72.8"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1"
+  },
+  "scripts": {
+    "dev": "npm --prefix apps/web run dev",
+    "build": "npm --prefix apps/web run build",
+    "start": "npm --prefix apps/web run start"
+  }
+}

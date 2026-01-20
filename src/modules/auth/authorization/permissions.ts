@@ -1,0 +1,13 @@
+export enum Permission {
+  // Orders
+  ORDER_READ = 'ORDER_READ',
+  ORDER_UPDATE_STATUS = 'ORDER_UPDATE_STATUS',
+
+  // Products (MVP 확장 대비)
+  PRODUCT_READ = 'PRODUCT_READ',
+  PRODUCT_WRITE = 'PRODUCT_WRITE',
+
+  // Members
+  MEMBER_READ = 'MEMBER_READ',
+  MEMBER_WRITE = 'MEMBER_WRITE',
+}

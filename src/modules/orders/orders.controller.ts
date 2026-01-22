@@ -1,22 +1,26 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '../../common/guards/auth.guard';
-import { MembershipGuard } from '../../common/guards/membership.guard';
-import { PolicyGuard } from '../../common/guards/policy.guard';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
-import { Permission } from '../auth/authorization/permissions';
-import { Role } from '../auth/authorization/roles.enum';
+import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import { OrdersService } from './orders.service';
+import { UpdateOrderStatusRequest } from './dto/update-order-status.request';
 
-@Controller('/admin')
+@Controller('admin/orders')
 export class OrdersController {
-  @Get('/orders')
-  @UseGuards(AuthGuard, MembershipGuard, PolicyGuard)
-  @RequirePermissions(Permission.ORDER_READ)
-  listOrders() {
-    // ✅ Supabase 붙이기 전 임시 응답
-    return {
-      items: [],
-      total: 0,
-      note: 'Mock response (Supabase pending)',
-    };
+  constructor(private readonly ordersService: OrdersService) {}
+
+  @Get()
+  getOrders() {
+    return this.ordersService.getOrders();
+  }
+
+  @Get(':orderId')
+  getOrder(@Param('orderId') orderId: string) {
+    return this.ordersService.getOrder(orderId);
+  }
+
+  @Patch(':orderId/status')
+  updateOrderStatus(
+    @Param('orderId') orderId: string,
+    @Body() body: UpdateOrderStatusRequest,
+  ) {
+    return this.ordersService.updateStatus(orderId, body.status);
   }
 }

@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabaseClient"; // ✅ 너희 파일 구조에 맞는 정답 import
 
 type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+
 const FLOW: OrderStatus[] = ["NEW", "PAID", "PREPARING", "SHIPPED", "DONE"];
+
 export const statusLabel: Record<OrderStatus, string> = {
   NEW: "신규",
   PAID: "결제완료",
@@ -17,6 +21,16 @@ export const statusLabel: Record<OrderStatus, string> = {
 function nextStatus(s: OrderStatus) {
   const i = FLOW.indexOf(s);
   return i >= 0 ? (FLOW[i + 1] ?? null) : null;
+}
+
+async function getAccessToken() {
+  const supabase = createClient(); // ✅ 매번 브라우저 세션 기반으로 가져옴
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+
+  const token = data.session?.access_token;
+  if (!token) throw new Error("No access_token (로그인 필요)");
+  return token;
 }
 
 export default function StatusActions({
@@ -36,15 +50,21 @@ export default function StatusActions({
 
   async function onAdvance() {
     if (!next) return;
+
     setLoading(true);
     setErr(null);
 
     try {
+      const token = await getAccessToken();
+
       const res = await fetch(
-        `http://localhost:4000/admin/orders/${encodeURIComponent(orderId)}/status`,
+        `${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`, // ✅ 핵심
+          },
           body: JSON.stringify({ status: next }),
         }
       );
@@ -57,7 +77,7 @@ export default function StatusActions({
       const data = (await res.json()) as { id: string; status: OrderStatus };
 
       setStatus(data.status);
-      onStatusChange(data.status); // ✅ 부모(헤더 뱃지)도 갱신
+      onStatusChange(data.status);
     } catch (e: any) {
       setErr(e?.message ?? "요청 실패");
     } finally {

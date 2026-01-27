@@ -11,6 +11,7 @@ export class OrderItemResponse {
 export class OrderDetailResponse {
   id: string;
   orderedAt: string;
+  orderNo?: string | null; // ✅ 추가
   status: OrderStatus;
 
   customer: {

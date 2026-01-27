@@ -29,8 +29,11 @@ export class OrdersService {
     }
 
     return (data ?? []).map((row: any) => ({
-      // UI 라우트에서 쓰는 식별자가 order_no면 order_no를 우선 사용
-      id: row.order_no ?? row.id,
+      // ✅ 항상 uuid(id)를 내려준다 (프론트 라우팅/상태변경은 uuid 기준)
+      id: row.id,
+      // ✅ 표시용으로 order_no도 함께 제공(있으면)
+      orderNo: row.order_no ?? null,
+
       orderedAt: row.created_at ?? '',
       customerName: row.customer_name ?? '',
       totalAmount: row.total_amount ?? 0,
@@ -108,7 +111,11 @@ export class OrdersService {
     });
 
     const res: OrderDetailResponse = {
-      id: data.order_no ?? data.id,
+      // ✅ 항상 uuid(id)를 내려준다
+      id: data.id,
+      // ✅ 표시용 order_no도 함께 제공(있으면)
+      orderNo: data.order_no ?? null,
+
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
       customer: {
@@ -137,40 +144,27 @@ export class OrdersService {
   async updateStatus(accessToken: string, orderId: string, status: OrderStatus) {
     const sb = this.supabase.userClient(accessToken);
 
-    // id 기반 업데이트 먼저 시도 → 실패하면 order_no 기반 업데이트
-    // (DB가 트리거/함수로 상태전이 검증을 하는 구조라, invalid transition이면 여기서 error가 납니다.)
-    const tryUpdateById = await sb
+    const { data, error } = await sb
       .from('orders')
       .update({ status })
-      .eq('id', orderId)
+      .eq('id', orderId) // ✅ uuid만
       .select('id, order_no, status')
       .maybeSingle();
 
-    if (!tryUpdateById.error && tryUpdateById.data) {
-      return {
-        id: tryUpdateById.data.order_no ?? tryUpdateById.data.id,
-        status: tryUpdateById.data.status as OrderStatus,
-      };
+    if (error) {
+      throw new Error(`[orders.updateStatus] ${error.message}`);
     }
 
-    const tryUpdateByOrderNo = await sb
-      .from('orders')
-      .update({ status })
-      .eq('order_no', orderId)
-      .select('id, order_no, status')
-      .single();
-
-    if (tryUpdateByOrderNo.error) {
-      throw new Error(
-        `[orders.updateStatus] ${tryUpdateByOrderNo.error.message}${
-          tryUpdateById.error ? ` (id try: ${tryUpdateById.error.message})` : ''
-        }`,
-      );
+    if (!data) {
+      // 0건 업데이트(권한/RLS/없는 id)도 여기서 잡힘
+      throw new Error(`[orders.updateStatus] order not found or not permitted: ${orderId}`);
     }
 
     return {
-      id: tryUpdateByOrderNo.data.order_no ?? tryUpdateByOrderNo.data.id,
-      status: tryUpdateByOrderNo.data.status as OrderStatus,
+      id: data.id,
+      orderNo: data.order_no ?? null,
+      status: data.status as OrderStatus,
     };
   }
+
 }

@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Home() {
-  const [msg, setMsg] = useState("checking...");
+  const { status, user } = useAuth();
 
-  useEffect(() => {
-    const run = async () => {
-      const { data } = await supabaseBrowser.auth.getSession();
-      setMsg(data.session ? "logged in" : "not logged in");
-    };
-    run();
-  }, []);
+  if (status === "loading") {
+    return <div>checking...</div>;
+  }
 
-  return <div>{msg}</div>;
+  if (status === "unauthenticated") {
+    return <div>not logged in</div>;
+  }
+
+  return <div>logged in as {user?.email}</div>;
 }

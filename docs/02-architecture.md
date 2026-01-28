@@ -41,3 +41,9 @@
 ## 5. Deployment Notes (초안)
 - Supabase Project 분리: dev / prod 환경 권장
 - DB migration은 SQL 기반으로 버전 관리 권장(supabase migrations)
+
+## Authentication
+
+Authentication architecture and usage rules are defined in:
+
+- [Auth Foundation](./auth-foundation.md)

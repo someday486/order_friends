@@ -1,88 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { status } = useAuth();
 
-  const onLogin = async () => {
-    setLoading(true);
-    setMsg(null);
-
-    const supabase = supabaseBrowser;
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        setMsg(`로그인 실패: ${error.message}`);
-        return;
-      }
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      if (!token) {
-        setMsg("로그인 성공했지만 access_token을 가져오지 못했습니다.");
-        return;
-      }
-
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/admin/orders`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (res.status === 200) {
-        setMsg("로그인 성공 + 주문 API 호출 성공");
-      } else if (res.status === 401) {
-        setMsg("로그인 성공 / 백엔드 인증 실패 (401)");
-      } else if (res.status === 403) {
-        setMsg("로그인 성공 / 권한 없음 (RLS 403)");
-      } else {
-        setMsg(`로그인 성공 / API 에러 (${res.status})`);
-      }
-    } finally {
-      setLoading(false);
+  // 이미 로그인 상태면 로그인 페이지에 있을 이유 없음
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/app");
+      router.refresh();
     }
-  };
+  }, [status, router]);
 
   return (
-    <div style={{ maxWidth: 360, margin: "80px auto" }}>
-      <h2>로그인</h2>
+    <div style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Login</h1>
+      <p style={{ marginBottom: 16 }}>Sign in with email and password.</p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <input
-          type="email"
-          placeholder="이메일"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="비밀번호"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <button onClick={onLogin} disabled={loading}>
-          {loading ? "로그인 중..." : "로그인"}
-        </button>
-      </div>
-
-      {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
+      <LoginForm redirectTo="/app" />
     </div>
   );
 }

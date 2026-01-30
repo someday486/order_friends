@@ -1,12 +1,21 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { AuthState } from "@/lib/auth/types";
 import { getInitialSession, subscribeAuth } from "@/lib/auth/client";
 
 type AuthContextValue = AuthState & {
   /** 호환용: 기존 코드가 loading을 쓰면 그대로 동작 */
   loading: boolean;
+  /** 로그인/로그아웃 직후 등, 세션을 강제로 재동기화할 때 사용 */
+  refresh: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -22,6 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     session: null,
   });
+
+  const refresh = useCallback(async () => {
+    const session = await getInitialSession();
+    setState(derive(session));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -45,9 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(() => {
-    return { ...state, loading: state.status === "loading" };
-  }, [state]);
-
+    return {
+      ...state,
+      loading: state.status === "loading",
+      refresh,
+    };
+  }, [state, refresh]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

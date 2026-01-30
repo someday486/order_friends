@@ -21,8 +21,7 @@ export function LogoutButton() {
       // ✅ 로그아웃 직후 상태 동기화
       await refresh();
 
-      router.replace("/login");
-      router.refresh();
+      window.location.assign("/login");
     } finally {
       setLoading(false);
     }

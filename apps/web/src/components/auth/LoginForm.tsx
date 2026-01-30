@@ -43,7 +43,7 @@ export function LoginForm({ redirectTo = "/app" }: Props) {
       // ✅ 로그인 직후 상태 강제 동기화
       await refresh();
 
-      router.replace(redirectTo);
+      window.location.assign(redirectTo);
       router.refresh();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Login failed");

@@ -73,7 +73,7 @@ export default function OrdersPage() {
     run();
   }, []);
 
-  
+  console.log("ORDERS_RAW", orders);
   return (
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 800 }}>주문 목록</h1>

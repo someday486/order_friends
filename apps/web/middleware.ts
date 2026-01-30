@@ -14,19 +14,21 @@ export async function middleware(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
+          // ✅ request도 갱신 (중요)
+          request.cookies.set(name, value);
+          // ✅ response도 갱신
           response.cookies.set(name, value, options);
         });
       },
     },
   });
 
-  // 이 호출이 핵심: 세션을 읽고 필요한 쿠키를 response에 반영
+  // ✅ 세션 갱신 트리거
   await supabase.auth.getUser();
 
   return response;
 }
 
 export const config = {
-  // API 포함 전체에 적용되어야 /api/auth/me에도 쿠키가 반영됩니다.
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

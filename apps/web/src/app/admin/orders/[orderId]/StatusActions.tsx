@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabaseClient"; // ✅ 너희 파일 구조에 맞는 정답 import
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
+
 
 type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
 
@@ -24,7 +26,7 @@ function nextStatus(s: OrderStatus) {
 }
 
 async function getAccessToken() {
-  const supabase = createClient(); // ✅ 매번 브라우저 세션 기반으로 가져옴
+  const supabase = createSupabaseBrowserClient(); // ✅ 매번 브라우저 세션 기반으로 가져옴
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
 

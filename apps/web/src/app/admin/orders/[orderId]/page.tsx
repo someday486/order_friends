@@ -1,5 +1,9 @@
+"use client";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import OrderHeader from "./OrderHeader";
-
+import StatusActions from "./StatusActions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
 
@@ -32,89 +36,75 @@ type OrderDetail = {
   items: OrderItem[];
 };
 
-// ✅ 일단은 더미 데이터 (나중에 API로 교체)
-function mockOrder(orderId: string): OrderDetail {
-  return {
-    id: orderId,
-    orderedAt: "2026-01-21 10:12",
-    status: "PAID",
-    customer: {
-      name: "김민지",
-      phone: "010-1234-5678",
-      address1: "서울시 강남구 테헤란로 123",
-      address2: "101동 1004호",
-      memo: "문 앞에 놓아주세요.",
-    },
-    payment: {
-      method: "CARD",
-      subtotal: 32000,
-      shippingFee: 3000,
-      discount: 0,
-      total: 35000,
-    },
-    items: [
-      { id: "I-1", name: "닭가슴살 10팩", option: "오리지널", qty: 1, unitPrice: 22000 },
-      { id: "I-2", name: "프로틴바", option: "초코", qty: 2, unitPrice: 5000 },
-    ],
-  };
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
 }
 
-function statusLabel(status: OrderStatus) {
-  const map: Record<OrderStatus, string> = {
-    NEW: "신규",
-    PAID: "결제완료",
-    PREPARING: "준비중",
-    SHIPPED: "배송중",
-    DONE: "완료",
-    CANCELED: "취소",
-  };
-  return map[status];
-}
+export default function OrderDetailPage() {
+  const params = useParams<{ orderId: string }>();
+  const orderId = params?.orderId;
 
-function statusTone(status: OrderStatus) {
-  // 다크 테마에서 쓸 “톤”만 구분
-  switch (status) {
-    case "NEW":
-      return { border: "#2b2b2b", bg: "#101010", text: "#ffffff" };
-    case "PAID":
-      return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };
-    case "PREPARING":
-      return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };
-    case "SHIPPED":
-      return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };
-    case "DONE":
-      return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };
-    case "CANCELED":
-      return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };
+  if (!orderId) return <div style={{ color: "#ff8a8a" }}>주문 ID가 없습니다.</div>;
+
+
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function fetchOrder() {
+    setLoading(true);
+    setErr(null);
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+
+      const token = data.session?.access_token;
+      if (!token) throw new Error("로그인이 필요합니다 (access_token 없음)");
+
+      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`주문 조회 실패: ${res.status} ${text}`);
+      }
+
+      setOrder((await res.json()) as OrderDetail);
+    } catch (e: any) {
+      setErr(e?.message ?? "주문 조회 실패");
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
-const STATUS_FLOW: OrderStatus[] = ["NEW", "PAID", "PREPARING", "SHIPPED", "DONE"];
+  useEffect(() => {
+    fetchOrder();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
 
-function nextStatus(current: OrderStatus): OrderStatus | null {
-  const idx = STATUS_FLOW.indexOf(current);
-  if (idx === -1) return null;
-  return STATUS_FLOW[idx + 1] ?? null;
-}
-
-export default async function OrderDetailPage({
-  params,
-}: {
-  params: Promise<{ orderId: string }>;
-}) {
-  const { orderId } = await params;
-  const order = mockOrder(orderId);
-
-  const tone = statusTone(order.status);
-  const next = nextStatus(order.status);
+  if (loading) return <div style={{ color: "white" }}>Loading...</div>;
+  if (err) return <div style={{ color: "#ff8a8a" }}>{err}</div>;
+  if (!order) return <div style={{ color: "#ff8a8a" }}>주문 데이터가 없습니다.</div>;
 
   return (
     <div>
       <OrderHeader orderId={order.id} orderedAt={order.orderedAt} initialStatus={order.status} />
+
+      <StatusActions
+        orderId={order.id}
+        initialStatus={order.status}
+        onStatusChange={() => {
+          // ✅ PATCH 성공 후 최신 상태를 다시 GET으로 반영
+          fetchOrder();
+        }}
+      />
 
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>
         {/* 왼쪽: 상품/요약 */}
@@ -260,25 +250,3 @@ const miniCard: React.CSSProperties = {
 
 const miniLabel: React.CSSProperties = { color: "#aaa", fontSize: 12 };
 const miniValue: React.CSSProperties = { marginTop: 6, fontWeight: 800 };
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-};

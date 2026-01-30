@@ -1,12 +1,19 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { supabaseBrowser } from "./supabase/client";
 
-export const createClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+/**
+ * Legacy export (keep temporarily to avoid breaking existing imports)
+ */
+export const supabase = supabaseBrowser;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  }
+/**
+ * Legacy factory (kept for backward compatibility)
+ * IMPORTANT: returns the singleton instance (no re-creation)
+ */
+export const createClient = () => supabaseBrowser;
 
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey);
-};
+/**
+ * @deprecated
+ * Legacy compatibility layer.
+ * Do NOT use in new code. Use:
+ *   import { supabaseBrowser } from "@/lib/supabase/client"
+ */

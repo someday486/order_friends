@@ -34,3 +34,28 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Auth Foundation (apps/web)
+
+This project uses Supabase authentication with Next.js App Router.
+Browser, Server, and Middleware clients are separated and standardized.
+
+### Environment Variables
+
+Required:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Optional (if calling backend API):
+
+- `NEXT_PUBLIC_API_BASE_URL`
+
+### Supabase Client Usage
+
+#### Browser (Client Components only)
+
+Use in `"use client"` components:
+
+```ts
+import { supabaseBrowser } from "@/lib/supabase/client";

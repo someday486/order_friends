@@ -16,8 +16,7 @@ export function LogoutButton() {
       await supabaseBrowser.auth.signOut();
 
       // ✅ refresh 호출 금지
-      router.replace("/login");
-      router.refresh(); // (선택) 라우트 캐시 초기화용
+      window.location.replace("/login");
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 
 type Props = {
   redirectTo?: string; // default: /app
@@ -11,11 +10,9 @@ type Props = {
 
 export function LoginForm({ redirectTo = "/app" }: Props) {
   const router = useRouter();
-  const { refresh } = useAuth(); // ✅ 여기서만 호출 (컴포넌트 본문)
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -40,8 +37,8 @@ export function LoginForm({ redirectTo = "/app" }: Props) {
         return;
       }
 
-      // ✅ 로그인 직후 상태 강제 동기화
-      await refresh(); router.replace(redirectTo); router.refresh();
+      // ✅ 첫 클릭에 확정 이동 (레이스 제거)
+      window.location.replace(redirectTo);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -50,10 +47,7 @@ export function LoginForm({ redirectTo = "/app" }: Props) {
   };
 
   return (
-    <form
-      onSubmit={onSubmit}
-      style={{ display: "grid", gap: 12, maxWidth: 360 }}
-    >
+    <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, maxWidth: 360 }}>
       <label style={{ display: "grid", gap: 6 }}>
         <span>Email</span>
         <input

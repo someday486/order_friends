@@ -36,10 +36,6 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-<<<<<<< HEAD
-  // ✅ 세션 갱신 트리거
-  await supabase.auth.getUser();
-=======
   const { data, error } = await supabase.auth.getUser();
   const isAuthed = !!data?.user && !error;
 
@@ -68,7 +64,6 @@ export async function middleware(request: NextRequest) {
     });
     return redirect;
   }
->>>>>>> origin/claude_code_test
 
   return response;
 }

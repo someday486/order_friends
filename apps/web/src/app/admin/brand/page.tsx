@@ -1,7 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { useSelectedBrand } from "@/hooks/useSelectedBrand";
+
+// ============================================================
+// Brand Select Button
+// ============================================================
+
+export function BrandSelectButton({ brandId }: { brandId: string }) {
+  const router = useRouter();
+  const { selectBrand } = useSelectedBrand();
+
+  return (
+    <button
+      onClick={() => {
+        selectBrand(brandId);
+        router.push("/admin/stores");
+      }}
+      style={btnPrimarySmall}
+    >
+      선택하고 가게 관리
+    </button>
+  );
+}
 
 // ============================================================
 // Types
@@ -336,7 +359,10 @@ export default function BrandPage() {
                       ID: {brand.id}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+
+                  {/* ✅ 우측 버튼 영역 */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <BrandSelectButton brandId={brand.id} />
                     <button style={btnSmall} onClick={() => startEdit(brand)}>
                       수정
                     </button>
@@ -409,6 +435,18 @@ const btnPrimary: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
   fontSize: 13,
+};
+
+const btnPrimarySmall: React.CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 8,
+  border: "1px solid #333",
+  background: "white",
+  color: "#000",
+  fontWeight: 800,
+  cursor: "pointer",
+  fontSize: 12,
+  whiteSpace: "nowrap",
 };
 
 const btnGhost: React.CSSProperties = {

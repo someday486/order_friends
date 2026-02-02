@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import AddStoreModal from "./AddStoreModal";
+import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 
 // ============================================================
 // Types
@@ -12,6 +15,7 @@ type Branch = {
   id: string;
   brandId: string;
   name: string;
+  slug?: string;
   createdAt: string;
 };
 
@@ -46,15 +50,22 @@ function formatDate(iso: string) {
 // ============================================================
 
 export default function StoresPage() {
+  const router = useRouter();
+  const { brandId, ready, clearBrand } = useSelectedBrand();
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [brandId, setBrandId] = useState<string>("");
 
-  // 새 가게 추가 폼
+  // 신규 가게 등록 모달
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newStoreName, setNewStoreName] = useState("");
   const [adding, setAdding] = useState(false);
+
+  // ✅ brandId 없으면 brand 선택 페이지로 보내기
+  useEffect(() => {
+    if (!ready) return;
+    if (!brandId) router.replace("/admin/brand");
+  }, [ready, brandId, router]);
 
   // 가게 목록 조회
   const fetchBranches = async (bid: string) => {
@@ -66,11 +77,14 @@ export default function StoresPage() {
 
       const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/admin/branches?brandId=${encodeURIComponent(bid)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        `${API_BASE}/admin/branches?brandId=${encodeURIComponent(bid)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -87,47 +101,14 @@ export default function StoresPage() {
     }
   };
 
-  // 가게 추가
-  const handleAdd = async () => {
-    if (!newStoreName.trim() || !brandId) return;
-
-    try {
-      setAdding(true);
-
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/branches`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          brandId,
-          name: newStoreName,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`추가 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as Branch;
-      setBranches((prev) => [data, ...prev]);
-      setNewStoreName("");
-      setShowAddForm(false);
-    } catch (e: unknown) {
-      const err = e as Error;
-      alert(err?.message ?? "추가 실패");
-    } finally {
-      setAdding(false);
-    }
-  };
-
   // 가게 삭제
   const handleDelete = async (branchId: string, branchName: string) => {
-    if (!confirm(`"${branchName}" 가게를 삭제하시겠습니까?\n관련 상품과 주문 데이터가 모두 삭제됩니다.`)) return;
+    if (
+      !confirm(
+        `"${branchName}" 가게를 삭제하시겠습니까?\n관련 상품과 주문 데이터가 모두 삭제됩니다.`
+      )
+    )
+      return;
 
     try {
       const token = await getAccessToken();
@@ -151,11 +132,15 @@ export default function StoresPage() {
     }
   };
 
+  // ✅ brandId가 준비되면 자동으로 목록 조회
   useEffect(() => {
-    if (brandId) {
-      fetchBranches(brandId);
-    }
-  }, [brandId]);
+    if (!ready) return;
+    if (brandId) fetchBranches(brandId);
+  }, [ready, brandId]);
+
+  // ✅ 초기 로딩/리다이렉트 처리
+  if (!ready) return null;
+  if (!brandId) return null; // redirect 중
 
   return (
     <div>
@@ -175,68 +160,69 @@ export default function StoresPage() {
           </p>
         </div>
 
-        <button
-          style={btnPrimary}
-          onClick={() => setShowAddForm(true)}
-          disabled={!brandId}
-        >
-          + 가게 추가
-        </button>
-      </div>
-
-      {/* Brand 선택 */}
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ color: "#aaa", fontSize: 13, marginRight: 8 }}>브랜드 ID:</label>
-        <input
-          type="text"
-          value={brandId}
-          onChange={(e) => setBrandId(e.target.value)}
-          placeholder="Brand UUID 입력"
-          style={input}
-        />
-        <button
-          style={{ ...btnGhost, marginLeft: 8 }}
-          onClick={() => fetchBranches(brandId)}
-          disabled={!brandId || loading}
-        >
-          조회
-        </button>
-      </div>
-
-      {/* 추가 폼 */}
-      {showAddForm && (
-        <div style={addFormCard}>
-          <input
-            type="text"
-            value={newStoreName}
-            onChange={(e) => setNewStoreName(e.target.value)}
-            placeholder="새 가게 이름"
-            style={{ ...input, flex: 1 }}
-          />
-          <button style={btnPrimary} onClick={handleAdd} disabled={adding || !newStoreName.trim()}>
-            {adding ? "추가 중..." : "추가"}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={btnGhost} onClick={() => { clearBrand(); router.push("/admin/brand"); }}>
+            브랜드 다시 선택
           </button>
-          <button style={btnGhost} onClick={() => setShowAddForm(false)}>
-            취소
+          <button style={btnPrimary} onClick={() => setShowAddForm(true)}>
+            + 가게추가
           </button>
         </div>
-      )}
+      </div>
+
+      {/* 신규 가게 등록 모달 */}
+      <AddStoreModal
+        open={showAddForm}
+        brandId={brandId}
+        adding={adding}
+        onClose={() => setShowAddForm(false)}
+        onSubmit={async ({ name, slug }) => {
+          if (!name.trim() || !slug.trim() || !brandId) return;
+
+          try {
+            setAdding(true);
+            const token = await getAccessToken();
+
+            const res = await fetch(`${API_BASE}/admin/branches`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                brandId,
+                name,
+                slug,
+              }),
+            });
+
+            if (!res.ok) {
+              const text = await res.text().catch(() => "");
+              throw new Error(`추가 실패: ${res.status} ${text}`);
+            }
+
+            const data = (await res.json()) as Branch;
+            setBranches((prev) => [data, ...prev]);
+            setShowAddForm(false);
+          } catch (e: unknown) {
+            const err = e as Error;
+            alert(err?.message ?? "추가 실패");
+          } finally {
+            setAdding(false);
+          }
+        }}
+      />
 
       {/* Error */}
       {error && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{error}</p>}
 
       {/* Table */}
-      <div
-        style={{
-          border: "1px solid #222",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "#0f0f0f" }}>
             <tr>
               <th style={th}>가게명</th>
+              <th style={th}>가게 URL</th>
               <th style={th}>생성일</th>
               <th style={{ ...th, textAlign: "center" }}>관리</th>
             </tr>
@@ -244,23 +230,15 @@ export default function StoresPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={3} style={{ ...td, textAlign: "center", color: "#666" }}>
+                <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
                   불러오는 중...
                 </td>
               </tr>
             )}
 
-            {!loading && !brandId && (
+            {!loading && branches.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ ...td, textAlign: "center", color: "#666" }}>
-                  브랜드 ID를 입력하고 조회하세요.
-                </td>
-              </tr>
-            )}
-
-            {!loading && brandId && branches.length === 0 && (
-              <tr>
-                <td colSpan={3} style={{ ...td, textAlign: "center", color: "#666" }}>
+                <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
                   가게가 없습니다.
                 </td>
               </tr>
@@ -276,6 +254,9 @@ export default function StoresPage() {
                     >
                       {branch.name}
                     </Link>
+                  </td>
+                  <td style={{ ...td, color: "#aaa", fontSize: 12 }}>
+                    {branch.slug ? `openoda.com/store/${branch.slug}` : "-"}
                   </td>
                   <td style={{ ...td, color: "#aaa" }}>{formatDate(branch.createdAt)}</td>
                   <td style={{ ...td, textAlign: "center" }}>
@@ -349,25 +330,4 @@ const btnSmall: React.CSSProperties = {
   fontWeight: 500,
   cursor: "pointer",
   fontSize: 12,
-};
-
-const input: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 13,
-  width: 280,
-};
-
-const addFormCard: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  padding: 16,
-  marginBottom: 16,
-  border: "1px solid #333",
-  borderRadius: 12,
-  background: "#0a0a0a",
 };

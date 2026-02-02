@@ -136,9 +136,6 @@ export default function OrdersPage() {
     fetchOrders();
   }, []);
 
-<<<<<<< HEAD
-  console.log("ORDERS_RAW", orders);
-=======
   // 필터링
   useEffect(() => {
     if (statusFilter === "ALL") {
@@ -177,7 +174,6 @@ export default function OrdersPage() {
     }
   };
 
->>>>>>> origin/claude_code_test
   return (
     <div>
       {/* Header */}

@@ -1,26 +1,9 @@
 "use client";
-<<<<<<< HEAD
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import OrderHeader from "./OrderHeader";
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-
-type OrderStatus =
-  | "CREATED"
-  | "NEW"
-  | "PAID"
-  | "PREPARING"
-  | "SHIPPED"
-  | "DONE"
-  | "CANCELED";
-
-=======
-
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabaseClient";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // ============================================================
 // Types
@@ -34,7 +17,6 @@ type OrderStatus =
   | "COMPLETED"
   | "CANCELLED"
   | "REFUNDED";
->>>>>>> origin/claude_code_test
 
 type OrderItem = {
   id: string;
@@ -66,22 +48,13 @@ type OrderDetail = {
   items: OrderItem[];
 };
 
-<<<<<<< HEAD
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-=======
 // ============================================================
 // Constants
 // ============================================================
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
-const STATUS_FLOW: OrderStatus[] = [
-  "CREATED",
-  "CONFIRMED",
-  "PREPARING",
-  "READY",
-  "COMPLETED",
-];
+const STATUS_FLOW: OrderStatus[] = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
 
 const statusLabel: Record<OrderStatus, string> = {
   CREATED: "신규",
@@ -102,73 +75,11 @@ const paymentMethodLabel: Record<string, string> = {
 // ============================================================
 // Helpers
 // ============================================================
->>>>>>> origin/claude_code_test
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
 }
 
-<<<<<<< HEAD
-export default function OrderDetailPage() {
-  const params = useParams<{ orderId: string }>();
-  const orderId = params?.orderId;
-
-  if (!orderId) return <div style={{ color: "#ff8a8a" }}>주문 ID가 없습니다.</div>;
-
-
-  const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  async function fetchOrder() {
-    setLoading(true);
-    setErr(null);
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-
-      const token = data.session?.access_token;
-      if (!token) throw new Error("로그인이 필요합니다 (access_token 없음)");
-
-      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`주문 조회 실패: ${res.status} ${text}`);
-      }
-
-      setOrder((await res.json()) as OrderDetail);
-    } catch (e: any) {
-      setErr(e?.message ?? "주문 조회 실패");
-      setOrder(null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchOrder();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
-
-  if (loading) return <div style={{ color: "white" }}>Loading...</div>;
-  if (err) return <div style={{ color: "#ff8a8a" }}>{err}</div>;
-  if (!order) return <div style={{ color: "#ff8a8a" }}>주문 데이터가 없습니다.</div>;
-
-  return (
-    <div>
-      <OrderHeader
-        orderId={order.id}
-        orderedAt={order.orderedAt}
-        initialStatus={order.status}
-        onStatusChanged={() => fetchOrder()}
-      />
-=======
 function formatDateTime(iso: string) {
   if (!iso) return "-";
   const d = new Date(iso);
@@ -188,7 +99,7 @@ function nextStatus(current: OrderStatus): OrderStatus | null {
 }
 
 async function getAccessToken() {
-  const supabase = createClient();
+  const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
 
@@ -197,18 +108,33 @@ async function getAccessToken() {
   return token;
 }
 
+async function readErrorText(res: Response) {
+  // JSON으로 떨어질 수도, 텍스트로 떨어질 수도 있어서 둘 다 처리
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const j = await res.json().catch(() => null);
+    return j ? JSON.stringify(j) : "";
+  }
+  return await res.text().catch(() => "");
+}
+
 // ============================================================
 // Component
 // ============================================================
 
 export default function OrderDetailPage() {
-  const params = useParams();
-  const orderId = params?.orderId as string;
+  const params = useParams<{ orderId: string }>();
+  const orderId = params?.orderId;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+
+  const isCancellable = useMemo(() => {
+    if (!order) return false;
+    return order.status !== "COMPLETED" && order.status !== "CANCELLED" && order.status !== "REFUNDED";
+  }, [order]);
 
   // 주문 상세 조회
   useEffect(() => {
@@ -228,7 +154,7 @@ export default function OrderDetailPage() {
         });
 
         if (!res.ok) {
-          const text = await res.text().catch(() => "");
+          const text = await readErrorText(res);
           throw new Error(`주문 조회 실패: ${res.status} ${text}`);
         }
 
@@ -255,20 +181,17 @@ export default function OrderDetailPage() {
 
       const token = await getAccessToken();
 
-      const res = await fetch(
-        `${API_BASE}/admin/orders/${encodeURIComponent(order.id)}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(order.id)}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await readErrorText(res);
         throw new Error(`상태 변경 실패: ${res.status} ${text}`);
       }
 
@@ -286,7 +209,6 @@ export default function OrderDetailPage() {
   const handleCancel = async () => {
     if (!order) return;
     if (!confirm("정말 이 주문을 취소하시겠습니까?")) return;
-
     await handleStatusChange("CANCELLED");
   };
 
@@ -325,10 +247,6 @@ export default function OrderDetailPage() {
   }
 
   const next = nextStatus(order.status);
-  const isCancellable =
-    order.status !== "COMPLETED" &&
-    order.status !== "CANCELLED" &&
-    order.status !== "REFUNDED";
 
   return (
     <div>
@@ -346,7 +264,6 @@ export default function OrderDetailPage() {
           <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
             ← 주문 목록
           </Link>
->>>>>>> origin/claude_code_test
 
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>주문 상세</h1>
@@ -369,9 +286,7 @@ export default function OrderDetailPage() {
 
           <div style={{ marginTop: 6, color: "#aaa", fontSize: 13 }}>
             주문번호{" "}
-            <span style={{ fontFamily: "monospace", color: "#fff" }}>
-              {order.orderNo ?? order.id}
-            </span>{" "}
+            <span style={{ fontFamily: "monospace", color: "#fff" }}>{order.orderNo ?? order.id}</span>{" "}
             · {formatDateTime(order.orderedAt)}
           </div>
         </div>
@@ -385,11 +300,7 @@ export default function OrderDetailPage() {
           )}
 
           {next && (
-            <button
-              style={btnPrimary}
-              onClick={() => handleStatusChange(next)}
-              disabled={statusLoading}
-            >
+            <button style={btnPrimary} onClick={() => handleStatusChange(next)} disabled={statusLoading}>
               {statusLoading ? "변경 중..." : `${statusLabel[next]}로 변경`}
             </button>
           )}
@@ -399,21 +310,12 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Content */}
-      <div
-        style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}
-      >
+      <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>
         {/* 왼쪽: 상품/요약 */}
         <section style={card}>
           <div style={cardTitle}>주문 상품</div>
 
-          <div
-            style={{
-              marginTop: 10,
-              border: "1px solid #222",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
+          <div style={{ marginTop: 10, border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead style={{ background: "#0f0f0f" }}>
                 <tr>
@@ -431,9 +333,7 @@ export default function OrderDetailPage() {
                     <td style={{ ...td, color: "#aaa" }}>{it.option ?? "-"}</td>
                     <td style={{ ...td, textAlign: "right" }}>{it.qty}</td>
                     <td style={{ ...td, textAlign: "right" }}>{formatWon(it.unitPrice)}</td>
-                    <td style={{ ...td, textAlign: "right" }}>
-                      {formatWon(it.unitPrice * it.qty)}
-                    </td>
+                    <td style={{ ...td, textAlign: "right" }}>{formatWon(it.unitPrice * it.qty)}</td>
                   </tr>
                 ))}
                 {order.items.length === 0 && (
@@ -447,9 +347,7 @@ export default function OrderDetailPage() {
             </table>
           </div>
 
-          <div
-            style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
-          >
+          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div style={miniCard}>
               <div style={miniLabel}>상품 소계</div>
               <div style={miniValue}>{formatWon(order.payment.subtotal)}</div>
@@ -575,8 +473,6 @@ const miniCard: React.CSSProperties = {
 
 const miniLabel: React.CSSProperties = { color: "#aaa", fontSize: 12 };
 const miniValue: React.CSSProperties = { marginTop: 6, fontWeight: 800 };
-<<<<<<< HEAD
-=======
 
 const btnPrimary: React.CSSProperties = {
   height: 36,
@@ -599,4 +495,3 @@ const btnGhost: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
 };
->>>>>>> origin/claude_code_test

@@ -75,16 +75,18 @@ export class BrandsService {
     };
   }
 
+
   /**
    * 브랜드 생성 (쓰기: adminClient로 RLS bypass)
    *
-   * - userClient로 현재 유저를 확인(auth.getUser)
+   * - userClient로 현재 유저 확인(auth.getUser)
+   * - (중요) profiles row 보장 (brand_members FK 때문에 필요)
    * - brands insert + brand_members insert 는 adminClient로 실행
    */
   async createBrand(accessToken: string, dto: CreateBrandRequest): Promise<BrandDetailResponse> {
     const userSb = this.supabase.userClient(accessToken);
 
-    // 현재 사용자 ID 가져오기
+    // 0) 현재 사용자 ID 가져오기
     const { data: userData, error: userError } = await userSb.auth.getUser();
     if (userError || !userData.user) {
       throw new ForbiddenException('사용자 정보를 가져올 수 없습니다.');
@@ -93,7 +95,16 @@ export class BrandsService {
 
     const adminSb = this.supabase.adminClient();
 
-    // 1) brands insert (RLS bypass)
+    // 1) profiles row 보장 (없으면 brand_members insert에서 FK 터짐)
+    const { error: profileErr } = await adminSb
+      .from('profiles')
+      .upsert({ id: userId }, { onConflict: 'id' });
+
+    if (profileErr) {
+      throw new Error(`[brands.createBrand] profile upsert: ${profileErr.message}`);
+    }
+
+    // 2) brands insert (RLS bypass)
     const { data: brand, error: brandError } = await adminSb
       .from('brands')
       .insert({
@@ -109,7 +120,7 @@ export class BrandsService {
       throw new Error(`[brands.createBrand] brand insert: ${brandError?.message ?? 'unknown'}`);
     }
 
-    // 2) brand_members insert (OWNER) (RLS bypass)
+    // 3) brand_members insert (OWNER) (RLS bypass)
     const { error: memberError } = await adminSb.from('brand_members').insert({
       brand_id: brand.id,
       user_id: userId,
@@ -132,6 +143,7 @@ export class BrandsService {
       createdAt: brand.created_at ?? '',
     };
   }
+
 
   /**
    * 브랜드 수정 (쓰기: adminClient)

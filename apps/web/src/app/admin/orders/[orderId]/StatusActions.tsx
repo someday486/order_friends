@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-
-
-type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
+type OrderStatus =
+  | "CREATED"
+  | "NEW"
+  | "PAID"
+  | "PREPARING"
+  | "SHIPPED"
+  | "DONE"
+  | "CANCELED";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
-const FLOW: OrderStatus[] = ["NEW", "PAID", "PREPARING", "SHIPPED", "DONE"];
+// ✅ CREATED를 시작 상태로 포함
+const FLOW: OrderStatus[] = ["CREATED", "PAID", "PREPARING", "SHIPPED", "DONE"];
 
 export const statusLabel: Record<OrderStatus, string> = {
+  CREATED: "신규",
   NEW: "신규",
   PAID: "결제완료",
   PREPARING: "준비중",
@@ -26,7 +33,7 @@ function nextStatus(s: OrderStatus) {
 }
 
 async function getAccessToken() {
-  const supabase = createSupabaseBrowserClient(); // ✅ 매번 브라우저 세션 기반으로 가져옴
+  const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
 
@@ -48,6 +55,11 @@ export default function StatusActions({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // ✅ 부모에서 내려오는 initialStatus가 바뀌면 내부 상태도 동기화
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
   const next = nextStatus(status);
 
   async function onAdvance() {
@@ -59,17 +71,14 @@ export default function StatusActions({
     try {
       const token = await getAccessToken();
 
-      const res = await fetch(
-        `${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`, // ✅ 핵심
-          },
-          body: JSON.stringify({ status: next }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: next }),
+      });
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");

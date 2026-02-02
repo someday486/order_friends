@@ -2,10 +2,18 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import OrderHeader from "./OrderHeader";
-import StatusActions from "./StatusActions";
+
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
+type OrderStatus =
+  | "CREATED"
+  | "NEW"
+  | "PAID"
+  | "PREPARING"
+  | "SHIPPED"
+  | "DONE"
+  | "CANCELED";
+
 
 type OrderItem = {
   id: string;
@@ -95,15 +103,11 @@ export default function OrderDetailPage() {
 
   return (
     <div>
-      <OrderHeader orderId={order.id} orderedAt={order.orderedAt} initialStatus={order.status} />
-
-      <StatusActions
+      <OrderHeader
         orderId={order.id}
+        orderedAt={order.orderedAt}
         initialStatus={order.status}
-        onStatusChange={() => {
-          // ✅ PATCH 성공 후 최신 상태를 다시 GET으로 반영
-          fetchOrder();
-        }}
+        onStatusChanged={() => fetchOrder()}
       />
 
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>

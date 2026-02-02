@@ -4,7 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import StatusActions, { statusLabel } from "./StatusActions";
 
-type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
+type OrderStatus =
+  | "CREATED"
+  | "NEW"
+  | "PAID"
+  | "PREPARING"
+  | "SHIPPED"
+  | "DONE"
+  | "CANCELED";
+
 
 function statusTone(status: OrderStatus) {
   return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };

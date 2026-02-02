@@ -1,57 +1,70 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { AuthState } from "@/lib/auth/types";
+import { getInitialSession, subscribeAuth } from "@/lib/auth/client";
 
-type AuthState = {
-  user: User | null;
-  session: Session | null;
+type AuthContextValue = AuthState & {
+  /** 호환용: 기존 코드가 loading을 쓰면 그대로 동작 */
   loading: boolean;
+  /** 로그인/로그아웃 직후 등, 세션을 강제로 재동기화할 때 사용 */
+  refresh: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthState | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
+
+function derive(session: AuthState["session"]): AuthState {
+  if (!session) return { status: "unauthenticated", session: null, user: null };
+  return { status: "authenticated", session, user: session.user ?? null };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<AuthState>({
+    status: "loading",
+    user: null,
+    session: null,
+  });
+
+  const refresh = useCallback(async () => {
+    const session = await getInitialSession();
+    setState(derive(session));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
-      setLoading(true);
-      const { data } = await supabaseBrowser.auth.getSession();
+    // 1) 최초 1회만: loading -> authenticated|unauthenticated
+    (async () => {
+      const session = await getInitialSession();
       if (!mounted) return;
+      setState(derive(session));
+    })();
 
-      setSession(data.session ?? null);
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    };
-
-    init();
-
-    const { data: sub } = supabaseBrowser.auth.onAuthStateChange(
-      (_event, newSession) => {
-        // 로그인/로그아웃 등 이벤트 반영
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        setLoading(false); // ✅ 이벤트 후에도 로딩 종료 보장
-      }
-    );
+    // 2) 이후 이벤트: 곧바로 최종 상태 반영 (loading으로 되돌리지 않음)
+    const unsubscribe = subscribeAuth((session) => {
+      setState(derive(session));
+    });
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
-  const value = useMemo(
-    () => ({ user, session, loading }),
-    [user, session, loading]
-  );
-
+  const value = useMemo<AuthContextValue>(() => {
+    return {
+      ...state,
+      loading: state.status === "loading",
+      refresh,
+    };
+  }, [state, refresh]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

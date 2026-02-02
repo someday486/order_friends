@@ -10,6 +10,7 @@ const menuItems = [
   { href: "/admin/products", label: "상품 관리", icon: "📦" },
   { href: "/admin/stores", label: "가게 관리", icon: "🏪" },
   { href: "/admin/brand", label: "브랜드 관리", icon: "🏢" },
+  { href: "/admin/members", label: "권한 관리", icon: "👥" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

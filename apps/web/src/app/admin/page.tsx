@@ -46,23 +46,37 @@ export default function AdminHomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 임시 통계 (실제 API 연동 시 교체)
     const loadStats = async () => {
       try {
         setLoading(true);
-        // TODO: 실제 통계 API 호출
-        // const token = await getAccessToken();
-        // const res = await fetch(`${API_BASE}/admin/dashboard/stats`, { ... });
+        const token = await getAccessToken();
+        
+        const res = await fetch(`${API_BASE}/admin/dashboard/stats`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-        // 임시 데이터
+        if (!res.ok) {
+          throw new Error(`통계 조회 실패: ${res.status}`);
+        }
+
+        const data = await res.json();
+        setStats({
+          totalOrders: data.totalOrders ?? 0,
+          pendingOrders: data.pendingOrders ?? 0,
+          todayOrders: data.todayOrders ?? 0,
+          totalProducts: data.totalProducts ?? 0,
+        });
+      } catch (e) {
+        console.error(e);
+        // 에러 시 기본값
         setStats({
           totalOrders: 0,
           pendingOrders: 0,
           todayOrders: 0,
           totalProducts: 0,
         });
-      } catch (e) {
-        console.error(e);
       } finally {
         setLoading(false);
       }

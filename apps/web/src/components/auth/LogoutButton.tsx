@@ -2,21 +2,26 @@
 
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 
 export function LogoutButton() {
   const router = useRouter();
+  const { refresh } = useAuth();
+
   const [loading, setLoading] = useState(false);
 
   const onLogout = async () => {
     if (loading) return;
-    setLoading(true);
 
+    setLoading(true);
     try {
       await supabaseBrowser.auth.signOut();
 
-      // ✅ refresh 호출 금지
-      window.location.replace("/login");
+      // ✅ 로그아웃 직후 상태 동기화
+      await refresh();
+
+      window.location.assign("/login");
     } finally {
       setLoading(false);
     }

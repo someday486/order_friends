@@ -1,28 +1,10 @@
 import LoginClient from "./LoginClient";
 
-type SearchParams = {
-  next?: string;
-};
-
-export default async function LoginPage({
+export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams?: { next?: string };
 }) {
-  const sp = await searchParams;
-  const next = sanitizeNext(sp?.next);
-
+  const next = searchParams?.next ?? "/app";
   return <LoginClient next={next} />;
-}
-
-function sanitizeNext(next?: string) {
-  if (!next) return "/app";
-
-  const decoded = decodeURIComponent(next);
-
-  // 외부 URL / 프로토콜 차단 (open redirect 방지)
-  if (decoded.startsWith("http://") || decoded.startsWith("https://")) return "/app";
-  if (!decoded.startsWith("/")) return "/app";
-
-  return decoded;
 }

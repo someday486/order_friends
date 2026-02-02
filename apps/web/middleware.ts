@@ -13,25 +13,26 @@ function isProtectedPath(pathname: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 기본 응답을 먼저 만들어두고 (쿠키 싱크용)
-  const response = NextResponse.next();
+  // ✅ response를 let으로 두고, 필요 시 redirect로 "교체"할 것
+  let response = NextResponse.next();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          // ✅ Supabase가 쓰는 쿠키는 항상 "현재 response"에 실린다
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
       },
-      setAll(cookiesToSet) {
-        // ✅ 핵심: response에 쿠키를 실어야 다음 요청에 반영됨
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
+    }
+  );
 
   const { data, error } = await supabase.auth.getUser();
   const isAuthed = !!data?.user && !error;
@@ -42,12 +43,9 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
 
-    // ✅ redirect 응답을 만들되, response의 쿠키 헤더를 그대로 복사
-    const redirect = NextResponse.redirect(url);
-    response.cookies.getAll().forEach((c) => {
-      redirect.cookies.set(c.name, c.value, c);
-    });
-    return redirect;
+    // ✅ 여기서 response를 redirect로 바꾼다 (쿠키 복사 X)
+    response = NextResponse.redirect(url);
+    return response;
   }
 
   // 2) /login 접근: 로그인 -> /app
@@ -55,11 +53,8 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/app";
 
-    const redirect = NextResponse.redirect(url);
-    response.cookies.getAll().forEach((c) => {
-      redirect.cookies.set(c.name, c.value, c);
-    });
-    return redirect;
+    response = NextResponse.redirect(url);
+    return response;
   }
 
   return response;

@@ -68,4 +68,16 @@ export class SupabaseService {
       },
     });
   }
+
+  /**
+   * 퍼블릭 클라이언트 (인증 없이 사용)
+   * - anon key만으로 호출 (RLS 정책에 따라 접근 제한)
+   */
+  anonClient(): SupabaseClient {
+    if (!this.supabaseUrl || !this.anonKey) {
+      throw new Error('Supabase anon client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
+    }
+
+    return createClient(this.supabaseUrl, this.anonKey);
+  }
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
@@ -40,7 +40,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   return (
     <Modal
       open={open}
-      title="신규 가게 등록"
+      title="새 가게 등록"
       onClose={adding ? () => {} : onClose}
       footer={
         <>
@@ -50,7 +50,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
           <button
             style={btnPrimary}
             onClick={() => onSubmit({ name, slug })}
-            disabled={false}
+            disabled={disabled}
           >
             {adding ? "저장 중..." : "저장하기"}
           </button>
@@ -63,7 +63,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         <label style={label}>가게명</label>
         <input
           style={input}
-          placeholder="예: 동탄 본점"
+          placeholder="예) 동탄 본점"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
@@ -74,23 +74,23 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
           <div style={slugPrefix}>openoda.com/store/</div>
           <input
             style={slugInput}
-            placeholder="예: dongtan-main"
+            placeholder="예) dongtan-main"
             value={slug}
             onChange={(e) => setSlug(normalizeSlug(e.target.value))}
           />
         </div>
 
         <div style={helpText}>
-          최소 생성 단계입니다. (상세/주소/이미지는 다음 단계에서 추가)
+          기본 정보만 먼저 생성됩니다. (상세/주소/이미지는 다음 단계에서 추가)
           <br />
-          slug는 <b>소문자/숫자/하이픈(-)</b>만 가능해요.
+          slug는 <b>영문/숫자/하이픈(-)</b>만 가능합니다.
         </div>
       </div>
     </Modal>
   );
 }
 
-// styles (기존 페이지 톤 유지)
+// styles
 const sectionCard: React.CSSProperties = {
   border: "1px solid #222",
   borderRadius: 12,

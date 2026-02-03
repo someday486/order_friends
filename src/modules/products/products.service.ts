@@ -9,17 +9,37 @@ import { UpdateProductRequest } from './dto/update-product.request';
 export class ProductsService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  /**
-   * 상품 목록 조회
-   */
-  async getProducts(accessToken: string, branchId: string): Promise<ProductListItemResponse[]> {
-    const sb = this.supabase.userClient(accessToken);
+  private getClient(accessToken: string, isAdmin?: boolean) {
+    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+  }
 
-    const { data, error } = await sb
+  private getPriceFromRow(row: any): number {
+    if (!row) return 0;
+    if (row.base_price !== undefined && row.base_price !== null) return row.base_price;
+    if (row.price !== undefined && row.price !== null) return row.price;
+    if (row.price_amount !== undefined && row.price_amount !== null) return row.price_amount;
+    return 0;
+  }
+
+  private emptyOptions(): ProductOptionResponse[] {
+    return [];
+  }
+
+  /**
+   * 상품 목록
+   */
+  async getProducts(
+    accessToken: string,
+    branchId: string,
+    isAdmin?: boolean,
+  ): Promise<ProductListItemResponse[]> {
+    const sb = this.getClient(accessToken, isAdmin);
+
+    const selectFields = '*';
+    const { data, error } = await (sb as any)
       .from('products')
-      .select('id, name, price, is_active, sort_order, created_at')
+      .select(selectFields)
       .eq('branch_id', branchId)
-      .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -29,27 +49,27 @@ export class ProductsService {
     return (data ?? []).map((row: any) => ({
       id: row.id,
       name: row.name,
-      price: row.price ?? 0,
-      isActive: row.is_active ?? true,
-      sortOrder: row.sort_order ?? 0,
+      price: this.getPriceFromRow(row),
+      isActive: !(row.is_hidden ?? false),
+      sortOrder: 0,
       createdAt: row.created_at ?? '',
     }));
   }
 
   /**
-   * 상품 상세 조회
+   * 상품 상세
    */
-  async getProduct(accessToken: string, productId: string): Promise<ProductDetailResponse> {
-    const sb = this.supabase.userClient(accessToken);
+  async getProduct(
+    accessToken: string,
+    productId: string,
+    isAdmin?: boolean,
+  ): Promise<ProductDetailResponse> {
+    const sb = this.getClient(accessToken, isAdmin);
 
-    const { data, error } = await sb
+    const selectDetail = '*';
+    const { data, error } = await (sb as any)
       .from('products')
-      .select(`
-        id, branch_id, name, description, price, is_active, sort_order, created_at, updated_at,
-        product_options (
-          id, name, price_delta, is_active, sort_order
-        )
-      `)
+      .select(selectDetail)
       .eq('id', productId)
       .single();
 
@@ -61,22 +81,16 @@ export class ProductsService {
       throw new NotFoundException('상품을 찾을 수 없습니다.');
     }
 
-    const options: ProductOptionResponse[] = (data.product_options ?? []).map((opt: any) => ({
-      id: opt.id,
-      name: opt.name,
-      priceDelta: opt.price_delta ?? 0,
-      isActive: opt.is_active ?? true,
-      sortOrder: opt.sort_order ?? 0,
-    }));
+    const options: ProductOptionResponse[] = this.emptyOptions();
 
     return {
       id: data.id,
       branchId: data.branch_id,
       name: data.name,
       description: data.description ?? null,
-      price: data.price ?? 0,
-      isActive: data.is_active ?? true,
-      sortOrder: data.sort_order ?? 0,
+      price: this.getPriceFromRow(data),
+      isActive: !(data.is_hidden ?? false),
+      sortOrder: 0,
       createdAt: data.created_at ?? '',
       updatedAt: data.updated_at ?? '',
       options,
@@ -86,20 +100,24 @@ export class ProductsService {
   /**
    * 상품 생성
    */
-  async createProduct(accessToken: string, dto: CreateProductRequest): Promise<ProductDetailResponse> {
-    const sb = this.supabase.userClient(accessToken);
+  async createProduct(
+    accessToken: string,
+    dto: CreateProductRequest,
+    isAdmin?: boolean,
+  ): Promise<ProductDetailResponse> {
+    const sb = this.getClient(accessToken, isAdmin);
+    const insertPayload: any = {
+      branch_id: dto.branchId,
+      name: dto.name,
+      description: dto.description ?? null,
+      base_price: dto.price,
+      is_hidden: !(dto.isActive ?? true),
+      is_sold_out: false,
+    };
 
-    // 1. 상품 생성
     const { data: productData, error: productError } = await sb
       .from('products')
-      .insert({
-        branch_id: dto.branchId,
-        name: dto.name,
-        description: dto.description ?? null,
-        price: dto.price,
-        is_active: dto.isActive ?? true,
-        sort_order: dto.sortOrder ?? 0,
-      })
+      .insert(insertPayload)
       .select('id')
       .single();
 
@@ -109,27 +127,11 @@ export class ProductsService {
 
     const productId = productData.id;
 
-    // 2. 옵션 생성 (있으면)
     if (dto.options && dto.options.length > 0) {
-      const optionsToInsert = dto.options.map((opt) => ({
-        product_id: productId,
-        name: opt.name,
-        price_delta: opt.priceDelta ?? 0,
-        is_active: opt.isActive ?? true,
-        sort_order: opt.sortOrder ?? 0,
-      }));
-
-      const { error: optError } = await sb
-        .from('product_options')
-        .insert(optionsToInsert);
-
-      if (optError) {
-        console.error('[products.createProduct] options insert error:', optError);
-      }
+      console.warn('[products.createProduct] product_options table not available; options ignored');
     }
 
-    // 3. 생성된 상품 조회 후 반환
-    return this.getProduct(accessToken, productId);
+    return this.getProduct(accessToken, productId, isAdmin);
   }
 
   /**
@@ -139,23 +141,23 @@ export class ProductsService {
     accessToken: string,
     productId: string,
     dto: UpdateProductRequest,
+    isAdmin?: boolean,
   ): Promise<ProductDetailResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
-    const updateData: any = {};
-    if (dto.name !== undefined) updateData.name = dto.name;
-    if (dto.description !== undefined) updateData.description = dto.description;
-    if (dto.price !== undefined) updateData.price = dto.price;
-    if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
-    if (dto.sortOrder !== undefined) updateData.sort_order = dto.sortOrder;
+    const baseUpdate: any = {};
+    if (dto.name !== undefined) baseUpdate.name = dto.name;
+    if (dto.description !== undefined) baseUpdate.description = dto.description;
+    if (dto.isActive !== undefined) baseUpdate.is_hidden = !dto.isActive;
+    if (dto.price !== undefined) baseUpdate.base_price = dto.price;
 
-    if (Object.keys(updateData).length === 0) {
-      return this.getProduct(accessToken, productId);
+    if (Object.keys(baseUpdate).length === 0) {
+      return this.getProduct(accessToken, productId, isAdmin);
     }
 
     const { data, error } = await sb
       .from('products')
-      .update(updateData)
+      .update(baseUpdate)
       .eq('id', productId)
       .select('id')
       .maybeSingle();
@@ -165,17 +167,21 @@ export class ProductsService {
     }
 
     if (!data) {
-      throw new NotFoundException('상품을 찾을 수 없거나 권한이 없습니다.');
+      throw new NotFoundException('수정할 상품을 찾을 수 없습니다.');
     }
 
-    return this.getProduct(accessToken, productId);
+    return this.getProduct(accessToken, productId, isAdmin);
   }
 
   /**
    * 상품 삭제
    */
-  async deleteProduct(accessToken: string, productId: string): Promise<{ deleted: boolean }> {
-    const sb = this.supabase.userClient(accessToken);
+  async deleteProduct(
+    accessToken: string,
+    productId: string,
+    isAdmin?: boolean,
+  ): Promise<{ deleted: boolean }> {
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { error } = await sb
       .from('products')

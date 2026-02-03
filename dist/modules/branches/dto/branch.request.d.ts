@@ -5,4 +5,5 @@ export declare class CreateBranchRequest {
 }
 export declare class UpdateBranchRequest {
     name?: string;
+    slug?: string;
 }

@@ -27,6 +27,8 @@ let PolicyGuard = class PolicyGuard {
         if (required.length === 0)
             return true;
         const req = ctx.switchToHttp().getRequest();
+        if (req?.isAdmin)
+            return true;
         const role = req.role;
         if (!role) {
             throw new common_1.ForbiddenException('Missing role (membership required)');

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import AddStoreModal from "./AddStoreModal";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
 // ============================================================
 // Types
@@ -52,6 +53,7 @@ function formatDate(iso: string) {
 export default function StoresPage() {
   const router = useRouter();
   const { brandId, ready, clearBrand } = useSelectedBrand();
+  const { selectBranch } = useSelectedBranch();
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +63,7 @@ export default function StoresPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
 
-  // ✅ brandId 없으면 brand 선택 페이지로 보내기
+  // brandId 없으면 brand 선택 페이지로
   useEffect(() => {
     if (!ready) return;
     if (!brandId) router.replace("/admin/brand");
@@ -132,13 +134,13 @@ export default function StoresPage() {
     }
   };
 
-  // ✅ brandId가 준비되면 자동으로 목록 조회
+  // brandId 준비되면 목록 조회
   useEffect(() => {
     if (!ready) return;
     if (brandId) fetchBranches(brandId);
   }, [ready, brandId]);
 
-  // ✅ 초기 로딩/리다이렉트 처리
+  // 초기 로딩/리다이렉트 처리
   if (!ready) return null;
   if (!brandId) return null; // redirect 중
 
@@ -165,7 +167,7 @@ export default function StoresPage() {
             브랜드 다시 선택
           </button>
           <button style={btnPrimary} onClick={() => setShowAddForm(true)}>
-            + 가게추가
+            + 가게 추가
           </button>
         </div>
       </div>
@@ -251,6 +253,7 @@ export default function StoresPage() {
                     <Link
                       href={`/admin/stores/${branch.id}`}
                       style={{ color: "white", textDecoration: "none" }}
+                      onClick={() => selectBranch(branch.id)}
                     >
                       {branch.name}
                     </Link>
@@ -260,7 +263,7 @@ export default function StoresPage() {
                   </td>
                   <td style={{ ...td, color: "#aaa" }}>{formatDate(branch.createdAt)}</td>
                   <td style={{ ...td, textAlign: "center" }}>
-                    <Link href={`/admin/stores/${branch.id}`}>
+                    <Link href={`/admin/stores/${branch.id}`} onClick={() => selectBranch(branch.id)}>
                       <button style={btnSmall}>수정</button>
                     </Link>
                     <button

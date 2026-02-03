@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from './order-status.enum';
 import { OrderDetailResponse, OrderItemResponse } from './dto/order-detail.response';
@@ -13,18 +13,26 @@ export class OrdersService {
   }
 
   /**
-   * orderId가 uuid(id)일 수도, order_no일 수도 있을 때
+   * orderId가 uuid(id)일 수도, order_no일 수도 있음
    * 실제 orders.id(uuid)로 resolve
    */
-  private async resolveOrderId(sb: any, orderIdOrNo: string): Promise<string | null> {
-    // uuid면 id로 먼저
+  private async resolveOrderId(
+    sb: any,
+    orderIdOrNo: string,
+    branchId?: string,
+  ): Promise<string | null> {
+    // uuid면 id로 조회
     if (this.isUuid(orderIdOrNo)) {
-      const byId = await sb.from('orders').select('id').eq('id', orderIdOrNo).maybeSingle();
+      let query = sb.from('orders').select('id').eq('id', orderIdOrNo);
+      if (branchId) query = query.eq('branch_id', branchId);
+      const byId = await query.maybeSingle();
       if (!byId.error && byId.data?.id) return byId.data.id;
     }
 
-    // order_no로 시도
-    const byNo = await sb.from('orders').select('id').eq('order_no', orderIdOrNo).maybeSingle();
+    // order_no 조회
+    let noQuery = sb.from('orders').select('id').eq('order_no', orderIdOrNo);
+    if (branchId) noQuery = noQuery.eq('branch_id', branchId);
+    const byNo = await noQuery.maybeSingle();
     if (!byNo.error && byNo.data?.id) return byNo.data.id;
 
     return null;
@@ -34,12 +42,13 @@ export class OrdersService {
    * 주문 목록 (admin)
    * - RLS 때문에 userClient로는 안 보일 수 있어 adminClient 사용
    */
-  async getOrders(accessToken: string): Promise<OrderListItemResponse[]> {
+  async getOrders(accessToken: string, branchId: string): Promise<OrderListItemResponse[]> {
     const sb = this.supabase.adminClient();
 
     const { data, error } = await sb
       .from('orders')
       .select('id, order_no, status, created_at, total_amount, customer_name')
+      .eq('branch_id', branchId)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -59,10 +68,10 @@ export class OrdersService {
 
   /**
    * 주문 상세 (admin)
-   * - RLS 우회용 adminClient 사용
+   * - RLS 때문에 adminClient 사용
    * - id / order_no 모두 지원
    */
-  async getOrder(accessToken: string, orderId: string): Promise<OrderDetailResponse> {
+  async getOrder(accessToken: string, orderId: string, branchId: string): Promise<OrderDetailResponse> {
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
@@ -76,12 +85,17 @@ export class OrdersService {
       )
     `;
 
-    const resolvedId = await this.resolveOrderId(sb, orderId);
+    const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
     if (!resolvedId) {
       throw new Error(`[orders.getOrder] order not found: ${orderId}`);
     }
 
-    const { data, error } = await sb.from('orders').select(selectDetail).eq('id', resolvedId).maybeSingle();
+    const { data, error } = await sb
+      .from('orders')
+      .select(selectDetail)
+      .eq('id', resolvedId)
+      .eq('branch_id', branchId)
+      .maybeSingle();
 
     if (error) {
       throw new Error(`[orders.getOrder] ${error.message}`);
@@ -127,13 +141,13 @@ export class OrdersService {
 
   /**
    * 주문 상태 변경 (admin)
-   * - RLS 우회용 adminClient 사용
+   * - RLS 때문에 adminClient 사용
    * - id / order_no 모두 지원
    */
-  async updateStatus(accessToken: string, orderId: string, status: OrderStatus) {
+  async updateStatus(accessToken: string, orderId: string, status: OrderStatus, branchId: string) {
     const sb = this.supabase.adminClient();
 
-    const resolvedId = await this.resolveOrderId(sb, orderId);
+    const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
     if (!resolvedId) {
       throw new Error(`[orders.updateStatus] order not found: ${orderId}`);
     }
@@ -142,6 +156,7 @@ export class OrdersService {
       .from('orders')
       .update({ status })
       .eq('id', resolvedId)
+      .eq('branch_id', branchId)
       .select('id, order_no, status')
       .maybeSingle();
 

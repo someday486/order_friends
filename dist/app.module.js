@@ -22,6 +22,7 @@ const public_order_module_1 = require("./modules/public-order/public-order.modul
 const auth_guard_1 = require("./common/guards/auth.guard");
 const membership_guard_1 = require("./common/guards/membership.guard");
 const policy_guard_1 = require("./common/guards/policy.guard");
+const admin_guard_1 = require("./common/guards/admin.guard");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -40,7 +41,7 @@ exports.AppModule = AppModule = __decorate([
             public_module_1.PublicModule,
             public_order_module_1.PublicOrderModule,
         ],
-        providers: [auth_guard_1.AuthGuard, membership_guard_1.MembershipGuard, policy_guard_1.PolicyGuard],
+        providers: [auth_guard_1.AuthGuard, membership_guard_1.MembershipGuard, policy_guard_1.PolicyGuard, admin_guard_1.AdminGuard],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

@@ -1,7 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useSearchParams } from "next/navigation";
+
+// Types
 
 type OrderStatus =
   | "CREATED"
@@ -14,12 +17,12 @@ type OrderStatus =
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
-// ✅ CREATED를 시작 상태로 포함
+// CREATED를 시작 상태로 포함
 const FLOW: OrderStatus[] = ["CREATED", "PAID", "PREPARING", "SHIPPED", "DONE"];
 
 export const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "신규",
-  NEW: "신규",
+  CREATED: "접수",
+  NEW: "접수",
   PAID: "결제완료",
   PREPARING: "준비중",
   SHIPPED: "배송중",
@@ -46,16 +49,21 @@ export default function StatusActions({
   orderId,
   initialStatus,
   onStatusChange,
+  branchId,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
   onStatusChange: (status: OrderStatus) => void;
+  branchId?: string | null;
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const searchParams = useSearchParams();
 
-  // ✅ 부모에서 내려오는 initialStatus가 바뀌면 내부 상태도 동기화
+  const resolvedBranchId = branchId ?? searchParams?.get("branchId") ?? "";
+
+  // 부모에서 내려오는 initialStatus가 바뀌면 상태 업데이트
   useEffect(() => {
     setStatus(initialStatus);
   }, [initialStatus]);
@@ -70,8 +78,9 @@ export default function StatusActions({
 
     try {
       const token = await getAccessToken();
+      const query = resolvedBranchId ? `?branchId=${encodeURIComponent(resolvedBranchId)}` : "";
 
-      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status`, {
+      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status${query}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

@@ -16,6 +16,10 @@ import {
 export class MembersService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private getClient(accessToken: string, isAdmin?: boolean) {
+    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+  }
+
   // ============================================================
   // Brand Members
   // ============================================================
@@ -23,8 +27,12 @@ export class MembersService {
   /**
    * 브랜드 멤버 목록 조회
    */
-  async getBrandMembers(accessToken: string, brandId: string): Promise<BrandMemberResponse[]> {
-    const sb = this.supabase.userClient(accessToken);
+  async getBrandMembers(
+    accessToken: string,
+    brandId: string,
+    isAdmin?: boolean,
+  ): Promise<BrandMemberResponse[]> {
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { data, error } = await sb
       .from('brand_members')
@@ -70,6 +78,7 @@ export class MembersService {
   async inviteBrandMember(
     accessToken: string,
     dto: InviteBrandMemberRequest,
+    _isAdmin?: boolean,
   ): Promise<BrandMemberResponse> {
     const sb = this.supabase.userClient(accessToken);
 
@@ -93,8 +102,9 @@ export class MembersService {
     brandId: string,
     userId: string,
     role: BrandRole = BrandRole.MEMBER,
+    isAdmin?: boolean,
   ): Promise<BrandMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     // 이미 멤버인지 확인
     const { data: existing } = await sb
@@ -144,8 +154,9 @@ export class MembersService {
     brandId: string,
     userId: string,
     dto: UpdateBrandMemberRequest,
+    isAdmin?: boolean,
   ): Promise<BrandMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const updateData: any = {};
     if (dto.role !== undefined) updateData.role = dto.role;
@@ -190,8 +201,9 @@ export class MembersService {
     accessToken: string,
     brandId: string,
     userId: string,
+    isAdmin?: boolean,
   ): Promise<{ deleted: boolean }> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { error } = await sb
       .from('brand_members')
@@ -213,8 +225,12 @@ export class MembersService {
   /**
    * 가게 멤버 목록 조회
    */
-  async getBranchMembers(accessToken: string, branchId: string): Promise<BranchMemberResponse[]> {
-    const sb = this.supabase.userClient(accessToken);
+  async getBranchMembers(
+    accessToken: string,
+    branchId: string,
+    isAdmin?: boolean,
+  ): Promise<BranchMemberResponse[]> {
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { data, error } = await sb
       .from('branch_members')
@@ -254,8 +270,9 @@ export class MembersService {
   async addBranchMember(
     accessToken: string,
     dto: AddBranchMemberRequest,
+    isAdmin?: boolean,
   ): Promise<BranchMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     // 이미 멤버인지 확인
     const { data: existing } = await sb
@@ -305,8 +322,9 @@ export class MembersService {
     branchId: string,
     userId: string,
     dto: UpdateBranchMemberRequest,
+    isAdmin?: boolean,
   ): Promise<BranchMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const updateData: any = {};
     if (dto.role !== undefined) updateData.role = dto.role;
@@ -351,8 +369,9 @@ export class MembersService {
     accessToken: string,
     branchId: string,
     userId: string,
+    isAdmin?: boolean,
   ): Promise<{ deleted: boolean }> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { error } = await sb
       .from('branch_members')

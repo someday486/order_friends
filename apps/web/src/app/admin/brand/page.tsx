@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -74,7 +74,7 @@ export default function BrandPage() {
   const [editBizRegNo, setEditBizRegNo] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 새 브랜드 추가
+  // 신규 브랜드 추가
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newBizName, setNewBizName] = useState("");
@@ -360,7 +360,7 @@ export default function BrandPage() {
                     </div>
                   </div>
 
-                  {/* ✅ 우측 버튼 영역 */}
+                  {/* 우측 버튼 영역 */}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <BrandSelectButton brandId={brand.id} />
                     <button style={btnSmall} onClick={() => startEdit(brand)}>

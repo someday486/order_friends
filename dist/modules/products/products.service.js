@@ -17,13 +17,30 @@ let ProductsService = class ProductsService {
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getProducts(accessToken, branchId) {
-        const sb = this.supabase.userClient(accessToken);
+    getClient(accessToken, isAdmin) {
+        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    }
+    getPriceFromRow(row) {
+        if (!row)
+            return 0;
+        if (row.base_price !== undefined && row.base_price !== null)
+            return row.base_price;
+        if (row.price !== undefined && row.price !== null)
+            return row.price;
+        if (row.price_amount !== undefined && row.price_amount !== null)
+            return row.price_amount;
+        return 0;
+    }
+    emptyOptions() {
+        return [];
+    }
+    async getProducts(accessToken, branchId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const selectFields = '*';
         const { data, error } = await sb
             .from('products')
-            .select('id, name, price, is_active, sort_order, created_at')
+            .select(selectFields)
             .eq('branch_id', branchId)
-            .order('sort_order', { ascending: true })
             .order('created_at', { ascending: false });
         if (error) {
             throw new Error(`[products.getProducts] ${error.message}`);
@@ -31,22 +48,18 @@ let ProductsService = class ProductsService {
         return (data ?? []).map((row) => ({
             id: row.id,
             name: row.name,
-            price: row.price ?? 0,
-            isActive: row.is_active ?? true,
-            sortOrder: row.sort_order ?? 0,
+            price: this.getPriceFromRow(row),
+            isActive: !(row.is_hidden ?? false),
+            sortOrder: 0,
             createdAt: row.created_at ?? '',
         }));
     }
-    async getProduct(accessToken, productId) {
-        const sb = this.supabase.userClient(accessToken);
+    async getProduct(accessToken, productId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const selectDetail = '*';
         const { data, error } = await sb
             .from('products')
-            .select(`
-        id, branch_id, name, description, price, is_active, sort_order, created_at, updated_at,
-        product_options (
-          id, name, price_delta, is_active, sort_order
-        )
-      `)
+            .select(selectDetail)
             .eq('id', productId)
             .single();
         if (error) {
@@ -55,38 +68,33 @@ let ProductsService = class ProductsService {
         if (!data) {
             throw new common_1.NotFoundException('상품을 찾을 수 없습니다.');
         }
-        const options = (data.product_options ?? []).map((opt) => ({
-            id: opt.id,
-            name: opt.name,
-            priceDelta: opt.price_delta ?? 0,
-            isActive: opt.is_active ?? true,
-            sortOrder: opt.sort_order ?? 0,
-        }));
+        const options = this.emptyOptions();
         return {
             id: data.id,
             branchId: data.branch_id,
             name: data.name,
             description: data.description ?? null,
-            price: data.price ?? 0,
-            isActive: data.is_active ?? true,
-            sortOrder: data.sort_order ?? 0,
+            price: this.getPriceFromRow(data),
+            isActive: !(data.is_hidden ?? false),
+            sortOrder: 0,
             createdAt: data.created_at ?? '',
             updatedAt: data.updated_at ?? '',
             options,
         };
     }
-    async createProduct(accessToken, dto) {
-        const sb = this.supabase.userClient(accessToken);
-        const { data: productData, error: productError } = await sb
-            .from('products')
-            .insert({
+    async createProduct(accessToken, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const insertPayload = {
             branch_id: dto.branchId,
             name: dto.name,
             description: dto.description ?? null,
-            price: dto.price,
-            is_active: dto.isActive ?? true,
-            sort_order: dto.sortOrder ?? 0,
-        })
+            base_price: dto.price,
+            is_hidden: !(dto.isActive ?? true),
+            is_sold_out: false,
+        };
+        const { data: productData, error: productError } = await sb
+            .from('products')
+            .insert(insertPayload)
             .select('id')
             .single();
         if (productError) {
@@ -94,41 +102,27 @@ let ProductsService = class ProductsService {
         }
         const productId = productData.id;
         if (dto.options && dto.options.length > 0) {
-            const optionsToInsert = dto.options.map((opt) => ({
-                product_id: productId,
-                name: opt.name,
-                price_delta: opt.priceDelta ?? 0,
-                is_active: opt.isActive ?? true,
-                sort_order: opt.sortOrder ?? 0,
-            }));
-            const { error: optError } = await sb
-                .from('product_options')
-                .insert(optionsToInsert);
-            if (optError) {
-                console.error('[products.createProduct] options insert error:', optError);
-            }
+            console.warn('[products.createProduct] product_options table not available; options ignored');
         }
-        return this.getProduct(accessToken, productId);
+        return this.getProduct(accessToken, productId, isAdmin);
     }
-    async updateProduct(accessToken, productId, dto) {
-        const sb = this.supabase.userClient(accessToken);
-        const updateData = {};
+    async updateProduct(accessToken, productId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const baseUpdate = {};
         if (dto.name !== undefined)
-            updateData.name = dto.name;
+            baseUpdate.name = dto.name;
         if (dto.description !== undefined)
-            updateData.description = dto.description;
-        if (dto.price !== undefined)
-            updateData.price = dto.price;
+            baseUpdate.description = dto.description;
         if (dto.isActive !== undefined)
-            updateData.is_active = dto.isActive;
-        if (dto.sortOrder !== undefined)
-            updateData.sort_order = dto.sortOrder;
-        if (Object.keys(updateData).length === 0) {
-            return this.getProduct(accessToken, productId);
+            baseUpdate.is_hidden = !dto.isActive;
+        if (dto.price !== undefined)
+            baseUpdate.base_price = dto.price;
+        if (Object.keys(baseUpdate).length === 0) {
+            return this.getProduct(accessToken, productId, isAdmin);
         }
         const { data, error } = await sb
             .from('products')
-            .update(updateData)
+            .update(baseUpdate)
             .eq('id', productId)
             .select('id')
             .maybeSingle();
@@ -136,12 +130,12 @@ let ProductsService = class ProductsService {
             throw new Error(`[products.updateProduct] ${error.message}`);
         }
         if (!data) {
-            throw new common_1.NotFoundException('상품을 찾을 수 없거나 권한이 없습니다.');
+            throw new common_1.NotFoundException('수정할 상품을 찾을 수 없습니다.');
         }
-        return this.getProduct(accessToken, productId);
+        return this.getProduct(accessToken, productId, isAdmin);
     }
-    async deleteProduct(accessToken, productId) {
-        const sb = this.supabase.userClient(accessToken);
+    async deleteProduct(accessToken, productId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { error } = await sb
             .from('products')
             .delete()

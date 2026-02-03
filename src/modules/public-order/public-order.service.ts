@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   PublicBranchResponse,
@@ -11,8 +11,16 @@ import {
 export class PublicOrderService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private getPriceFromRow(row: any): number {
+    if (!row) return 0;
+    if (row.base_price !== undefined && row.base_price !== null) return row.base_price;
+    if (row.price !== undefined && row.price !== null) return row.price;
+    if (row.price_amount !== undefined && row.price_amount !== null) return row.price_amount;
+    return 0;
+  }
+
   /**
-   * 가게 정보 조회 (퍼블릭)
+   * Get branch info (public)
    */
   async getBranch(branchId: string): Promise<PublicBranchResponse> {
     const sb = this.supabase.anonClient();
@@ -30,7 +38,7 @@ export class PublicOrderService {
       .single();
 
     if (error || !data) {
-      throw new NotFoundException('가게를 찾을 수 없습니다.');
+      throw new NotFoundException('사용할 수 없는 가게입니다.');
     }
 
     return {
@@ -41,86 +49,105 @@ export class PublicOrderService {
   }
 
   /**
-   * 가게 상품 목록 조회 (퍼블릭, 활성 상품만)
+   * Get product list (public, active only)
    */
   async getProducts(branchId: string): Promise<PublicProductResponse[]> {
     const sb = this.supabase.anonClient();
 
-    const { data, error } = await sb
-      .from('products')
-      .select(`
-        id,
-        name,
-        description,
-        price,
-        product_options (
-          id,
-          name,
-          price_delta,
-          is_active
-        )
-      `)
-      .eq('branch_id', branchId)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+    const selectFields = '*';
+
+    const buildBaseQuery = (includeIsHidden: boolean, includeIsSoldOut: boolean) => {
+      let query = (sb as any)
+        .from('products')
+        .select(selectFields)
+        .eq('branch_id', branchId);
+
+      if (includeIsHidden) {
+        query = query.eq('is_hidden', false);
+      }
+
+      if (includeIsSoldOut) {
+        query = query.eq('is_sold_out', false);
+      }
+
+      return query;
+    };
+
+    let data: any;
+    let error: any;
+    let includeIsHidden = true;
+    let includeIsSoldOut = true;
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const query = buildBaseQuery(includeIsHidden, includeIsSoldOut);
+      const orderedQuery = query.order('created_at', { ascending: false });
+      ({ data, error } = await orderedQuery);
+
+      if (!error) break;
+
+      const message = error.message ?? '';
+      let retried = false;
+
+      if (message.includes('is_hidden')) {
+        includeIsHidden = false;
+        retried = true;
+      }
+
+      if (message.includes('is_sold_out')) {
+        includeIsSoldOut = false;
+        retried = true;
+      }
+
+      if (!retried) break;
+    }
 
     if (error) {
       throw new Error(`상품 목록 조회 실패: ${error.message}`);
     }
 
-    return (data ?? []).map((product: any) => ({
+    const products = data ?? [];
+
+    return products.map((product: any) => ({
       id: product.id,
       name: product.name,
       description: product.description ?? null,
-      price: product.price ?? 0,
-      options: (product.product_options ?? [])
-        .filter((opt: any) => opt.is_active)
-        .map((opt: any) => ({
-          id: opt.id,
-          name: opt.name,
-          priceDelta: opt.price_delta ?? 0,
-        })),
+      price: this.getPriceFromRow(product),
+      options: [],
     }));
   }
 
   /**
-   * 주문 생성 (퍼블릭)
+   * Create order (public)
    */
   async createOrder(dto: CreatePublicOrderRequest): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
 
-    // 1. 상품 정보 조회 (가격 검증용)
     const productIds = dto.items.map((item) => item.productId);
-    const { data: products, error: productsError } = await sb
+    const selectProductFields = '*';
+
+    const { data: products, error: productsError } = await (sb as any)
       .from('products')
-      .select(`
-        id,
-        name,
-        price,
-        branch_id,
-        product_options (
-          id,
-          name,
-          price_delta
-        )
-      `)
+      .select(selectProductFields)
       .in('id', productIds);
 
     if (productsError) {
       throw new BadRequestException(`상품 조회 실패: ${productsError.message}`);
     }
 
-    // 상품 맵 생성
     const productMap = new Map(products?.map((p: any) => [p.id, p]) ?? []);
 
-    // 2. 브랜치 검증 - 모든 상품이 해당 가게 상품인지 확인
     for (const product of products ?? []) {
       if (product.branch_id !== dto.branchId) {
         throw new BadRequestException('다른 가게의 상품이 포함되어 있습니다.');
       }
+      if (product.is_hidden === true || product.is_sold_out === true) {
+        throw new BadRequestException('판매 중지된 상품이 포함되어 있습니다.');
+      }
+    }
+    if (dto.items.some((item) => item.options && item.options.length > 0)) {
+      throw new BadRequestException('옵션 기능이 비활성화되어 있습니다.');
     }
 
-    // 3. 주문 금액 계산 및 아이템 데이터 준비
     let subtotalAmount = 0;
     const orderItemsData: {
       product_id: string;
@@ -136,27 +163,8 @@ export class PublicOrderService {
         throw new BadRequestException(`상품을 찾을 수 없습니다: ${item.productId}`);
       }
 
-      let itemPrice = product.price;
+      let itemPrice = this.getPriceFromRow(product);
       const optionSnapshots: { product_option_id: string; option_name_snapshot: string; price_delta_snapshot: number }[] = [];
-
-      // 옵션 가격 계산
-      if (item.options && item.options.length > 0) {
-        const optionMap = new Map(
-          (product.product_options ?? []).map((o: any) => [o.id, o])
-        );
-
-        for (const opt of item.options) {
-          const optionData = optionMap.get(opt.optionId) as any;
-          if (optionData) {
-            itemPrice += optionData.price_delta ?? 0;
-            optionSnapshots.push({
-              product_option_id: optionData.id,
-              option_name_snapshot: optionData.name,
-              price_delta_snapshot: optionData.price_delta ?? 0,
-            });
-          }
-        }
-      }
 
       subtotalAmount += itemPrice * item.qty;
 
@@ -171,7 +179,6 @@ export class PublicOrderService {
 
     const totalAmount = subtotalAmount;
 
-    // 4. 주문 생성
     const { data: order, error: orderError } = await sb
       .from('orders')
       .insert({
@@ -196,7 +203,6 @@ export class PublicOrderService {
       throw new BadRequestException(`주문 생성 실패: ${orderError.message}`);
     }
 
-    // 5. 주문 아이템 생성
     const orderItemResults: { productName: string; qty: number; unitPrice: number; options: string[] }[] = [];
 
     for (const itemData of orderItemsData) {
@@ -217,7 +223,6 @@ export class PublicOrderService {
         continue;
       }
 
-      // 옵션 생성
       const optionNames: string[] = [];
       if (itemData.options && itemData.options.length > 0) {
         for (const opt of itemData.options) {
@@ -253,12 +258,11 @@ export class PublicOrderService {
   }
 
   /**
-   * 주문 조회 (퍼블릭 - ID 또는 주문번호로)
+   * Get order (public)
    */
   async getOrder(orderIdOrNo: string): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
 
-    // ID로 먼저 시도
     let { data, error } = await sb
       .from('orders')
       .select(`
@@ -279,7 +283,6 @@ export class PublicOrderService {
       .eq('id', orderIdOrNo)
       .maybeSingle();
 
-    // ID로 못 찾으면 order_no로 시도
     if (!data) {
       const result = await sb
         .from('orders')

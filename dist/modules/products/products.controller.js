@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductsController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_guard_1 = require("../../common/guards/auth.guard");
+const admin_guard_1 = require("../../common/guards/admin.guard");
 const products_service_1 = require("./products.service");
 const create_product_request_1 = require("./dto/create-product.request");
 const update_product_request_1 = require("./dto/update-product.request");
@@ -23,72 +24,77 @@ let ProductsController = class ProductsController {
     constructor(productsService) {
         this.productsService = productsService;
     }
-    async getProducts(authHeader, branchId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.productsService.getProducts(token, branchId);
+    async getProducts(req, branchId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.productsService.getProducts(req.accessToken, branchId, req.isAdmin);
     }
-    async getProduct(authHeader, productId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.productsService.getProduct(token, productId);
+    async getProduct(req, productId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.productsService.getProduct(req.accessToken, productId, req.isAdmin);
     }
-    async createProduct(authHeader, dto) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.productsService.createProduct(token, dto);
+    async createProduct(req, dto) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.productsService.createProduct(req.accessToken, dto, req.isAdmin);
     }
-    async updateProduct(authHeader, productId, dto) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.productsService.updateProduct(token, productId, dto);
+    async updateProduct(req, productId, dto) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.productsService.updateProduct(req.accessToken, productId, dto, req.isAdmin);
     }
-    async deleteProduct(authHeader, productId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.productsService.deleteProduct(token, productId);
+    async deleteProduct(req, productId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.productsService.deleteProduct(req.accessToken, productId, req.isAdmin);
     }
 };
 exports.ProductsController = ProductsController;
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('branchId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "getProducts", null);
 __decorate([
     (0, common_1.Get)(':productId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('productId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "getProduct", null);
 __decorate([
     (0, common_1.Post)(),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, create_product_request_1.CreateProductRequest]),
+    __metadata("design:paramtypes", [Object, create_product_request_1.CreateProductRequest]),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "createProduct", null);
 __decorate([
     (0, common_1.Patch)(':productId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('productId')),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, update_product_request_1.UpdateProductRequest]),
+    __metadata("design:paramtypes", [Object, String, update_product_request_1.UpdateProductRequest]),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "updateProduct", null);
 __decorate([
     (0, common_1.Delete)(':productId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('productId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "deleteProduct", null);
 exports.ProductsController = ProductsController = __decorate([
     (0, common_1.Controller)('admin/products'),
-    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard, admin_guard_1.AdminGuard),
     __metadata("design:paramtypes", [products_service_1.ProductsService])
 ], ProductsController);
 //# sourceMappingURL=products.controller.js.map

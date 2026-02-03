@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { SupabaseModule } from './infra/supabase/supabase.module';
@@ -15,6 +15,7 @@ import { PublicOrderModule } from './modules/public-order/public-order.module';
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
 import { PolicyGuard } from './common/guards/policy.guard';
+import { AdminGuard } from './common/guards/admin.guard';
 
 @Module({
   imports: [
@@ -30,6 +31,6 @@ import { PolicyGuard } from './common/guards/policy.guard';
     PublicModule,
     PublicOrderModule,
   ],
-  providers: [AuthGuard, MembershipGuard, PolicyGuard],
+  providers: [AuthGuard, MembershipGuard, PolicyGuard, AdminGuard],
 })
 export class AppModule {}

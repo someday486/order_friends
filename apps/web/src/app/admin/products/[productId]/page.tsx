@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -9,14 +9,6 @@ import { createClient } from "@/lib/supabaseClient";
 // Types
 // ============================================================
 
-type ProductOption = {
-  id?: string;
-  name: string;
-  priceDelta: number;
-  isActive: boolean;
-  sortOrder: number;
-};
-
 type ProductDetail = {
   id: string;
   branchId: string;
@@ -24,8 +16,8 @@ type ProductDetail = {
   description?: string | null;
   price: number;
   isActive: boolean;
-  sortOrder: number;
-  options: ProductOption[];
+  sortOrder?: number;
+  options?: unknown[];
 };
 
 // ============================================================
@@ -68,8 +60,6 @@ export default function ProductDetailPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState(0);
   const [isActive, setIsActive] = useState(true);
-  const [sortOrder, setSortOrder] = useState(0);
-  const [options, setOptions] = useState<ProductOption[]>([]);
 
   // 상품 상세 조회 (수정 모드)
   useEffect(() => {
@@ -99,8 +89,6 @@ export default function ProductDetailPage() {
         setDescription(data.description ?? "");
         setPrice(data.price);
         setIsActive(data.isActive);
-        setSortOrder(data.sortOrder);
-        setOptions(data.options);
       } catch (e: unknown) {
         const err = e as Error;
         setError(err?.message ?? "조회 실패");
@@ -144,8 +132,6 @@ export default function ProductDetailPage() {
             description: description || null,
             price,
             isActive,
-            sortOrder,
-            options: options.filter((o) => o.name.trim()),
           }),
         });
 
@@ -169,7 +155,6 @@ export default function ProductDetailPage() {
             description: description || null,
             price,
             isActive,
-            sortOrder,
           }),
         });
 
@@ -186,30 +171,6 @@ export default function ProductDetailPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  // 옵션 추가
-  const handleAddOption = () => {
-    setOptions([
-      ...options,
-      { name: "", priceDelta: 0, isActive: true, sortOrder: options.length },
-    ]);
-  };
-
-  // 옵션 삭제
-  const handleRemoveOption = (index: number) => {
-    setOptions(options.filter((_, i) => i !== index));
-  };
-
-  // 옵션 수정
-  const handleOptionChange = (
-    index: number,
-    field: keyof ProductOption,
-    value: string | number | boolean
-  ) => {
-    setOptions(
-      options.map((opt, i) => (i === index ? { ...opt, [field]: value } : opt))
-    );
   };
 
   // ============================================================
@@ -282,23 +243,12 @@ export default function ProductDetailPage() {
 
         {/* 가격 */}
         <div style={formGroup}>
-          <label style={label}>가격 (원)</label>
+          <label style={label}>가격(원)</label>
           <input
             type="number"
             value={price}
             onChange={(e) => setPrice(Number(e.target.value))}
             min={0}
-            style={input}
-          />
-        </div>
-
-        {/* 정렬 순서 */}
-        <div style={formGroup}>
-          <label style={label}>정렬 순서</label>
-          <input
-            type="number"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(Number(e.target.value))}
             style={input}
           />
         </div>
@@ -315,53 +265,7 @@ export default function ProductDetailPage() {
           </label>
         </div>
 
-        {/* 옵션 (등록 시에만) */}
-        {isNew && (
-          <div style={{ ...formGroup, marginTop: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <label style={label}>옵션</label>
-              <button type="button" onClick={handleAddOption} style={btnSmall}>
-                + 옵션 추가
-              </button>
-            </div>
-
-            {options.map((opt, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 100px auto",
-                  gap: 8,
-                  marginTop: 8,
-                }}
-              >
-                <input
-                  type="text"
-                  value={opt.name}
-                  onChange={(e) => handleOptionChange(idx, "name", e.target.value)}
-                  placeholder="옵션명"
-                  style={input}
-                />
-                <input
-                  type="number"
-                  value={opt.priceDelta}
-                  onChange={(e) => handleOptionChange(idx, "priceDelta", Number(e.target.value))}
-                  placeholder="추가금액"
-                  style={input}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveOption(idx)}
-                  style={{ ...btnSmall, color: "#ef4444" }}
-                >
-                  삭제
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 버튼 */}
+        {/* Buttons */}
         <div style={{ marginTop: 32, display: "flex", gap: 12 }}>
           <button onClick={handleSave} disabled={saving} style={btnPrimary}>
             {saving ? "저장 중..." : isNew ? "등록" : "저장"}

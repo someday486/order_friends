@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -8,15 +8,17 @@ import {
   Query,
   Body,
   UseGuards,
-  Headers,
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { AdminGuard } from '../../common/guards/admin.guard';
+import type { AuthRequest } from '../../common/types/auth-request';
 import { ProductsService } from './products.service';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
 
 @Controller('admin/products')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, AdminGuard)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
@@ -25,12 +27,9 @@ export class ProductsController {
    * GET /admin/products?branchId=xxx
    */
   @Get()
-  async getProducts(
-    @Headers('authorization') authHeader: string,
-    @Query('branchId') branchId: string,
-  ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.productsService.getProducts(token, branchId);
+  async getProducts(@Req() req: AuthRequest, @Query('branchId') branchId: string) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.getProducts(req.accessToken, branchId, req.isAdmin);
   }
 
   /**
@@ -38,12 +37,9 @@ export class ProductsController {
    * GET /admin/products/:productId
    */
   @Get(':productId')
-  async getProduct(
-    @Headers('authorization') authHeader: string,
-    @Param('productId') productId: string,
-  ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.productsService.getProduct(token, productId);
+  async getProduct(@Req() req: AuthRequest, @Param('productId') productId: string) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.getProduct(req.accessToken, productId, req.isAdmin);
   }
 
   /**
@@ -51,12 +47,9 @@ export class ProductsController {
    * POST /admin/products
    */
   @Post()
-  async createProduct(
-    @Headers('authorization') authHeader: string,
-    @Body() dto: CreateProductRequest,
-  ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.productsService.createProduct(token, dto);
+  async createProduct(@Req() req: AuthRequest, @Body() dto: CreateProductRequest) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.createProduct(req.accessToken, dto, req.isAdmin);
   }
 
   /**
@@ -65,12 +58,12 @@ export class ProductsController {
    */
   @Patch(':productId')
   async updateProduct(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('productId') productId: string,
     @Body() dto: UpdateProductRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.productsService.updateProduct(token, productId, dto);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.updateProduct(req.accessToken, productId, dto, req.isAdmin);
   }
 
   /**
@@ -78,11 +71,8 @@ export class ProductsController {
    * DELETE /admin/products/:productId
    */
   @Delete(':productId')
-  async deleteProduct(
-    @Headers('authorization') authHeader: string,
-    @Param('productId') productId: string,
-  ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.productsService.deleteProduct(token, productId);
+  async deleteProduct(@Req() req: AuthRequest, @Param('productId') productId: string) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.deleteProduct(req.accessToken, productId, req.isAdmin);
   }
 }

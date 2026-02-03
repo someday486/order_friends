@@ -7,9 +7,9 @@ export declare class OrdersService {
     constructor(supabase: SupabaseService);
     private isUuid;
     private resolveOrderId;
-    getOrders(accessToken: string): Promise<OrderListItemResponse[]>;
-    getOrder(accessToken: string, orderId: string): Promise<OrderDetailResponse>;
-    updateStatus(accessToken: string, orderId: string, status: OrderStatus): Promise<{
+    getOrders(accessToken: string, branchId: string): Promise<OrderListItemResponse[]>;
+    getOrder(accessToken: string, orderId: string, branchId: string): Promise<OrderDetailResponse>;
+    updateStatus(accessToken: string, orderId: string, status: OrderStatus, branchId: string): Promise<{
         id: any;
         orderNo: any;
         status: OrderStatus;

@@ -18,4 +18,11 @@ export class UpdateBranchRequest {
   @IsString()
   @IsOptional()
   name?: string;
+
+  @IsString()
+  @IsOptional()
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'slug는 소문자, 숫자, 하이픈(-)만 허용합니다.',
+  })
+  slug?: string;
 }

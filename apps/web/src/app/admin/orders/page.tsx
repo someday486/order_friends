@@ -1,8 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
+import BranchSelector from "@/components/admin/BranchSelector";
 
 // ============================================================
 // Types
@@ -34,23 +37,23 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
 
 const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
-  { value: "CREATED", label: "신규" },
-  { value: "CONFIRMED", label: "확인됨" },
+  { value: "CREATED", label: "접수" },
+  { value: "CONFIRMED", label: "확인" },
   { value: "PREPARING", label: "준비중" },
   { value: "READY", label: "준비완료" },
   { value: "COMPLETED", label: "완료" },
-  { value: "CANCELLED", label: "취소됨" },
-  { value: "REFUNDED", label: "환불됨" },
+  { value: "CANCELLED", label: "취소" },
+  { value: "REFUNDED", label: "환불" },
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "신규",
-  CONFIRMED: "확인됨",
+  CREATED: "접수",
+  CONFIRMED: "확인",
   PREPARING: "준비중",
   READY: "준비완료",
   COMPLETED: "완료",
-  CANCELLED: "취소됨",
-  REFUNDED: "환불됨",
+  CANCELLED: "취소",
+  REFUNDED: "환불",
 };
 
 const statusColor: Record<OrderStatus, string> = {
@@ -97,26 +100,40 @@ function formatDateTime(iso: string) {
 // ============================================================
 
 export default function OrdersPage() {
+  const searchParams = useSearchParams();
+  const initialBranchId = useMemo(
+    () => searchParams?.get("branchId") ?? "",
+    [searchParams]
+  );
+
+  const { branchId, selectBranch } = useSelectedBranch();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
 
-  // 주문 목록 조회
   useEffect(() => {
-    const fetchOrders = async () => {
+    if (initialBranchId) selectBranch(initialBranchId);
+  }, [initialBranchId, selectBranch]);
+
+  useEffect(() => {
+    const fetchOrders = async (bid: string) => {
       try {
         setLoading(true);
         setErr(null);
 
         const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/admin/orders`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const res = await fetch(
+          `${API_BASE}/admin/orders?branchId=${encodeURIComponent(bid)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (!res.ok) {
           const text = await res.text().catch(() => "");
@@ -133,10 +150,14 @@ export default function OrdersPage() {
       }
     };
 
-    fetchOrders();
-  }, []);
+    if (!branchId) {
+      setOrders([]);
+      return;
+    }
 
-  // 필터링
+    fetchOrders(branchId);
+  }, [branchId]);
+
   useEffect(() => {
     if (statusFilter === "ALL") {
       setFilteredOrders(orders);
@@ -145,19 +166,22 @@ export default function OrdersPage() {
     }
   }, [orders, statusFilter]);
 
-  // 새로고침
   const handleRefresh = async () => {
+    if (!branchId) return;
     try {
       setLoading(true);
       setErr(null);
 
       const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/admin/orders`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        `${API_BASE}/admin/orders?branchId=${encodeURIComponent(branchId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -183,6 +207,8 @@ export default function OrdersPage() {
           alignItems: "center",
           justifyContent: "space-between",
           marginBottom: 16,
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
         <div>
@@ -192,9 +218,16 @@ export default function OrdersPage() {
           </p>
         </div>
 
-        <button style={btnPrimary} onClick={handleRefresh} disabled={loading}>
-          {loading ? "로딩..." : "새로고침"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <BranchSelector />
+          <button
+            style={btnPrimary}
+            onClick={handleRefresh}
+            disabled={loading || !branchId}
+          >
+            {loading ? "로딩..." : "조회"}
+          </button>
+        </div>
       </div>
 
       {/* Filter */}
@@ -216,6 +249,11 @@ export default function OrdersPage() {
 
       {/* Error */}
       {err && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{err}</p>}
+      {!branchId && (
+        <p style={{ color: "#666", marginBottom: 16 }}>
+          가게를 선택하면 주문 목록이 표시됩니다.
+        </p>
+      )}
 
       {/* Table */}
       <div
@@ -244,7 +282,7 @@ export default function OrdersPage() {
               </tr>
             )}
 
-            {!loading && filteredOrders.length === 0 && (
+            {!loading && filteredOrders.length === 0 && branchId && (
               <tr>
                 <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
                   주문이 없습니다.
@@ -254,13 +292,10 @@ export default function OrdersPage() {
 
             {!loading &&
               filteredOrders.map((order) => (
-                <tr
-                  key={order.id}
-                  style={{ borderTop: "1px solid #222", cursor: "pointer" }}
-                >
+                <tr key={order.id} style={{ borderTop: "1px solid #222", cursor: "pointer" }}>
                   <td style={td}>
                     <Link
-                      href={`/admin/orders/${order.id}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
                       style={{ color: "white", textDecoration: "none" }}
                     >
                       {order.orderNo ?? order.id.slice(0, 8)}
@@ -268,7 +303,7 @@ export default function OrdersPage() {
                   </td>
                   <td style={td}>
                     <Link
-                      href={`/admin/orders/${order.id}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
                       style={{ color: "white", textDecoration: "none" }}
                     >
                       {order.customerName || "-"}
@@ -293,7 +328,7 @@ export default function OrdersPage() {
                   </td>
                   <td style={{ ...td, textAlign: "right" }}>
                     <Link
-                      href={`/admin/orders/${order.id}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
                       style={{ color: "white", textDecoration: "none" }}
                     >
                       {formatWon(order.totalAmount)}
@@ -301,7 +336,7 @@ export default function OrdersPage() {
                   </td>
                   <td style={{ ...td, color: "#aaa" }}>
                     <Link
-                      href={`/admin/orders/${order.id}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
                       style={{ color: "#aaa", textDecoration: "none" }}
                     >
                       {formatDateTime(order.orderedAt)}

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   BrandListItemResponse,
@@ -11,10 +11,37 @@ import {
 export class BrandsService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private getClient(accessToken: string, isAdmin?: boolean) {
+    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+  }
+
   /**
-   * 내가 소속된 브랜드 목록 조회 (RLS 적용: userClient)
+   * 내 소속 브랜드 목록 조회
    */
-  async getMyBrands(accessToken: string): Promise<BrandListItemResponse[]> {
+  async getMyBrands(
+    accessToken: string,
+    isAdmin?: boolean,
+  ): Promise<BrandListItemResponse[]> {
+    if (isAdmin) {
+      const sb = this.supabase.adminClient();
+      const { data, error } = await sb
+        .from('brands')
+        .select('id, name, biz_name, biz_reg_no, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`[brands.getMyBrands] ${error.message}`);
+      }
+
+      return (data ?? []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        bizName: row.biz_name ?? null,
+        bizRegNo: row.biz_reg_no ?? null,
+        createdAt: row.created_at ?? '',
+      }));
+    }
+
     const sb = this.supabase.userClient(accessToken);
 
     const { data, error } = await sb
@@ -45,10 +72,14 @@ export class BrandsService {
   }
 
   /**
-   * 브랜드 상세 조회 (RLS 적용: userClient)
+   * 브랜드 상세 조회
    */
-  async getBrand(accessToken: string, brandId: string): Promise<BrandDetailResponse> {
-    const sb = this.supabase.userClient(accessToken);
+  async getBrand(
+    accessToken: string,
+    brandId: string,
+    isAdmin?: boolean,
+  ): Promise<BrandDetailResponse> {
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { data, error } = await sb
       .from('brands')
@@ -57,7 +88,6 @@ export class BrandsService {
       .single();
 
     if (error) {
-      // RLS 때문에 "권한 없음"도 select 결과가 없거나 에러로 올 수 있어 NotFound로 통일
       throw new NotFoundException(`[brands.getBrand] ${error.message}`);
     }
 
@@ -75,18 +105,19 @@ export class BrandsService {
     };
   }
 
-
   /**
-   * 브랜드 생성 (쓰기: adminClient로 RLS bypass)
-   *
-   * - userClient로 현재 유저 확인(auth.getUser)
-   * - (중요) profiles row 보장 (brand_members FK 때문에 필요)
-   * - brands insert + brand_members insert 는 adminClient로 실행
+   * 브랜드 생성
+   * - profiles row 보장 (brand_members FK 필요)
+   * - brands insert + brand_members insert 는 adminClient로 수행
    */
-  async createBrand(accessToken: string, dto: CreateBrandRequest): Promise<BrandDetailResponse> {
+  async createBrand(
+    accessToken: string,
+    dto: CreateBrandRequest,
+    _isAdmin?: boolean,
+  ): Promise<BrandDetailResponse> {
     const userSb = this.supabase.userClient(accessToken);
 
-    // 0) 현재 사용자 ID 가져오기
+    // 0) 현재 사용자 확인
     const { data: userData, error: userError } = await userSb.auth.getUser();
     if (userError || !userData.user) {
       throw new ForbiddenException('사용자 정보를 가져올 수 없습니다.');
@@ -95,7 +126,7 @@ export class BrandsService {
 
     const adminSb = this.supabase.adminClient();
 
-    // 1) profiles row 보장 (없으면 brand_members insert에서 FK 터짐)
+    // 1) profiles row 보장
     const { error: profileErr } = await adminSb
       .from('profiles')
       .upsert({ id: userId }, { onConflict: 'id' });
@@ -120,7 +151,7 @@ export class BrandsService {
       throw new Error(`[brands.createBrand] brand insert: ${brandError?.message ?? 'unknown'}`);
     }
 
-    // 3) brand_members insert (OWNER) (RLS bypass)
+    // 3) brand_members insert (OWNER)
     const { error: memberError } = await adminSb.from('brand_members').insert({
       brand_id: brand.id,
       user_id: userId,
@@ -129,7 +160,6 @@ export class BrandsService {
     });
 
     if (memberError) {
-      // 중간 실패 시 브랜드만 남는 상태 방지 (간이 롤백)
       await adminSb.from('brands').delete().eq('id', brand.id);
       throw new Error(`[brands.createBrand] member insert: ${memberError.message}`);
     }
@@ -144,64 +174,49 @@ export class BrandsService {
     };
   }
 
-
   /**
-   * 브랜드 수정 (쓰기: adminClient)
-   *
-   * 권한 모델이 확정되기 전이라도 최소한의 안전장치:
-   * - userClient로 로그인 유저 확인
-   * - 해당 유저가 ACTIVE 멤버인지(또는 OWNER/ADMIN인지) 확인 후 update
-   *
-   * 지금 RLS가 "쓰기 차단"이라서 userClient로 update하면 실패할 가능성이 크므로 adminClient로 수행.
+   * 브랜드 수정
    */
   async updateBrand(
     accessToken: string,
     brandId: string,
     dto: UpdateBrandRequest,
+    isAdmin?: boolean,
   ): Promise<BrandDetailResponse> {
-    const userSb = this.supabase.userClient(accessToken);
-
-    // 1) 로그인 유저 확인
-    const { data: userData, error: userError } = await userSb.auth.getUser();
-    if (userError || !userData.user) {
-      throw new ForbiddenException('사용자 정보를 가져올 수 없습니다.');
-    }
-    const userId = userData.user.id;
-
-    // 2) update payload 구성
+    // 1) update payload 구성
     const updateData: any = {};
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.bizName !== undefined) updateData.biz_name = dto.bizName;
     if (dto.bizRegNo !== undefined) updateData.biz_reg_no = dto.bizRegNo;
 
     if (Object.keys(updateData).length === 0) {
-      return this.getBrand(accessToken, brandId);
+      return this.getBrand(accessToken, brandId, isAdmin);
     }
 
     const adminSb = this.supabase.adminClient();
 
-    // 3) 최소 권한 체크: brand_members에서 ACTIVE인지 확인
-    //    (원하면 role OWNER/ADMIN까지 체크하도록 강화 가능)
-    const { data: membership, error: memError } = await adminSb
-      .from('brand_members')
-      .select('role, status')
-      .eq('brand_id', brandId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    if (!isAdmin) {
+      const userSb = this.supabase.userClient(accessToken);
+      const { data: userData, error: userError } = await userSb.auth.getUser();
+      if (userError || !userData.user) {
+        throw new ForbiddenException('사용자 정보를 가져올 수 없습니다.');
+      }
 
-    if (memError) {
-      throw new Error(`[brands.updateBrand] membership check: ${memError.message}`);
+      const { data: membership, error: memError } = await adminSb
+        .from('brand_members')
+        .select('role, status')
+        .eq('brand_id', brandId)
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
+
+      if (memError) {
+        throw new Error(`[brands.updateBrand] membership check: ${memError.message}`);
+      }
+      if (!membership || membership.status !== 'ACTIVE') {
+        throw new ForbiddenException('브랜드 수정 권한이 없습니다.');
+      }
     }
-    if (!membership || membership.status !== 'ACTIVE') {
-      throw new ForbiddenException('브랜드 수정 권한이 없습니다.');
-    }
 
-    // 권한을 더 엄격히 하고 싶으면 아래 주석 해제
-    // if (!['OWNER', 'ADMIN'].includes(membership.role)) {
-    //   throw new ForbiddenException('브랜드 수정 권한이 없습니다.');
-    // }
-
-    // 4) update (RLS bypass)
     const { data, error } = await adminSb
       .from('brands')
       .update(updateData)
@@ -228,42 +243,36 @@ export class BrandsService {
   }
 
   /**
-   * 브랜드 삭제 (쓰기: adminClient)
-   *
-   * - 로그인 유저 확인
-   * - 최소 권한 체크(멤버십 + 필요시 OWNER만)
-   * - adminClient로 delete
+   * 브랜드 삭제
    */
-  async deleteBrand(accessToken: string, brandId: string): Promise<{ deleted: boolean }> {
-    const userSb = this.supabase.userClient(accessToken);
-
-    const { data: userData, error: userError } = await userSb.auth.getUser();
-    if (userError || !userData.user) {
-      throw new ForbiddenException('사용자 정보를 가져올 수 없습니다.');
-    }
-    const userId = userData.user.id;
-
+  async deleteBrand(
+    accessToken: string,
+    brandId: string,
+    isAdmin?: boolean,
+  ): Promise<{ deleted: boolean }> {
     const adminSb = this.supabase.adminClient();
 
-    // 권한 체크 (기본: ACTIVE 멤버)
-    const { data: membership, error: memError } = await adminSb
-      .from('brand_members')
-      .select('role, status')
-      .eq('brand_id', brandId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    if (!isAdmin) {
+      const userSb = this.supabase.userClient(accessToken);
+      const { data: userData, error: userError } = await userSb.auth.getUser();
+      if (userError || !userData.user) {
+        throw new ForbiddenException('사용자 정보를 가져올 수 없습니다.');
+      }
 
-    if (memError) {
-      throw new Error(`[brands.deleteBrand] membership check: ${memError.message}`);
-    }
-    if (!membership || membership.status !== 'ACTIVE') {
-      throw new ForbiddenException('브랜드 삭제 권한이 없습니다.');
-    }
+      const { data: membership, error: memError } = await adminSb
+        .from('brand_members')
+        .select('role, status')
+        .eq('brand_id', brandId)
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
 
-    // 보통 삭제는 OWNER만 허용하는 게 안전. 필요시 주석 해제.
-    // if (membership.role !== 'OWNER') {
-    //   throw new ForbiddenException('브랜드 삭제는 OWNER만 가능합니다.');
-    // }
+      if (memError) {
+        throw new Error(`[brands.deleteBrand] membership check: ${memError.message}`);
+      }
+      if (!membership || membership.status !== 'ACTIVE') {
+        throw new ForbiddenException('브랜드 삭제 권한이 없습니다.');
+      }
+    }
 
     const { error } = await adminSb.from('brands').delete().eq('id', brandId);
 

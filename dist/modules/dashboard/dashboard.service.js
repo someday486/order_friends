@@ -17,26 +17,50 @@ let DashboardService = class DashboardService {
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getStats(accessToken) {
-        const sb = this.supabase.userClient(accessToken);
+    getClient(accessToken, isAdmin) {
+        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    }
+    async getStats(accessToken, brandId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayISO = today.toISOString();
+        const { data: branchRows, error: branchError } = await sb
+            .from('branches')
+            .select('id')
+            .eq('brand_id', brandId);
+        if (branchError) {
+            throw new Error(`[dashboard.getStats] ${branchError.message}`);
+        }
+        const branchIds = (branchRows ?? []).map((row) => row.id).filter(Boolean);
+        if (branchIds.length === 0) {
+            return {
+                totalOrders: 0,
+                pendingOrders: 0,
+                todayOrders: 0,
+                totalProducts: 0,
+                totalBranches: 0,
+                recentOrders: [],
+            };
+        }
         const [totalOrdersResult, pendingOrdersResult, todayOrdersResult, totalProductsResult, totalBranchesResult, recentOrdersResult,] = await Promise.all([
-            sb.from('orders').select('id', { count: 'exact', head: true }),
+            sb.from('orders').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
             sb
                 .from('orders')
                 .select('id', { count: 'exact', head: true })
-                .in('status', ['CREATED', 'CONFIRMED', 'PREPARING']),
+                .in('status', ['CREATED', 'CONFIRMED', 'PREPARING'])
+                .in('branch_id', branchIds),
             sb
                 .from('orders')
                 .select('id', { count: 'exact', head: true })
-                .gte('created_at', todayISO),
-            sb.from('products').select('id', { count: 'exact', head: true }),
-            sb.from('branches').select('id', { count: 'exact', head: true }),
+                .gte('created_at', todayISO)
+                .in('branch_id', branchIds),
+            sb.from('products').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
+            sb.from('branches').select('id', { count: 'exact', head: true }).eq('brand_id', brandId),
             sb
                 .from('orders')
                 .select('id, order_no, status, total_amount, created_at')
+                .in('branch_id', branchIds)
                 .order('created_at', { ascending: false })
                 .limit(5),
         ]);

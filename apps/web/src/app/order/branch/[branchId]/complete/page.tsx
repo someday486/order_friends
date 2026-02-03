@@ -77,7 +77,7 @@ export default function CompletePage() {
       <div style={pageContainer}>
         <div style={{ padding: 40, textAlign: "center" }}>
           <p style={{ color: "#aaa" }}>주문 정보를 찾을 수 없습니다.</p>
-          <Link href={`/order/${branchId}`} style={linkStyle}>
+          <Link href={`/order/branch/${branchId}`} style={linkStyle}>
             메뉴로 돌아가기
           </Link>
         </div>
@@ -143,7 +143,7 @@ export default function CompletePage() {
           <button style={primaryBtn}>주문 상태 확인</button>
         </Link>
 
-        <Link href={`/order/${branchId}`} style={{ textDecoration: "none" }}>
+        <Link href={`/order/branch/${branchId}`} style={{ textDecoration: "none" }}>
           <button style={ghostBtn}>메뉴로 돌아가기</button>
         </Link>
       </div>

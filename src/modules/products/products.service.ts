@@ -4,6 +4,7 @@ import { ProductListItemResponse } from './dto/product-list.response';
 import { ProductDetailResponse, ProductOptionResponse } from './dto/product-detail.response';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
+import { ProductCategoryResponse } from './dto/product-category.response';
 
 @Injectable()
 export class ProductsService {
@@ -57,6 +58,37 @@ export class ProductsService {
   }
 
   /**
+   * 상품 카테고리 목록
+   */
+  async getCategories(
+    accessToken: string,
+    branchId: string,
+    isAdmin?: boolean,
+  ): Promise<ProductCategoryResponse[]> {
+    const sb = this.getClient(accessToken, isAdmin);
+
+    const { data, error } = await sb
+      .from('product_categories')
+      .select('*')
+      .eq('branch_id', branchId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`[products.getCategories] ${error.message}`);
+    }
+
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      branchId: row.branch_id,
+      name: row.name,
+      sortOrder: row.sort_order ?? 0,
+      isActive: row.is_active ?? true,
+      createdAt: row.created_at ?? '',
+    }));
+  }
+
+  /**
    * 상품 상세
    */
   async getProduct(
@@ -87,8 +119,10 @@ export class ProductsService {
       id: data.id,
       branchId: data.branch_id,
       name: data.name,
+      categoryId: data.category_id ?? null,
       description: data.description ?? null,
       price: this.getPriceFromRow(data),
+      imageUrl: data.image_url ?? null,
       isActive: !(data.is_hidden ?? false),
       sortOrder: 0,
       createdAt: data.created_at ?? '',
@@ -109,8 +143,10 @@ export class ProductsService {
     const insertPayload: any = {
       branch_id: dto.branchId,
       name: dto.name,
+      category_id: dto.categoryId,
       description: dto.description ?? null,
       base_price: dto.price,
+      image_url: dto.imageUrl ?? null,
       is_hidden: !(dto.isActive ?? true),
       is_sold_out: false,
     };
@@ -150,6 +186,8 @@ export class ProductsService {
     if (dto.description !== undefined) baseUpdate.description = dto.description;
     if (dto.isActive !== undefined) baseUpdate.is_hidden = !dto.isActive;
     if (dto.price !== undefined) baseUpdate.base_price = dto.price;
+    if (dto.categoryId !== undefined) baseUpdate.category_id = dto.categoryId;
+    if (dto.imageUrl !== undefined) baseUpdate.image_url = dto.imageUrl;
 
     if (Object.keys(baseUpdate).length === 0) {
       return this.getProduct(accessToken, productId, isAdmin);

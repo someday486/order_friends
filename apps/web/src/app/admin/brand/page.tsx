@@ -33,6 +33,7 @@ export function BrandSelectButton({ brandId }: { brandId: string }) {
 type Brand = {
   id: string;
   name: string;
+  slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
   createdAt: string;
@@ -70,6 +71,7 @@ export default function BrandPage() {
   // 수정 모드
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editSlug, setEditSlug] = useState("");
   const [editBizName, setEditBizName] = useState("");
   const [editBizRegNo, setEditBizRegNo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -77,9 +79,12 @@ export default function BrandPage() {
   // 신규 브랜드 추가
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newSlugTouched, setNewSlugTouched] = useState(false);
   const [newBizName, setNewBizName] = useState("");
   const [newBizRegNo, setNewBizRegNo] = useState("");
   const [adding, setAdding] = useState(false);
+  const [autoKoreanSlug, setAutoKoreanSlug] = useState("");
 
   // 브랜드 목록 조회
   const fetchBrands = async () => {
@@ -127,6 +132,7 @@ export default function BrandPage() {
         },
         body: JSON.stringify({
           name: newName,
+          slug: newSlug || null,
           bizName: newBizName || null,
           bizRegNo: newBizRegNo || null,
         }),
@@ -139,6 +145,9 @@ export default function BrandPage() {
 
       await fetchBrands();
       setNewName("");
+      setNewSlug("");
+      setNewSlugTouched(false);
+      setAutoKoreanSlug("");
       setNewBizName("");
       setNewBizRegNo("");
       setShowAddForm(false);
@@ -154,8 +163,54 @@ export default function BrandPage() {
   const startEdit = (brand: Brand) => {
     setEditingId(brand.id);
     setEditName(brand.name);
+    setEditSlug(brand.slug ?? "");
     setEditBizName(brand.bizName ?? "");
     setEditBizRegNo(brand.bizRegNo ?? "");
+  };
+
+  const isKorean = (value: string) => /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(value);
+
+  const slugifyEnglish = (value: string) =>
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const generateRandomSlug = (prefix = "brand-", length = 6) => {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    const bytes = new Uint8Array(length);
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+      crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    let out = "";
+    for (let i = 0; i < length; i += 1) {
+      out += chars[bytes[i] % chars.length];
+    }
+    return `${prefix}${out}`;
+  };
+
+  const getAutoSlug = (name: string) => {
+    if (!name.trim()) return "";
+    if (isKorean(name)) {
+      if (autoKoreanSlug) return autoKoreanSlug;
+      const next = generateRandomSlug();
+      setAutoKoreanSlug(next);
+      return next;
+    }
+    setAutoKoreanSlug("");
+    return slugifyEnglish(name);
+  };
+
+  const handleNewNameChange = (value: string) => {
+    setNewName(value);
+    if (!newSlugTouched) {
+      setNewSlug(getAutoSlug(value));
+    }
   };
 
   // 수정 저장
@@ -175,6 +230,7 @@ export default function BrandPage() {
         },
         body: JSON.stringify({
           name: editName,
+          slug: editSlug || null,
           bizName: editBizName || null,
           bizRegNo: editBizRegNo || null,
         }),
@@ -257,10 +313,26 @@ export default function BrandPage() {
             <input
               type="text"
               value={newName}
-              onChange={(e) => setNewName(e.target.value)}
+              onChange={(e) => handleNewNameChange(e.target.value)}
               placeholder="브랜드 이름"
               style={input}
             />
+          </div>
+          <div style={formGroup}>
+            <label style={label}>브랜드 URL (slug)</label>
+            <input
+              type="text"
+              value={newSlug}
+              onChange={(e) => {
+                setNewSlug(e.target.value);
+                setNewSlugTouched(true);
+              }}
+              placeholder="예) orderfriends"
+              style={input}
+            />
+            <div style={{ color: "#666", fontSize: 11, marginTop: 4 }}>
+              영어는 자동으로 소문자/하이픈 처리되고, 한글은 랜덤으로 생성됩니다.
+            </div>
           </div>
           <div style={formGroup}>
             <label style={label}>사업자명</label>
@@ -318,6 +390,16 @@ export default function BrandPage() {
                     />
                   </div>
                   <div style={formGroup}>
+                    <label style={label}>브랜드 URL (slug)</label>
+                    <input
+                      type="text"
+                      value={editSlug}
+                      onChange={(e) => setEditSlug(e.target.value)}
+                      placeholder="예) orderfriends"
+                      style={input}
+                    />
+                  </div>
+                  <div style={formGroup}>
                     <label style={label}>사업자명</label>
                     <input
                       type="text"
@@ -349,6 +431,11 @@ export default function BrandPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 16 }}>{brand.name}</div>
+                    {brand.slug && (
+                      <div style={{ color: "#aaa", fontSize: 12, marginTop: 4 }}>
+                        슬러그: {brand.slug}
+                      </div>
+                    )}
                     {brand.bizName && (
                       <div style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>
                         {brand.bizName}

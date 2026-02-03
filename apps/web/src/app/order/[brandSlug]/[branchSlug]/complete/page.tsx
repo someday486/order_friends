@@ -44,11 +44,11 @@ function formatDateTime(iso: string) {
 const statusLabel: Record<string, string> = {
   CREATED: "주문 접수",
   CONFIRMED: "주문 확인",
-  PREPARING: "준비 중",
-  READY: "준비 완료",
+  PREPARING: "준비중",
+  READY: "준비완료",
   COMPLETED: "완료",
-  CANCELLED: "취소됨",
-  REFUNDED: "환불됨",
+  CANCELLED: "취소",
+  REFUNDED: "환불",
 };
 
 // ============================================================
@@ -57,7 +57,8 @@ const statusLabel: Record<string, string> = {
 
 export default function CompletePage() {
   const params = useParams();
-  const branchId = params?.branchId as string;
+  const brandSlug = params?.brandSlug as string;
+  const branchSlug = params?.branchSlug as string;
 
   const [order, setOrder] = useState<OrderResult | null>(null);
 
@@ -77,7 +78,7 @@ export default function CompletePage() {
       <div style={pageContainer}>
         <div style={{ padding: 40, textAlign: "center" }}>
           <p style={{ color: "#aaa" }}>주문 정보를 찾을 수 없습니다.</p>
-          <Link href={`/order/${branchId}`} style={linkStyle}>
+          <Link href={`/order/${brandSlug}/${branchSlug}`} style={linkStyle}>
             메뉴로 돌아가기
           </Link>
         </div>
@@ -88,18 +89,13 @@ export default function CompletePage() {
   return (
     <div style={pageContainer}>
       <div style={{ padding: 24, textAlign: "center" }}>
-        {/* Success Icon */}
-        <div style={{ fontSize: 60, marginBottom: 16 }}>✅</div>
-
+        <div style={{ fontSize: 40, marginBottom: 12 }}>완료</div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px 0" }}>
-          주문이 완료되었습니다!
+          주문이 완료되었습니다.
         </h1>
-        <p style={{ color: "#aaa", margin: 0 }}>
-          주문 번호를 확인해주세요.
-        </p>
+        <p style={{ color: "#aaa", margin: 0 }}>주문 번호를 확인해 주세요.</p>
       </div>
 
-      {/* Order Info */}
       <div style={orderCard}>
         <div style={infoRow}>
           <span style={{ color: "#888" }}>주문번호</span>
@@ -126,24 +122,26 @@ export default function CompletePage() {
         </div>
       </div>
 
-      {/* Order Items */}
       <div style={{ padding: "0 16px" }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: "#888", marginBottom: 8 }}>주문 내역</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "#888", marginBottom: 8 }}>
+          주문 내역
+        </h3>
         {order.items.map((item, idx) => (
           <div key={idx} style={itemRow}>
-            <span>{item.name} × {item.qty}</span>
+            <span>
+              {item.name} x {item.qty}
+            </span>
             <span style={{ color: "#aaa" }}>{formatWon(item.unitPrice * item.qty)}</span>
           </div>
         ))}
       </div>
 
-      {/* Actions */}
       <div style={{ padding: 16, marginTop: 24 }}>
         <Link href={`/order/track/${order.id}`} style={{ textDecoration: "none" }}>
           <button style={primaryBtn}>주문 상태 확인</button>
         </Link>
 
-        <Link href={`/order/${branchId}`} style={{ textDecoration: "none" }}>
+        <Link href={`/order/${brandSlug}/${branchSlug}`} style={{ textDecoration: "none" }}>
           <button style={ghostBtn}>메뉴로 돌아가기</button>
         </Link>
       </div>

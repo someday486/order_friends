@@ -50,13 +50,14 @@ function formatWon(amount: number) {
 export default function CheckoutPage() {
   const params = useParams();
   const router = useRouter();
-  const branchId = params?.branchId as string;
+  const brandSlug = params?.brandSlug as string;
+  const branchSlug = params?.branchSlug as string;
 
+  const [branchId, setBranchId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 고객 정보
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress1, setCustomerAddress1] = useState("");
@@ -64,30 +65,41 @@ export default function CheckoutPage() {
   const [customerMemo, setCustomerMemo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CARD" | "TRANSFER" | "CASH">("CARD");
 
-  // 장바구니 로드
   useEffect(() => {
     const savedCart = sessionStorage.getItem("orderCart");
     const savedBranchId = sessionStorage.getItem("orderBranchId");
+    const savedBrandSlug = sessionStorage.getItem("orderBrandSlug");
+    const savedBranchSlug = sessionStorage.getItem("orderBranchSlug");
 
-    if (!savedCart || savedBranchId !== branchId) {
-      router.replace(`/order/${branchId}`);
+    if (
+      !savedCart ||
+      !savedBranchId ||
+      savedBrandSlug !== brandSlug ||
+      savedBranchSlug !== branchSlug
+    ) {
+      router.replace(`/order/${brandSlug}/${branchSlug}`);
       return;
     }
+
+    setBranchId(savedBranchId);
 
     try {
       setCart(JSON.parse(savedCart));
     } catch {
-      router.replace(`/order/${branchId}`);
+      router.replace(`/order/${brandSlug}/${branchSlug}`);
     }
-  }, [branchId, router]);
+  }, [brandSlug, branchSlug, router]);
 
-  // 총액 계산
   const totalAmount = cart.reduce((sum, item) => sum + item.itemPrice * item.qty, 0);
 
-  // 주문 제출
   const handleSubmit = async () => {
     if (!customerName.trim()) {
-      alert("이름을 입력해주세요.");
+      alert("이름을 입력해 주세요.");
+      return;
+    }
+
+    if (!branchId) {
+      setError("가게 정보를 불러올 수 없습니다.");
       return;
     }
 
@@ -125,13 +137,13 @@ export default function CheckoutPage() {
 
       const result = await res.json();
 
-      // 장바구니 클리어
       sessionStorage.removeItem("orderCart");
       sessionStorage.removeItem("orderBranchId");
+      sessionStorage.removeItem("orderBrandSlug");
+      sessionStorage.removeItem("orderBranchSlug");
 
-      // 완료 페이지로 이동
       sessionStorage.setItem("lastOrder", JSON.stringify(result));
-      router.push(`/order/${branchId}/complete`);
+      router.push(`/order/${brandSlug}/${branchSlug}/complete`);
     } catch (e: unknown) {
       setError((e as Error)?.message ?? "주문 중 오류가 발생했습니다.");
     } finally {
@@ -139,30 +151,29 @@ export default function CheckoutPage() {
     }
   };
 
-  // ============================================================
-  // Render
-  // ============================================================
-
   if (cart.length === 0) {
     return (
       <div style={pageContainer}>
-        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>장바구니가 비어있습니다.</p>
+        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>
+          장바구니가 비어 있습니다.
+        </p>
       </div>
     );
   }
 
   return (
     <div style={pageContainer}>
-      {/* Header */}
       <header style={header}>
-        <Link href={`/order/${branchId}`} style={{ color: "#fff", textDecoration: "none" }}>
-          ← 돌아가기
+        <Link
+          href={`/order/${brandSlug}/${branchSlug}`}
+          style={{ color: "#fff", textDecoration: "none" }}
+        >
+          ← 뒤로
         </Link>
-        <h1 style={{ margin: "12px 0 0 0", fontSize: 20, fontWeight: 700 }}>주문서 작성</h1>
+        <h1 style={{ margin: "12px 0 0 0", fontSize: 20, fontWeight: 700 }}>주문 작성</h1>
       </header>
 
       <main style={{ padding: 16 }}>
-        {/* 주문 내역 */}
         <section style={section}>
           <h2 style={sectionTitle}>주문 내역</h2>
           {cart.map((item, idx) => (
@@ -175,7 +186,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
                 <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
-                  {formatWon(item.itemPrice)} × {item.qty}개
+                  {formatWon(item.itemPrice)} x {item.qty}
                 </div>
               </div>
               <div style={{ fontWeight: 700 }}>{formatWon(item.itemPrice * item.qty)}</div>
@@ -187,7 +198,6 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        {/* 고객 정보 */}
         <section style={section}>
           <h2 style={sectionTitle}>고객 정보</h2>
 
@@ -236,14 +246,13 @@ export default function CheckoutPage() {
             <textarea
               value={customerMemo}
               onChange={(e) => setCustomerMemo(e.target.value)}
-              placeholder="예: 문 앞에 놓아주세요"
+              placeholder="요청사항을 입력해 주세요"
               rows={2}
               style={{ ...input, height: "auto", padding: "10px 12px" }}
             />
           </div>
         </section>
 
-        {/* 결제 수단 */}
         <section style={section}>
           <h2 style={sectionTitle}>결제 수단</h2>
           <div style={{ display: "flex", gap: 8 }}>
@@ -265,10 +274,8 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        {/* Error */}
         {error && <p style={{ color: "#ff8a8a", marginTop: 16 }}>{error}</p>}
 
-        {/* Submit */}
         <button
           style={submitBtn}
           onClick={handleSubmit}

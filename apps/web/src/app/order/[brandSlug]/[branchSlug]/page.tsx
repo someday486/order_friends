@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 
 // ============================================================
 // Types
@@ -32,7 +31,7 @@ type CartItem = {
   product: Product;
   qty: number;
   selectedOptions: ProductOption[];
-  itemPrice: number; // 옵션 포함 단가
+  itemPrice: number; // 옵션 포함 가격
 };
 
 // ============================================================
@@ -64,9 +63,11 @@ function calculateItemPrice(product: Product, selectedOptions: ProductOption[]) 
 export default function OrderPage() {
   const params = useParams();
   const router = useRouter();
-  const branchId = params?.branchId as string;
+  const brandSlug = params?.brandSlug as string;
+  const branchSlug = params?.branchSlug as string;
 
   const [branch, setBranch] = useState<Branch | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,21 +82,26 @@ export default function OrderPage() {
 
   // 데이터 로드
   useEffect(() => {
-    if (!branchId) return;
+    if (!brandSlug || !branchSlug) return;
 
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // 가게 정보
-        const branchRes = await fetch(`${API_BASE}/public/branches/${branchId}`);
+        const branchRes = await fetch(
+          `${API_BASE}/public/brands/${encodeURIComponent(
+            brandSlug
+          )}/branches/${encodeURIComponent(branchSlug)}`
+        );
         if (!branchRes.ok) throw new Error("가게를 찾을 수 없습니다.");
         const branchData = await branchRes.json();
         setBranch(branchData);
+        setBranchId(branchData.id);
 
-        // 상품 목록
-        const productsRes = await fetch(`${API_BASE}/public/branches/${branchId}/products`);
+        const productsRes = await fetch(
+          `${API_BASE}/public/branches/${encodeURIComponent(branchData.id)}/products`
+        );
         if (!productsRes.ok) throw new Error("상품을 불러올 수 없습니다.");
         const productsData = await productsRes.json();
         setProducts(productsData);
@@ -107,7 +113,7 @@ export default function OrderPage() {
     };
 
     fetchData();
-  }, [branchId]);
+  }, [brandSlug, branchSlug]);
 
   // 상품 선택
   const handleSelectProduct = (product: Product) => {
@@ -122,13 +128,12 @@ export default function OrderPage() {
       const exists = prev.find((o) => o.id === option.id);
       if (exists) {
         return prev.filter((o) => o.id !== option.id);
-      } else {
-        return [...prev, option];
       }
+      return [...prev, option];
     });
   };
 
-  // 장바구니에 추가
+  // 장바구니 추가
   const addToCart = () => {
     if (!selectedProduct) return;
 
@@ -160,14 +165,20 @@ export default function OrderPage() {
   // 주문하기
   const goToCheckout = () => {
     if (cart.length === 0) {
-      alert("장바구니에 상품을 추가해주세요.");
+      alert("장바구니에 상품을 추가해 주세요.");
       return;
     }
 
-    // 장바구니 데이터를 sessionStorage에 저장
+    if (!branchId) {
+      alert("가게 정보를 불러오는 중입니다. 잠시만 기다려주세요.");
+      return;
+    }
+
     sessionStorage.setItem("orderCart", JSON.stringify(cart));
     sessionStorage.setItem("orderBranchId", branchId);
-    router.push(`/order/${branchId}/checkout`);
+    sessionStorage.setItem("orderBrandSlug", brandSlug);
+    sessionStorage.setItem("orderBranchSlug", branchSlug);
+    router.push(`/order/${brandSlug}/${branchSlug}/checkout`);
   };
 
   // ============================================================
@@ -192,7 +203,6 @@ export default function OrderPage() {
 
   return (
     <div style={pageContainer}>
-      {/* Header */}
       <header style={header}>
         <div>
           <div style={{ fontSize: 12, color: "#888" }}>{branch?.brandName}</div>
@@ -200,7 +210,6 @@ export default function OrderPage() {
         </div>
       </header>
 
-      {/* Products */}
       <main style={{ padding: "16px 16px 120px 16px" }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>메뉴</h2>
 
@@ -229,7 +238,6 @@ export default function OrderPage() {
         )}
       </main>
 
-      {/* Cart Summary (Fixed Bottom) */}
       {cart.length > 0 && (
         <div style={cartBar}>
           <div>
@@ -242,14 +250,12 @@ export default function OrderPage() {
         </div>
       )}
 
-      {/* Product Modal */}
       {selectedProduct && (
         <div style={modalOverlay} onClick={() => setSelectedProduct(null)}>
           <div style={modalContent} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 8px 0", fontSize: 18 }}>{selectedProduct.name}</h3>
             <div style={{ color: "#888", marginBottom: 16 }}>{formatWon(selectedProduct.price)}</div>
 
-            {/* Options */}
             {selectedProduct.options.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 선택</div>
@@ -278,7 +284,6 @@ export default function OrderPage() {
               </div>
             )}
 
-            {/* Quantity */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>수량</span>
               <button
@@ -293,7 +298,6 @@ export default function OrderPage() {
               </button>
             </div>
 
-            {/* Total */}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <span>합계</span>
               <span style={{ fontWeight: 700, fontSize: 18 }}>
@@ -301,7 +305,6 @@ export default function OrderPage() {
               </span>
             </div>
 
-            {/* Add Button */}
             <button style={addBtn} onClick={addToCart}>
               장바구니에 담기
             </button>
@@ -309,7 +312,6 @@ export default function OrderPage() {
         </div>
       )}
 
-      {/* Cart Detail (if needed) */}
       {cart.length > 0 && (
         <div style={{ padding: "0 16px 16px 16px" }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>장바구니</h3>
@@ -323,13 +325,19 @@ export default function OrderPage() {
                   </div>
                 )}
                 <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
-                  {formatWon(item.itemPrice)} × {item.qty}
+                  {formatWon(item.itemPrice)} x {item.qty}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontWeight: 600 }}>{formatWon(item.itemPrice * item.qty)}</div>
                 <button
-                  style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}
+                  style={{
+                    fontSize: 12,
+                    color: "#ef4444",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
                   onClick={() => removeFromCart(idx)}
                 >
                   삭제

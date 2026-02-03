@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   PublicBranchResponse,
@@ -48,6 +48,92 @@ export class PublicOrderService {
     };
   }
 
+
+  /**
+   * Get branch info by slug (public)
+   */
+  async getBranchBySlug(slug: string): Promise<PublicBranchResponse> {
+    const sb = this.supabase.anonClient();
+
+    const { data, error } = await sb
+      .from('branches')
+      .select(`
+        id,
+        name,
+        slug,
+        brands (
+          name
+        )
+      `)
+      .eq('slug', slug)
+      .limit(2);
+
+    if (error) {
+      throw new NotFoundException('사용할 수 없는 가게입니다.');
+    }
+
+    if (!data || data.length === 0) {
+      throw new NotFoundException('사용할 수 없는 가게입니다.');
+    }
+
+    if (data.length > 1) {
+      throw new ConflictException('가게 URL이 중복되어 사용할 수 없습니다.');
+    }
+
+    const row = data[0] as any;
+    return {
+      id: row.id,
+      name: row.name,
+      brandName: row.brands?.name ?? undefined,
+    };
+  }
+
+  /**
+   * Get branch info by brand slug + branch slug (public)
+   */
+  async getBranchByBrandSlug(
+    brandSlug: string,
+    branchSlug: string,
+  ): Promise<PublicBranchResponse> {
+    const sb = this.supabase.anonClient();
+
+    const { data, error } = await sb
+      .from('branches')
+      .select(
+        `
+        id,
+        name,
+        slug,
+        brands!inner (
+          id,
+          name,
+          slug
+        )
+      `,
+      )
+      .eq('slug', branchSlug)
+      .eq('brands.slug', brandSlug)
+      .limit(2);
+
+    if (error) {
+      throw new NotFoundException('사용할 수 없는 가게입니다.');
+    }
+
+    if (!data || data.length === 0) {
+      throw new NotFoundException('사용할 수 없는 가게입니다.');
+    }
+
+    if (data.length > 1) {
+      throw new ConflictException('가게 URL이 중복되어 사용할 수 없습니다.');
+    }
+
+    const row = data[0] as any;
+    return {
+      id: row.id,
+      name: row.name,
+      brandName: row.brands?.name ?? undefined,
+    };
+  }
   /**
    * Get product list (public, active only)
    */
@@ -327,3 +413,5 @@ export class PublicOrderService {
     };
   }
 }
+
+

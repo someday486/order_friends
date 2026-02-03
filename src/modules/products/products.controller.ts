@@ -33,6 +33,16 @@ export class ProductsController {
   }
 
   /**
+   * 상품 카테고리 목록 조회
+   * GET /admin/products/categories?branchId=xxx
+   */
+  @Get('categories')
+  async getCategories(@Req() req: AuthRequest, @Query('branchId') branchId: string) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.getCategories(req.accessToken, branchId, req.isAdmin);
+  }
+
+  /**
    * 상품 상세 조회
    * GET /admin/products/:productId
    */

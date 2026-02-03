@@ -1,4 +1,12 @@
-import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, ValidateNested, Min } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateProductOptionDto {
@@ -27,6 +35,9 @@ export class CreateProductRequest {
   name: string;
 
   @IsString()
+  categoryId: string;
+
+  @IsString()
   @IsOptional()
   description?: string;
 
@@ -47,4 +58,8 @@ export class CreateProductRequest {
   @ValidateNested({ each: true })
   @Type(() => CreateProductOptionDto)
   options?: CreateProductOptionDto[];
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
 }

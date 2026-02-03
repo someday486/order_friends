@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StatusActions, { statusLabel } from "./StatusActions";
 
-type OrderStatus = "NEW" | "PAID" | "PREPARING" | "SHIPPED" | "DONE" | "CANCELED";
+type OrderStatus =
+  | "CREATED"
+  | "NEW"
+  | "PAID"
+  | "PREPARING"
+  | "SHIPPED"
+  | "DONE"
+  | "CANCELED";
+
 
 function statusTone(status: OrderStatus) {
   return { border: "#2b2b2b", bg: "#121212", text: "#ffffff" };
@@ -14,12 +22,20 @@ export default function OrderHeader({
   orderId,
   orderedAt,
   initialStatus,
+  onStatusChanged,
 }: {
   orderId: string;
   orderedAt: string;
   initialStatus: OrderStatus;
+  onStatusChanged?: () => void;
 }) {
+  // 헤더 뱃지/버튼 라벨은 헤더가 관리(단, prop 변경 시 동기화)
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
+
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
   const tone = useMemo(() => statusTone(status), [status]);
 
   return (
@@ -56,7 +72,10 @@ export default function OrderHeader({
       <StatusActions
         orderId={orderId}
         initialStatus={status}
-        onStatusChange={(s) => setStatus(s)} // ✅ 헤더 뱃지 동기화
+        onStatusChange={(s) => {
+          setStatus(s);        // ✅ 헤더 뱃지 즉시 갱신
+          onStatusChanged?.(); // ✅ 페이지에서 fetchOrder()로 최신 데이터 반영
+        }}
       />
     </div>
   );

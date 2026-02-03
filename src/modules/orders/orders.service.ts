@@ -8,15 +8,35 @@ import { OrderListItemResponse } from './dto/order-list.response';
 export class OrdersService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private isUuid(v: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  }
+
   /**
-   * 주문 목록
+   * orderId가 uuid(id)일 수도, order_no일 수도 있을 때
+   * 실제 orders.id(uuid)로 resolve
+   */
+  private async resolveOrderId(sb: any, orderIdOrNo: string): Promise<string | null> {
+    // uuid면 id로 먼저
+    if (this.isUuid(orderIdOrNo)) {
+      const byId = await sb.from('orders').select('id').eq('id', orderIdOrNo).maybeSingle();
+      if (!byId.error && byId.data?.id) return byId.data.id;
+    }
+
+    // order_no로 시도
+    const byNo = await sb.from('orders').select('id').eq('order_no', orderIdOrNo).maybeSingle();
+    if (!byNo.error && byNo.data?.id) return byNo.data.id;
+
+    return null;
+  }
+
+  /**
+   * 주문 목록 (admin)
+   * - RLS 때문에 userClient로는 안 보일 수 있어 adminClient 사용
    */
   async getOrders(accessToken: string): Promise<OrderListItemResponse[]> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.supabase.adminClient();
 
-    // NOTE:
-    // - 실제 컬럼명은 DB와 맞춰야 합니다.
-    // - 우선은 가장 흔한 컬럼명(id/status/created_at/total_amount/customer_name)을 기준으로 작성합니다.
     const { data, error } = await sb
       .from('orders')
       .select('id, order_no, status, created_at, total_amount, customer_name')
@@ -24,16 +44,12 @@ export class OrdersService {
       .limit(50);
 
     if (error) {
-      // 컬럼명이 다르면 여기서 error.message로 바로 드러납니다.
       throw new Error(`[orders.getOrders] ${error.message}`);
     }
 
     return (data ?? []).map((row: any) => ({
-      // ✅ 항상 uuid(id)를 내려준다 (프론트 라우팅/상태변경은 uuid 기준)
       id: row.id,
-      // ✅ 표시용으로 order_no도 함께 제공(있으면)
       orderNo: row.order_no ?? null,
-
       orderedAt: row.created_at ?? '',
       customerName: row.customer_name ?? '',
       totalAmount: row.total_amount ?? 0,
@@ -42,112 +58,90 @@ export class OrdersService {
   }
 
   /**
-   * 주문 상세
+   * 주문 상세 (admin)
+   * - RLS 우회용 adminClient 사용
+   * - id / order_no 모두 지원
    */
   async getOrder(accessToken: string, orderId: string): Promise<OrderDetailResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.supabase.adminClient();
 
-    // orderId가 UUID(id)인지, order_no(OF-1001)인지 아직 확정 전이라
-    // 1) id로 먼저 시도 → 실패하면 2) order_no로 재시도
-    let data: any | null = null;
-    let errMsg: string | null = null;
+    const selectDetail = `
+      id, order_no, status, created_at,
+      customer_name, customer_phone,
+      delivery_address, delivery_memo,
+      subtotal, delivery_fee, discount_total, total_amount,
+      items:order_items (
+        id, product_name_snapshot, qty, unit_price_snapshot,
+        options:order_item_options ( id, option_name_snapshot )
+      )
+    `;
 
-    // 1) id 기준 조회
-    {
-      const { data: d, error } = await sb
-        .from('orders')
-        .select(
-          `
-          id, order_no, status, created_at,
-          customer_name, customer_phone, customer_address1, customer_address2, customer_memo,
-          payment_method, subtotal_amount, shipping_fee, discount_amount, total_amount,
-          order_items (
-            id, product_name_snapshot, qty, unit_price,
-            order_item_options ( id, option_name_snapshot )
-          )
-        `,
-        )
-        .eq('id', orderId)
-        .maybeSingle();
-
-      if (!error && d) data = d;
-      if (error) errMsg = error.message;
+    const resolvedId = await this.resolveOrderId(sb, orderId);
+    if (!resolvedId) {
+      throw new Error(`[orders.getOrder] order not found: ${orderId}`);
     }
 
-    // 2) order_no 기준 조회 (id 조회 실패/미존재 시)
+    const { data, error } = await sb.from('orders').select(selectDetail).eq('id', resolvedId).maybeSingle();
+
+    if (error) {
+      throw new Error(`[orders.getOrder] ${error.message}`);
+    }
     if (!data) {
-      const { data: d, error } = await sb
-        .from('orders')
-        .select(
-          `
-          id, order_no, status, created_at,
-          customer_name, customer_phone, customer_address1, customer_address2, customer_memo,
-          payment_method, subtotal_amount, shipping_fee, discount_amount, total_amount,
-          order_items (
-            id, product_name_snapshot, qty, unit_price,
-            order_item_options ( id, option_name_snapshot )
-          )
-        `,
-        )
-        .eq('order_no', orderId)
-        .single();
-
-      if (error) {
-        throw new Error(`[orders.getOrder] ${error.message}${errMsg ? ` (id try: ${errMsg})` : ''}`);
-      }
-      data = d;
+      throw new Error(`[orders.getOrder] order not found: ${orderId}`);
     }
 
-    // 옵션 문자열 합치기(현재 DTO는 item.option 단일 문자열)
-    const items: OrderItemResponse[] = (data.order_items ?? []).map((it: any) => {
-      const opts = (it.order_item_options ?? []).map((o: any) => o.option_name_snapshot).filter(Boolean);
+    const items: OrderItemResponse[] = (data.items ?? []).map((it: any) => {
+      const opts = (it.options ?? []).map((o: any) => o.option_name_snapshot).filter(Boolean);
+
       return {
         id: it.id,
         name: it.product_name_snapshot ?? '',
         option: opts.length ? opts.join(', ') : undefined,
         qty: it.qty ?? 0,
-        unitPrice: it.unit_price ?? 0,
+        unitPrice: it.unit_price_snapshot ?? 0,
       };
     });
 
-    const res: OrderDetailResponse = {
-      // ✅ 항상 uuid(id)를 내려준다
+    return {
       id: data.id,
-      // ✅ 표시용 order_no도 함께 제공(있으면)
       orderNo: data.order_no ?? null,
-
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
       customer: {
         name: data.customer_name ?? '',
         phone: data.customer_phone ?? '',
-        address1: data.customer_address1 ?? '',
-        address2: data.customer_address2 ?? undefined,
-        memo: data.customer_memo ?? undefined,
+        address1: data.delivery_address ?? '',
+        address2: undefined,
+        memo: data.delivery_memo ?? undefined,
       },
       payment: {
-        method: (data.payment_method ?? 'CARD') as any,
-        subtotal: data.subtotal_amount ?? 0,
-        shippingFee: data.shipping_fee ?? 0,
-        discount: data.discount_amount ?? 0,
+        method: 'CARD' as any,
+        subtotal: data.subtotal ?? 0,
+        shippingFee: data.delivery_fee ?? 0,
+        discount: data.discount_total ?? 0,
         total: data.total_amount ?? 0,
       },
       items,
     };
-
-    return res;
   }
 
   /**
-   * 주문 상태 변경
+   * 주문 상태 변경 (admin)
+   * - RLS 우회용 adminClient 사용
+   * - id / order_no 모두 지원
    */
   async updateStatus(accessToken: string, orderId: string, status: OrderStatus) {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.supabase.adminClient();
+
+    const resolvedId = await this.resolveOrderId(sb, orderId);
+    if (!resolvedId) {
+      throw new Error(`[orders.updateStatus] order not found: ${orderId}`);
+    }
 
     const { data, error } = await sb
       .from('orders')
       .update({ status })
-      .eq('id', orderId) // ✅ uuid만
+      .eq('id', resolvedId)
       .select('id, order_no, status')
       .maybeSingle();
 
@@ -156,7 +150,6 @@ export class OrdersService {
     }
 
     if (!data) {
-      // 0건 업데이트(권한/RLS/없는 id)도 여기서 잡힘
       throw new Error(`[orders.updateStatus] order not found or not permitted: ${orderId}`);
     }
 
@@ -166,5 +159,4 @@ export class OrdersService {
       status: data.status as OrderStatus,
     };
   }
-
 }

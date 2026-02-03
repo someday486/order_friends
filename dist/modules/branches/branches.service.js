@@ -17,8 +17,11 @@ let BranchesService = class BranchesService {
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getBranches(accessToken, brandId) {
-        const sb = this.supabase.userClient(accessToken);
+    getClient(accessToken, isAdmin) {
+        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    }
+    async getBranches(accessToken, brandId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('branches')
             .select('id, brand_id, name, slug, created_at')
@@ -35,8 +38,8 @@ let BranchesService = class BranchesService {
             createdAt: row.created_at ?? '',
         }));
     }
-    async getBranch(accessToken, branchId) {
-        const sb = this.supabase.userClient(accessToken);
+    async getBranch(accessToken, branchId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('branches')
             .select('id, brand_id, name, slug, created_at')
@@ -56,17 +59,55 @@ let BranchesService = class BranchesService {
             createdAt: data.created_at ?? '',
         };
     }
-    async createBranch(accessToken, dto) {
-        const sb = this.supabase.userClient(accessToken);
-        const { data, error } = await sb
-            .from('branches')
-            .insert({
+    async createBranch(accessToken, dto, isAdmin) {
+        const insertPayload = {
             brand_id: dto.brandId,
             name: dto.name,
             slug: dto.slug,
-        })
-            .select('id, brand_id, name, slug, created_at')
-            .single();
+        };
+        if (isAdmin) {
+            const sb = this.supabase.adminClient();
+            const { data, error } = await sb
+                .from('branches')
+                .insert(insertPayload)
+                .select('id, brand_id, name, slug, created_at')
+                .single();
+            if (error) {
+                if (error.code === '23505') {
+                    throw new common_1.ConflictException('이미 사용 중인 가게 URL(slug)입니다.');
+                }
+                throw new Error(`[branches.createBranch] ${error.message}`);
+            }
+            return {
+                id: data.id,
+                brandId: data.brand_id,
+                name: data.name,
+                slug: data.slug ?? '',
+                createdAt: data.created_at ?? '',
+            };
+        }
+        const tryUserClient = async () => {
+            const sb = this.supabase.userClient(accessToken);
+            return sb
+                .from('branches')
+                .insert(insertPayload)
+                .select('id, brand_id, name, slug, created_at')
+                .single();
+        };
+        const tryAdminClient = async () => {
+            const sb = this.supabase.adminClient();
+            return sb
+                .from('branches')
+                .insert(insertPayload)
+                .select('id, brand_id, name, slug, created_at')
+                .single();
+        };
+        let data;
+        let error;
+        ({ data, error } = await tryUserClient());
+        if (error?.message?.includes('row-level security')) {
+            ({ data, error } = await tryAdminClient());
+        }
         if (error) {
             if (error.code === '23505') {
                 throw new common_1.ConflictException('이미 사용 중인 가게 URL(slug)입니다.');
@@ -81,13 +122,15 @@ let BranchesService = class BranchesService {
             createdAt: data.created_at ?? '',
         };
     }
-    async updateBranch(accessToken, branchId, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async updateBranch(accessToken, branchId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const updateData = {};
         if (dto.name !== undefined)
             updateData.name = dto.name;
+        if (dto.slug !== undefined)
+            updateData.slug = dto.slug;
         if (Object.keys(updateData).length === 0) {
-            return this.getBranch(accessToken, branchId);
+            return this.getBranch(accessToken, branchId, isAdmin);
         }
         const { data, error } = await sb
             .from('branches')
@@ -96,6 +139,9 @@ let BranchesService = class BranchesService {
             .select('id, brand_id, name, slug, created_at')
             .maybeSingle();
         if (error) {
+            if (error.code === '23505') {
+                throw new common_1.ConflictException('이미 사용 중인 가게 URL(slug)입니다.');
+            }
             throw new Error(`[branches.updateBranch] ${error.message}`);
         }
         if (!data) {
@@ -109,8 +155,8 @@ let BranchesService = class BranchesService {
             createdAt: data.created_at ?? '',
         };
     }
-    async deleteBranch(accessToken, branchId) {
-        const sb = this.supabase.userClient(accessToken);
+    async deleteBranch(accessToken, branchId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { error } = await sb
             .from('branches')
             .delete()

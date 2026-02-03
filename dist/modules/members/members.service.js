@@ -18,8 +18,11 @@ let MembersService = class MembersService {
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getBrandMembers(accessToken, brandId) {
-        const sb = this.supabase.userClient(accessToken);
+    getClient(accessToken, isAdmin) {
+        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    }
+    async getBrandMembers(accessToken, brandId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('brand_members')
             .select(`
@@ -51,12 +54,12 @@ let MembersService = class MembersService {
             createdAt: row.created_at ?? '',
         }));
     }
-    async inviteBrandMember(accessToken, dto) {
+    async inviteBrandMember(accessToken, dto, _isAdmin) {
         const sb = this.supabase.userClient(accessToken);
         throw new common_1.BadRequestException('이메일 초대 기능은 추후 구현 예정입니다. 현재는 사용자 ID로 직접 추가해주세요.');
     }
-    async addBrandMember(accessToken, brandId, userId, role = member_dto_1.BrandRole.MEMBER) {
-        const sb = this.supabase.userClient(accessToken);
+    async addBrandMember(accessToken, brandId, userId, role = member_dto_1.BrandRole.MEMBER, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data: existing } = await sb
             .from('brand_members')
             .select('user_id')
@@ -90,8 +93,8 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async updateBrandMember(accessToken, brandId, userId, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async updateBrandMember(accessToken, brandId, userId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const updateData = {};
         if (dto.role !== undefined)
             updateData.role = dto.role;
@@ -124,8 +127,8 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async removeBrandMember(accessToken, brandId, userId) {
-        const sb = this.supabase.userClient(accessToken);
+    async removeBrandMember(accessToken, brandId, userId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { error } = await sb
             .from('brand_members')
             .delete()
@@ -136,8 +139,8 @@ let MembersService = class MembersService {
         }
         return { deleted: true };
     }
-    async getBranchMembers(accessToken, branchId) {
-        const sb = this.supabase.userClient(accessToken);
+    async getBranchMembers(accessToken, branchId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('branch_members')
             .select(`
@@ -167,8 +170,8 @@ let MembersService = class MembersService {
             createdAt: row.created_at ?? '',
         }));
     }
-    async addBranchMember(accessToken, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async addBranchMember(accessToken, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data: existing } = await sb
             .from('branch_members')
             .select('user_id')
@@ -202,8 +205,8 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async updateBranchMember(accessToken, branchId, userId, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async updateBranchMember(accessToken, branchId, userId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const updateData = {};
         if (dto.role !== undefined)
             updateData.role = dto.role;
@@ -236,8 +239,8 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async removeBranchMember(accessToken, branchId, userId) {
-        const sb = this.supabase.userClient(accessToken);
+    async removeBranchMember(accessToken, branchId, userId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { error } = await sb
             .from('branch_members')
             .delete()

@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
+import BranchSelector from "@/components/admin/BranchSelector";
 
 // ============================================================
 // Types
@@ -57,13 +59,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
 const STATUS_FLOW: OrderStatus[] = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
 
 const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "신규",
-  CONFIRMED: "확인됨",
+  CREATED: "접수",
+  CONFIRMED: "확인",
   PREPARING: "준비중",
   READY: "준비완료",
   COMPLETED: "완료",
-  CANCELLED: "취소됨",
-  REFUNDED: "환불됨",
+  CANCELLED: "취소",
+  REFUNDED: "환불",
 };
 
 const paymentMethodLabel: Record<string, string> = {
@@ -109,7 +111,6 @@ async function getAccessToken() {
 }
 
 async function readErrorText(res: Response) {
-  // JSON으로 떨어질 수도, 텍스트로 떨어질 수도 있어서 둘 다 처리
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     const j = await res.json().catch(() => null);
@@ -124,12 +125,20 @@ async function readErrorText(res: Response) {
 
 export default function OrderDetailPage() {
   const params = useParams<{ orderId: string }>();
+  const searchParams = useSearchParams();
   const orderId = params?.orderId;
+
+  const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
+  const { branchId, selectBranch } = useSelectedBranch();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialBranchId) selectBranch(initialBranchId);
+  }, [initialBranchId, selectBranch]);
 
   const isCancellable = useMemo(() => {
     if (!order) return false;
@@ -139,6 +148,7 @@ export default function OrderDetailPage() {
   // 주문 상세 조회
   useEffect(() => {
     if (!orderId) return;
+    if (!branchId) return;
 
     const fetchOrder = async () => {
       try {
@@ -147,11 +157,14 @@ export default function OrderDetailPage() {
 
         const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const res = await fetch(
+          `${API_BASE}/admin/orders/${encodeURIComponent(orderId)}?branchId=${encodeURIComponent(branchId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (!res.ok) {
           const text = await readErrorText(res);
@@ -169,11 +182,12 @@ export default function OrderDetailPage() {
     };
 
     fetchOrder();
-  }, [orderId]);
+  }, [orderId, branchId]);
 
   // 상태 변경
   const handleStatusChange = async (newStatus: OrderStatus) => {
     if (!order) return;
+    if (!branchId) return;
 
     try {
       setStatusLoading(true);
@@ -181,14 +195,17 @@ export default function OrderDetailPage() {
 
       const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(order.id)}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const res = await fetch(
+        `${API_BASE}/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(branchId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
 
       if (!res.ok) {
         const text = await readErrorText(res);
@@ -208,13 +225,27 @@ export default function OrderDetailPage() {
   // 취소 처리
   const handleCancel = async () => {
     if (!order) return;
-    if (!confirm("정말 이 주문을 취소하시겠습니까?")) return;
+    if (!confirm("정말 주문을 취소하시겠습니까?")) return;
     await handleStatusChange("CANCELLED");
   };
 
   // ============================================================
   // Render
   // ============================================================
+
+  if (!branchId) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+          ← 주문 목록
+        </Link>
+        <div style={{ marginTop: 12 }}>
+          <BranchSelector />
+        </div>
+        <p style={{ color: "#aaa", marginTop: 12 }}>가게를 선택해주세요.</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -311,7 +342,7 @@ export default function OrderDetailPage() {
 
       {/* Content */}
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>
-        {/* 왼쪽: 상품/요약 */}
+        {/* Left: Items */}
         <section style={card}>
           <div style={cardTitle}>주문 상품</div>
 
@@ -349,7 +380,7 @@ export default function OrderDetailPage() {
 
           <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div style={miniCard}>
-              <div style={miniLabel}>상품 소계</div>
+              <div style={miniLabel}>상품 합계</div>
               <div style={miniValue}>{formatWon(order.payment.subtotal)}</div>
             </div>
             <div style={miniCard}>
@@ -359,7 +390,7 @@ export default function OrderDetailPage() {
           </div>
         </section>
 
-        {/* 오른쪽: 고객/결제 */}
+        {/* Right: Customer & Payment */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <section style={card}>
             <div style={cardTitle}>고객 정보</div>

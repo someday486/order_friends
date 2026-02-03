@@ -17,7 +17,27 @@ let BrandsService = class BrandsService {
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getMyBrands(accessToken) {
+    getClient(accessToken, isAdmin) {
+        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    }
+    async getMyBrands(accessToken, isAdmin) {
+        if (isAdmin) {
+            const sb = this.supabase.adminClient();
+            const { data, error } = await sb
+                .from('brands')
+                .select('id, name, biz_name, biz_reg_no, created_at')
+                .order('created_at', { ascending: false });
+            if (error) {
+                throw new Error(`[brands.getMyBrands] ${error.message}`);
+            }
+            return (data ?? []).map((row) => ({
+                id: row.id,
+                name: row.name,
+                bizName: row.biz_name ?? null,
+                bizRegNo: row.biz_reg_no ?? null,
+                createdAt: row.created_at ?? '',
+            }));
+        }
         const sb = this.supabase.userClient(accessToken);
         const { data, error } = await sb
             .from('brand_members')
@@ -41,8 +61,8 @@ let BrandsService = class BrandsService {
             createdAt: row.brands.created_at ?? '',
         }));
     }
-    async getBrand(accessToken, brandId) {
-        const sb = this.supabase.userClient(accessToken);
+    async getBrand(accessToken, brandId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('brands')
             .select('id, name, owner_user_id, biz_name, biz_reg_no, created_at')
@@ -63,7 +83,7 @@ let BrandsService = class BrandsService {
             createdAt: data.created_at ?? '',
         };
     }
-    async createBrand(accessToken, dto) {
+    async createBrand(accessToken, dto, _isAdmin) {
         const userSb = this.supabase.userClient(accessToken);
         const { data: userData, error: userError } = await userSb.auth.getUser();
         if (userError || !userData.user) {
@@ -109,13 +129,7 @@ let BrandsService = class BrandsService {
             createdAt: brand.created_at ?? '',
         };
     }
-    async updateBrand(accessToken, brandId, dto) {
-        const userSb = this.supabase.userClient(accessToken);
-        const { data: userData, error: userError } = await userSb.auth.getUser();
-        if (userError || !userData.user) {
-            throw new common_1.ForbiddenException('사용자 정보를 가져올 수 없습니다.');
-        }
-        const userId = userData.user.id;
+    async updateBrand(accessToken, brandId, dto, isAdmin) {
         const updateData = {};
         if (dto.name !== undefined)
             updateData.name = dto.name;
@@ -124,20 +138,27 @@ let BrandsService = class BrandsService {
         if (dto.bizRegNo !== undefined)
             updateData.biz_reg_no = dto.bizRegNo;
         if (Object.keys(updateData).length === 0) {
-            return this.getBrand(accessToken, brandId);
+            return this.getBrand(accessToken, brandId, isAdmin);
         }
         const adminSb = this.supabase.adminClient();
-        const { data: membership, error: memError } = await adminSb
-            .from('brand_members')
-            .select('role, status')
-            .eq('brand_id', brandId)
-            .eq('user_id', userId)
-            .maybeSingle();
-        if (memError) {
-            throw new Error(`[brands.updateBrand] membership check: ${memError.message}`);
-        }
-        if (!membership || membership.status !== 'ACTIVE') {
-            throw new common_1.ForbiddenException('브랜드 수정 권한이 없습니다.');
+        if (!isAdmin) {
+            const userSb = this.supabase.userClient(accessToken);
+            const { data: userData, error: userError } = await userSb.auth.getUser();
+            if (userError || !userData.user) {
+                throw new common_1.ForbiddenException('사용자 정보를 가져올 수 없습니다.');
+            }
+            const { data: membership, error: memError } = await adminSb
+                .from('brand_members')
+                .select('role, status')
+                .eq('brand_id', brandId)
+                .eq('user_id', userData.user.id)
+                .maybeSingle();
+            if (memError) {
+                throw new Error(`[brands.updateBrand] membership check: ${memError.message}`);
+            }
+            if (!membership || membership.status !== 'ACTIVE') {
+                throw new common_1.ForbiddenException('브랜드 수정 권한이 없습니다.');
+            }
         }
         const { data, error } = await adminSb
             .from('brands')
@@ -160,25 +181,26 @@ let BrandsService = class BrandsService {
             createdAt: data.created_at ?? '',
         };
     }
-    async deleteBrand(accessToken, brandId) {
-        const userSb = this.supabase.userClient(accessToken);
-        const { data: userData, error: userError } = await userSb.auth.getUser();
-        if (userError || !userData.user) {
-            throw new common_1.ForbiddenException('사용자 정보를 가져올 수 없습니다.');
-        }
-        const userId = userData.user.id;
+    async deleteBrand(accessToken, brandId, isAdmin) {
         const adminSb = this.supabase.adminClient();
-        const { data: membership, error: memError } = await adminSb
-            .from('brand_members')
-            .select('role, status')
-            .eq('brand_id', brandId)
-            .eq('user_id', userId)
-            .maybeSingle();
-        if (memError) {
-            throw new Error(`[brands.deleteBrand] membership check: ${memError.message}`);
-        }
-        if (!membership || membership.status !== 'ACTIVE') {
-            throw new common_1.ForbiddenException('브랜드 삭제 권한이 없습니다.');
+        if (!isAdmin) {
+            const userSb = this.supabase.userClient(accessToken);
+            const { data: userData, error: userError } = await userSb.auth.getUser();
+            if (userError || !userData.user) {
+                throw new common_1.ForbiddenException('사용자 정보를 가져올 수 없습니다.');
+            }
+            const { data: membership, error: memError } = await adminSb
+                .from('brand_members')
+                .select('role, status')
+                .eq('brand_id', brandId)
+                .eq('user_id', userData.user.id)
+                .maybeSingle();
+            if (memError) {
+                throw new Error(`[brands.deleteBrand] membership check: ${memError.message}`);
+            }
+            if (!membership || membership.status !== 'ACTIVE') {
+                throw new common_1.ForbiddenException('브랜드 삭제 권한이 없습니다.');
+            }
         }
         const { error } = await adminSb.from('brands').delete().eq('id', brandId);
         if (error) {

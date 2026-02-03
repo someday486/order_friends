@@ -21,12 +21,11 @@ export class PolicyGuard implements CanActivate {
         ctx.getClass(),
       ]) ?? [];
 
-    // 권한 요구가 없으면 통과
     if (required.length === 0) return true;
 
     const req = ctx.switchToHttp().getRequest();
+    if (req?.isAdmin) return true;
 
-    // MembershipGuard가 나중에 붙여줄 값 (지금은 임시)
     const role: Role | undefined = req.role;
 
     if (!role) {

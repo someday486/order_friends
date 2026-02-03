@@ -20,15 +20,45 @@ export interface DashboardStats {
 export class DashboardService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  async getStats(accessToken: string): Promise<DashboardStats> {
-    const sb = this.supabase.userClient(accessToken);
+  private getClient(accessToken: string, isAdmin?: boolean) {
+    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+  }
 
-    // 오늘 날짜 (UTC 기준)
+  async getStats(
+    accessToken: string,
+    brandId: string,
+    isAdmin?: boolean,
+  ): Promise<DashboardStats> {
+    const sb = this.getClient(accessToken, isAdmin);
+
+    // Start of today (UTC)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
 
-    // 병렬로 여러 쿼리 실행
+    // Branches within the brand
+    const { data: branchRows, error: branchError } = await sb
+      .from('branches')
+      .select('id')
+      .eq('brand_id', brandId);
+
+    if (branchError) {
+      throw new Error(`[dashboard.getStats] ${branchError.message}`);
+    }
+
+    const branchIds = (branchRows ?? []).map((row: any) => row.id).filter(Boolean);
+
+    if (branchIds.length === 0) {
+      return {
+        totalOrders: 0,
+        pendingOrders: 0,
+        todayOrders: 0,
+        totalProducts: 0,
+        totalBranches: 0,
+        recentOrders: [],
+      };
+    }
+
     const [
       totalOrdersResult,
       pendingOrdersResult,
@@ -37,31 +67,34 @@ export class DashboardService {
       totalBranchesResult,
       recentOrdersResult,
     ] = await Promise.all([
-      // 전체 주문 수
-      sb.from('orders').select('id', { count: 'exact', head: true }),
+      // Total orders
+      sb.from('orders').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
 
-      // 대기 중인 주문 (CREATED, CONFIRMED, PREPARING)
+      // Pending orders
       sb
         .from('orders')
         .select('id', { count: 'exact', head: true })
-        .in('status', ['CREATED', 'CONFIRMED', 'PREPARING']),
+        .in('status', ['CREATED', 'CONFIRMED', 'PREPARING'])
+        .in('branch_id', branchIds),
 
-      // 오늘 주문
+      // Orders created today
       sb
         .from('orders')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', todayISO),
+        .gte('created_at', todayISO)
+        .in('branch_id', branchIds),
 
-      // 전체 상품 수
-      sb.from('products').select('id', { count: 'exact', head: true }),
+      // Total products
+      sb.from('products').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
 
-      // 전체 가게 수
-      sb.from('branches').select('id', { count: 'exact', head: true }),
+      // Total branches
+      sb.from('branches').select('id', { count: 'exact', head: true }).eq('brand_id', brandId),
 
-      // 최근 주문 5개
+      // Recent orders
       sb
         .from('orders')
         .select('id, order_no, status, total_amount, created_at')
+        .in('branch_id', branchIds)
         .order('created_at', { ascending: false })
         .limit(5),
     ]);

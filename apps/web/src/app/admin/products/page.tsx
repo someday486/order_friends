@@ -1,8 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
+import BranchSelector from "@/components/admin/BranchSelector";
 
 // ============================================================
 // Types
@@ -13,7 +16,6 @@ type Product = {
   name: string;
   price: number;
   isActive: boolean;
-  sortOrder: number;
   createdAt: string;
 };
 
@@ -46,11 +48,18 @@ function formatWon(amount: number) {
 // ============================================================
 
 export default function ProductsPage() {
+  const searchParams = useSearchParams();
+  const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
+  const { branchId, selectBranch } = useSelectedBranch();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [branchId, setBranchId] = useState<string>("");
   const [showInactive, setShowInactive] = useState(false);
+
+  useEffect(() => {
+    if (initialBranchId) selectBranch(initialBranchId);
+  }, [initialBranchId, selectBranch]);
 
   // 상품 목록 조회
   const fetchProducts = async (bid: string) => {
@@ -143,10 +152,12 @@ export default function ProductsPage() {
   useEffect(() => {
     if (branchId) {
       fetchProducts(branchId);
+    } else {
+      setProducts([]);
     }
   }, [branchId]);
 
-  // 필터링된 상품
+  // 필터된 상품
   const filteredProducts = showInactive
     ? products
     : products.filter((p) => p.isActive);
@@ -160,6 +171,8 @@ export default function ProductsPage() {
           alignItems: "center",
           justifyContent: "space-between",
           marginBottom: 16,
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
         <div>
@@ -176,21 +189,7 @@ export default function ProductsPage() {
 
       {/* Branch 선택 */}
       <div style={{ marginBottom: 16 }}>
-        <label style={{ color: "#aaa", fontSize: 13, marginRight: 8 }}>가게 ID:</label>
-        <input
-          type="text"
-          value={branchId}
-          onChange={(e) => setBranchId(e.target.value)}
-          placeholder="Branch UUID 입력"
-          style={input}
-        />
-        <button
-          style={{ ...btnGhost, marginLeft: 8 }}
-          onClick={() => fetchProducts(branchId)}
-          disabled={!branchId || loading}
-        >
-          조회
-        </button>
+        <BranchSelector />
       </div>
 
       {/* 필터 */}
@@ -209,6 +208,12 @@ export default function ProductsPage() {
       {/* Error */}
       {error && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{error}</p>}
 
+      {!branchId && (
+        <p style={{ color: "#666", marginBottom: 16 }}>
+          가게를 선택하면 상품 목록이 표시됩니다.
+        </p>
+      )}
+
       {/* Table */}
       <div
         style={{
@@ -223,30 +228,21 @@ export default function ProductsPage() {
               <th style={th}>상품명</th>
               <th style={{ ...th, textAlign: "right" }}>가격</th>
               <th style={th}>상태</th>
-              <th style={{ ...th, textAlign: "center" }}>순서</th>
               <th style={{ ...th, textAlign: "center" }}>관리</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
                   불러오는 중...
-                </td>
-              </tr>
-            )}
-
-            {!loading && !branchId && (
-              <tr>
-                <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
-                  가게 ID를 입력하고 조회하세요.
                 </td>
               </tr>
             )}
 
             {!loading && branchId && filteredProducts.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
                   상품이 없습니다.
                 </td>
               </tr>
@@ -275,9 +271,6 @@ export default function ProductsPage() {
                     >
                       {product.isActive ? "판매중" : "숨김"}
                     </button>
-                  </td>
-                  <td style={{ ...td, textAlign: "center", color: "#aaa" }}>
-                    {product.sortOrder}
                   </td>
                   <td style={{ ...td, textAlign: "center" }}>
                     <Link href={`/admin/products/${product.id}`}>
@@ -329,18 +322,6 @@ const btnPrimary: React.CSSProperties = {
   fontSize: 13,
 };
 
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 600,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
 const btnSmall: React.CSSProperties = {
   padding: "4px 10px",
   borderRadius: 6,
@@ -362,15 +343,4 @@ const statusBadge: React.CSSProperties = {
   fontWeight: 600,
   border: "none",
   cursor: "pointer",
-};
-
-const input: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 13,
-  width: 280,
 };

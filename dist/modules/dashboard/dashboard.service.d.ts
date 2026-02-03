@@ -16,5 +16,6 @@ export interface DashboardStats {
 export declare class DashboardService {
     private readonly supabase;
     constructor(supabase: SupabaseService);
-    getStats(accessToken: string): Promise<DashboardStats>;
+    private getClient;
+    getStats(accessToken: string, brandId: string, isAdmin?: boolean): Promise<DashboardStats>;
 }

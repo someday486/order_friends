@@ -1,7 +1,12 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { useSelectedBrand } from "@/hooks/useSelectedBrand";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
+import BranchSelector from "@/components/admin/BranchSelector";
+import Link from "next/link";
 
 // ============================================================
 // Types
@@ -54,7 +59,7 @@ const BRANCH_ROLES: { value: BranchRole; label: string }[] = [
 ];
 
 const STATUS_LABELS: Record<MemberStatus, string> = {
-  INVITED: "초대됨",
+  INVITED: "초대중",
   ACTIVE: "활성",
   SUSPENDED: "정지",
   LEFT: "탈퇴",
@@ -79,16 +84,30 @@ async function getAccessToken() {
 // ============================================================
 
 export default function MembersPage() {
+  const searchParams = useSearchParams();
+  const initialTab = useMemo(() => searchParams?.get("tab") ?? "", [searchParams]);
+  const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
+
+  const { brandId, ready: brandReady } = useSelectedBrand();
+  const { branchId, selectBranch } = useSelectedBranch();
   const [tab, setTab] = useState<"brand" | "branch">("brand");
 
+  useEffect(() => {
+    if (initialTab === "branch" || initialTab === "brand") {
+      setTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialBranchId) selectBranch(initialBranchId);
+  }, [initialBranchId, selectBranch]);
+
   // Brand members
-  const [brandId, setBrandId] = useState("");
   const [brandMembers, setBrandMembers] = useState<BrandMember[]>([]);
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
 
   // Branch members
-  const [branchId, setBranchId] = useState("");
   const [branchMembers, setBranchMembers] = useState<BranchMember[]>([]);
   const [branchLoading, setBranchLoading] = useState(false);
   const [branchError, setBranchError] = useState<string | null>(null);
@@ -347,138 +366,135 @@ export default function MembersPage() {
       {/* Brand Members Tab */}
       {tab === "brand" && (
         <div>
-          {/* Brand ID 입력 */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <input
-              type="text"
-              value={brandId}
-              onChange={(e) => setBrandId(e.target.value)}
-              placeholder="Brand UUID"
-              style={input}
-            />
-            <button
-              onClick={fetchBrandMembers}
-              disabled={!brandId || brandLoading}
-              style={btnPrimary}
-            >
-              {brandLoading ? "로딩..." : "조회"}
-            </button>
-          </div>
-
-          {/* 멤버 추가 */}
-          {brandId && (
-            <div style={{ ...card, marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>멤버 추가</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <input
-                  type="text"
-                  value={newUserId}
-                  onChange={(e) => setNewUserId(e.target.value)}
-                  placeholder="User UUID"
-                  style={{ ...input, width: 280 }}
-                />
-                <select
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value)}
-                  style={select}
+          {!brandReady || !brandId ? (
+            <div style={infoBox}>
+              <div style={{ fontSize: 12, color: "#aaa" }}>브랜드가 선택되어 있지 않습니다.</div>
+              <Link href="/admin/brand" style={{ color: "white", fontSize: 13 }}>
+                브랜드 선택하러 가기
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  onClick={fetchBrandMembers}
+                  disabled={!brandId || brandLoading}
+                  style={btnPrimary}
                 >
-                  <option value="">역할 선택</option>
-                  {BRAND_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={addBrandMember} disabled={adding || !newUserId} style={btnPrimary}>
-                  {adding ? "추가 중..." : "추가"}
+                  {brandLoading ? "로딩..." : "조회"}
                 </button>
               </div>
-            </div>
+
+              {/* 멤버 추가 */}
+              <div style={{ ...card, marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 12 }}>멤버 추가</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    type="text"
+                    value={newUserId}
+                    onChange={(e) => setNewUserId(e.target.value)}
+                    placeholder="User UUID"
+                    style={{ ...input, width: 280 }}
+                  />
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    style={select}
+                  >
+                    <option value="">역할 선택</option>
+                    {BRAND_ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={addBrandMember} disabled={adding || !newUserId} style={btnPrimary}>
+                    {adding ? "추가 중..." : "추가"}
+                  </button>
+                </div>
+              </div>
+
+              {/* 에러 */}
+              {brandError && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{brandError}</p>}
+
+              {/* 멤버 목록 */}
+              <div style={tableWrapper}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead style={{ background: "#0f0f0f" }}>
+                    <tr>
+                      <th style={th}>사용자</th>
+                      <th style={th}>역할</th>
+                      <th style={th}>상태</th>
+                      <th style={{ ...th, textAlign: "center" }}>관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brandMembers.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
+                          멤버가 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                    {brandMembers.map((m) => (
+                      <tr key={m.id} style={{ borderTop: "1px solid #222" }}>
+                        <td style={td}>
+                          <div>{m.displayName || "-"}</div>
+                          <div style={{ fontSize: 11, color: "#666", fontFamily: "monospace" }}>
+                            {m.userId.slice(0, 8)}...
+                          </div>
+                        </td>
+                        <td style={td}>
+                          <select
+                            value={m.role}
+                            onChange={(e) => updateBrandMemberRole(m.userId, e.target.value as BrandRole)}
+                            style={selectSmall}
+                            disabled={m.role === "OWNER"}
+                          >
+                            {BRAND_ROLES.map((r) => (
+                              <option key={r.value} value={r.value}>
+                                {r.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={td}>
+                          <span style={statusBadge}>{STATUS_LABELS[m.status]}</span>
+                        </td>
+                        <td style={{ ...td, textAlign: "center" }}>
+                          <button
+                            onClick={() => removeBrandMember(m.userId)}
+                            style={{ ...btnSmall, color: "#ef4444" }}
+                            disabled={m.role === "OWNER"}
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
-
-          {/* 에러 */}
-          {brandError && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{brandError}</p>}
-
-          {/* 멤버 목록 */}
-          <div style={tableWrapper}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
-                <tr>
-                  <th style={th}>사용자</th>
-                  <th style={th}>역할</th>
-                  <th style={th}>상태</th>
-                  <th style={{ ...th, textAlign: "center" }}>관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {brandMembers.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
-                      {brandId ? "멤버가 없습니다." : "브랜드 ID를 입력하고 조회하세요."}
-                    </td>
-                  </tr>
-                )}
-                {brandMembers.map((m) => (
-                  <tr key={m.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>
-                      <div>{m.displayName || "-"}</div>
-                      <div style={{ fontSize: 11, color: "#666", fontFamily: "monospace" }}>
-                        {m.userId.slice(0, 8)}...
-                      </div>
-                    </td>
-                    <td style={td}>
-                      <select
-                        value={m.role}
-                        onChange={(e) => updateBrandMemberRole(m.userId, e.target.value as BrandRole)}
-                        style={selectSmall}
-                        disabled={m.role === "OWNER"}
-                      >
-                        {BRAND_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={td}>
-                      <span style={statusBadge}>{STATUS_LABELS[m.status]}</span>
-                    </td>
-                    <td style={{ ...td, textAlign: "center" }}>
-                      <button
-                        onClick={() => removeBrandMember(m.userId)}
-                        style={{ ...btnSmall, color: "#ef4444" }}
-                        disabled={m.role === "OWNER"}
-                      >
-                        삭제
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       )}
 
       {/* Branch Members Tab */}
       {tab === "branch" && (
         <div>
-          {/* Branch ID 입력 */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <input
-              type="text"
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
-              placeholder="Branch UUID"
-              style={input}
-            />
-            <button
-              onClick={fetchBranchMembers}
-              disabled={!branchId || branchLoading}
-              style={btnPrimary}
-            >
-              {branchLoading ? "로딩..." : "조회"}
-            </button>
+          {/* Branch 선택 */}
+          <div style={{ marginBottom: 16 }}>
+            <BranchSelector />
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={fetchBranchMembers}
+                disabled={!branchId || branchLoading}
+                style={btnPrimary}
+              >
+                {branchLoading ? "로딩..." : "조회"}
+              </button>
+            </div>
           </div>
 
           {/* 멤버 추가 */}
@@ -530,7 +546,7 @@ export default function MembersPage() {
                 {branchMembers.length === 0 && (
                   <tr>
                     <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
-                      {branchId ? "멤버가 없습니다." : "가게 ID를 입력하고 조회하세요."}
+                      {branchId ? "멤버가 없습니다." : "가게를 선택하세요."}
                     </td>
                   </tr>
                 )}
@@ -683,4 +699,15 @@ const statusBadge: React.CSSProperties = {
   color: "#10b981",
   fontSize: 11,
   fontWeight: 600,
+};
+
+const infoBox: React.CSSProperties = {
+  padding: 10,
+  border: "1px solid #222",
+  borderRadius: 8,
+  background: "#0a0a0a",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  marginBottom: 16,
 };

@@ -20,22 +20,29 @@ let OrdersService = class OrdersService {
     isUuid(v) {
         return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
     }
-    async resolveOrderId(sb, orderIdOrNo) {
+    async resolveOrderId(sb, orderIdOrNo, branchId) {
         if (this.isUuid(orderIdOrNo)) {
-            const byId = await sb.from('orders').select('id').eq('id', orderIdOrNo).maybeSingle();
+            let query = sb.from('orders').select('id').eq('id', orderIdOrNo);
+            if (branchId)
+                query = query.eq('branch_id', branchId);
+            const byId = await query.maybeSingle();
             if (!byId.error && byId.data?.id)
                 return byId.data.id;
         }
-        const byNo = await sb.from('orders').select('id').eq('order_no', orderIdOrNo).maybeSingle();
+        let noQuery = sb.from('orders').select('id').eq('order_no', orderIdOrNo);
+        if (branchId)
+            noQuery = noQuery.eq('branch_id', branchId);
+        const byNo = await noQuery.maybeSingle();
         if (!byNo.error && byNo.data?.id)
             return byNo.data.id;
         return null;
     }
-    async getOrders(accessToken) {
+    async getOrders(accessToken, branchId) {
         const sb = this.supabase.adminClient();
         const { data, error } = await sb
             .from('orders')
             .select('id, order_no, status, created_at, total_amount, customer_name')
+            .eq('branch_id', branchId)
             .order('created_at', { ascending: false })
             .limit(50);
         if (error) {
@@ -50,7 +57,7 @@ let OrdersService = class OrdersService {
             status: row.status,
         }));
     }
-    async getOrder(accessToken, orderId) {
+    async getOrder(accessToken, orderId, branchId) {
         const sb = this.supabase.adminClient();
         const selectDetail = `
       id, order_no, status, created_at,
@@ -62,11 +69,16 @@ let OrdersService = class OrdersService {
         options:order_item_options ( id, option_name_snapshot )
       )
     `;
-        const resolvedId = await this.resolveOrderId(sb, orderId);
+        const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
         if (!resolvedId) {
             throw new Error(`[orders.getOrder] order not found: ${orderId}`);
         }
-        const { data, error } = await sb.from('orders').select(selectDetail).eq('id', resolvedId).maybeSingle();
+        const { data, error } = await sb
+            .from('orders')
+            .select(selectDetail)
+            .eq('id', resolvedId)
+            .eq('branch_id', branchId)
+            .maybeSingle();
         if (error) {
             throw new Error(`[orders.getOrder] ${error.message}`);
         }
@@ -105,9 +117,9 @@ let OrdersService = class OrdersService {
             items,
         };
     }
-    async updateStatus(accessToken, orderId, status) {
+    async updateStatus(accessToken, orderId, status, branchId) {
         const sb = this.supabase.adminClient();
-        const resolvedId = await this.resolveOrderId(sb, orderId);
+        const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
         if (!resolvedId) {
             throw new Error(`[orders.updateStatus] order not found: ${orderId}`);
         }
@@ -115,6 +127,7 @@ let OrdersService = class OrdersService {
             .from('orders')
             .update({ status })
             .eq('id', resolvedId)
+            .eq('branch_id', branchId)
             .select('id, order_no, status')
             .maybeSingle();
         if (error) {

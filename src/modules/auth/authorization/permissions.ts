@@ -1,9 +1,20 @@
 export enum Permission {
+  // Brands
+  BRAND_READ = 'BRAND_READ',
+  BRAND_WRITE = 'BRAND_WRITE',
+
+  // Branches
+  BRANCH_READ = 'BRANCH_READ',
+  BRANCH_WRITE = 'BRANCH_WRITE',
+
   // Orders
   ORDER_READ = 'ORDER_READ',
   ORDER_UPDATE_STATUS = 'ORDER_UPDATE_STATUS',
 
-  // Products (MVP 확장 대비)
+  // Dashboard
+  DASHBOARD_READ = 'DASHBOARD_READ',
+
+  // Products (MVP: 조회/관리)
   PRODUCT_READ = 'PRODUCT_READ',
   PRODUCT_WRITE = 'PRODUCT_WRITE',
 

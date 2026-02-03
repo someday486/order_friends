@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -15,7 +15,7 @@ export function useSelectedBrand() {
     setBrandIdState(getSelectedBrandId());
     setReady(true);
 
-    // 다른 탭/창에서 바뀐 경우 동기화
+    // 다른 탭에서 변경 시 동기화
     const onStorage = (e: StorageEvent) => {
       if (e.key === "of:selectedBrandId") setBrandIdState(e.newValue);
     };

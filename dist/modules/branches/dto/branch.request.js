@@ -34,6 +34,7 @@ __decorate([
 ], CreateBranchRequest.prototype, "slug", void 0);
 class UpdateBranchRequest {
     name;
+    slug;
 }
 exports.UpdateBranchRequest = UpdateBranchRequest;
 __decorate([
@@ -41,4 +42,12 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateBranchRequest.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^[a-z0-9-]+$/, {
+        message: 'slug는 소문자, 숫자, 하이픈(-)만 허용합니다.',
+    }),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "slug", void 0);
 //# sourceMappingURL=branch.request.js.map

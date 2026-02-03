@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MembersController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_guard_1 = require("../../common/guards/auth.guard");
+const admin_guard_1 = require("../../common/guards/admin.guard");
 const members_service_1 = require("./members.service");
 const member_dto_1 = require("./dto/member.dto");
 let MembersController = class MembersController {
@@ -22,114 +23,122 @@ let MembersController = class MembersController {
     constructor(membersService) {
         this.membersService = membersService;
     }
-    async getBrandMembers(authHeader, brandId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.getBrandMembers(token, brandId);
+    async getBrandMembers(req, brandId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.getBrandMembers(req.accessToken, brandId, req.isAdmin);
     }
-    async addBrandMember(authHeader, brandId, body) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.addBrandMember(token, brandId, body.userId, body.role);
+    async addBrandMember(req, brandId, body) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.addBrandMember(req.accessToken, brandId, body.userId, body.role, req.isAdmin);
     }
-    async updateBrandMember(authHeader, brandId, userId, dto) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.updateBrandMember(token, brandId, userId, dto);
+    async updateBrandMember(req, brandId, userId, dto) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.updateBrandMember(req.accessToken, brandId, userId, dto, req.isAdmin);
     }
-    async removeBrandMember(authHeader, brandId, userId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.removeBrandMember(token, brandId, userId);
+    async removeBrandMember(req, brandId, userId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.removeBrandMember(req.accessToken, brandId, userId, req.isAdmin);
     }
-    async getBranchMembers(authHeader, branchId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.getBranchMembers(token, branchId);
+    async getBranchMembers(req, branchId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.getBranchMembers(req.accessToken, branchId, req.isAdmin);
     }
-    async addBranchMember(authHeader, dto) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.addBranchMember(token, dto);
+    async addBranchMember(req, dto) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.addBranchMember(req.accessToken, dto, req.isAdmin);
     }
-    async updateBranchMember(authHeader, branchId, userId, dto) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.updateBranchMember(token, branchId, userId, dto);
+    async updateBranchMember(req, branchId, userId, dto) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.updateBranchMember(req.accessToken, branchId, userId, dto, req.isAdmin);
     }
-    async removeBranchMember(authHeader, branchId, userId) {
-        const token = authHeader?.replace('Bearer ', '');
-        return this.membersService.removeBranchMember(token, branchId, userId);
+    async removeBranchMember(req, branchId, userId) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.membersService.removeBranchMember(req.accessToken, branchId, userId, req.isAdmin);
     }
 };
 exports.MembersController = MembersController;
 __decorate([
     (0, common_1.Get)('brand/:brandId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('brandId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "getBrandMembers", null);
 __decorate([
     (0, common_1.Post)('brand/:brandId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('brandId')),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [Object, String, Object]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "addBrandMember", null);
 __decorate([
     (0, common_1.Patch)('brand/:brandId/:userId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('brandId')),
     __param(2, (0, common_1.Param)('userId')),
     __param(3, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, member_dto_1.UpdateBrandMemberRequest]),
+    __metadata("design:paramtypes", [Object, String, String, member_dto_1.UpdateBrandMemberRequest]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "updateBrandMember", null);
 __decorate([
     (0, common_1.Delete)('brand/:brandId/:userId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('brandId')),
     __param(2, (0, common_1.Param)('userId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "removeBrandMember", null);
 __decorate([
     (0, common_1.Get)('branch/:branchId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('branchId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "getBranchMembers", null);
 __decorate([
     (0, common_1.Post)('branch'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, member_dto_1.AddBranchMemberRequest]),
+    __metadata("design:paramtypes", [Object, member_dto_1.AddBranchMemberRequest]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "addBranchMember", null);
 __decorate([
     (0, common_1.Patch)('branch/:branchId/:userId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('branchId')),
     __param(2, (0, common_1.Param)('userId')),
     __param(3, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, member_dto_1.UpdateBranchMemberRequest]),
+    __metadata("design:paramtypes", [Object, String, String, member_dto_1.UpdateBranchMemberRequest]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "updateBranchMember", null);
 __decorate([
     (0, common_1.Delete)('branch/:branchId/:userId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('branchId')),
     __param(2, (0, common_1.Param)('userId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MembersController.prototype, "removeBranchMember", null);
 exports.MembersController = MembersController = __decorate([
     (0, common_1.Controller)('admin/members'),
-    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard, admin_guard_1.AdminGuard),
     __metadata("design:paramtypes", [members_service_1.MembersService])
 ], MembersController);
 //# sourceMappingURL=members.controller.js.map

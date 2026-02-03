@@ -3,6 +3,7 @@ import { PublicBranchResponse, PublicProductResponse, PublicOrderResponse, Creat
 export declare class PublicOrderService {
     private readonly supabase;
     constructor(supabase: SupabaseService);
+    private getPriceFromRow;
     getBranch(branchId: string): Promise<PublicBranchResponse>;
     getProducts(branchId: string): Promise<PublicProductResponse[]>;
     createOrder(dto: CreatePublicOrderRequest): Promise<PublicOrderResponse>;

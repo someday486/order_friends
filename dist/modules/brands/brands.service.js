@@ -25,7 +25,7 @@ let BrandsService = class BrandsService {
             const sb = this.supabase.adminClient();
             const { data, error } = await sb
                 .from('brands')
-                .select('id, name, biz_name, biz_reg_no, created_at')
+                .select('id, name, slug, biz_name, biz_reg_no, created_at')
                 .order('created_at', { ascending: false });
             if (error) {
                 throw new Error(`[brands.getMyBrands] ${error.message}`);
@@ -33,6 +33,7 @@ let BrandsService = class BrandsService {
             return (data ?? []).map((row) => ({
                 id: row.id,
                 name: row.name,
+                slug: row.slug ?? null,
                 bizName: row.biz_name ?? null,
                 bizRegNo: row.biz_reg_no ?? null,
                 createdAt: row.created_at ?? '',
@@ -44,7 +45,7 @@ let BrandsService = class BrandsService {
             .select(`
         brand_id,
         brands (
-          id, name, biz_name, biz_reg_no, created_at
+          id, name, slug, biz_name, biz_reg_no, created_at
         )
       `)
             .eq('status', 'ACTIVE');
@@ -56,6 +57,7 @@ let BrandsService = class BrandsService {
             .map((row) => ({
             id: row.brands.id,
             name: row.brands.name,
+            slug: row.brands.slug ?? null,
             bizName: row.brands.biz_name ?? null,
             bizRegNo: row.brands.biz_reg_no ?? null,
             createdAt: row.brands.created_at ?? '',
@@ -65,7 +67,7 @@ let BrandsService = class BrandsService {
         const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('brands')
-            .select('id, name, owner_user_id, biz_name, biz_reg_no, created_at')
+            .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, created_at')
             .eq('id', brandId)
             .single();
         if (error) {
@@ -77,6 +79,7 @@ let BrandsService = class BrandsService {
         return {
             id: data.id,
             name: data.name,
+            slug: data.slug ?? null,
             ownerUserId: data.owner_user_id ?? null,
             bizName: data.biz_name ?? null,
             bizRegNo: data.biz_reg_no ?? null,
@@ -101,11 +104,12 @@ let BrandsService = class BrandsService {
             .from('brands')
             .insert({
             name: dto.name,
+            slug: dto.slug ?? null,
             owner_user_id: userId,
             biz_name: dto.bizName ?? null,
             biz_reg_no: dto.bizRegNo ?? null,
         })
-            .select('id, name, owner_user_id, biz_name, biz_reg_no, created_at')
+            .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, created_at')
             .single();
         if (brandError || !brand) {
             throw new Error(`[brands.createBrand] brand insert: ${brandError?.message ?? 'unknown'}`);
@@ -123,6 +127,7 @@ let BrandsService = class BrandsService {
         return {
             id: brand.id,
             name: brand.name,
+            slug: brand.slug ?? null,
             ownerUserId: brand.owner_user_id ?? null,
             bizName: brand.biz_name ?? null,
             bizRegNo: brand.biz_reg_no ?? null,
@@ -133,6 +138,8 @@ let BrandsService = class BrandsService {
         const updateData = {};
         if (dto.name !== undefined)
             updateData.name = dto.name;
+        if (dto.slug !== undefined)
+            updateData.slug = dto.slug;
         if (dto.bizName !== undefined)
             updateData.biz_name = dto.bizName;
         if (dto.bizRegNo !== undefined)
@@ -164,7 +171,7 @@ let BrandsService = class BrandsService {
             .from('brands')
             .update(updateData)
             .eq('id', brandId)
-            .select('id, name, owner_user_id, biz_name, biz_reg_no, created_at')
+            .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, created_at')
             .maybeSingle();
         if (error) {
             throw new Error(`[brands.updateBrand] ${error.message}`);
@@ -175,6 +182,7 @@ let BrandsService = class BrandsService {
         return {
             id: data.id,
             name: data.name,
+            slug: data.slug ?? null,
             ownerUserId: data.owner_user_id ?? null,
             bizName: data.biz_name ?? null,
             bizRegNo: data.biz_reg_no ?? null,

@@ -50,6 +50,69 @@ let PublicOrderService = class PublicOrderService {
             brandName: data.brands?.name ?? undefined,
         };
     }
+    async getBranchBySlug(slug) {
+        const sb = this.supabase.anonClient();
+        const { data, error } = await sb
+            .from('branches')
+            .select(`
+        id,
+        name,
+        slug,
+        brands (
+          name
+        )
+      `)
+            .eq('slug', slug)
+            .limit(2);
+        if (error) {
+            throw new common_1.NotFoundException('사용할 수 없는 가게입니다.');
+        }
+        if (!data || data.length === 0) {
+            throw new common_1.NotFoundException('사용할 수 없는 가게입니다.');
+        }
+        if (data.length > 1) {
+            throw new common_1.ConflictException('가게 URL이 중복되어 사용할 수 없습니다.');
+        }
+        const row = data[0];
+        return {
+            id: row.id,
+            name: row.name,
+            brandName: row.brands?.name ?? undefined,
+        };
+    }
+    async getBranchByBrandSlug(brandSlug, branchSlug) {
+        const sb = this.supabase.anonClient();
+        const { data, error } = await sb
+            .from('branches')
+            .select(`
+        id,
+        name,
+        slug,
+        brands!inner (
+          id,
+          name,
+          slug
+        )
+      `)
+            .eq('slug', branchSlug)
+            .eq('brands.slug', brandSlug)
+            .limit(2);
+        if (error) {
+            throw new common_1.NotFoundException('사용할 수 없는 가게입니다.');
+        }
+        if (!data || data.length === 0) {
+            throw new common_1.NotFoundException('사용할 수 없는 가게입니다.');
+        }
+        if (data.length > 1) {
+            throw new common_1.ConflictException('가게 URL이 중복되어 사용할 수 없습니다.');
+        }
+        const row = data[0];
+        return {
+            id: row.id,
+            name: row.name,
+            brandName: row.brands?.name ?? undefined,
+        };
+    }
     async getProducts(branchId) {
         const sb = this.supabase.anonClient();
         const selectFields = '*';

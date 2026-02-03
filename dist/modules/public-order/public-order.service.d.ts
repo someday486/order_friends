@@ -5,6 +5,8 @@ export declare class PublicOrderService {
     constructor(supabase: SupabaseService);
     private getPriceFromRow;
     getBranch(branchId: string): Promise<PublicBranchResponse>;
+    getBranchBySlug(slug: string): Promise<PublicBranchResponse>;
+    getBranchByBrandSlug(brandSlug: string, branchSlug: string): Promise<PublicBranchResponse>;
     getProducts(branchId: string): Promise<PublicProductResponse[]>;
     createOrder(dto: CreatePublicOrderRequest): Promise<PublicOrderResponse>;
     getOrder(orderIdOrNo: string): Promise<PublicOrderResponse>;

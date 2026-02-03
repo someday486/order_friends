@@ -14,6 +14,7 @@ const class_validator_1 = require("class-validator");
 class BrandListItemResponse {
     id;
     name;
+    slug;
     bizName;
     bizRegNo;
     createdAt;
@@ -22,6 +23,7 @@ exports.BrandListItemResponse = BrandListItemResponse;
 class BrandDetailResponse {
     id;
     name;
+    slug;
     ownerUserId;
     bizName;
     bizRegNo;
@@ -30,6 +32,7 @@ class BrandDetailResponse {
 exports.BrandDetailResponse = BrandDetailResponse;
 class CreateBrandRequest {
     name;
+    slug;
     bizName;
     bizRegNo;
 }
@@ -42,6 +45,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
+], CreateBrandRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
 ], CreateBrandRequest.prototype, "bizName", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
@@ -50,6 +58,7 @@ __decorate([
 ], CreateBrandRequest.prototype, "bizRegNo", void 0);
 class UpdateBrandRequest {
     name;
+    slug;
     bizName;
     bizRegNo;
 }
@@ -59,6 +68,11 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateBrandRequest.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "slug", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),

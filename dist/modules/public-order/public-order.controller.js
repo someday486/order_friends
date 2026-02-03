@@ -24,6 +24,12 @@ let PublicOrderController = class PublicOrderController {
     async getBranch(branchId) {
         return this.publicOrderService.getBranch(branchId);
     }
+    async getBranchBySlug(slug) {
+        return this.publicOrderService.getBranchBySlug(slug);
+    }
+    async getBranchByBrandSlug(brandSlug, branchSlug) {
+        return this.publicOrderService.getBranchByBrandSlug(brandSlug, branchSlug);
+    }
     async getProducts(branchId) {
         return this.publicOrderService.getProducts(branchId);
     }
@@ -42,6 +48,21 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], PublicOrderController.prototype, "getBranch", null);
+__decorate([
+    (0, common_1.Get)('branches/slug/:slug'),
+    __param(0, (0, common_1.Param)('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getBranchBySlug", null);
+__decorate([
+    (0, common_1.Get)('brands/:brandSlug/branches/:branchSlug'),
+    __param(0, (0, common_1.Param)('brandSlug')),
+    __param(1, (0, common_1.Param)('branchSlug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getBranchByBrandSlug", null);
 __decorate([
     (0, common_1.Get)('branches/:branchId/products'),
     __param(0, (0, common_1.Param)('branchId')),

@@ -167,7 +167,7 @@ export default function OrderPage() {
     // 장바구니 데이터를 sessionStorage에 저장
     sessionStorage.setItem("orderCart", JSON.stringify(cart));
     sessionStorage.setItem("orderBranchId", branchId);
-    router.push(`/order/${branchId}/checkout`);
+    router.push(`/order/branch/${branchId}/checkout`);
   };
 
   // ============================================================

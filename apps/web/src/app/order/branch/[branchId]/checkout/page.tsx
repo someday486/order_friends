@@ -70,14 +70,14 @@ export default function CheckoutPage() {
     const savedBranchId = sessionStorage.getItem("orderBranchId");
 
     if (!savedCart || savedBranchId !== branchId) {
-      router.replace(`/order/${branchId}`);
+      router.replace(`/order/branch/${branchId}`);
       return;
     }
 
     try {
       setCart(JSON.parse(savedCart));
     } catch {
-      router.replace(`/order/${branchId}`);
+      router.replace(`/order/branch/${branchId}`);
     }
   }, [branchId, router]);
 
@@ -131,7 +131,7 @@ export default function CheckoutPage() {
 
       // 완료 페이지로 이동
       sessionStorage.setItem("lastOrder", JSON.stringify(result));
-      router.push(`/order/${branchId}/complete`);
+      router.push(`/order/branch/${branchId}/complete`);
     } catch (e: unknown) {
       setError((e as Error)?.message ?? "주문 중 오류가 발생했습니다.");
     } finally {
@@ -155,7 +155,7 @@ export default function CheckoutPage() {
     <div style={pageContainer}>
       {/* Header */}
       <header style={header}>
-        <Link href={`/order/${branchId}`} style={{ color: "#fff", textDecoration: "none" }}>
+        <Link href={`/order/branch/${branchId}`} style={{ color: "#fff", textDecoration: "none" }}>
           ← 돌아가기
         </Link>
         <h1 style={{ margin: "12px 0 0 0", fontSize: 20, fontWeight: 700 }}>주문서 작성</h1>

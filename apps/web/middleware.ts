@@ -27,6 +27,9 @@ export async function middleware(request: NextRequest) {
       setAll(cookiesToSet) {
         // ✅ 핵심: response에 쿠키를 실어야 다음 요청에 반영됨
         cookiesToSet.forEach(({ name, value, options }) => {
+          // ✅ request도 갱신 (중요)
+          request.cookies.set(name, value);
+          // ✅ response도 갱신
           response.cookies.set(name, value, options);
         });
       },

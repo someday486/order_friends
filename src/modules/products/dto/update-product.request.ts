@@ -9,6 +9,14 @@ export class UpdateProductRequest {
   @IsOptional()
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  categoryId?: string;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
   @IsNumber()
   @IsOptional()
   @Min(0)

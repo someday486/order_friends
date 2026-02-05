@@ -16,6 +16,10 @@ import { PublicModule } from './modules/public/public.module';
 import { PublicOrderModule } from './modules/public-order/public-order.module';
 import { HealthModule } from './modules/health/health.module';
 import { CustomerDashboardModule } from './modules/customer-dashboard/customer-dashboard.module';
+import { CustomerBrandsModule } from './modules/customer-brands/customer-brands.module';
+import { CustomerBranchesModule } from './modules/customer-branches/customer-branches.module';
+import { CustomerProductsModule } from './modules/customer-products/customer-products.module';
+import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -50,6 +54,10 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     PublicOrderModule,
     HealthModule,
     CustomerDashboardModule,
+    CustomerBrandsModule,
+    CustomerBranchesModule,
+    CustomerProductsModule,
+    CustomerOrdersModule,
   ],
   providers: [
     AuthGuard,

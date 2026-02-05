@@ -46,16 +46,20 @@ async function bootstrap() {
   );
 
   // CORS Configuration
-  const allowedOrigins = new Set([
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://192.168.0.74:3000',
-  ]);
-
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.has(origin)) return callback(null, true);
+
+      // Allow localhost and 127.0.0.1
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
+      }
+
+      // Allow local network IPs (192.168.x.x) in development
+      if (process.env.NODE_ENV !== 'production' && /^http:\/\/192\.168\.\d+\.\d+:/.test(origin)) {
+        return callback(null, true);
+      }
+
       return callback(new Error(`CORS blocked: ${origin}`), false);
     },
     credentials: true,

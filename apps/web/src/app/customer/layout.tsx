@@ -9,6 +9,7 @@ const menuItems = [
   { href: "/customer/brands", label: "브랜드 관리", icon: "🏢" },
   { href: "/customer/branches", label: "매장 관리", icon: "🏪" },
   { href: "/customer/products", label: "상품 관리", icon: "📦" },
+  { href: "/customer/inventory", label: "재고 관리", icon: "📊" },
   { href: "/customer/orders", label: "주문 관리", icon: "📋" },
 ];
 

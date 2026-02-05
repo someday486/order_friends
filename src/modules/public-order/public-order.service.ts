@@ -1,5 +1,6 @@
-﻿import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { InventoryService } from '../inventory/inventory.service';
 import {
   PublicBranchResponse,
   PublicProductResponse,
@@ -9,7 +10,12 @@ import {
 
 @Injectable()
 export class PublicOrderService {
-  constructor(private readonly supabase: SupabaseService) {}
+  private readonly logger = new Logger(PublicOrderService.name);
+
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   private getPriceFromRow(row: any): number {
     if (!row) return 0;

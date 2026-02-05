@@ -2,14 +2,23 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 describe('PublicOrderService - Inventory Integration', () => {
   let service: PublicOrderService;
   let supabaseService: SupabaseService;
+  let inventoryService: InventoryService;
 
   const mockSupabaseService = {
     adminClient: jest.fn(),
     anonClient: jest.fn(),
+  };
+
+  const mockInventoryService = {
+    reserveInventory: jest.fn(),
+    releaseInventory: jest.fn(),
+    getInventory: jest.fn(),
+    updateInventory: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -20,11 +29,16 @@ describe('PublicOrderService - Inventory Integration', () => {
           provide: SupabaseService,
           useValue: mockSupabaseService,
         },
+        {
+          provide: InventoryService,
+          useValue: mockInventoryService,
+        },
       ],
     }).compile();
 
     service = module.get<PublicOrderService>(PublicOrderService);
     supabaseService = module.get<SupabaseService>(SupabaseService);
+    inventoryService = module.get<InventoryService>(InventoryService);
   });
 
   afterEach(() => {

@@ -16,8 +16,8 @@ describe('ProductsService', () => {
     delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
-    single: jest.fn(),
-    maybeSingle: jest.fn(),
+    single: jest.fn().mockReturnThis(),
+    maybeSingle: jest.fn().mockReturnThis(),
   };
 
   const mockSupabaseService = {
@@ -238,7 +238,7 @@ describe('ProductsService', () => {
 
   describe('deleteProduct', () => {
     it('should delete product successfully', async () => {
-      mockSupabaseClient.delete.mockResolvedValue({
+      mockSupabaseClient.eq.mockResolvedValue({
         data: null,
         error: null,
       });
@@ -249,7 +249,7 @@ describe('ProductsService', () => {
     });
 
     it('should throw BusinessException on deletion error', async () => {
-      mockSupabaseClient.delete.mockResolvedValue({
+      mockSupabaseClient.eq.mockResolvedValue({
         data: null,
         error: { message: 'Deletion failed' },
       });

@@ -15,8 +15,11 @@ describe('OrdersService', () => {
     eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
-    maybeSingle: jest.fn(),
+    range: jest.fn().mockReturnThis(),
+    maybeSingle: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
+    insert: jest.fn().mockReturnThis(),
+    single: jest.fn().mockReturnThis(),
   };
 
   const mockSupabaseService = {

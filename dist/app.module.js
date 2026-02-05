@@ -32,6 +32,7 @@ const inventory_module_1 = require("./modules/inventory/inventory.module");
 const payments_module_1 = require("./modules/payments/payments.module");
 const notifications_module_1 = require("./modules/notifications/notifications.module");
 const analytics_module_1 = require("./modules/analytics/analytics.module");
+const upload_module_1 = require("./modules/upload/upload.module");
 const auth_guard_1 = require("./common/guards/auth.guard");
 const membership_guard_1 = require("./common/guards/membership.guard");
 const policy_guard_1 = require("./common/guards/policy.guard");
@@ -76,6 +77,7 @@ exports.AppModule = AppModule = __decorate([
             payments_module_1.PaymentsModule,
             notifications_module_1.NotificationsModule,
             analytics_module_1.AnalyticsModule,
+            upload_module_1.UploadModule,
         ],
         providers: [
             auth_guard_1.AuthGuard,

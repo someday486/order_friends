@@ -23,6 +23,7 @@ import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -64,6 +65,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     InventoryModule,
     PaymentsModule,
     NotificationsModule,
+    AnalyticsModule,
   ],
   providers: [
     AuthGuard,

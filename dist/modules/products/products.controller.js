@@ -20,6 +20,7 @@ const admin_guard_1 = require("../../common/guards/admin.guard");
 const products_service_1 = require("./products.service");
 const create_product_request_1 = require("./dto/create-product.request");
 const update_product_request_1 = require("./dto/update-product.request");
+const search_dto_1 = require("../../common/dto/search.dto");
 let ProductsController = class ProductsController {
     productsService;
     constructor(productsService) {
@@ -29,6 +30,11 @@ let ProductsController = class ProductsController {
         if (!req.accessToken)
             throw new Error('Missing access token');
         return this.productsService.getProducts(req.accessToken, branchId, req.isAdmin);
+    }
+    async searchProducts(req, branchId, searchDto) {
+        if (!req.accessToken)
+            throw new Error('Missing access token');
+        return this.productsService.searchProducts(req.accessToken, branchId, searchDto, req.isAdmin);
     }
     async getCategories(req, branchId) {
         if (!req.accessToken)
@@ -71,6 +77,21 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "getProducts", null);
+__decorate([
+    (0, common_1.Get)('search'),
+    (0, swagger_1.ApiOperation)({
+        summary: '상품 검색',
+        description: '다양한 필터로 상품을 검색합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '상품 검색 성공' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, search_dto_1.ProductSearchDto]),
+    __metadata("design:returntype", Promise)
+], ProductsController.prototype, "searchProducts", null);
 __decorate([
     (0, common_1.Get)('categories'),
     (0, swagger_1.ApiOperation)({

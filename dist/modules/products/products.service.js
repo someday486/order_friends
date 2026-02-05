@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
 const product_exception_1 = require("../../common/exceptions/product.exception");
 const business_exception_1 = require("../../common/exceptions/business.exception");
+const query_builder_util_1 = require("../../common/utils/query-builder.util");
 let ProductsService = ProductsService_1 = class ProductsService {
     supabase;
     logger = new common_1.Logger(ProductsService_1.name);
@@ -62,6 +63,36 @@ let ProductsService = ProductsService_1 = class ProductsService {
             sortOrder: 0,
             createdAt: row.created_at ?? '',
         }));
+    }
+    async searchProducts(accessToken, branchId, searchDto, isAdmin) {
+        this.logger.log(`Searching products for branch: ${branchId} with filters: ${JSON.stringify(searchDto)}`);
+        const sb = this.getClient(accessToken, isAdmin);
+        const query = query_builder_util_1.QueryBuilder.buildProductSearchQuery(sb, branchId, searchDto);
+        const { data, error, count } = await query;
+        if (error) {
+            this.logger.error(`Failed to search products: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to search products', 'PRODUCT_SEARCH_FAILED', 500, { branchId, searchDto, error: error.message });
+        }
+        const items = (data ?? []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            price: this.getPriceFromRow(row),
+            isActive: !(row.is_hidden ?? false),
+            sortOrder: 0,
+            createdAt: row.created_at ?? '',
+        }));
+        const page = searchDto.page || 1;
+        const limit = searchDto.limit || 20;
+        const totalPages = count ? Math.ceil(count / limit) : 0;
+        return {
+            data: items,
+            pagination: {
+                page,
+                limit,
+                total: count || 0,
+                totalPages,
+            },
+        };
     }
     async getCategories(accessToken, branchId, isAdmin) {
         const sb = this.getClient(accessToken, isAdmin);

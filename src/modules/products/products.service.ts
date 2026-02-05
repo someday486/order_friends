@@ -10,6 +10,9 @@ import { UpdateProductRequest } from './dto/update-product.request';
 import { ProductCategoryResponse } from './dto/product-category.response';
 import { ProductNotFoundException } from '../../common/exceptions/product.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { ProductSearchDto } from '../../common/dto/search.dto';
+import { QueryBuilder } from '../../common/utils/query-builder.util';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class ProductsService {
@@ -77,6 +80,55 @@ export class ProductsService {
       sortOrder: 0,
       createdAt: row.created_at ?? '',
     }));
+  }
+
+  /**
+   * 상품 검색 (필터링 및 페이지네이션 지원)
+   */
+  async searchProducts(
+    accessToken: string,
+    branchId: string,
+    searchDto: ProductSearchDto,
+    isAdmin?: boolean,
+  ): Promise<PaginatedResponse<ProductListItemResponse>> {
+    this.logger.log(`Searching products for branch: ${branchId} with filters: ${JSON.stringify(searchDto)}`);
+    const sb = this.getClient(accessToken, isAdmin);
+
+    const query = QueryBuilder.buildProductSearchQuery(sb, branchId, searchDto);
+    const { data, error, count } = await query;
+
+    if (error) {
+      this.logger.error(`Failed to search products: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to search products',
+        'PRODUCT_SEARCH_FAILED',
+        500,
+        { branchId, searchDto, error: error.message },
+      );
+    }
+
+    const items = (data ?? []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      price: this.getPriceFromRow(row),
+      isActive: !(row.is_hidden ?? false),
+      sortOrder: 0,
+      createdAt: row.created_at ?? '',
+    }));
+
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const totalPages = count ? Math.ceil(count / limit) : 0;
+
+    return {
+      data: items,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages,
+      },
+    };
   }
 
   /**

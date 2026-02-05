@@ -25,6 +25,7 @@ import type { AuthRequest } from '../../common/types/auth-request';
 import { ProductsService } from './products.service';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
+import { ProductSearchDto } from '../../common/dto/search.dto';
 
 @ApiTags('products')
 @ApiBearerAuth()
@@ -48,6 +49,27 @@ export class ProductsController {
     return this.productsService.getProducts(
       req.accessToken,
       branchId,
+      req.isAdmin,
+    );
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: '상품 검색',
+    description: '다양한 필터로 상품을 검색합니다.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiResponse({ status: 200, description: '상품 검색 성공' })
+  async searchProducts(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query() searchDto: ProductSearchDto,
+  ) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.productsService.searchProducts(
+      req.accessToken,
+      branchId,
+      searchDto,
       req.isAdmin,
     );
   }

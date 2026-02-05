@@ -1,11 +1,15 @@
-﻿import { Injectable } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from './order-status.enum';
 import { OrderDetailResponse, OrderItemResponse } from './dto/order-detail.response';
 import { OrderListItemResponse } from './dto/order-list.response';
+import { OrderNotFoundException } from '../../common/exceptions/order.exception';
+import { BusinessException } from '../../common/exceptions/business.exception';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   private isUuid(v: string) {
@@ -43,6 +47,7 @@ export class OrdersService {
    * - RLS 때문에 userClient로는 안 보일 수 있어 adminClient 사용
    */
   async getOrders(accessToken: string, branchId: string): Promise<OrderListItemResponse[]> {
+    this.logger.log(`Fetching orders for branch: ${branchId}`);
     const sb = this.supabase.adminClient();
 
     const { data, error } = await sb
@@ -53,8 +58,16 @@ export class OrdersService {
       .limit(50);
 
     if (error) {
-      throw new Error(`[orders.getOrders] ${error.message}`);
+      this.logger.error(`Failed to fetch orders: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to fetch orders',
+        'ORDER_FETCH_FAILED',
+        500,
+        { branchId, error: error.message },
+      );
     }
+
+    this.logger.log(`Fetched ${data?.length || 0} orders for branch: ${branchId}`);
 
     return (data ?? []).map((row: any) => ({
       id: row.id,
@@ -72,6 +85,7 @@ export class OrdersService {
    * - id / order_no 모두 지원
    */
   async getOrder(accessToken: string, orderId: string, branchId: string): Promise<OrderDetailResponse> {
+    this.logger.log(`Fetching order detail: ${orderId} for branch: ${branchId}`);
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
@@ -87,7 +101,8 @@ export class OrdersService {
 
     const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
     if (!resolvedId) {
-      throw new Error(`[orders.getOrder] order not found: ${orderId}`);
+      this.logger.warn(`Order not found: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
 
     const { data, error } = await sb
@@ -98,10 +113,16 @@ export class OrdersService {
       .maybeSingle();
 
     if (error) {
-      throw new Error(`[orders.getOrder] ${error.message}`);
+      this.logger.error(`Failed to fetch order: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to fetch order',
+        'ORDER_FETCH_FAILED',
+        500,
+        { orderId, error: error.message },
+      );
     }
     if (!data) {
-      throw new Error(`[orders.getOrder] order not found: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
 
     const items: OrderItemResponse[] = (data.items ?? []).map((it: any) => {
@@ -145,11 +166,13 @@ export class OrdersService {
    * - id / order_no 모두 지원
    */
   async updateStatus(accessToken: string, orderId: string, status: OrderStatus, branchId: string) {
+    this.logger.log(`Updating order status: ${orderId} to ${status}`);
     const sb = this.supabase.adminClient();
 
     const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
     if (!resolvedId) {
-      throw new Error(`[orders.updateStatus] order not found: ${orderId}`);
+      this.logger.warn(`Order not found for status update: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
 
     const { data, error } = await sb
@@ -161,12 +184,20 @@ export class OrdersService {
       .maybeSingle();
 
     if (error) {
-      throw new Error(`[orders.updateStatus] ${error.message}`);
+      this.logger.error(`Failed to update order status: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to update order status',
+        'ORDER_UPDATE_FAILED',
+        500,
+        { orderId, status, error: error.message },
+      );
     }
 
     if (!data) {
-      throw new Error(`[orders.updateStatus] order not found or not permitted: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
+
+    this.logger.log(`Order status updated successfully: ${orderId} -> ${status}`);
 
     return {
       id: data.id,

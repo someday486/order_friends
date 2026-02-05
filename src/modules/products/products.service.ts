@@ -1,13 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { ProductListItemResponse } from './dto/product-list.response';
 import { ProductDetailResponse, ProductOptionResponse } from './dto/product-detail.response';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
 import { ProductCategoryResponse } from './dto/product-category.response';
+import { ProductNotFoundException } from '../../common/exceptions/product.exception';
+import { BusinessException } from '../../common/exceptions/business.exception';
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
@@ -34,6 +38,7 @@ export class ProductsService {
     branchId: string,
     isAdmin?: boolean,
   ): Promise<ProductListItemResponse[]> {
+    this.logger.log(`Fetching products for branch: ${branchId}`);
     const sb = this.getClient(accessToken, isAdmin);
 
     const selectFields = '*';
@@ -44,8 +49,16 @@ export class ProductsService {
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw new Error(`[products.getProducts] ${error.message}`);
+      this.logger.error(`Failed to fetch products: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to fetch products',
+        'PRODUCT_FETCH_FAILED',
+        500,
+        { branchId, error: error.message },
+      );
     }
+
+    this.logger.log(`Fetched ${data?.length || 0} products for branch: ${branchId}`);
 
     return (data ?? []).map((row: any) => ({
       id: row.id,
@@ -106,11 +119,18 @@ export class ProductsService {
       .single();
 
     if (error) {
-      throw new NotFoundException(`[products.getProduct] ${error.message}`);
+      this.logger.error(`Failed to fetch product: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to fetch product',
+        'PRODUCT_FETCH_FAILED',
+        500,
+        { productId, error: error.message },
+      );
     }
 
     if (!data) {
-      throw new NotFoundException('상품을 찾을 수 없습니다.');
+      this.logger.warn(`Product not found: ${productId}`);
+      throw new ProductNotFoundException(productId);
     }
 
     const options: ProductOptionResponse[] = this.emptyOptions();
@@ -158,13 +178,20 @@ export class ProductsService {
       .single();
 
     if (productError) {
-      throw new Error(`[products.createProduct] ${productError.message}`);
+      this.logger.error(`Failed to create product: ${productError.message}`, productError);
+      throw new BusinessException(
+        'Failed to create product',
+        'PRODUCT_CREATE_FAILED',
+        500,
+        { error: productError.message },
+      );
     }
 
     const productId = productData.id;
+    this.logger.log(`Product created successfully: ${productId}`);
 
     if (dto.options && dto.options.length > 0) {
-      console.warn('[products.createProduct] product_options table not available; options ignored');
+      this.logger.warn('[products.createProduct] product_options table not available; options ignored');
     }
 
     return this.getProduct(accessToken, productId, isAdmin);
@@ -201,12 +228,21 @@ export class ProductsService {
       .maybeSingle();
 
     if (error) {
-      throw new Error(`[products.updateProduct] ${error.message}`);
+      this.logger.error(`Failed to update product: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to update product',
+        'PRODUCT_UPDATE_FAILED',
+        500,
+        { productId, error: error.message },
+      );
     }
 
     if (!data) {
-      throw new NotFoundException('수정할 상품을 찾을 수 없습니다.');
+      this.logger.warn(`Product not found for update: ${productId}`);
+      throw new ProductNotFoundException(productId);
     }
+
+    this.logger.log(`Product updated successfully: ${productId}`);
 
     return this.getProduct(accessToken, productId, isAdmin);
   }
@@ -227,8 +263,16 @@ export class ProductsService {
       .eq('id', productId);
 
     if (error) {
-      throw new Error(`[products.deleteProduct] ${error.message}`);
+      this.logger.error(`Failed to delete product: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to delete product',
+        'PRODUCT_DELETE_FAILED',
+        500,
+        { productId, error: error.message },
+      );
     }
+
+    this.logger.log(`Product deleted successfully: ${productId}`);
 
     return { deleted: true };
   }

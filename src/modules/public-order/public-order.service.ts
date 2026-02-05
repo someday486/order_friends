@@ -1,4 +1,10 @@
-﻿import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+﻿import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import {
@@ -19,9 +25,11 @@ export class PublicOrderService {
 
   private getPriceFromRow(row: any): number {
     if (!row) return 0;
-    if (row.base_price !== undefined && row.base_price !== null) return row.base_price;
+    if (row.base_price !== undefined && row.base_price !== null)
+      return row.base_price;
     if (row.price !== undefined && row.price !== null) return row.price;
-    if (row.price_amount !== undefined && row.price_amount !== null) return row.price_amount;
+    if (row.price_amount !== undefined && row.price_amount !== null)
+      return row.price_amount;
     return 0;
   }
 
@@ -33,13 +41,15 @@ export class PublicOrderService {
 
     const { data, error } = await sb
       .from('branches')
-      .select(`
+      .select(
+        `
         id,
         name,
         brands (
           name
         )
-      `)
+      `,
+      )
       .eq('id', branchId)
       .single();
 
@@ -54,7 +64,6 @@ export class PublicOrderService {
     };
   }
 
-
   /**
    * Get branch info by slug (public)
    */
@@ -63,14 +72,16 @@ export class PublicOrderService {
 
     const { data, error } = await sb
       .from('branches')
-      .select(`
+      .select(
+        `
         id,
         name,
         slug,
         brands (
           name
         )
-      `)
+      `,
+      )
       .eq('slug', slug)
       .limit(2);
 
@@ -148,7 +159,10 @@ export class PublicOrderService {
 
     const selectFields = '*';
 
-    const buildBaseQuery = (includeIsHidden: boolean, includeIsSoldOut: boolean) => {
+    const buildBaseQuery = (
+      includeIsHidden: boolean,
+      includeIsSoldOut: boolean,
+    ) => {
       let query = (sb as any)
         .from('products')
         .select(selectFields)
@@ -210,9 +224,13 @@ export class PublicOrderService {
 
   /**
    * Create order (public)
+   * Now includes inventory reservation and logging
    */
-  async createOrder(dto: CreatePublicOrderRequest): Promise<PublicOrderResponse> {
+  async createOrder(
+    dto: CreatePublicOrderRequest,
+  ): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
+    const adminClient = this.supabase.adminClient();
 
     const productIds = dto.items.map((item) => item.productId);
     const selectProductFields = '*';
@@ -226,7 +244,9 @@ export class PublicOrderService {
       throw new BadRequestException(`상품 조회 실패: ${productsError.message}`);
     }
 
-    const productMap = new Map(products?.map((p: any) => [p.id, p]) ?? []);
+    const productMap = new Map<string, any>(
+      products?.map((p: any) => [p.id, p]) ?? [],
+    );
 
     for (const product of products ?? []) {
       if (product.branch_id !== dto.branchId) {
@@ -240,23 +260,65 @@ export class PublicOrderService {
       throw new BadRequestException('옵션 기능이 비활성화되어 있습니다.');
     }
 
+    // ============================================================
+    // STEP 1: Check inventory availability
+    // ============================================================
+    const { data: inventoryRecords, error: invError } = await adminClient
+      .from('product_inventory')
+      .select('product_id, qty_available, qty_reserved')
+      .in('product_id', productIds)
+      .eq('branch_id', dto.branchId);
+
+    if (invError) {
+      throw new BadRequestException(`재고 조회 실패: ${invError.message}`);
+    }
+
+    const inventoryMap = new Map(
+      inventoryRecords?.map((inv: any) => [inv.product_id, inv]) ?? [],
+    );
+
+    // Check if all products have sufficient inventory
+    for (const item of dto.items) {
+      const inventory = inventoryMap.get(item.productId);
+      if (!inventory) {
+        throw new BadRequestException(
+          `재고 정보를 찾을 수 없습니다: ${productMap.get(item.productId)?.name}`,
+        );
+      }
+      if (inventory.qty_available < item.qty) {
+        throw new BadRequestException(
+          `재고가 부족합니다: ${productMap.get(item.productId)?.name} (재고: ${inventory.qty_available}개, 주문: ${item.qty}개)`,
+        );
+      }
+    }
+
     let subtotalAmount = 0;
     const orderItemsData: {
       product_id: string;
       product_name_snapshot: string;
       qty: number;
       unit_price: number;
-      options: { product_option_id: string; option_name_snapshot: string; price_delta_snapshot: number }[];
+      options: {
+        product_option_id: string;
+        option_name_snapshot: string;
+        price_delta_snapshot: number;
+      }[];
     }[] = [];
 
     for (const item of dto.items) {
       const product = productMap.get(item.productId) as any;
       if (!product) {
-        throw new BadRequestException(`상품을 찾을 수 없습니다: ${item.productId}`);
+        throw new BadRequestException(
+          `상품을 찾을 수 없습니다: ${item.productId}`,
+        );
       }
 
-      let itemPrice = this.getPriceFromRow(product);
-      const optionSnapshots: { product_option_id: string; option_name_snapshot: string; price_delta_snapshot: number }[] = [];
+      const itemPrice = this.getPriceFromRow(product);
+      const optionSnapshots: {
+        product_option_id: string;
+        option_name_snapshot: string;
+        price_delta_snapshot: number;
+      }[] = [];
 
       subtotalAmount += itemPrice * item.qty;
 
@@ -295,7 +357,12 @@ export class PublicOrderService {
       throw new BadRequestException(`주문 생성 실패: ${orderError.message}`);
     }
 
-    const orderItemResults: { productName: string; qty: number; unitPrice: number; options: string[] }[] = [];
+    const orderItemResults: {
+      productName: string;
+      qty: number;
+      unitPrice: number;
+      options: string[];
+    }[] = [];
 
     for (const itemData of orderItemsData) {
       const { data: orderItem, error: itemError } = await sb
@@ -318,12 +385,14 @@ export class PublicOrderService {
       const optionNames: string[] = [];
       if (itemData.options && itemData.options.length > 0) {
         for (const opt of itemData.options) {
-          const { error: optError } = await sb.from('order_item_options').insert({
-            order_item_id: orderItem.id,
-            product_option_id: opt.product_option_id,
-            option_name_snapshot: opt.option_name_snapshot,
-            price_delta_snapshot: opt.price_delta_snapshot,
-          });
+          const { error: optError } = await sb
+            .from('order_item_options')
+            .insert({
+              order_item_id: orderItem.id,
+              product_option_id: opt.product_option_id,
+              option_name_snapshot: opt.option_name_snapshot,
+              price_delta_snapshot: opt.price_delta_snapshot,
+            });
 
           if (!optError) {
             optionNames.push(opt.option_name_snapshot);
@@ -337,6 +406,56 @@ export class PublicOrderService {
         unitPrice: itemData.unit_price,
         options: optionNames,
       });
+    }
+
+    // ============================================================
+    // STEP 2: Reserve inventory and create logs
+    // ============================================================
+    try {
+      for (const item of dto.items) {
+        const inventory = inventoryMap.get(item.productId);
+        if (!inventory) continue;
+
+        // Update inventory: decrease available, increase reserved
+        const { error: updateError } = await adminClient
+          .from('product_inventory')
+          .update({
+            qty_available: inventory.qty_available - item.qty,
+            qty_reserved: inventory.qty_reserved + item.qty,
+          })
+          .eq('product_id', item.productId)
+          .eq('branch_id', dto.branchId);
+
+        if (updateError) {
+          this.logger.error(
+            `Failed to reserve inventory for product ${item.productId}`,
+            updateError,
+          );
+          throw new BadRequestException(
+            `재고 예약 실패: ${productMap.get(item.productId)?.name}`,
+          );
+        }
+
+        // Create inventory log
+        await adminClient.from('inventory_logs').insert({
+          product_id: item.productId,
+          branch_id: dto.branchId,
+          transaction_type: 'RESERVE',
+          qty_change: -item.qty,
+          qty_before: inventory.qty_available,
+          qty_after: inventory.qty_available - item.qty,
+          reference_id: order.id,
+          reference_type: 'ORDER',
+          notes: `주문 생성으로 인한 재고 예약 (주문번호: ${order.order_no})`,
+        });
+      }
+    } catch (error) {
+      // If inventory reservation fails, we should ideally rollback the order
+      // For now, just log the error and throw
+      this.logger.error('Inventory reservation failed for order ' + order.id, error);
+      throw new BadRequestException(
+        '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
+      );
     }
 
     return {
@@ -357,7 +476,8 @@ export class PublicOrderService {
 
     let { data, error } = await sb
       .from('orders')
-      .select(`
+      .select(
+        `
         id,
         order_no,
         status,
@@ -371,14 +491,16 @@ export class PublicOrderService {
             option_name_snapshot
           )
         )
-      `)
+      `,
+      )
       .eq('id', orderIdOrNo)
       .maybeSingle();
 
     if (!data) {
       const result = await sb
         .from('orders')
-        .select(`
+        .select(
+          `
           id,
           order_no,
           status,
@@ -392,7 +514,8 @@ export class PublicOrderService {
               option_name_snapshot
             )
           )
-        `)
+        `,
+        )
         .eq('order_no', orderIdOrNo)
         .maybeSingle();
 
@@ -414,10 +537,10 @@ export class PublicOrderService {
         productName: item.product_name_snapshot,
         qty: item.qty,
         unitPrice: item.unit_price,
-        options: (item.order_item_options ?? []).map((o: any) => o.option_name_snapshot),
+        options: (item.order_item_options ?? []).map(
+          (o: any) => o.option_name_snapshot,
+        ),
       })),
     };
   }
 }
-
-

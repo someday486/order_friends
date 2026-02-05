@@ -1,11 +1,17 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from './order-status.enum';
-import { OrderDetailResponse, OrderItemResponse } from './dto/order-detail.response';
+import {
+  OrderDetailResponse,
+  OrderItemResponse,
+} from './dto/order-detail.response';
 import { OrderListItemResponse } from './dto/order-list.response';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
-import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  PaginatedResponse,
+} from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 
 @Injectable()
@@ -15,7 +21,9 @@ export class OrdersService {
   constructor(private readonly supabase: SupabaseService) {}
 
   private isUuid(v: string) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      v,
+    );
   }
 
   /**
@@ -55,7 +63,9 @@ export class OrdersService {
     paginationDto: PaginationDto = {},
   ): Promise<PaginatedResponse<OrderListItemResponse>> {
     const { page = 1, limit = 20 } = paginationDto;
-    this.logger.log(`Fetching orders for branch: ${branchId} (page: ${page}, limit: ${limit})`);
+    this.logger.log(
+      `Fetching orders for branch: ${branchId} (page: ${page}, limit: ${limit})`,
+    );
 
     const sb = this.supabase.adminClient();
     const { from, to } = PaginationUtil.getRange(page, limit);
@@ -67,7 +77,10 @@ export class OrdersService {
       .eq('branch_id', branchId);
 
     if (countError) {
-      this.logger.error(`Failed to count orders: ${countError.message}`, countError);
+      this.logger.error(
+        `Failed to count orders: ${countError.message}`,
+        countError,
+      );
       throw new BusinessException(
         'Failed to count orders',
         'ORDER_COUNT_FAILED',
@@ -113,8 +126,14 @@ export class OrdersService {
    * - RLS 때문에 adminClient 사용
    * - id / order_no 모두 지원
    */
-  async getOrder(accessToken: string, orderId: string, branchId: string): Promise<OrderDetailResponse> {
-    this.logger.log(`Fetching order detail: ${orderId} for branch: ${branchId}`);
+  async getOrder(
+    accessToken: string,
+    orderId: string,
+    branchId: string,
+  ): Promise<OrderDetailResponse> {
+    this.logger.log(
+      `Fetching order detail: ${orderId} for branch: ${branchId}`,
+    );
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
@@ -155,7 +174,9 @@ export class OrdersService {
     }
 
     const items: OrderItemResponse[] = (data.items ?? []).map((it: any) => {
-      const opts = (it.options ?? []).map((o: any) => o.option_name_snapshot).filter(Boolean);
+      const opts = (it.options ?? [])
+        .map((o: any) => o.option_name_snapshot)
+        .filter(Boolean);
 
       return {
         id: it.id,
@@ -194,7 +215,12 @@ export class OrdersService {
    * - RLS 때문에 adminClient 사용
    * - id / order_no 모두 지원
    */
-  async updateStatus(accessToken: string, orderId: string, status: OrderStatus, branchId: string) {
+  async updateStatus(
+    accessToken: string,
+    orderId: string,
+    status: OrderStatus,
+    branchId: string,
+  ) {
     this.logger.log(`Updating order status: ${orderId} to ${status}`);
     const sb = this.supabase.adminClient();
 
@@ -213,7 +239,10 @@ export class OrdersService {
       .maybeSingle();
 
     if (error) {
-      this.logger.error(`Failed to update order status: ${error.message}`, error);
+      this.logger.error(
+        `Failed to update order status: ${error.message}`,
+        error,
+      );
       throw new BusinessException(
         'Failed to update order status',
         'ORDER_UPDATE_FAILED',
@@ -226,7 +255,75 @@ export class OrdersService {
       throw new OrderNotFoundException(orderId);
     }
 
-    this.logger.log(`Order status updated successfully: ${orderId} -> ${status}`);
+    // ============================================================
+    // Handle inventory release for cancelled orders
+    // ============================================================
+    if (status === 'CANCELLED') {
+      try {
+        // Get order items to release inventory
+        const { data: orderItems } = await sb
+          .from('order_items')
+          .select('product_id, qty')
+          .eq('order_id', resolvedId);
+
+        if (orderItems && orderItems.length > 0) {
+          // Get current inventory for these products
+          const productIds = orderItems.map((item: any) => item.product_id);
+          const { data: inventories } = await sb
+            .from('product_inventory')
+            .select('product_id, qty_available, qty_reserved')
+            .in('product_id', productIds)
+            .eq('branch_id', branchId);
+
+          const inventoryMap = new Map(
+            inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
+          );
+
+          // Release inventory for each item
+          for (const item of orderItems) {
+            const inventory = inventoryMap.get(item.product_id);
+            if (!inventory) continue;
+
+            // Update inventory: increase available, decrease reserved
+            await sb
+              .from('product_inventory')
+              .update({
+                qty_available: inventory.qty_available + item.qty,
+                qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+              })
+              .eq('product_id', item.product_id)
+              .eq('branch_id', branchId);
+
+            // Create inventory log
+            await sb.from('inventory_logs').insert({
+              product_id: item.product_id,
+              branch_id: branchId,
+              transaction_type: 'RELEASE',
+              qty_change: item.qty,
+              qty_before: inventory.qty_available,
+              qty_after: inventory.qty_available + item.qty,
+              reference_id: resolvedId,
+              reference_type: 'ORDER',
+              notes: `주문 취소로 인한 재고 복구 (주문번호: ${data.order_no})`,
+            });
+          }
+
+          this.logger.log(
+            `Inventory released for cancelled order: ${data.order_no}`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to release inventory for cancelled order ${resolvedId}`,
+          error,
+        );
+        // Don't throw - order is already cancelled, just log the error
+      }
+    }
+
+    this.logger.log(
+      `Order status updated successfully: ${orderId} -> ${status}`,
+    );
 
     return {
       id: data.id,

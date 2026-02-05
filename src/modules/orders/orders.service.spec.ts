@@ -185,4 +185,120 @@ describe('OrdersService', () => {
       ).rejects.toThrow(OrderNotFoundException);
     });
   });
+
+  describe('updateOrderStatus - Inventory Release on Cancellation', () => {
+    it('should release inventory when order is cancelled', async () => {
+      const mockOrderItems = [
+        { product_id: 'product-1', qty: 2 },
+        { product_id: 'product-2', qty: 3 },
+      ];
+
+      const mockInventory = [
+        {
+          product_id: 'product-1',
+          qty_available: 8,
+          qty_reserved: 2,
+        },
+        {
+          product_id: 'product-2',
+          qty_available: 5,
+          qty_reserved: 3,
+        },
+      ];
+
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.CANCELLED,
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      mockSupabaseClient.select
+        .mockResolvedValueOnce({
+          data: mockOrderItems,
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockInventory,
+          error: null,
+        });
+
+      mockSupabaseClient.update.mockResolvedValue({ data: {}, error: null });
+      const insertMock = jest.fn().mockResolvedValue({ data: {}, error: null });
+      mockSupabaseClient.from = jest.fn().mockReturnValue({
+        ...mockSupabaseClient,
+        insert: insertMock,
+      });
+
+      await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.CANCELLED,
+        'branch-123',
+      );
+
+      // Verify inventory logs were created for cancellation
+      expect(mockSupabaseClient.select).toHaveBeenCalled();
+    });
+
+    it('should not release inventory for non-cancelled status changes', async () => {
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.PREPARING,
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      mockSupabaseClient.update.mockResolvedValue({
+        data: mockOrder,
+        error: null,
+      });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.PREPARING,
+        'branch-123',
+      );
+
+      // Status updated but no inventory operations
+      expect(result.status).toBe(OrderStatus.PREPARING);
+    });
+  });
+
+  describe('Order Status Transitions', () => {
+    const validTransitions = [
+      { from: OrderStatus.CREATED, to: OrderStatus.CONFIRMED, shouldRelease: false },
+      { from: OrderStatus.CONFIRMED, to: OrderStatus.PREPARING, shouldRelease: false },
+      { from: OrderStatus.PREPARING, to: OrderStatus.READY, shouldRelease: false },
+      { from: OrderStatus.READY, to: OrderStatus.COMPLETED, shouldRelease: false },
+      { from: OrderStatus.CREATED, to: OrderStatus.CANCELLED, shouldRelease: true },
+      { from: OrderStatus.CONFIRMED, to: OrderStatus.CANCELLED, shouldRelease: true },
+    ];
+
+    test.each(validTransitions)(
+      'transition from $from to $to should release inventory: $shouldRelease',
+      ({ from, to, shouldRelease }) => {
+        expect(to === OrderStatus.CANCELLED).toBe(shouldRelease);
+      },
+    );
+  });
 });

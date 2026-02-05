@@ -140,7 +140,9 @@ export default function OrdersPage() {
           throw new Error(`주문 목록 조회 실패: ${res.status} ${text}`);
         }
 
-        const data = (await res.json()) as Order[];
+        const response = await res.json();
+        // Handle paginated response
+        const data = response.data ? response.data : (Array.isArray(response) ? response : []);
         setOrders(data);
       } catch (e: unknown) {
         const error = e as Error;
@@ -188,7 +190,9 @@ export default function OrdersPage() {
         throw new Error(`주문 목록 조회 실패: ${res.status} ${text}`);
       }
 
-      const data = (await res.json()) as Order[];
+      const response = await res.json();
+      // Handle paginated response
+      const data = response.data ? response.data : (Array.isArray(response) ? response : []);
       setOrders(data);
     } catch (e: unknown) {
       const error = e as Error;

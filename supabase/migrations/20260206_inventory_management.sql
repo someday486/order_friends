@@ -126,7 +126,7 @@ CREATE POLICY "Branch members can view inventory"
     )
   );
 
--- Only OWNER/ADMIN can modify inventory
+-- Only BRANCH_OWNER/BRANCH_ADMIN or brand OWNER/ADMIN can modify inventory
 CREATE POLICY "OWNER/ADMIN can modify inventory"
   ON product_inventory FOR ALL
   USING (
@@ -134,7 +134,7 @@ CREATE POLICY "OWNER/ADMIN can modify inventory"
       SELECT 1 FROM branch_members brm
       WHERE brm.user_id = auth.uid()
       AND brm.branch_id = product_inventory.branch_id
-      AND brm.role IN ('OWNER', 'ADMIN')
+      AND brm.role IN ('BRANCH_OWNER', 'BRANCH_ADMIN')
       AND brm.status = 'ACTIVE'
     )
     OR

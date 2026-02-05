@@ -1,6 +1,15 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import type { BrandMembership, BranchMembership } from '../../common/types/auth-request';
+import type {
+  BrandMembership,
+  BranchMembership,
+} from '../../common/types/auth-request';
 import {
   UpdateInventoryRequest,
   AdjustInventoryRequest,
@@ -39,13 +48,17 @@ export class InventoryService {
     }
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { role: branchMembership.role, branch };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === branch.brand_id);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === branch.brand_id,
+    );
     if (brandMembership) {
       return { role: brandMembership.role, branch };
     }
@@ -76,16 +89,20 @@ export class InventoryService {
     }
 
     const branchId = product.branch_id;
-    const brandId = (product.branches as any).brand_id;
+    const brandId = product.branches.brand_id;
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { role: branchMembership.role, product };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === brandId);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === brandId,
+    );
     if (brandMembership) {
       return { role: brandMembership.role, product };
     }
@@ -96,9 +113,15 @@ export class InventoryService {
   /**
    * 수정/삭제 권한 확인 (OWNER 또는 ADMIN만 가능)
    */
-  private checkModificationPermission(role: string, action: string, userId: string) {
+  private checkModificationPermission(
+    role: string,
+    action: string,
+    userId: string,
+  ) {
     if (role !== 'OWNER' && role !== 'ADMIN') {
-      this.logger.warn(`User ${userId} with role ${role} attempted to ${action}`);
+      this.logger.warn(
+        `User ${userId} with role ${role} attempted to ${action}`,
+      );
       throw new ForbiddenException(`Only OWNER or ADMIN can ${action}`);
     }
   }
@@ -134,7 +157,10 @@ export class InventoryService {
     });
 
     if (error) {
-      this.logger.error(`Failed to create inventory log for product ${productId}`, error);
+      this.logger.error(
+        `Failed to create inventory log for product ${productId}`,
+        error,
+      );
       // Don't throw - logging failure shouldn't break the main operation
     }
   }
@@ -148,16 +174,24 @@ export class InventoryService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryListResponse[]> {
-    this.logger.log(`Fetching inventory for branch ${branchId} by user ${userId}`);
+    this.logger.log(
+      `Fetching inventory for branch ${branchId} by user ${userId}`,
+    );
 
     // 브랜치 접근 권한 확인
-    await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+    await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
 
     const sb = this.supabase.adminClient();
 
     const { data, error } = await sb
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         id,
         product_id,
         branch_id,
@@ -173,20 +207,26 @@ export class InventoryService {
           category_id,
           product_categories(name)
         )
-      `)
+      `,
+      )
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false });
 
     if (error) {
-      this.logger.error(`Failed to fetch inventory for branch ${branchId}`, error);
+      this.logger.error(
+        `Failed to fetch inventory for branch ${branchId}`,
+        error,
+      );
       throw new Error('Failed to fetch inventory');
     }
 
-    this.logger.log(`Fetched ${data?.length || 0} inventory items for branch ${branchId}`);
+    this.logger.log(
+      `Fetched ${data?.length || 0} inventory items for branch ${branchId}`,
+    );
 
     return (data || []).map((item) => {
       const product = item.products as any;
-      const category = product?.product_categories as any;
+      const category = product?.product_categories;
 
       return {
         id: item.id,
@@ -216,7 +256,9 @@ export class InventoryService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryDetailResponse> {
-    this.logger.log(`Fetching inventory for product ${productId} by user ${userId}`);
+    this.logger.log(
+      `Fetching inventory for product ${productId} by user ${userId}`,
+    );
 
     // 상품 접근 권한 확인
     const { product } = await this.checkProductAccess(
@@ -230,7 +272,8 @@ export class InventoryService {
 
     const { data: inventory, error } = await sb
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         id,
         product_id,
         branch_id,
@@ -240,7 +283,8 @@ export class InventoryService {
         low_stock_threshold,
         created_at,
         updated_at
-      `)
+      `,
+      )
       .eq('product_id', productId)
       .eq('branch_id', product.branch_id)
       .single();
@@ -261,7 +305,10 @@ export class InventoryService {
         .single();
 
       if (createError || !newInventory) {
-        this.logger.error(`Failed to create inventory for product ${productId}`, createError);
+        this.logger.error(
+          `Failed to create inventory for product ${productId}`,
+          createError,
+        );
         throw new Error('Failed to get or create inventory');
       }
 
@@ -274,7 +321,8 @@ export class InventoryService {
         qty_reserved: newInventory.qty_reserved,
         qty_sold: newInventory.qty_sold,
         low_stock_threshold: newInventory.low_stock_threshold,
-        is_low_stock: newInventory.qty_available <= newInventory.low_stock_threshold,
+        is_low_stock:
+          newInventory.qty_available <= newInventory.low_stock_threshold,
         total_quantity: newInventory.qty_available + newInventory.qty_reserved,
         created_at: newInventory.created_at,
         updated_at: newInventory.updated_at,
@@ -323,7 +371,9 @@ export class InventoryService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryDetailResponse> {
-    this.logger.log(`Updating inventory for product ${productId} by user ${userId}`);
+    this.logger.log(
+      `Updating inventory for product ${productId} by user ${userId}`,
+    );
 
     // 상품 접근 권한 확인
     const { role, product } = await this.checkProductAccess(
@@ -352,11 +402,18 @@ export class InventoryService {
 
     // Build update object
     const updateFields: any = {};
-    if (dto.qty_available !== undefined) updateFields.qty_available = dto.qty_available;
-    if (dto.low_stock_threshold !== undefined) updateFields.low_stock_threshold = dto.low_stock_threshold;
+    if (dto.qty_available !== undefined)
+      updateFields.qty_available = dto.qty_available;
+    if (dto.low_stock_threshold !== undefined)
+      updateFields.low_stock_threshold = dto.low_stock_threshold;
 
     if (Object.keys(updateFields).length === 0) {
-      return this.getInventoryByProduct(userId, productId, brandMemberships, branchMemberships);
+      return this.getInventoryByProduct(
+        userId,
+        productId,
+        brandMemberships,
+        branchMemberships,
+      );
     }
 
     const { data: updatedInventory, error: updateError } = await sb
@@ -367,12 +424,18 @@ export class InventoryService {
       .single();
 
     if (updateError || !updatedInventory) {
-      this.logger.error(`Failed to update inventory for product ${productId}`, updateError);
+      this.logger.error(
+        `Failed to update inventory for product ${productId}`,
+        updateError,
+      );
       throw new Error('Failed to update inventory');
     }
 
     // Create log if qty_available changed
-    if (dto.qty_available !== undefined && dto.qty_available !== currentInventory.qty_available) {
+    if (
+      dto.qty_available !== undefined &&
+      dto.qty_available !== currentInventory.qty_available
+    ) {
       const qtyChange = dto.qty_available - currentInventory.qty_available;
       await this.createInventoryLog(
         productId,
@@ -388,7 +451,12 @@ export class InventoryService {
 
     this.logger.log(`Inventory updated for product ${productId}`);
 
-    return this.getInventoryByProduct(userId, productId, brandMemberships, branchMemberships);
+    return this.getInventoryByProduct(
+      userId,
+      productId,
+      brandMemberships,
+      branchMemberships,
+    );
   }
 
   /**
@@ -401,7 +469,9 @@ export class InventoryService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryDetailResponse> {
-    this.logger.log(`Adjusting inventory for product ${productId} by user ${userId}`);
+    this.logger.log(
+      `Adjusting inventory for product ${productId} by user ${userId}`,
+    );
 
     // 상품 접근 권한 확인
     const { role, product } = await this.checkProductAccess(
@@ -441,7 +511,10 @@ export class InventoryService {
       .eq('id', currentInventory.id);
 
     if (updateError) {
-      this.logger.error(`Failed to adjust inventory for product ${productId}`, updateError);
+      this.logger.error(
+        `Failed to adjust inventory for product ${productId}`,
+        updateError,
+      );
       throw new Error('Failed to adjust inventory');
     }
 
@@ -457,9 +530,16 @@ export class InventoryService {
       dto.notes,
     );
 
-    this.logger.log(`Inventory adjusted for product ${productId}: ${dto.qty_change} (${dto.transaction_type})`);
+    this.logger.log(
+      `Inventory adjusted for product ${productId}: ${dto.qty_change} (${dto.transaction_type})`,
+    );
 
-    return this.getInventoryByProduct(userId, productId, brandMemberships, branchMemberships);
+    return this.getInventoryByProduct(
+      userId,
+      productId,
+      brandMemberships,
+      branchMemberships,
+    );
   }
 
   /**
@@ -471,16 +551,24 @@ export class InventoryService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryAlertResponse[]> {
-    this.logger.log(`Fetching low stock alerts for branch ${branchId} by user ${userId}`);
+    this.logger.log(
+      `Fetching low stock alerts for branch ${branchId} by user ${userId}`,
+    );
 
     // 브랜치 접근 권한 확인
-    const { branch } = await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+    const { branch } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
 
     const sb = this.supabase.adminClient();
 
     const { data, error } = await sb
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         product_id,
         branch_id,
         qty_available,
@@ -489,19 +577,29 @@ export class InventoryService {
           name,
           image_url
         )
-      `)
+      `,
+      )
       .eq('branch_id', branchId)
-      .lte('qty_available', sb.raw('low_stock_threshold'))
       .order('qty_available', { ascending: true });
 
     if (error) {
-      this.logger.error(`Failed to fetch low stock alerts for branch ${branchId}`, error);
+      this.logger.error(
+        `Failed to fetch low stock alerts for branch ${branchId}`,
+        error,
+      );
       throw new Error('Failed to fetch low stock alerts');
     }
 
-    this.logger.log(`Found ${data?.length || 0} low stock items for branch ${branchId}`);
+    // Filter items where qty_available <= low_stock_threshold
+    const lowStockItems = (data || []).filter(
+      (item) => item.qty_available <= item.low_stock_threshold,
+    );
 
-    return (data || []).map((item) => {
+    this.logger.log(
+      `Found ${lowStockItems.length} low stock items for branch ${branchId}`,
+    );
+
+    return lowStockItems.map((item) => {
       const product = item.products as any;
 
       return {
@@ -526,10 +624,14 @@ export class InventoryService {
     brandMemberships?: BrandMembership[],
     branchMemberships?: BranchMembership[],
   ): Promise<InventoryLogResponse[]> {
-    this.logger.log(`Fetching inventory logs by user ${userId} (branch: ${branchId}, product: ${productId})`);
+    this.logger.log(
+      `Fetching inventory logs by user ${userId} (branch: ${branchId}, product: ${productId})`,
+    );
 
     if (!branchId && !productId) {
-      throw new BadRequestException('Either branchId or productId must be provided');
+      throw new BadRequestException(
+        'Either branchId or productId must be provided',
+      );
     }
 
     const sb = this.supabase.adminClient();
@@ -542,13 +644,23 @@ export class InventoryService {
 
     if (branchId) {
       // 브랜치 접근 권한 확인
-      await this.checkBranchAccess(branchId, userId, brandMemberships || [], branchMemberships || []);
+      await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships || [],
+        branchMemberships || [],
+      );
       query = query.eq('branch_id', branchId);
     }
 
     if (productId) {
       // 상품 접근 권한 확인
-      await this.checkProductAccess(productId, userId, brandMemberships || [], branchMemberships || []);
+      await this.checkProductAccess(
+        productId,
+        userId,
+        brandMemberships || [],
+        branchMemberships || [],
+      );
       query = query.eq('product_id', productId);
     }
 

@@ -16,6 +16,8 @@ exports.PublicOrderController = void 0;
 const common_1 = require("@nestjs/common");
 const public_order_service_1 = require("./public-order.service");
 const public_order_dto_1 = require("./dto/public-order.dto");
+const user_rate_limit_decorator_1 = require("../../common/decorators/user-rate-limit.decorator");
+const user_rate_limit_guard_1 = require("../../common/guards/user-rate-limit.guard");
 let PublicOrderController = class PublicOrderController {
     publicOrderService;
     constructor(publicOrderService) {
@@ -72,6 +74,8 @@ __decorate([
 ], PublicOrderController.prototype, "getProducts", null);
 __decorate([
     (0, common_1.Post)('orders'),
+    (0, common_1.UseGuards)(user_rate_limit_guard_1.UserRateLimitGuard),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 10, duration: 60, blockDuration: 300 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [public_order_dto_1.CreatePublicOrderRequest]),

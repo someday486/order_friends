@@ -1,6 +1,8 @@
-﻿import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+﻿import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { CreatePublicOrderRequest } from './dto/public-order.dto';
+import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
+import { UserRateLimitGuard } from '../../common/guards/user-rate-limit.guard';
 
 @Controller('public')
 export class PublicOrderController {
@@ -47,8 +49,11 @@ export class PublicOrderController {
   /**
    * 二쇰Ц ?앹꽦
    * POST /public/orders
+   * Rate limit: 10 orders per minute (to prevent order spam)
    */
   @Post('orders')
+  @UseGuards(UserRateLimitGuard)
+  @UserRateLimit({ points: 10, duration: 60, blockDuration: 300 })
   async createOrder(@Body() dto: CreatePublicOrderRequest) {
     return this.publicOrderService.createOrder(dto);
   }

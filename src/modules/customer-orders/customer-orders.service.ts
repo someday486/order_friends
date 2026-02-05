@@ -1,10 +1,21 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import type { BrandMembership, BranchMembership } from '../../common/types/auth-request';
+import type {
+  BrandMembership,
+  BranchMembership,
+} from '../../common/types/auth-request';
 import { OrderStatus } from '../../modules/orders/order-status.enum';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
-import { OrderDetailResponse, OrderItemResponse } from '../../modules/orders/dto/order-detail.response';
+import {
+  OrderDetailResponse,
+  OrderItemResponse,
+} from '../../modules/orders/dto/order-detail.response';
 import { OrderListItemResponse } from '../../modules/orders/dto/order-list.response';
 
 @Injectable()
@@ -17,7 +28,9 @@ export class CustomerOrdersService {
    * UUID 여부 확인
    */
   private isUuid(v: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      v,
+    );
   }
 
   /**
@@ -54,7 +67,11 @@ export class CustomerOrdersService {
     userId: string,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
-  ): Promise<{ branchMembership?: BranchMembership; brandMembership?: BrandMembership; branch: any }> {
+  ): Promise<{
+    branchMembership?: BranchMembership;
+    brandMembership?: BrandMembership;
+    branch: any;
+  }> {
     const sb = this.supabase.adminClient();
 
     // 브랜치 정보 조회
@@ -69,13 +86,17 @@ export class CustomerOrdersService {
     }
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { branchMembership, branch };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === branch.brand_id);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === branch.brand_id,
+    );
     if (brandMembership) {
       return { brandMembership, branch };
     }
@@ -111,16 +132,20 @@ export class CustomerOrdersService {
     }
 
     const branchId = order.branch_id;
-    const brandId = (order.branches as any).brand_id;
+    const brandId = order.branches.brand_id;
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { role: branchMembership.role, order };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === brandId);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === brandId,
+    );
     if (brandMembership) {
       return { role: brandMembership.role, order };
     }
@@ -131,9 +156,15 @@ export class CustomerOrdersService {
   /**
    * 수정 권한 확인 (OWNER 또는 ADMIN만 가능)
    */
-  private checkModificationPermission(role: string, action: string, userId: string) {
+  private checkModificationPermission(
+    role: string,
+    action: string,
+    userId: string,
+  ) {
     if (role !== 'OWNER' && role !== 'ADMIN') {
-      this.logger.warn(`User ${userId} with role ${role} attempted to ${action}`);
+      this.logger.warn(
+        `User ${userId} with role ${role} attempted to ${action}`,
+      );
       throw new ForbiddenException(`Only OWNER or ADMIN can ${action}`);
     }
   }
@@ -152,7 +183,12 @@ export class CustomerOrdersService {
     this.logger.log(`Fetching orders for branch ${branchId} by user ${userId}`);
 
     // 브랜치 접근 권한 확인
-    await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+    await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
 
     const { page = 1, limit = 20 } = paginationDto;
     const sb = this.supabase.adminClient();
@@ -171,7 +207,10 @@ export class CustomerOrdersService {
     const { count, error: countError } = await countQuery;
 
     if (countError) {
-      this.logger.error(`Failed to count orders for branch ${branchId}`, countError);
+      this.logger.error(
+        `Failed to count orders for branch ${branchId}`,
+        countError,
+      );
       throw new Error('Failed to count orders');
     }
 
@@ -251,7 +290,9 @@ export class CustomerOrdersService {
     }
 
     const items: OrderItemResponse[] = (data.items ?? []).map((it: any) => {
-      const opts = (it.options ?? []).map((o: any) => o.option_name_snapshot).filter(Boolean);
+      const opts = (it.options ?? [])
+        .map((o: any) => o.option_name_snapshot)
+        .filter(Boolean);
 
       return {
         id: it.id,
@@ -295,7 +336,9 @@ export class CustomerOrdersService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ) {
-    this.logger.log(`Updating order ${orderId} status to ${status} by user ${userId}`);
+    this.logger.log(
+      `Updating order ${orderId} status to ${status} by user ${userId}`,
+    );
 
     // 접근 권한 확인
     const { role, order } = await this.checkOrderAccess(
@@ -322,7 +365,9 @@ export class CustomerOrdersService {
       throw new Error('Failed to update order status');
     }
 
-    this.logger.log(`Order ${orderId} status updated to ${status} successfully`);
+    this.logger.log(
+      `Order ${orderId} status updated to ${status} successfully`,
+    );
 
     return {
       id: data.id,

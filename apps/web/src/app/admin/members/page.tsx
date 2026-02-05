@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
@@ -83,7 +83,7 @@ async function getAccessToken() {
 // Component
 // ============================================================
 
-export default function MembersPage() {
+function MembersPageContent() {
   const searchParams = useSearchParams();
   const initialTab = useMemo(() => searchParams?.get("tab") ?? "", [searchParams]);
   const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
@@ -711,3 +711,11 @@ const infoBox: React.CSSProperties = {
   gap: 12,
   marginBottom: 16,
 };
+
+export default function MembersPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <MembersPageContent />
+    </Suspense>
+  );
+}

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
@@ -47,7 +47,7 @@ function formatWon(amount: number) {
 // Component
 // ============================================================
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const searchParams = useSearchParams();
   const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
   const { branchId, selectBranch } = useSelectedBranch();
@@ -344,3 +344,11 @@ const statusBadge: React.CSSProperties = {
   border: "none",
   cursor: "pointer",
 };
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <ProductsPageContent />
+    </Suspense>
+  );
+}

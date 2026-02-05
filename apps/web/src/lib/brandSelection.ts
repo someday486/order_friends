@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-const KEY = "of:selectedBrandId";
+const KEY = 'of:selectedBrandId';
 
 export function getSelectedBrandId() {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   return localStorage.getItem(KEY);
 }
 

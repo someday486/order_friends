@@ -10,7 +10,14 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiParam, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+  ApiResponse,
+} from '@nestjs/swagger';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
@@ -31,7 +38,8 @@ export class CustomerOrdersController {
   @Get()
   @ApiOperation({
     summary: '내 지점의 주문 목록 조회',
-    description: '내가 멤버로 등록된 지점의 주문 목록을 조회합니다. (페이지네이션 지원)',
+    description:
+      '내가 멤버로 등록된 지점의 주문 목록을 조회합니다. (페이지네이션 지원)',
   })
   @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
   @ApiQuery({ name: 'status', description: '주문 상태 필터', required: false })
@@ -51,7 +59,9 @@ export class CustomerOrdersController {
       throw new BadRequestException('branchId is required');
     }
 
-    this.logger.log(`User ${req.user.id} fetching orders for branch ${branchId}`);
+    this.logger.log(
+      `User ${req.user.id} fetching orders for branch ${branchId}`,
+    );
     return this.ordersService.getMyOrders(
       req.user.id,
       branchId,
@@ -86,7 +96,8 @@ export class CustomerOrdersController {
   @Patch(':orderId/status')
   @ApiOperation({
     summary: '주문 상태 변경',
-    description: '내가 OWNER 또는 ADMIN 권한을 가진 지점의 주문 상태를 변경합니다.',
+    description:
+      '내가 OWNER 또는 ADMIN 권한을 가진 지점의 주문 상태를 변경합니다.',
   })
   @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
   @ApiResponse({ status: 200, description: '주문 상태 변경 성공' })
@@ -99,7 +110,9 @@ export class CustomerOrdersController {
   ) {
     if (!req.user) throw new Error('Missing user');
 
-    this.logger.log(`User ${req.user.id} updating order ${orderId} status to ${body.status}`);
+    this.logger.log(
+      `User ${req.user.id} updating order ${orderId} status to ${body.status}`,
+    );
     return this.ordersService.updateMyOrderStatus(
       req.user.id,
       orderId,

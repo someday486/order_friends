@@ -13,8 +13,10 @@ class ProductDetailResponse {
     id;
     branchId;
     name;
+    categoryId;
     description;
     price;
+    imageUrl;
     isActive;
     sortOrder;
     createdAt;

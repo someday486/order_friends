@@ -18,7 +18,9 @@ let BranchesService = class BranchesService {
         this.supabase = supabase;
     }
     getClient(accessToken, isAdmin) {
-        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+        return isAdmin
+            ? this.supabase.adminClient()
+            : this.supabase.userClient(accessToken);
     }
     async getBranches(accessToken, brandId, isAdmin) {
         const sb = this.getClient(accessToken, isAdmin);
@@ -157,10 +159,7 @@ let BranchesService = class BranchesService {
     }
     async deleteBranch(accessToken, branchId, isAdmin) {
         const sb = this.getClient(accessToken, isAdmin);
-        const { error } = await sb
-            .from('branches')
-            .delete()
-            .eq('id', branchId);
+        const { error } = await sb.from('branches').delete().eq('id', branchId);
         if (error) {
             throw new Error(`[branches.deleteBranch] ${error.message}`);
         }

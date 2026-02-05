@@ -13,12 +13,22 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiParam, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+  ApiResponse,
+} from '@nestjs/swagger';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
 import { CustomerBranchesService } from './customer-branches.service';
-import { CreateBranchRequest, UpdateBranchRequest } from '../../modules/branches/dto/branch.request';
+import {
+  CreateBranchRequest,
+  UpdateBranchRequest,
+} from '../../modules/branches/dto/branch.request';
 
 @ApiTags('customer-branches')
 @ApiBearerAuth()
@@ -38,13 +48,18 @@ export class CustomerBranchesController {
   @ApiResponse({ status: 200, description: '지점 목록 조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
-  async getBranches(@Req() req: AuthRequest, @Query('brandId') brandId: string) {
+  async getBranches(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+  ) {
     if (!req.user) throw new Error('Missing user');
     if (!brandId) {
       throw new BadRequestException('brandId is required');
     }
 
-    this.logger.log(`User ${req.user.id} fetching branches for brand ${brandId}`);
+    this.logger.log(
+      `User ${req.user.id} fetching branches for brand ${brandId}`,
+    );
     return this.branchesService.getMyBranches(
       req.user.id,
       brandId,
@@ -62,7 +77,10 @@ export class CustomerBranchesController {
   @ApiResponse({ status: 200, description: '지점 상세 조회 성공' })
   @ApiResponse({ status: 403, description: '권한 없음' })
   @ApiResponse({ status: 404, description: '지점을 찾을 수 없음' })
-  async getBranch(@Req() req: AuthRequest, @Param('branchId') branchId: string) {
+  async getBranch(
+    @Req() req: AuthRequest,
+    @Param('branchId') branchId: string,
+  ) {
     if (!req.user) throw new Error('Missing user');
 
     this.logger.log(`User ${req.user.id} fetching branch ${branchId}`);
@@ -77,18 +95,24 @@ export class CustomerBranchesController {
   @Post()
   @ApiOperation({
     summary: '지점 생성',
-    description: '내가 OWNER 또는 ADMIN 권한을 가진 브랜드에 새로운 지점을 생성합니다.',
+    description:
+      '내가 OWNER 또는 ADMIN 권한을 가진 브랜드에 새로운 지점을 생성합니다.',
   })
   @ApiResponse({ status: 201, description: '지점 생성 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
-  async createBranch(@Req() req: AuthRequest, @Body() dto: CreateBranchRequest) {
+  async createBranch(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateBranchRequest,
+  ) {
     if (!req.user) throw new Error('Missing user');
     if (!dto.brandId) {
       throw new BadRequestException('brandId is required');
     }
 
-    this.logger.log(`User ${req.user.id} creating branch for brand ${dto.brandId}`);
+    this.logger.log(
+      `User ${req.user.id} creating branch for brand ${dto.brandId}`,
+    );
     return this.branchesService.createMyBranch(
       req.user.id,
       dto,
@@ -131,7 +155,10 @@ export class CustomerBranchesController {
   @ApiResponse({ status: 200, description: '지점 삭제 성공' })
   @ApiResponse({ status: 403, description: '권한 없음' })
   @ApiResponse({ status: 404, description: '지점을 찾을 수 없음' })
-  async deleteBranch(@Req() req: AuthRequest, @Param('branchId') branchId: string) {
+  async deleteBranch(
+    @Req() req: AuthRequest,
+    @Param('branchId') branchId: string,
+  ) {
     if (!req.user) throw new Error('Missing user');
 
     this.logger.log(`User ${req.user.id} deleting branch ${branchId}`);

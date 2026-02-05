@@ -1,7 +1,18 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import type { BrandMembership, BranchMembership } from '../../common/types/auth-request';
-import { CreateBranchRequest, UpdateBranchRequest } from '../../modules/branches/dto/branch.request';
+import type {
+  BrandMembership,
+  BranchMembership,
+} from '../../common/types/auth-request';
+import {
+  CreateBranchRequest,
+  UpdateBranchRequest,
+} from '../../modules/branches/dto/branch.request';
 
 @Injectable()
 export class CustomerBranchesService {
@@ -12,7 +23,10 @@ export class CustomerBranchesService {
   /**
    * 브랜드에 대한 접근 권한 확인
    */
-  private checkBrandAccess(brandId: string, brandMemberships: BrandMembership[]): BrandMembership {
+  private checkBrandAccess(
+    brandId: string,
+    brandMemberships: BrandMembership[],
+  ): BrandMembership {
     const membership = brandMemberships.find((m) => m.brand_id === brandId);
     if (!membership) {
       throw new ForbiddenException('You do not have access to this brand');
@@ -28,7 +42,11 @@ export class CustomerBranchesService {
     userId: string,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
-  ): Promise<{ branchMembership?: BranchMembership; brandMembership?: BrandMembership; branch: any }> {
+  ): Promise<{
+    branchMembership?: BranchMembership;
+    brandMembership?: BrandMembership;
+    branch: any;
+  }> {
     const sb = this.supabase.adminClient();
 
     // 브랜치 정보 조회
@@ -43,13 +61,17 @@ export class CustomerBranchesService {
     }
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { branchMembership, branch };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === branch.brand_id);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === branch.brand_id,
+    );
     if (brandMembership) {
       return { brandMembership, branch };
     }
@@ -60,9 +82,15 @@ export class CustomerBranchesService {
   /**
    * 수정/삭제 권한 확인 (OWNER 또는 ADMIN만 가능)
    */
-  private checkModificationPermission(role: string, action: string, userId: string) {
+  private checkModificationPermission(
+    role: string,
+    action: string,
+    userId: string,
+  ) {
     if (role !== 'OWNER' && role !== 'ADMIN') {
-      this.logger.warn(`User ${userId} with role ${role} attempted to ${action}`);
+      this.logger.warn(
+        `User ${userId} with role ${role} attempted to ${action}`,
+      );
       throw new ForbiddenException(`Only OWNER or ADMIN can ${action}`);
     }
   }
@@ -96,8 +124,12 @@ export class CustomerBranchesService {
 
     // 각 브랜치에 대한 내 역할 정보 추가
     const branchesWithRole = (data || []).map((branch) => {
-      const branchMembership = branchMemberships.find((m) => m.branch_id === branch.id);
-      const brandMembership = brandMemberships.find((m) => m.brand_id === branch.brand_id);
+      const branchMembership = branchMemberships.find(
+        (m) => m.branch_id === branch.id,
+      );
+      const brandMembership = brandMemberships.find(
+        (m) => m.brand_id === branch.brand_id,
+      );
 
       return {
         id: branch.id,
@@ -109,7 +141,9 @@ export class CustomerBranchesService {
       };
     });
 
-    this.logger.log(`Fetched ${branchesWithRole.length} branches for brand ${brandId}`);
+    this.logger.log(
+      `Fetched ${branchesWithRole.length} branches for brand ${brandId}`,
+    );
 
     return branchesWithRole;
   }
@@ -125,12 +159,13 @@ export class CustomerBranchesService {
   ) {
     this.logger.log(`Fetching branch ${branchId} by user ${userId}`);
 
-    const { branchMembership, brandMembership, branch } = await this.checkBranchAccess(
-      branchId,
-      userId,
-      brandMemberships,
-      branchMemberships,
-    );
+    const { branchMembership, brandMembership, branch } =
+      await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
 
     return {
       id: branch.id,
@@ -150,11 +185,17 @@ export class CustomerBranchesService {
     dto: CreateBranchRequest,
     brandMemberships: BrandMembership[],
   ) {
-    this.logger.log(`Creating branch for brand ${dto.brandId} by user ${userId}`);
+    this.logger.log(
+      `Creating branch for brand ${dto.brandId} by user ${userId}`,
+    );
 
     // 브랜드 접근 권한 및 수정 권한 확인
     const membership = this.checkBrandAccess(dto.brandId, brandMemberships);
-    this.checkModificationPermission(membership.role, 'create branches', userId);
+    this.checkModificationPermission(
+      membership.role,
+      'create branches',
+      userId,
+    );
 
     const sb = this.supabase.adminClient();
 
@@ -170,9 +211,14 @@ export class CustomerBranchesService {
 
     if (error) {
       if ((error as any).code === '23505') {
-        throw new ForbiddenException('This branch slug is already in use for this brand');
+        throw new ForbiddenException(
+          'This branch slug is already in use for this brand',
+        );
       }
-      this.logger.error(`Failed to create branch for brand ${dto.brandId}`, error);
+      this.logger.error(
+        `Failed to create branch for brand ${dto.brandId}`,
+        error,
+      );
       throw new Error('Failed to create branch');
     }
 
@@ -201,12 +247,13 @@ export class CustomerBranchesService {
     this.logger.log(`Updating branch ${branchId} by user ${userId}`);
 
     // 접근 권한 확인
-    const { branchMembership, brandMembership, branch } = await this.checkBranchAccess(
-      branchId,
-      userId,
-      brandMemberships,
-      branchMemberships,
-    );
+    const { branchMembership, brandMembership, branch } =
+      await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
 
     const role = branchMembership?.role || brandMembership?.role;
     if (!role) {
@@ -224,7 +271,12 @@ export class CustomerBranchesService {
     if (dto.slug !== undefined) updateFields.slug = dto.slug;
 
     if (Object.keys(updateFields).length === 0) {
-      return this.getMyBranch(userId, branchId, brandMemberships, branchMemberships);
+      return this.getMyBranch(
+        userId,
+        branchId,
+        brandMemberships,
+        branchMemberships,
+      );
     }
 
     const { data, error } = await sb
@@ -236,7 +288,9 @@ export class CustomerBranchesService {
 
     if (error) {
       if ((error as any).code === '23505') {
-        throw new ForbiddenException('This branch slug is already in use for this brand');
+        throw new ForbiddenException(
+          'This branch slug is already in use for this brand',
+        );
       }
       this.logger.error(`Failed to update branch ${branchId}`, error);
       throw new Error('Failed to update branch');

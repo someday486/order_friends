@@ -19,7 +19,9 @@ let MembersService = class MembersService {
         this.supabase = supabase;
     }
     getClient(accessToken, isAdmin) {
-        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+        return isAdmin
+            ? this.supabase.adminClient()
+            : this.supabase.userClient(accessToken);
     }
     async getBrandMembers(accessToken, brandId, isAdmin) {
         const sb = this.getClient(accessToken, isAdmin);

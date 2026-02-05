@@ -18,7 +18,9 @@ let BrandsService = class BrandsService {
         this.supabase = supabase;
     }
     getClient(accessToken, isAdmin) {
-        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+        return isAdmin
+            ? this.supabase.adminClient()
+            : this.supabase.userClient(accessToken);
     }
     async getMyBrands(accessToken, isAdmin) {
         if (isAdmin) {

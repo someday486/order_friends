@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
 // ============================================================
@@ -66,7 +66,7 @@ function formatWon(amount: number) {
 // Component
 // ============================================================
 
-export default function ProductDetailPage() {
+function ProductDetailPageContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -769,3 +769,11 @@ const errorBox: React.CSSProperties = {
   background: "#1a0000",
   color: "#ff8888",
 };
+
+export default function ProductDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <ProductDetailPageContent />
+    </Suspense>
+  );
+}

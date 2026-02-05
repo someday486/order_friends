@@ -1,4 +1,8 @@
-﻿import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+﻿import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   BrandListItemResponse,
@@ -12,7 +16,9 @@ export class BrandsService {
   constructor(private readonly supabase: SupabaseService) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
-    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    return isAdmin
+      ? this.supabase.adminClient()
+      : this.supabase.userClient(accessToken);
   }
 
   /**
@@ -135,7 +141,9 @@ export class BrandsService {
       .upsert({ id: userId }, { onConflict: 'id' });
 
     if (profileErr) {
-      throw new Error(`[brands.createBrand] profile upsert: ${profileErr.message}`);
+      throw new Error(
+        `[brands.createBrand] profile upsert: ${profileErr.message}`,
+      );
     }
 
     // 2) brands insert (RLS bypass)
@@ -152,7 +160,9 @@ export class BrandsService {
       .single();
 
     if (brandError || !brand) {
-      throw new Error(`[brands.createBrand] brand insert: ${brandError?.message ?? 'unknown'}`);
+      throw new Error(
+        `[brands.createBrand] brand insert: ${brandError?.message ?? 'unknown'}`,
+      );
     }
 
     // 3) brand_members insert (OWNER)
@@ -165,7 +175,9 @@ export class BrandsService {
 
     if (memberError) {
       await adminSb.from('brands').delete().eq('id', brand.id);
-      throw new Error(`[brands.createBrand] member insert: ${memberError.message}`);
+      throw new Error(
+        `[brands.createBrand] member insert: ${memberError.message}`,
+      );
     }
 
     return {
@@ -216,7 +228,9 @@ export class BrandsService {
         .maybeSingle();
 
       if (memError) {
-        throw new Error(`[brands.updateBrand] membership check: ${memError.message}`);
+        throw new Error(
+          `[brands.updateBrand] membership check: ${memError.message}`,
+        );
       }
       if (!membership || membership.status !== 'ACTIVE') {
         throw new ForbiddenException('브랜드 수정 권한이 없습니다.');
@@ -274,7 +288,9 @@ export class BrandsService {
         .maybeSingle();
 
       if (memError) {
-        throw new Error(`[brands.deleteBrand] membership check: ${memError.message}`);
+        throw new Error(
+          `[brands.deleteBrand] membership check: ${memError.message}`,
+        );
       }
       if (!membership || membership.status !== 'ACTIVE') {
         throw new ForbiddenException('브랜드 삭제 권한이 없습니다.');

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -123,7 +123,7 @@ async function readErrorText(res: Response) {
 // Component
 // ============================================================
 
-export default function OrderDetailPage() {
+function OrderDetailPageContent() {
   const params = useParams<{ orderId: string }>();
   const searchParams = useSearchParams();
   const orderId = params?.orderId;
@@ -526,3 +526,11 @@ const btnGhost: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
 };
+
+export default function OrderDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <OrderDetailPageContent />
+    </Suspense>
+  );
+}

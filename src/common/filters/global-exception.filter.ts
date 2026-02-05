@@ -47,7 +47,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         error = responseObj.error || exception.name;
         details = responseObj.details;
       } else {
-        message = exceptionResponse as string;
+        message = exceptionResponse;
         error = exception.name;
       }
     }
@@ -66,7 +66,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.error(
         `${request.method} ${request.url}`,
-        exception instanceof Error ? exception.stack : JSON.stringify(exception),
+        exception instanceof Error
+          ? exception.stack
+          : JSON.stringify(exception),
       );
     } else {
       this.logger.warn(

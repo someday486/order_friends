@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 
@@ -45,7 +45,7 @@ async function getAccessToken() {
   return token;
 }
 
-export default function StatusActions({
+function StatusActionsContent({
   orderId,
   initialStatus,
   onStatusChange,
@@ -144,3 +144,26 @@ const btnGhost: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
 };
+
+export default function StatusActions({
+  orderId,
+  initialStatus,
+  onStatusChange,
+  branchId,
+}: {
+  orderId: string;
+  initialStatus: OrderStatus;
+  onStatusChange: (status: OrderStatus) => void;
+  branchId?: string | null;
+}) {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <StatusActionsContent
+        orderId={orderId}
+        initialStatus={initialStatus}
+        onStatusChange={onStatusChange}
+        branchId={branchId}
+      />
+    </Suspense>
+  );
+}

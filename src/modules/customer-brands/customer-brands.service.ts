@@ -1,4 +1,9 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import type { BrandMembership } from '../../common/types/auth-request';
 
@@ -42,7 +47,9 @@ export class CustomerBrandsService {
       };
     });
 
-    this.logger.log(`Fetched ${brandsWithRole.length} brands for user: ${userId}`);
+    this.logger.log(
+      `Fetched ${brandsWithRole.length} brands for user: ${userId}`,
+    );
 
     return brandsWithRole;
   }
@@ -50,13 +57,19 @@ export class CustomerBrandsService {
   /**
    * 내 브랜드 상세 조회
    */
-  async getMyBrand(brandId: string, userId: string, brandMemberships: BrandMembership[]) {
+  async getMyBrand(
+    brandId: string,
+    userId: string,
+    brandMemberships: BrandMembership[],
+  ) {
     this.logger.log(`Fetching brand ${brandId} for user: ${userId}`);
 
     // 권한 확인
     const membership = brandMemberships.find((m) => m.brand_id === brandId);
     if (!membership) {
-      this.logger.warn(`User ${userId} attempted to access brand ${brandId} without membership`);
+      this.logger.warn(
+        `User ${userId} attempted to access brand ${brandId} without membership`,
+      );
       throw new ForbiddenException('You do not have access to this brand');
     }
 
@@ -98,8 +111,12 @@ export class CustomerBrandsService {
 
     // OWNER 또는 ADMIN만 수정 가능
     if (membership.role !== 'OWNER' && membership.role !== 'ADMIN') {
-      this.logger.warn(`User ${userId} with role ${membership.role} attempted to update brand ${brandId}`);
-      throw new ForbiddenException('Only OWNER or ADMIN can update brand information');
+      this.logger.warn(
+        `User ${userId} with role ${membership.role} attempted to update brand ${brandId}`,
+      );
+      throw new ForbiddenException(
+        'Only OWNER or ADMIN can update brand information',
+      );
     }
 
     const sb = this.supabase.adminClient();

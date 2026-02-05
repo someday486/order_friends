@@ -27,12 +27,10 @@ export class BusinessException extends HttpException {
  */
 export class ResourceNotFoundException extends BusinessException {
   constructor(resource: string, identifier: string | number) {
-    super(
-      `${resource} not found`,
-      'RESOURCE_NOT_FOUND',
-      HttpStatus.NOT_FOUND,
-      { resource, identifier },
-    );
+    super(`${resource} not found`, 'RESOURCE_NOT_FOUND', HttpStatus.NOT_FOUND, {
+      resource,
+      identifier,
+    });
   }
 }
 

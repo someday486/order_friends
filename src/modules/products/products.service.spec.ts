@@ -121,9 +121,9 @@ describe('ProductsService', () => {
         error: null,
       });
 
-      await expect(service.getProduct('token', 'invalid-id', true)).rejects.toThrow(
-        ProductNotFoundException,
-      );
+      await expect(
+        service.getProduct('token', 'invalid-id', true),
+      ).rejects.toThrow(ProductNotFoundException);
     });
   });
 
@@ -180,9 +180,9 @@ describe('ProductsService', () => {
         error: { message: 'Creation failed' },
       });
 
-      await expect(service.createProduct('token', createDto, true)).rejects.toThrow(
-        BusinessException,
-      );
+      await expect(
+        service.createProduct('token', createDto, true),
+      ).rejects.toThrow(BusinessException);
     });
   });
 
@@ -213,7 +213,12 @@ describe('ProductsService', () => {
         error: null,
       });
 
-      const result = await service.updateProduct('token', '123', updateDto, true);
+      const result = await service.updateProduct(
+        'token',
+        '123',
+        updateDto,
+        true,
+      );
 
       expect(result.name).toBe('Updated Product');
       expect(result.price).toBe(15000);

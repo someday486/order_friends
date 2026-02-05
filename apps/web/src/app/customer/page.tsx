@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useAuth } from "@/hooks/useAuth";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 
 // ============================================================
 // Types
@@ -53,6 +55,24 @@ async function getAccessToken() {
   return token;
 }
 
+function getStatusVariant(status: string): "info" | "success" | "warning" | "danger" | "default" {
+  switch (status) {
+    case "PENDING":
+    case "CREATED":
+      return "info";
+    case "CONFIRMED":
+    case "PREPARING":
+      return "warning";
+    case "READY":
+    case "COMPLETED":
+      return "success";
+    case "CANCELLED":
+      return "danger";
+    default:
+      return "default";
+  }
+}
+
 // ============================================================
 // Component
 // ============================================================
@@ -96,7 +116,7 @@ export default function CustomerDashboardPage() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 32 }}>로딩 중...</h1>
+        <h1 className="text-2xl font-extrabold mb-8">로딩 중...</h1>
       </div>
     );
   }
@@ -104,8 +124,12 @@ export default function CustomerDashboardPage() {
   if (error) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>오류 발생</h1>
-        <div style={errorBox}>{error}</div>
+        <h1 className="text-2xl font-extrabold mb-4">오류 발생</h1>
+        <Card className="border-danger bg-danger/10">
+          <CardContent className="p-4">
+            <p className="text-danger">{error}</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -113,24 +137,17 @@ export default function CustomerDashboardPage() {
   return (
     <div>
       {/* Welcome */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>
+      <div className="mb-8">
+        <h1 className="text-2xl font-extrabold m-0">
           안녕하세요{user?.email ? `, ${user.email.split("@")[0]}님` : ""}!
         </h1>
-        <p style={{ color: "#aaa", margin: "8px 0 0 0", fontSize: 14 }}>
+        <p className="text-muted-foreground mt-2 text-sm">
           고객 대시보드에 오신 것을 환영합니다.
         </p>
       </div>
 
       {/* Stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 16,
-          marginBottom: 32,
-        }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatCard title="내 브랜드" value={stats?.myBrands ?? 0} icon="🏢" />
         <StatCard title="내 매장" value={stats?.myBranches ?? 0} icon="🏪" />
         <StatCard title="총 주문" value={stats?.totalOrders ?? 0} icon="📋" />
@@ -140,61 +157,79 @@ export default function CustomerDashboardPage() {
       </div>
 
       {/* My Brands */}
-      <div style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>내 브랜드</h2>
+      <div className="mb-8">
+        <h2 className="text-lg font-bold mb-4">내 브랜드</h2>
         {stats?.brands && stats.brands.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {stats.brands.map((brand) => (
-              <Link key={brand.id} href={`/customer/brands/${brand.id}`} style={brandCard}>
-                <div>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>{brand.name}</div>
-                  <div style={{ fontSize: 12, color: "#aaa" }}>역할: {brand.myRole}</div>
-                </div>
-                <div style={{ fontSize: 18 }}>→</div>
+              <Link key={brand.id} href={`/customer/brands/${brand.id}`}>
+                <Card hover className="p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-bold mb-1">{brand.name}</div>
+                      <div className="text-xs text-muted-foreground">역할: {brand.myRole}</div>
+                    </div>
+                    <div className="text-lg">→</div>
+                  </div>
+                </Card>
               </Link>
             ))}
           </div>
         ) : (
-          <div style={emptyBox}>등록된 브랜드가 없습니다.</div>
+          <Card className="bg-background">
+            <CardContent className="p-6 text-center text-muted">
+              등록된 브랜드가 없습니다.
+            </CardContent>
+          </Card>
         )}
       </div>
 
       {/* Recent Orders */}
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>최근 주문</h2>
-          <Link href="/customer/orders" style={{ color: "#fff", fontSize: 14 }}>
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold m-0">최근 주문</h2>
+          <Link href="/customer/orders" className="text-white text-sm hover:underline">
             전체 보기 →
           </Link>
         </div>
         {stats?.recentOrders && stats.recentOrders.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="flex flex-col gap-2">
             {stats.recentOrders.map((order) => (
-              <Link key={order.id} href={`/customer/orders/${order.id}`} style={orderCard}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>주문 #{order.order_no}</div>
-                  <div style={{ fontSize: 12, color: "#aaa" }}>
-                    {order.branch?.name} • {new Date(order.created_at).toLocaleDateString()}
+              <Link key={order.id} href={`/customer/orders/${order.id}`}>
+                <Card hover className="p-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <div className="font-semibold mb-1">주문 #{order.order_no}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {order.branch?.name} • {new Date(order.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-bold mb-1">
+                        {order.total_amount.toLocaleString()}원
+                      </div>
+                      <Badge variant={getStatusVariant(order.status)}>
+                        {order.status}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
-                    {order.total_amount.toLocaleString()}원
-                  </div>
-                  <div style={{ fontSize: 12, color: getStatusColor(order.status) }}>{order.status}</div>
-                </div>
+                </Card>
               </Link>
             ))}
           </div>
         ) : (
-          <div style={emptyBox}>최근 주문이 없습니다.</div>
+          <Card className="bg-background">
+            <CardContent className="p-6 text-center text-muted">
+              최근 주문이 없습니다.
+            </CardContent>
+          </Card>
         )}
       </div>
 
       {/* Quick Links */}
-      <div style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>빠른 이동</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      <div className="mb-8">
+        <h2 className="text-lg font-bold mb-4">빠른 이동</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <QuickLinkCard
             href="/customer/brands"
             title="브랜드 관리"
@@ -241,20 +276,13 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <div
-      style={{
-        padding: 20,
-        borderRadius: 14,
-        border: `1px solid ${highlight ? "#333" : "#222"}`,
-        background: highlight ? "#0f0f0f" : "#0a0a0a",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 20 }}>{icon}</span>
-        <span style={{ color: "#aaa", fontSize: 13 }}>{title}</span>
+    <Card className={highlight ? "border-gray-700" : ""} padding="lg">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xl">{icon}</span>
+        <span className="text-muted-foreground text-sm">{title}</span>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 800 }}>{value}</div>
-    </div>
+      <div className="text-3xl font-extrabold">{value}</div>
+    </Card>
   );
 }
 
@@ -270,94 +298,16 @@ function QuickLinkCard({
   icon: string;
 }) {
   return (
-    <Link href={href} style={quickLinkStyle}>
-      <div style={{ fontSize: 18 }}>{icon}</div>
-      <div>
-        <div style={{ fontWeight: 700, marginBottom: 2 }}>{title}</div>
-        <div style={{ fontSize: 12, color: "#aaa" }}>{description}</div>
-      </div>
+    <Link href={href}>
+      <Card hover className="p-3">
+        <div className="flex items-center gap-3">
+          <div className="text-lg">{icon}</div>
+          <div>
+            <div className="font-bold mb-0.5">{title}</div>
+            <div className="text-xs text-muted-foreground">{description}</div>
+          </div>
+        </div>
+      </Card>
     </Link>
   );
 }
-
-// ============================================================
-// Helpers
-// ============================================================
-
-function getStatusColor(status: string): string {
-  switch (status) {
-    case "PENDING":
-      return "#ffa500";
-    case "CONFIRMED":
-      return "#00bfff";
-    case "PREPARING":
-      return "#1e90ff";
-    case "READY":
-      return "#32cd32";
-    case "COMPLETED":
-      return "#888";
-    case "CANCELLED":
-      return "#ff4444";
-    default:
-      return "#aaa";
-  }
-}
-
-// ============================================================
-// Styles
-// ============================================================
-
-const brandCard: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "14px 16px",
-  borderRadius: 10,
-  border: "1px solid #222",
-  background: "#0f0f0f",
-  color: "white",
-  textDecoration: "none",
-  transition: "all 0.15s",
-};
-
-const orderCard: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "12px 16px",
-  borderRadius: 10,
-  border: "1px solid #222",
-  background: "#0f0f0f",
-  color: "white",
-  textDecoration: "none",
-  transition: "all 0.15s",
-};
-
-const quickLinkStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "12px 14px",
-  borderRadius: 10,
-  border: "1px solid #222",
-  background: "#0f0f0f",
-  color: "white",
-  textDecoration: "none",
-};
-
-const emptyBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 24,
-  background: "#0a0a0a",
-  color: "#666",
-  textAlign: "center",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-};

@@ -1,4 +1,8 @@
-import { PaginationDto, PaginatedResponse, PaginationMeta } from '../dto/pagination.dto';
+import {
+  PaginationDto,
+  PaginatedResponse,
+  PaginationMeta,
+} from '../dto/pagination.dto';
 
 export class PaginationUtil {
   /**

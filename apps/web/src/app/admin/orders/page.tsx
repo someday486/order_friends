@@ -1,11 +1,13 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 // ============================================================
 // Types
@@ -56,14 +58,14 @@ const statusLabel: Record<OrderStatus, string> = {
   REFUNDED: "환불",
 };
 
-const statusColor: Record<OrderStatus, string> = {
-  CREATED: "#3b82f6",
-  CONFIRMED: "#8b5cf6",
-  PREPARING: "#f59e0b",
-  READY: "#10b981",
-  COMPLETED: "#6b7280",
-  CANCELLED: "#ef4444",
-  REFUNDED: "#ec4899",
+const statusVariant: Record<OrderStatus, "info" | "success" | "warning" | "danger" | "default"> = {
+  CREATED: "info",
+  CONFIRMED: "info",
+  PREPARING: "warning",
+  READY: "success",
+  COMPLETED: "default",
+  CANCELLED: "danger",
+  REFUNDED: "danger",
 };
 
 // ============================================================
@@ -99,7 +101,7 @@ function formatDateTime(iso: string) {
 // Component
 // ============================================================
 
-export default function OrdersPage() {
+function OrdersPageContent() {
   const searchParams = useSearchParams();
   const initialBranchId = useMemo(
     () => searchParams?.get("branchId") ?? "",
@@ -141,7 +143,6 @@ export default function OrdersPage() {
         }
 
         const response = await res.json();
-        // Handle paginated response
         const data = response.data ? response.data : (Array.isArray(response) ? response : []);
         setOrders(data);
       } catch (e: unknown) {
@@ -191,7 +192,6 @@ export default function OrdersPage() {
       }
 
       const response = await res.json();
-      // Handle paginated response
       const data = response.data ? response.data : (Array.isArray(response) ? response : []);
       setOrders(data);
     } catch (e: unknown) {
@@ -205,82 +205,64 @@ export default function OrdersPage() {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>주문 관리</h1>
-          <p style={{ color: "#aaa", margin: "4px 0 0 0", fontSize: 13 }}>
+          <h1 className="text-2xl font-extrabold m-0">주문 관리</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
             총 {filteredOrders.length}건
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div className="flex items-center gap-2 flex-wrap">
           <BranchSelector />
-          <button
-            style={btnPrimary}
+          <Button
             onClick={handleRefresh}
             disabled={loading || !branchId}
+            size="md"
           >
             {loading ? "로딩..." : "조회"}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Filter */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="flex gap-2 mb-4 flex-wrap">
         {STATUS_OPTIONS.map((opt) => (
-          <button
+          <Button
             key={opt.value}
             onClick={() => setStatusFilter(opt.value)}
-            style={{
-              ...filterBtn,
-              background: statusFilter === opt.value ? "#333" : "transparent",
-              borderColor: statusFilter === opt.value ? "#555" : "#333",
-            }}
+            variant={statusFilter === opt.value ? "secondary" : "outline"}
+            size="sm"
           >
             {opt.label}
-          </button>
+          </Button>
         ))}
       </div>
 
       {/* Error */}
-      {err && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{err}</p>}
+      {err && <p className="text-danger mb-4">{err}</p>}
       {!branchId && (
-        <p style={{ color: "#666", marginBottom: 16 }}>
+        <p className="text-muted mb-4">
           가게를 선택하면 주문 목록이 표시됩니다.
         </p>
       )}
 
       {/* Table */}
-      <div
-        style={{
-          border: "1px solid #222",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#0f0f0f" }}>
+      <div className="border border-border rounded-lg overflow-hidden">
+        <table className="w-full border-collapse">
+          <thead className="bg-card">
             <tr>
-              <th style={th}>주문번호</th>
-              <th style={th}>고객명</th>
-              <th style={th}>상태</th>
-              <th style={{ ...th, textAlign: "right" }}>금액</th>
-              <th style={th}>주문일시</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">주문번호</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">고객명</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">상태</th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-muted-foreground">금액</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">주문일시</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                <td colSpan={5} className="py-3 px-4 text-sm text-center text-muted">
                   불러오는 중...
                 </td>
               </tr>
@@ -288,7 +270,7 @@ export default function OrdersPage() {
 
             {!loading && filteredOrders.length === 0 && branchId && (
               <tr>
-                <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                <td colSpan={5} className="py-3 px-4 text-sm text-center text-muted">
                   주문이 없습니다.
                 </td>
               </tr>
@@ -296,52 +278,40 @@ export default function OrdersPage() {
 
             {!loading &&
               filteredOrders.map((order) => (
-                <tr key={order.id} style={{ borderTop: "1px solid #222", cursor: "pointer" }}>
-                  <td style={td}>
+                <tr key={order.id} className="border-t border-border hover:bg-card-hover transition-colors">
+                  <td className="py-3 px-4 text-sm">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
-                      style={{ color: "white", textDecoration: "none" }}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      className="text-white hover:underline"
                     >
                       {order.orderNo ?? order.id.slice(0, 8)}
                     </Link>
                   </td>
-                  <td style={td}>
+                  <td className="py-3 px-4 text-sm">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
-                      style={{ color: "white", textDecoration: "none" }}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      className="text-white hover:underline"
                     >
                       {order.customerName || "-"}
                     </Link>
                   </td>
-                  <td style={td}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        height: 24,
-                        padding: "0 10px",
-                        borderRadius: 999,
-                        background: statusColor[order.status] + "20",
-                        color: statusColor[order.status],
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
+                  <td className="py-3 px-4 text-sm">
+                    <Badge variant={statusVariant[order.status]}>
                       {statusLabel[order.status]}
-                    </span>
+                    </Badge>
                   </td>
-                  <td style={{ ...td, textAlign: "right" }}>
+                  <td className="py-3 px-4 text-sm text-right">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
-                      style={{ color: "white", textDecoration: "none" }}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      className="text-white hover:underline"
                     >
                       {formatWon(order.totalAmount)}
                     </Link>
                   </td>
-                  <td style={{ ...td, color: "#aaa" }}>
+                  <td className="py-3 px-4 text-sm text-muted-foreground">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`}
-                      style={{ color: "#aaa", textDecoration: "none" }}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      className="hover:underline"
                     >
                       {formatDateTime(order.orderedAt)}
                     </Link>
@@ -355,44 +325,10 @@ export default function OrdersPage() {
   );
 }
 
-// ============================================================
-// Styles
-// ============================================================
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 14px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: 13,
-  color: "white",
-};
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const filterBtn: React.CSSProperties = {
-  height: 32,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 500,
-  cursor: "pointer",
-  fontSize: 12,
-};
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <OrdersPageContent />
+    </Suspense>
+  );
+}

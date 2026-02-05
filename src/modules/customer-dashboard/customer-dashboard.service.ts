@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import type { BrandMembership, BranchMembership } from '../../common/types/auth-request';
+import type {
+  BrandMembership,
+  BranchMembership,
+} from '../../common/types/auth-request';
 
 @Injectable()
 export class CustomerDashboardService {
@@ -30,10 +33,7 @@ export class CustomerDashboardService {
         .in('brand_id', brandIds);
 
       if (brandBranches) {
-        allBranchIds = [
-          ...allBranchIds,
-          ...brandBranches.map((b) => b.id),
-        ];
+        allBranchIds = [...allBranchIds, ...brandBranches.map((b) => b.id)];
       }
     }
 
@@ -84,7 +84,8 @@ export class CustomerDashboardService {
     // 8. 최근 주문 5개
     const { data: recentOrders } = await sb
       .from('orders')
-      .select(`
+      .select(
+        `
         id,
         order_no,
         status,
@@ -92,7 +93,8 @@ export class CustomerDashboardService {
         customer_name,
         created_at,
         branch:branches(id, name)
-      `)
+      `,
+      )
       .in('branch_id', allBranchIds)
       .order('created_at', { ascending: false })
       .limit(5);

@@ -51,12 +51,18 @@ async function bootstrap() {
       if (!origin) return callback(null, true);
 
       // Allow localhost and 127.0.0.1
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      if (
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      ) {
         return callback(null, true);
       }
 
       // Allow local network IPs (192.168.x.x) in development
-      if (process.env.NODE_ENV !== 'production' && /^http:\/\/192\.168\.\d+\.\d+:/.test(origin)) {
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        /^http:\/\/192\.168\.\d+\.\d+:/.test(origin)
+      ) {
         return callback(null, true);
       }
 
@@ -88,8 +94,12 @@ async function bootstrap() {
   SwaggerModule.setup('api-docs', app, document);
 
   await app.listen(process.env.PORT ?? 4000);
-  console.log(`🚀 Application is running on: http://localhost:${process.env.PORT ?? 4000}`);
-  console.log(`📚 API Documentation: http://localhost:${process.env.PORT ?? 4000}/api-docs`);
+  console.log(
+    `🚀 Application is running on: http://localhost:${process.env.PORT ?? 4000}`,
+  );
+  console.log(
+    `📚 API Documentation: http://localhost:${process.env.PORT ?? 4000}/api-docs`,
+  );
 }
 
 bootstrap();

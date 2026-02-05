@@ -176,7 +176,12 @@ describe('OrdersService', () => {
       });
 
       await expect(
-        service.updateStatus('token', 'invalid-id', OrderStatus.CONFIRMED, 'branch-123'),
+        service.updateStatus(
+          'token',
+          'invalid-id',
+          OrderStatus.CONFIRMED,
+          'branch-123',
+        ),
       ).rejects.toThrow(OrderNotFoundException);
     });
   });

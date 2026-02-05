@@ -158,7 +158,7 @@ export class AdjustInventoryRequest {
   @ApiProperty({
     description: 'Transaction type',
     enum: TransactionType,
-    example: TransactionType.ADJUSTMENT
+    example: TransactionType.ADJUSTMENT,
   })
   @IsEnum(TransactionType)
   transaction_type: TransactionType;

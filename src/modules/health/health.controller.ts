@@ -15,8 +15,6 @@ export class HealthController {
   @HealthCheck()
   @ApiOperation({ summary: '헬스체크' })
   check() {
-    return this.health.check([
-      () => this.supabaseHealth.isHealthy('supabase'),
-    ]);
+    return this.health.check([() => this.supabaseHealth.isHealthy('supabase')]);
   }
 }

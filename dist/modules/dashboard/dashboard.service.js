@@ -18,7 +18,9 @@ let DashboardService = class DashboardService {
         this.supabase = supabase;
     }
     getClient(accessToken, isAdmin) {
-        return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+        return isAdmin
+            ? this.supabase.adminClient()
+            : this.supabase.userClient(accessToken);
     }
     async getStats(accessToken, brandId, isAdmin) {
         const sb = this.getClient(accessToken, isAdmin);
@@ -32,7 +34,9 @@ let DashboardService = class DashboardService {
         if (branchError) {
             throw new Error(`[dashboard.getStats] ${branchError.message}`);
         }
-        const branchIds = (branchRows ?? []).map((row) => row.id).filter(Boolean);
+        const branchIds = (branchRows ?? [])
+            .map((row) => row.id)
+            .filter(Boolean);
         if (branchIds.length === 0) {
             return {
                 totalOrders: 0,
@@ -44,7 +48,10 @@ let DashboardService = class DashboardService {
             };
         }
         const [totalOrdersResult, pendingOrdersResult, todayOrdersResult, totalProductsResult, totalBranchesResult, recentOrdersResult,] = await Promise.all([
-            sb.from('orders').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
+            sb
+                .from('orders')
+                .select('id', { count: 'exact', head: true })
+                .in('branch_id', branchIds),
             sb
                 .from('orders')
                 .select('id', { count: 'exact', head: true })
@@ -55,8 +62,14 @@ let DashboardService = class DashboardService {
                 .select('id', { count: 'exact', head: true })
                 .gte('created_at', todayISO)
                 .in('branch_id', branchIds),
-            sb.from('products').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
-            sb.from('branches').select('id', { count: 'exact', head: true }).eq('brand_id', brandId),
+            sb
+                .from('products')
+                .select('id', { count: 'exact', head: true })
+                .in('branch_id', branchIds),
+            sb
+                .from('branches')
+                .select('id', { count: 'exact', head: true })
+                .eq('brand_id', brandId),
             sb
                 .from('orders')
                 .select('id, order_no, status, total_amount, created_at')

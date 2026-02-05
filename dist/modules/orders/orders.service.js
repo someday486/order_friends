@@ -8,12 +8,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var OrdersService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OrdersService = void 0;
 const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
-let OrdersService = class OrdersService {
+const order_exception_1 = require("../../common/exceptions/order.exception");
+const business_exception_1 = require("../../common/exceptions/business.exception");
+const pagination_util_1 = require("../../common/utils/pagination.util");
+let OrdersService = OrdersService_1 = class OrdersService {
     supabase;
+    logger = new common_1.Logger(OrdersService_1.name);
     constructor(supabase) {
         this.supabase = supabase;
     }
@@ -37,18 +42,30 @@ let OrdersService = class OrdersService {
             return byNo.data.id;
         return null;
     }
-    async getOrders(accessToken, branchId) {
+    async getOrders(accessToken, branchId, paginationDto = {}) {
+        const { page = 1, limit = 20 } = paginationDto;
+        this.logger.log(`Fetching orders for branch: ${branchId} (page: ${page}, limit: ${limit})`);
         const sb = this.supabase.adminClient();
+        const { from, to } = pagination_util_1.PaginationUtil.getRange(page, limit);
+        const { count, error: countError } = await sb
+            .from('orders')
+            .select('*', { count: 'exact', head: true })
+            .eq('branch_id', branchId);
+        if (countError) {
+            this.logger.error(`Failed to count orders: ${countError.message}`, countError);
+            throw new business_exception_1.BusinessException('Failed to count orders', 'ORDER_COUNT_FAILED', 500, { branchId, error: countError.message });
+        }
         const { data, error } = await sb
             .from('orders')
             .select('id, order_no, status, created_at, total_amount, customer_name')
             .eq('branch_id', branchId)
             .order('created_at', { ascending: false })
-            .limit(50);
+            .range(from, to);
         if (error) {
-            throw new Error(`[orders.getOrders] ${error.message}`);
+            this.logger.error(`Failed to fetch orders: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to fetch orders', 'ORDER_FETCH_FAILED', 500, { branchId, error: error.message });
         }
-        return (data ?? []).map((row) => ({
+        const orders = (data ?? []).map((row) => ({
             id: row.id,
             orderNo: row.order_no ?? null,
             orderedAt: row.created_at ?? '',
@@ -56,8 +73,11 @@ let OrdersService = class OrdersService {
             totalAmount: row.total_amount ?? 0,
             status: row.status,
         }));
+        this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);
+        return pagination_util_1.PaginationUtil.createResponse(orders, count || 0, paginationDto);
     }
     async getOrder(accessToken, orderId, branchId) {
+        this.logger.log(`Fetching order detail: ${orderId} for branch: ${branchId}`);
         const sb = this.supabase.adminClient();
         const selectDetail = `
       id, order_no, status, created_at,
@@ -71,7 +91,8 @@ let OrdersService = class OrdersService {
     `;
         const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
         if (!resolvedId) {
-            throw new Error(`[orders.getOrder] order not found: ${orderId}`);
+            this.logger.warn(`Order not found: ${orderId}`);
+            throw new order_exception_1.OrderNotFoundException(orderId);
         }
         const { data, error } = await sb
             .from('orders')
@@ -80,13 +101,16 @@ let OrdersService = class OrdersService {
             .eq('branch_id', branchId)
             .maybeSingle();
         if (error) {
-            throw new Error(`[orders.getOrder] ${error.message}`);
+            this.logger.error(`Failed to fetch order: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to fetch order', 'ORDER_FETCH_FAILED', 500, { orderId, error: error.message });
         }
         if (!data) {
-            throw new Error(`[orders.getOrder] order not found: ${orderId}`);
+            throw new order_exception_1.OrderNotFoundException(orderId);
         }
         const items = (data.items ?? []).map((it) => {
-            const opts = (it.options ?? []).map((o) => o.option_name_snapshot).filter(Boolean);
+            const opts = (it.options ?? [])
+                .map((o) => o.option_name_snapshot)
+                .filter(Boolean);
             return {
                 id: it.id,
                 name: it.product_name_snapshot ?? '',
@@ -118,10 +142,12 @@ let OrdersService = class OrdersService {
         };
     }
     async updateStatus(accessToken, orderId, status, branchId) {
+        this.logger.log(`Updating order status: ${orderId} to ${status}`);
         const sb = this.supabase.adminClient();
         const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
         if (!resolvedId) {
-            throw new Error(`[orders.updateStatus] order not found: ${orderId}`);
+            this.logger.warn(`Order not found for status update: ${orderId}`);
+            throw new order_exception_1.OrderNotFoundException(orderId);
         }
         const { data, error } = await sb
             .from('orders')
@@ -131,11 +157,58 @@ let OrdersService = class OrdersService {
             .select('id, order_no, status')
             .maybeSingle();
         if (error) {
-            throw new Error(`[orders.updateStatus] ${error.message}`);
+            this.logger.error(`Failed to update order status: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to update order status', 'ORDER_UPDATE_FAILED', 500, { orderId, status, error: error.message });
         }
         if (!data) {
-            throw new Error(`[orders.updateStatus] order not found or not permitted: ${orderId}`);
+            throw new order_exception_1.OrderNotFoundException(orderId);
         }
+        if (status === 'CANCELLED') {
+            try {
+                const { data: orderItems } = await sb
+                    .from('order_items')
+                    .select('product_id, qty')
+                    .eq('order_id', resolvedId);
+                if (orderItems && orderItems.length > 0) {
+                    const productIds = orderItems.map((item) => item.product_id);
+                    const { data: inventories } = await sb
+                        .from('product_inventory')
+                        .select('product_id, qty_available, qty_reserved')
+                        .in('product_id', productIds)
+                        .eq('branch_id', branchId);
+                    const inventoryMap = new Map(inventories?.map((inv) => [inv.product_id, inv]) ?? []);
+                    for (const item of orderItems) {
+                        const inventory = inventoryMap.get(item.product_id);
+                        if (!inventory)
+                            continue;
+                        await sb
+                            .from('product_inventory')
+                            .update({
+                            qty_available: inventory.qty_available + item.qty,
+                            qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+                        })
+                            .eq('product_id', item.product_id)
+                            .eq('branch_id', branchId);
+                        await sb.from('inventory_logs').insert({
+                            product_id: item.product_id,
+                            branch_id: branchId,
+                            transaction_type: 'RELEASE',
+                            qty_change: item.qty,
+                            qty_before: inventory.qty_available,
+                            qty_after: inventory.qty_available + item.qty,
+                            reference_id: resolvedId,
+                            reference_type: 'ORDER',
+                            notes: `주문 취소로 인한 재고 복구 (주문번호: ${data.order_no})`,
+                        });
+                    }
+                    this.logger.log(`Inventory released for cancelled order: ${data.order_no}`);
+                }
+            }
+            catch (error) {
+                this.logger.error(`Failed to release inventory for cancelled order ${resolvedId}`, error);
+            }
+        }
+        this.logger.log(`Order status updated successfully: ${orderId} -> ${status}`);
         return {
             id: data.id,
             orderNo: data.order_no ?? null,
@@ -144,7 +217,7 @@ let OrdersService = class OrdersService {
     }
 };
 exports.OrdersService = OrdersService;
-exports.OrdersService = OrdersService = __decorate([
+exports.OrdersService = OrdersService = OrdersService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [supabase_service_1.SupabaseService])
 ], OrdersService);

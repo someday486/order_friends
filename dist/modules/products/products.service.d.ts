@@ -3,13 +3,16 @@ import { ProductListItemResponse } from './dto/product-list.response';
 import { ProductDetailResponse } from './dto/product-detail.response';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
+import { ProductCategoryResponse } from './dto/product-category.response';
 export declare class ProductsService {
     private readonly supabase;
+    private readonly logger;
     constructor(supabase: SupabaseService);
     private getClient;
     private getPriceFromRow;
     private emptyOptions;
     getProducts(accessToken: string, branchId: string, isAdmin?: boolean): Promise<ProductListItemResponse[]>;
+    getCategories(accessToken: string, branchId: string, isAdmin?: boolean): Promise<ProductCategoryResponse[]>;
     getProduct(accessToken: string, productId: string, isAdmin?: boolean): Promise<ProductDetailResponse>;
     createProduct(accessToken: string, dto: CreateProductRequest, isAdmin?: boolean): Promise<ProductDetailResponse>;
     updateProduct(accessToken: string, productId: string, dto: UpdateProductRequest, isAdmin?: boolean): Promise<ProductDetailResponse>;

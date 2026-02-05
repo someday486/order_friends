@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
@@ -56,7 +56,7 @@ async function getAccessToken() {
 // Component
 // ============================================================
 
-export default function ProductDetailPage() {
+function ProductDetailPageContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -526,3 +526,11 @@ const btnSmall: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 12,
 };
+
+export default function ProductDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <ProductDetailPageContent />
+    </Suspense>
+  );
+}

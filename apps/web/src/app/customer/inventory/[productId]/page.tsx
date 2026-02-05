@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
@@ -103,7 +103,7 @@ function formatDateTime(iso: string) {
 // Component
 // ============================================================
 
-export default function InventoryDetailPage() {
+function InventoryDetailPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const productId = params.productId as string;
@@ -801,4 +801,12 @@ function transactionBadge(type: string): React.CSSProperties {
     fontSize: 12,
     fontWeight: 600,
   };
+}
+
+export default function InventoryDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <InventoryDetailPageContent />
+    </Suspense>
+  );
 }

@@ -21,7 +21,9 @@ export class DashboardService {
   constructor(private readonly supabase: SupabaseService) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
-    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    return isAdmin
+      ? this.supabase.adminClient()
+      : this.supabase.userClient(accessToken);
   }
 
   async getStats(
@@ -46,7 +48,9 @@ export class DashboardService {
       throw new Error(`[dashboard.getStats] ${branchError.message}`);
     }
 
-    const branchIds = (branchRows ?? []).map((row: any) => row.id).filter(Boolean);
+    const branchIds = (branchRows ?? [])
+      .map((row: any) => row.id)
+      .filter(Boolean);
 
     if (branchIds.length === 0) {
       return {
@@ -68,7 +72,10 @@ export class DashboardService {
       recentOrdersResult,
     ] = await Promise.all([
       // Total orders
-      sb.from('orders').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
+      sb
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .in('branch_id', branchIds),
 
       // Pending orders
       sb
@@ -85,10 +92,16 @@ export class DashboardService {
         .in('branch_id', branchIds),
 
       // Total products
-      sb.from('products').select('id', { count: 'exact', head: true }).in('branch_id', branchIds),
+      sb
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .in('branch_id', branchIds),
 
       // Total branches
-      sb.from('branches').select('id', { count: 'exact', head: true }).eq('brand_id', brandId),
+      sb
+        .from('branches')
+        .select('id', { count: 'exact', head: true })
+        .eq('brand_id', brandId),
 
       // Recent orders
       sb

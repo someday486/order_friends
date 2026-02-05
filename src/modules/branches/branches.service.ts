@@ -1,6 +1,13 @@
-﻿import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+﻿import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import { BranchListItemResponse, BranchDetailResponse } from './dto/branch.response';
+import {
+  BranchListItemResponse,
+  BranchDetailResponse,
+} from './dto/branch.response';
 import { CreateBranchRequest, UpdateBranchRequest } from './dto/branch.request';
 
 @Injectable()
@@ -8,7 +15,9 @@ export class BranchesService {
   constructor(private readonly supabase: SupabaseService) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
-    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    return isAdmin
+      ? this.supabase.adminClient()
+      : this.supabase.userClient(accessToken);
   }
 
   /**
@@ -140,7 +149,7 @@ export class BranchesService {
 
     if (error) {
       // (brand_id, slug) 복합 유니크 제약 위반
-      if ((error as any).code === '23505') {
+      if (error.code === '23505') {
         throw new ConflictException('이미 사용 중인 가게 URL(slug)입니다.');
       }
       throw new Error(`[branches.createBranch] ${error.message}`);
@@ -211,10 +220,7 @@ export class BranchesService {
   ): Promise<{ deleted: boolean }> {
     const sb = this.getClient(accessToken, isAdmin);
 
-    const { error } = await sb
-      .from('branches')
-      .delete()
-      .eq('id', branchId);
+    const { error } = await sb.from('branches').delete().eq('id', branchId);
 
     if (error) {
       throw new Error(`[branches.deleteBranch] ${error.message}`);

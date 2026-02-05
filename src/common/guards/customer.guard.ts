@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import type { AuthRequest } from '../types/auth-request';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 
@@ -26,8 +32,12 @@ export class CustomerGuard implements CanActivate {
 
     // 2. Admin 사용자는 고객 영역 접근 불가 (역할 분리)
     if (request.isAdmin) {
-      this.logger.warn(`CustomerGuard: Admin user ${user.id} attempted to access customer area`);
-      throw new UnauthorizedException('Admin users cannot access customer area');
+      this.logger.warn(
+        `CustomerGuard: Admin user ${user.id} attempted to access customer area`,
+      );
+      throw new UnauthorizedException(
+        'Admin users cannot access customer area',
+      );
     }
 
     // 3. 브랜드 멤버십 확인
@@ -40,7 +50,10 @@ export class CustomerGuard implements CanActivate {
       .eq('status', 'ACTIVE');
 
     if (brandError) {
-      this.logger.error(`CustomerGuard: Failed to check brand memberships for user ${user.id}`, brandError);
+      this.logger.error(
+        `CustomerGuard: Failed to check brand memberships for user ${user.id}`,
+        brandError,
+      );
       throw new UnauthorizedException('Failed to verify memberships');
     }
 
@@ -52,24 +65,34 @@ export class CustomerGuard implements CanActivate {
       .eq('status', 'ACTIVE');
 
     if (branchError) {
-      this.logger.error(`CustomerGuard: Failed to check branch memberships for user ${user.id}`, branchError);
+      this.logger.error(
+        `CustomerGuard: Failed to check branch memberships for user ${user.id}`,
+        branchError,
+      );
       throw new UnauthorizedException('Failed to verify memberships');
     }
 
     // 5. 최소 하나 이상의 멤버십 필요
     const hasBrandMembership = brandMemberships && brandMemberships.length > 0;
-    const hasBranchMembership = branchMemberships && branchMemberships.length > 0;
+    const hasBranchMembership =
+      branchMemberships && branchMemberships.length > 0;
 
     if (!hasBrandMembership && !hasBranchMembership) {
-      this.logger.warn(`CustomerGuard: User ${user.id} has no active memberships`);
-      throw new UnauthorizedException('No active brand or branch memberships found');
+      this.logger.warn(
+        `CustomerGuard: User ${user.id} has no active memberships`,
+      );
+      throw new UnauthorizedException(
+        'No active brand or branch memberships found',
+      );
     }
 
     // 6. Request에 멤버십 정보 첨부
     request.brandMemberships = brandMemberships || [];
     request.branchMemberships = branchMemberships || [];
 
-    this.logger.log(`CustomerGuard: User ${user.id} authorized with ${brandMemberships?.length || 0} brand(s) and ${branchMemberships?.length || 0} branch(es)`);
+    this.logger.log(
+      `CustomerGuard: User ${user.id} authorized with ${brandMemberships?.length || 0} brand(s) and ${branchMemberships?.length || 0} branch(es)`,
+    );
 
     return true;
   }

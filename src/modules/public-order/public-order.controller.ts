@@ -1,10 +1,4 @@
-﻿import {
-  Controller,
-  Get,
-  Post,
-  Param,
-  Body,
-} from '@nestjs/common';
+﻿import { Controller, Get, Post, Param, Body } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { CreatePublicOrderRequest } from './dto/public-order.dto';
 
@@ -20,7 +14,6 @@ export class PublicOrderController {
   async getBranch(@Param('branchId') branchId: string) {
     return this.publicOrderService.getBranch(branchId);
   }
-
 
   /**
    * 媛寃??뺣낫 議고쉶 (slug)
@@ -69,4 +62,3 @@ export class PublicOrderController {
     return this.publicOrderService.getOrder(orderIdOrNo);
   }
 }
-

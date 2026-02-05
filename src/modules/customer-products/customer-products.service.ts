@@ -1,6 +1,14 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import type { BrandMembership, BranchMembership } from '../../common/types/auth-request';
+import type {
+  BrandMembership,
+  BranchMembership,
+} from '../../common/types/auth-request';
 import { CreateProductRequest } from '../../modules/products/dto/create-product.request';
 import { UpdateProductRequest } from '../../modules/products/dto/update-product.request';
 
@@ -18,7 +26,11 @@ export class CustomerProductsService {
     userId: string,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
-  ): Promise<{ branchMembership?: BranchMembership; brandMembership?: BrandMembership; branch: any }> {
+  ): Promise<{
+    branchMembership?: BranchMembership;
+    brandMembership?: BrandMembership;
+    branch: any;
+  }> {
     const sb = this.supabase.adminClient();
 
     // 브랜치 정보 조회
@@ -33,13 +45,17 @@ export class CustomerProductsService {
     }
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { branchMembership, branch };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === branch.brand_id);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === branch.brand_id,
+    );
     if (brandMembership) {
       return { brandMembership, branch };
     }
@@ -70,16 +86,20 @@ export class CustomerProductsService {
     }
 
     const branchId = product.branch_id;
-    const brandId = (product.branches as any).brand_id;
+    const brandId = product.branches.brand_id;
 
     // 1. 브랜치 멤버십 확인 (우선순위)
-    const branchMembership = branchMemberships.find((m) => m.branch_id === branchId);
+    const branchMembership = branchMemberships.find(
+      (m) => m.branch_id === branchId,
+    );
     if (branchMembership) {
       return { role: branchMembership.role, product };
     }
 
     // 2. 브랜드 멤버십으로 확인
-    const brandMembership = brandMemberships.find((m) => m.brand_id === brandId);
+    const brandMembership = brandMemberships.find(
+      (m) => m.brand_id === brandId,
+    );
     if (brandMembership) {
       return { role: brandMembership.role, product };
     }
@@ -90,9 +110,15 @@ export class CustomerProductsService {
   /**
    * 수정/삭제 권한 확인 (OWNER 또는 ADMIN만 가능)
    */
-  private checkModificationPermission(role: string, action: string, userId: string) {
+  private checkModificationPermission(
+    role: string,
+    action: string,
+    userId: string,
+  ) {
     if (role !== 'OWNER' && role !== 'ADMIN') {
-      this.logger.warn(`User ${userId} with role ${role} attempted to ${action}`);
+      this.logger.warn(
+        `User ${userId} with role ${role} attempted to ${action}`,
+      );
       throw new ForbiddenException(`Only OWNER or ADMIN can ${action}`);
     }
   }
@@ -106,26 +132,40 @@ export class CustomerProductsService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ) {
-    this.logger.log(`Fetching products for branch ${branchId} by user ${userId}`);
+    this.logger.log(
+      `Fetching products for branch ${branchId} by user ${userId}`,
+    );
 
     // 브랜치 접근 권한 확인
-    await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+    await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
 
     const sb = this.supabase.adminClient();
 
     const { data, error } = await sb
       .from('products')
-      .select('id, branch_id, name, description, category_id, price, is_active, sort_order, image_url, created_at')
+      .select(
+        'id, branch_id, name, description, category_id, price, is_active, sort_order, image_url, created_at',
+      )
       .eq('branch_id', branchId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
 
     if (error) {
-      this.logger.error(`Failed to fetch products for branch ${branchId}`, error);
+      this.logger.error(
+        `Failed to fetch products for branch ${branchId}`,
+        error,
+      );
       throw new Error('Failed to fetch products');
     }
 
-    this.logger.log(`Fetched ${data?.length || 0} products for branch ${branchId}`);
+    this.logger.log(
+      `Fetched ${data?.length || 0} products for branch ${branchId}`,
+    );
 
     return data || [];
   }
@@ -157,7 +197,10 @@ export class CustomerProductsService {
       .order('sort_order', { ascending: true });
 
     if (optionsError) {
-      this.logger.error(`Failed to fetch options for product ${productId}`, optionsError);
+      this.logger.error(
+        `Failed to fetch options for product ${productId}`,
+        optionsError,
+      );
     }
 
     return {
@@ -175,7 +218,9 @@ export class CustomerProductsService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ) {
-    this.logger.log(`Creating product for branch ${dto.branchId} by user ${userId}`);
+    this.logger.log(
+      `Creating product for branch ${dto.branchId} by user ${userId}`,
+    );
 
     // 브랜치 접근 권한 확인
     const { branchMembership, brandMembership } = await this.checkBranchAccess(
@@ -212,7 +257,10 @@ export class CustomerProductsService {
       .single();
 
     if (productError) {
-      this.logger.error(`Failed to create product for branch ${dto.branchId}`, productError);
+      this.logger.error(
+        `Failed to create product for branch ${dto.branchId}`,
+        productError,
+      );
       throw new Error('Failed to create product');
     }
 
@@ -231,7 +279,10 @@ export class CustomerProductsService {
         .insert(optionsToInsert);
 
       if (optionsError) {
-        this.logger.error(`Failed to create options for product ${product.id}`, optionsError);
+        this.logger.error(
+          `Failed to create options for product ${product.id}`,
+          optionsError,
+        );
         // 상품은 생성되었으므로 에러를 던지지 않고 로그만 남김
       }
     }
@@ -269,7 +320,8 @@ export class CustomerProductsService {
     // 수정 가능한 필드만 허용
     const updateFields: any = {};
     if (dto.name !== undefined) updateFields.name = dto.name;
-    if (dto.description !== undefined) updateFields.description = dto.description;
+    if (dto.description !== undefined)
+      updateFields.description = dto.description;
     if (dto.categoryId !== undefined) updateFields.category_id = dto.categoryId;
     if (dto.price !== undefined) updateFields.price = dto.price;
     if (dto.isActive !== undefined) updateFields.is_active = dto.isActive;
@@ -277,7 +329,12 @@ export class CustomerProductsService {
     if (dto.imageUrl !== undefined) updateFields.image_url = dto.imageUrl;
 
     if (Object.keys(updateFields).length === 0) {
-      return this.getMyProduct(userId, productId, brandMemberships, branchMemberships);
+      return this.getMyProduct(
+        userId,
+        productId,
+        brandMemberships,
+        branchMemberships,
+      );
     }
 
     const { data, error } = await sb

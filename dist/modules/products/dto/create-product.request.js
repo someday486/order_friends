@@ -42,11 +42,13 @@ __decorate([
 class CreateProductRequest {
     branchId;
     name;
+    categoryId;
     description;
     price;
     isActive = true;
     sortOrder = 0;
     options;
+    imageUrl;
 }
 exports.CreateProductRequest = CreateProductRequest;
 __decorate([
@@ -57,6 +59,10 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateProductRequest.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateProductRequest.prototype, "categoryId", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
@@ -84,4 +90,9 @@ __decorate([
     (0, class_transformer_1.Type)(() => CreateProductOptionDto),
     __metadata("design:type", Array)
 ], CreateProductRequest.prototype, "options", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateProductRequest.prototype, "imageUrl", void 0);
 //# sourceMappingURL=create-product.request.js.map

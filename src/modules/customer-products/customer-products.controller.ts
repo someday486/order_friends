@@ -12,7 +12,15 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiParam, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+  ApiResponse,
+  ApiBody,
+} from '@nestjs/swagger';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
@@ -38,13 +46,18 @@ export class CustomerProductsController {
   @ApiResponse({ status: 200, description: '상품 목록 조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
-  async getProducts(@Req() req: AuthRequest, @Query('branchId') branchId: string) {
+  async getProducts(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+  ) {
     if (!req.user) throw new Error('Missing user');
     if (!branchId) {
       throw new BadRequestException('branchId is required');
     }
 
-    this.logger.log(`User ${req.user.id} fetching products for branch ${branchId}`);
+    this.logger.log(
+      `User ${req.user.id} fetching products for branch ${branchId}`,
+    );
     return this.productsService.getMyProducts(
       req.user.id,
       branchId,
@@ -62,7 +75,10 @@ export class CustomerProductsController {
   @ApiResponse({ status: 200, description: '상품 상세 조회 성공' })
   @ApiResponse({ status: 403, description: '권한 없음' })
   @ApiResponse({ status: 404, description: '상품을 찾을 수 없음' })
-  async getProduct(@Req() req: AuthRequest, @Param('productId') productId: string) {
+  async getProduct(
+    @Req() req: AuthRequest,
+    @Param('productId') productId: string,
+  ) {
     if (!req.user) throw new Error('Missing user');
 
     this.logger.log(`User ${req.user.id} fetching product ${productId}`);
@@ -77,19 +93,25 @@ export class CustomerProductsController {
   @Post()
   @ApiOperation({
     summary: '상품 생성',
-    description: '내가 OWNER 또는 ADMIN 권한을 가진 지점에 새로운 상품을 생성합니다.',
+    description:
+      '내가 OWNER 또는 ADMIN 권한을 가진 지점에 새로운 상품을 생성합니다.',
   })
   @ApiBody({ type: CreateProductRequest })
   @ApiResponse({ status: 201, description: '상품 생성 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
-  async createProduct(@Req() req: AuthRequest, @Body() dto: CreateProductRequest) {
+  async createProduct(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateProductRequest,
+  ) {
     if (!req.user) throw new Error('Missing user');
     if (!dto.branchId) {
       throw new BadRequestException('branchId is required');
     }
 
-    this.logger.log(`User ${req.user.id} creating product for branch ${dto.branchId}`);
+    this.logger.log(
+      `User ${req.user.id} creating product for branch ${dto.branchId}`,
+    );
     return this.productsService.createMyProduct(
       req.user.id,
       dto,
@@ -134,7 +156,10 @@ export class CustomerProductsController {
   @ApiResponse({ status: 200, description: '상품 삭제 성공' })
   @ApiResponse({ status: 403, description: '권한 없음' })
   @ApiResponse({ status: 404, description: '상품을 찾을 수 없음' })
-  async deleteProduct(@Req() req: AuthRequest, @Param('productId') productId: string) {
+  async deleteProduct(
+    @Req() req: AuthRequest,
+    @Param('productId') productId: string,
+  ) {
     if (!req.user) throw new Error('Missing user');
 
     this.logger.log(`User ${req.user.id} deleting product ${productId}`);

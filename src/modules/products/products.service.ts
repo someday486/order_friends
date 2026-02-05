@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { ProductListItemResponse } from './dto/product-list.response';
-import { ProductDetailResponse, ProductOptionResponse } from './dto/product-detail.response';
+import {
+  ProductDetailResponse,
+  ProductOptionResponse,
+} from './dto/product-detail.response';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
 import { ProductCategoryResponse } from './dto/product-category.response';
@@ -15,14 +18,18 @@ export class ProductsService {
   constructor(private readonly supabase: SupabaseService) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
-    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    return isAdmin
+      ? this.supabase.adminClient()
+      : this.supabase.userClient(accessToken);
   }
 
   private getPriceFromRow(row: any): number {
     if (!row) return 0;
-    if (row.base_price !== undefined && row.base_price !== null) return row.base_price;
+    if (row.base_price !== undefined && row.base_price !== null)
+      return row.base_price;
     if (row.price !== undefined && row.price !== null) return row.price;
-    if (row.price_amount !== undefined && row.price_amount !== null) return row.price_amount;
+    if (row.price_amount !== undefined && row.price_amount !== null)
+      return row.price_amount;
     return 0;
   }
 
@@ -58,7 +65,9 @@ export class ProductsService {
       );
     }
 
-    this.logger.log(`Fetched ${data?.length || 0} products for branch: ${branchId}`);
+    this.logger.log(
+      `Fetched ${data?.length || 0} products for branch: ${branchId}`,
+    );
 
     return (data ?? []).map((row: any) => ({
       id: row.id,
@@ -178,7 +187,10 @@ export class ProductsService {
       .single();
 
     if (productError) {
-      this.logger.error(`Failed to create product: ${productError.message}`, productError);
+      this.logger.error(
+        `Failed to create product: ${productError.message}`,
+        productError,
+      );
       throw new BusinessException(
         'Failed to create product',
         'PRODUCT_CREATE_FAILED',
@@ -191,7 +203,9 @@ export class ProductsService {
     this.logger.log(`Product created successfully: ${productId}`);
 
     if (dto.options && dto.options.length > 0) {
-      this.logger.warn('[products.createProduct] product_options table not available; options ignored');
+      this.logger.warn(
+        '[products.createProduct] product_options table not available; options ignored',
+      );
     }
 
     return this.getProduct(accessToken, productId, isAdmin);
@@ -257,10 +271,7 @@ export class ProductsService {
   ): Promise<{ deleted: boolean }> {
     const sb = this.getClient(accessToken, isAdmin);
 
-    const { error } = await sb
-      .from('products')
-      .delete()
-      .eq('id', productId);
+    const { error } = await sb.from('products').delete().eq('id', productId);
 
     if (error) {
       this.logger.error(`Failed to delete product: ${error.message}`, error);

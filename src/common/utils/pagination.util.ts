@@ -2,7 +2,33 @@ import { PaginationDto, PaginatedResponse, PaginationMeta } from '../dto/paginat
 
 export class PaginationUtil {
   /**
+   * Supabase range 계산
+   * @param page 페이지 번호 (1부터 시작)
+   * @param limit 페이지당 항목 수
+   * @returns {from, to} range 값
+   */
+  static getRange(page: number, limit: number): { from: number; to: number } {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    return { from, to };
+  }
+
+  /**
+   * Offset 계산
+   * @param page 페이지 번호 (1부터 시작)
+   * @param limit 페이지당 항목 수
+   * @returns offset 값
+   */
+  static getOffset(page: number, limit: number): number {
+    return (page - 1) * limit;
+  }
+
+  /**
    * 페이지네이션 응답 생성
+   * @param data 데이터 배열
+   * @param total 전체 항목 수
+   * @param paginationDto 페이지네이션 DTO
+   * @returns 페이지네이션 응답
    */
   static createResponse<T>(
     data: T[],
@@ -10,36 +36,18 @@ export class PaginationUtil {
     paginationDto: PaginationDto,
   ): PaginatedResponse<T> {
     const { page = 1, limit = 20 } = paginationDto;
-    const meta = new PaginationMeta(page, limit, total);
+    const pagination = new PaginationMeta(page, limit, total);
 
     return {
       data,
       pagination: {
-        page: meta.page,
-        limit: meta.limit,
-        total: meta.total,
-        totalPages: meta.totalPages,
-        hasNext: meta.hasNext,
-        hasPrev: meta.hasPrev,
+        page: pagination.page,
+        limit: pagination.limit,
+        total: pagination.total,
+        totalPages: pagination.totalPages,
+        hasNext: pagination.hasNext,
+        hasPrev: pagination.hasPrev,
       },
-    };
-  }
-
-  /**
-   * offset 계산
-   */
-  static getOffset(page: number, limit: number): number {
-    return (page - 1) * limit;
-  }
-
-  /**
-   * range 계산 (Supabase용)
-   */
-  static getRange(page: number, limit: number): { from: number; to: number } {
-    const offset = this.getOffset(page, limit);
-    return {
-      from: offset,
-      to: offset + limit - 1,
     };
   }
 }

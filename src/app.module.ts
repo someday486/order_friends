@@ -15,11 +15,13 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { PublicModule } from './modules/public/public.module';
 import { PublicOrderModule } from './modules/public-order/public-order.module';
 import { HealthModule } from './modules/health/health.module';
+import { CustomerDashboardModule } from './modules/customer-dashboard/customer-dashboard.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
 import { PolicyGuard } from './common/guards/policy.guard';
 import { AdminGuard } from './common/guards/admin.guard';
+import { CustomerGuard } from './common/guards/customer.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
@@ -47,12 +49,14 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     PublicModule,
     PublicOrderModule,
     HealthModule,
+    CustomerDashboardModule,
   ],
   providers: [
     AuthGuard,
     MembershipGuard,
     PolicyGuard,
     AdminGuard,
+    CustomerGuard,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

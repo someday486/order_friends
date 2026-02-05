@@ -15,6 +15,7 @@ import { OrdersService } from './orders.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { UpdateOrderStatusRequest } from './dto/update-order-status.request';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('orders')
 @ApiBearerAuth()
@@ -24,17 +25,23 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  @ApiOperation({ summary: '주문 목록 조회', description: '지점의 주문 목록을 조회합니다.' })
+  @ApiOperation({ summary: '주문 목록 조회', description: '지점의 주문 목록을 조회합니다. (페이지네이션 지원)' })
   @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
+  @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
   @ApiResponse({ status: 200, description: '주문 목록 조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
-  async getOrders(@Req() req: AuthRequest, @Query('branchId') branchId: string) {
+  async getOrders(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query() paginationDto: PaginationDto,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
     if (!branchId) {
       throw new BadRequestException('branchId is required');
     }
-    return this.ordersService.getOrders(req.accessToken, branchId);
+    return this.ordersService.getOrders(req.accessToken, branchId, paginationDto);
   }
 
   @Get(':orderId')

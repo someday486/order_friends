@@ -5,6 +5,8 @@ import { OrderDetailResponse, OrderItemResponse } from './dto/order-detail.respo
 import { OrderListItemResponse } from './dto/order-list.response';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
+import { PaginationUtil } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class OrdersService {
@@ -45,17 +47,42 @@ export class OrdersService {
   /**
    * 주문 목록 (admin)
    * - RLS 때문에 userClient로는 안 보일 수 있어 adminClient 사용
+   * - 페이지네이션 지원
    */
-  async getOrders(accessToken: string, branchId: string): Promise<OrderListItemResponse[]> {
-    this.logger.log(`Fetching orders for branch: ${branchId}`);
-    const sb = this.supabase.adminClient();
+  async getOrders(
+    accessToken: string,
+    branchId: string,
+    paginationDto: PaginationDto = {},
+  ): Promise<PaginatedResponse<OrderListItemResponse>> {
+    const { page = 1, limit = 20 } = paginationDto;
+    this.logger.log(`Fetching orders for branch: ${branchId} (page: ${page}, limit: ${limit})`);
 
+    const sb = this.supabase.adminClient();
+    const { from, to } = PaginationUtil.getRange(page, limit);
+
+    // 총 개수 조회
+    const { count, error: countError } = await sb
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('branch_id', branchId);
+
+    if (countError) {
+      this.logger.error(`Failed to count orders: ${countError.message}`, countError);
+      throw new BusinessException(
+        'Failed to count orders',
+        'ORDER_COUNT_FAILED',
+        500,
+        { branchId, error: countError.message },
+      );
+    }
+
+    // 데이터 조회
     const { data, error } = await sb
       .from('orders')
       .select('id, order_no, status, created_at, total_amount, customer_name')
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .range(from, to);
 
     if (error) {
       this.logger.error(`Failed to fetch orders: ${error.message}`, error);
@@ -67,9 +94,7 @@ export class OrdersService {
       );
     }
 
-    this.logger.log(`Fetched ${data?.length || 0} orders for branch: ${branchId}`);
-
-    return (data ?? []).map((row: any) => ({
+    const orders = (data ?? []).map((row: any) => ({
       id: row.id,
       orderNo: row.order_no ?? null,
       orderedAt: row.created_at ?? '',
@@ -77,6 +102,10 @@ export class OrdersService {
       totalAmount: row.total_amount ?? 0,
       status: row.status as OrderStatus,
     }));
+
+    this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);
+
+    return PaginationUtil.createResponse(orders, count || 0, paginationDto);
   }
 
   /**

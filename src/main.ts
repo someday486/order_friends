@@ -11,10 +11,20 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/nestjs';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
+  // Initialize Sentry (optional - requires SENTRY_DSN env var)
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      tracesSampleRate: 1.0,
+    });
+  }
+
   const app = await NestFactory.create(AppModule);
 
   // Security: Helmet

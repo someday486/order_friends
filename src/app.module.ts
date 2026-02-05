@@ -1,7 +1,8 @@
 ﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { CacheModule } from '@nestjs/cache-manager';
 
 import { SupabaseModule } from './infra/supabase/supabase.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -19,6 +20,7 @@ import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
 import { PolicyGuard } from './common/guards/policy.guard';
 import { AdminGuard } from './common/guards/admin.guard';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -29,6 +31,11 @@ import { AdminGuard } from './common/guards/admin.guard';
         limit: 100, // 최대 100 요청
       },
     ]),
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 300000, // 5분 (밀리초)
+      max: 100, // 최대 100개 항목
+    }),
     SupabaseModule,
     AuthModule,
     OrdersModule,
@@ -49,6 +56,10 @@ import { AdminGuard } from './common/guards/admin.guard';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
   ],
 })

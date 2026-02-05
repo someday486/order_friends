@@ -20,6 +20,8 @@ import { CustomerBrandsModule } from './modules/customer-brands/customer-brands.
 import { CustomerBranchesModule } from './modules/customer-branches/customer-branches.module';
 import { CustomerProductsModule } from './modules/customer-products/customer-products.module';
 import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -58,6 +60,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CustomerBranchesModule,
     CustomerProductsModule,
     CustomerOrdersModule,
+    InventoryModule,
+    PaymentsModule,
   ],
   providers: [
     AuthGuard,

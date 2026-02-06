@@ -9,9 +9,19 @@ describe('PublicOrderService - Inventory Integration', () => {
   let supabaseService: SupabaseService;
   let inventoryService: InventoryService;
 
+  const mockAdminClient = {
+    from: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    insert: jest.fn().mockReturnThis(),
+    update: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    in: jest.fn().mockReturnThis(),
+    single: jest.fn().mockReturnThis(),
+  };
+
   const mockSupabaseService = {
-    adminClient: jest.fn(),
-    anonClient: jest.fn(),
+    adminClient: jest.fn(() => mockAdminClient),
+    anonClient: jest.fn(() => mockAdminClient),
   };
 
   const mockInventoryService = {
@@ -43,6 +53,14 @@ describe('PublicOrderService - Inventory Integration', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    // Reset all mock implementations to mockReturnThis
+    mockAdminClient.from.mockReturnThis();
+    mockAdminClient.select.mockReturnThis();
+    mockAdminClient.insert.mockReturnThis();
+    mockAdminClient.update.mockReturnThis();
+    mockAdminClient.eq.mockReturnThis();
+    mockAdminClient.in.mockReturnThis();
+    mockAdminClient.single.mockReturnThis();
   });
 
   describe('createOrder - Inventory Reservation', () => {
@@ -58,8 +76,8 @@ describe('PublicOrderService - Inventory Integration', () => {
       };
 
       const mockProducts = [
-        { id: 'product-1', name: '상품A', price: 10000 },
-        { id: 'product-2', name: '상품B', price: 15000 },
+        { id: 'product-1', name: '상품A', price: 10000, branch_id: 'branch-123' },
+        { id: 'product-2', name: '상품B', price: 15000, branch_id: 'branch-123' },
       ];
 
       const mockInventory = [
@@ -85,39 +103,75 @@ describe('PublicOrderService - Inventory Integration', () => {
         status: 'CREATED',
       };
 
-      // Mock Supabase calls
-      const mockAdminClient = {
-        from: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        insert: jest.fn().mockReturnThis(),
-        update: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        single: jest.fn(),
-      };
+      // Setup mock responses with call counting
+      let inCallCount = 0;
+      mockAdminClient.in.mockImplementation(() => {
+        inCallCount++;
+        // Call 1: products query (.in('id', productIds)) - terminal
+        if (inCallCount === 1) {
+          return Promise.resolve({ data: mockProducts, error: null });
+        }
+        // Call 2: inventory query (.in('product_id', productIds)) - chains to .eq()
+        if (inCallCount === 2) {
+          return mockAdminClient;
+        }
+        return mockAdminClient;
+      });
 
-      mockSupabaseService.adminClient.mockReturnValue(mockAdminClient);
+      let eqCallCount = 0;
+      mockAdminClient.eq.mockImplementation(() => {
+        eqCallCount++;
+        // Call 1: inventory query terminal (.eq('branch_id', branchId))
+        if (eqCallCount === 1) {
+          return Promise.resolve({ data: mockInventory, error: null });
+        }
+        // Calls 2-5: inventory updates for 2 items (update().eq('product_id').eq('branch_id') per item)
+        // Each item has 2 eq calls, first returns mock, second returns promise
+        if (eqCallCount === 2 || eqCallCount === 4) {
+          return mockAdminClient; // First eq in update chain
+        }
+        if (eqCallCount === 3 || eqCallCount === 5) {
+          return Promise.resolve({ data: {}, error: null }); // Terminal eq in update
+        }
+        return mockAdminClient;
+      });
 
-      // Setup mock responses
-      mockAdminClient.select
-        .mockResolvedValueOnce({ data: mockProducts, error: null }) // products query
-        .mockResolvedValueOnce({ data: mockInventory, error: null }); // inventory query
+      // Handle multiple insert calls:
+      // Call 1: Order insert - chains to select().single()
+      // Calls 2-3: Order item inserts (2 items) - chain to select().single()
+      // Calls 4-5: Inventory log inserts (2 items) - terminal
+      let insertCallCount = 0;
+      mockAdminClient.insert.mockImplementation(() => {
+        insertCallCount++;
+        if (insertCallCount <= 3) {
+          // Order and order items inserts - chain to select
+          return mockAdminClient;
+        }
+        // Inventory log inserts - terminal
+        return Promise.resolve({ data: {}, error: null });
+      });
 
-      mockAdminClient.single.mockResolvedValueOnce({
-        data: mockOrder,
-        error: null,
-      }); // order creation
+      // Handle single() calls for order and order items
+      let singleCallCount = 0;
+      mockAdminClient.single.mockImplementation(() => {
+        singleCallCount++;
+        if (singleCallCount === 1) {
+          // Order creation
+          return Promise.resolve({ data: mockOrder, error: null });
+        }
+        // Order items creation
+        return Promise.resolve({ data: { id: `item-${singleCallCount}` }, error: null });
+      });
 
-      // Mock inventory updates and logs
-      mockAdminClient.update.mockResolvedValue({ data: {}, error: null });
-      mockAdminClient.insert.mockResolvedValue({ data: {}, error: null });
+      // Inventory updates: update().eq().eq() where second eq is terminal
+      mockAdminClient.update.mockReturnValue(mockAdminClient);
 
       const result = await service.createOrder(mockOrderDto);
 
       // Verify order was created
       expect(result).toBeDefined();
       expect(result.id).toBe('order-123');
-      expect(result.total_amount).toBe(35000);
+      expect(result.totalAmount).toBe(35000);
 
       // Verify inventory was checked
       expect(mockAdminClient.from).toHaveBeenCalledWith('product_inventory');
@@ -140,7 +194,7 @@ describe('PublicOrderService - Inventory Integration', () => {
       };
 
       const mockProducts = [
-        { id: 'product-1', name: '상품A', price: 10000 },
+        { id: 'product-1', name: '상품A', price: 10000, branch_id: 'branch-123' },
       ];
 
       const mockInventory = [
@@ -151,23 +205,27 @@ describe('PublicOrderService - Inventory Integration', () => {
         },
       ];
 
-      const mockAdminClient = {
-        from: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-      };
+      // Setup mocks
+      let inCallCount = 0;
+      mockAdminClient.in.mockImplementation(() => {
+        inCallCount++;
+        if (inCallCount === 1) {
+          // Products query terminal
+          return Promise.resolve({ data: mockProducts, error: null });
+        }
+        if (inCallCount === 2) {
+          // Inventory query - chain to eq
+          return mockAdminClient;
+        }
+        return mockAdminClient;
+      });
 
-      mockSupabaseService.adminClient.mockReturnValue(mockAdminClient);
+      mockAdminClient.eq.mockImplementation(() => {
+        // Inventory query terminal
+        return Promise.resolve({ data: mockInventory, error: null });
+      });
 
-      mockAdminClient.select
-        .mockResolvedValueOnce({ data: mockProducts, error: null })
-        .mockResolvedValueOnce({ data: mockInventory, error: null });
-
-      // Should throw BadRequestException
-      await expect(service.createOrder(mockOrderDto)).rejects.toThrow(
-        BadRequestException,
-      );
+      // Should throw BadRequestException with specific message
       await expect(service.createOrder(mockOrderDto)).rejects.toThrow(
         /재고가 부족합니다/,
       );
@@ -182,27 +240,31 @@ describe('PublicOrderService - Inventory Integration', () => {
       };
 
       const mockProducts = [
-        { id: 'product-1', name: '상품A', price: 10000 },
+        { id: 'product-1', name: '상품A', price: 10000, branch_id: 'branch-123' },
       ];
 
       const mockInventory: any[] = []; // No inventory record
 
-      const mockAdminClient = {
-        from: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        in: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-      };
+      // Setup mocks
+      let inCallCount = 0;
+      mockAdminClient.in.mockImplementation(() => {
+        inCallCount++;
+        if (inCallCount === 1) {
+          // Products query terminal
+          return Promise.resolve({ data: mockProducts, error: null });
+        }
+        if (inCallCount === 2) {
+          // Inventory query - chain to eq
+          return mockAdminClient;
+        }
+        return mockAdminClient;
+      });
 
-      mockSupabaseService.adminClient.mockReturnValue(mockAdminClient);
+      mockAdminClient.eq.mockImplementation(() => {
+        // Inventory query terminal - returns empty array
+        return Promise.resolve({ data: mockInventory, error: null });
+      });
 
-      mockAdminClient.select
-        .mockResolvedValueOnce({ data: mockProducts, error: null })
-        .mockResolvedValueOnce({ data: mockInventory, error: null });
-
-      await expect(service.createOrder(mockOrderDto)).rejects.toThrow(
-        BadRequestException,
-      );
       await expect(service.createOrder(mockOrderDto)).rejects.toThrow(
         /재고 정보를 찾을 수 없습니다/,
       );

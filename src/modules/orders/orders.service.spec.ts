@@ -13,6 +13,7 @@ describe('OrdersService', () => {
     from: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
+    in: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     range: jest.fn().mockReturnThis(),
@@ -41,6 +42,7 @@ describe('OrdersService', () => {
     service = module.get<OrdersService>(OrdersService);
     supabaseService = module.get<SupabaseService>(SupabaseService);
 
+    // Clear mock call history only, preserve mockReturnThis() implementations
     jest.clearAllMocks();
   });
 
@@ -49,7 +51,7 @@ describe('OrdersService', () => {
   });
 
   describe('getOrders', () => {
-    it('should return list of orders', async () => {
+    it('should return list of orders with pagination', async () => {
       const mockOrders = [
         {
           id: '123',
@@ -61,15 +63,24 @@ describe('OrdersService', () => {
         },
       ];
 
-      mockSupabaseClient.limit.mockResolvedValue({
+      // Mock count query: from('orders').select('*', { count: 'exact', head: true }).eq('branch_id', branchId)
+      // Returns { count, error } from eq()
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        count: 1,
+        error: null,
+      });
+
+      // Mock data query: from('orders').select(...).eq(...).order(...).range(from, to)
+      // Returns { data, error } from range()
+      mockSupabaseClient.range.mockResolvedValueOnce({
         data: mockOrders,
         error: null,
       });
 
       const result = await service.getOrders('token', 'branch-123');
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toEqual({
         id: '123',
         orderNo: 'ORD-001',
         orderedAt: '2024-01-01',
@@ -77,11 +88,14 @@ describe('OrdersService', () => {
         totalAmount: 10000,
         status: OrderStatus.PENDING,
       });
+      expect(result.pagination).toBeDefined();
+      expect(result.pagination.total).toBe(1);
     });
 
     it('should throw BusinessException on database error', async () => {
-      mockSupabaseClient.limit.mockResolvedValue({
-        data: null,
+      // Mock count query returning an error
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        count: null,
         error: { message: 'Database error' },
       });
 
@@ -215,32 +229,49 @@ describe('OrdersService', () => {
         status: OrderStatus.CANCELLED,
       };
 
-      mockSupabaseClient.maybeSingle
-        .mockResolvedValueOnce({
-          data: { id: '123' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: mockOrder,
-          error: null,
-        });
-
-      mockSupabaseClient.select
-        .mockResolvedValueOnce({
-          data: mockOrderItems,
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: mockInventory,
-          error: null,
-        });
-
-      mockSupabaseClient.update.mockResolvedValue({ data: {}, error: null });
-      const insertMock = jest.fn().mockResolvedValue({ data: {}, error: null });
-      mockSupabaseClient.from = jest.fn().mockReturnValue({
-        ...mockSupabaseClient,
-        insert: insertMock,
+      // Set up mock implementations
+      let eqCallCount = 0;
+      mockSupabaseClient.eq.mockImplementation(() => {
+        eqCallCount++;
+        // Calls 1-2: resolveOrderId (.eq('order_no').eq('branch_id'))
+        // Calls 3-4: update order status (.eq('id').eq('branch_id'))
+        if (eqCallCount <= 4) {
+          return mockSupabaseClient;
+        }
+        // Call 5: order items query terminal (.eq('order_id', resolvedId))
+        if (eqCallCount === 5) {
+          return Promise.resolve({ data: mockOrderItems, error: null });
+        }
+        // Call 6: inventory SELECT query terminal (.in('product_id').eq('branch_id'))
+        if (eqCallCount === 6) {
+          return Promise.resolve({ data: mockInventory, error: null });
+        }
+        // Call 7: first item update inventory (.eq('product_id', 'product-1'))
+        if (eqCallCount === 7) {
+          return mockSupabaseClient;
+        }
+        // Call 8: first item update inventory terminal (.eq('branch_id'))
+        if (eqCallCount === 8) {
+          return Promise.resolve({ data: {}, error: null });
+        }
+        // Call 9: second item update inventory (.eq('product_id', 'product-2'))
+        if (eqCallCount === 9) {
+          return mockSupabaseClient;
+        }
+        // Call 10: second item update inventory terminal (.eq('branch_id'))
+        if (eqCallCount === 10) {
+          return Promise.resolve({ data: {}, error: null });
+        }
+        return mockSupabaseClient;
       });
+
+      // Mock resolveOrderId and update query (only 2 maybeSingle calls total)
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: '123' }, error: null }) // resolveOrderId
+        .mockResolvedValueOnce({ data: mockOrder, error: null }); // Update result
+
+      mockSupabaseClient.update.mockReturnValue(mockSupabaseClient);
+      mockSupabaseClient.insert.mockResolvedValue({ data: {}, error: null });
 
       await service.updateStatus(
         'token',
@@ -249,8 +280,8 @@ describe('OrdersService', () => {
         'branch-123',
       );
 
-      // Verify inventory logs were created for cancellation
-      expect(mockSupabaseClient.select).toHaveBeenCalled();
+      // Verify inventory operations were performed
+      expect(mockSupabaseClient.insert).toHaveBeenCalled();
     });
 
     it('should not release inventory for non-cancelled status changes', async () => {
@@ -260,20 +291,15 @@ describe('OrdersService', () => {
         status: OrderStatus.PREPARING,
       };
 
-      mockSupabaseClient.maybeSingle
-        .mockResolvedValueOnce({
-          data: { id: '123' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: mockOrder,
-          error: null,
-        });
+      // Set up mock - eq should return this for all chaining calls (no terminal eq calls)
+      mockSupabaseClient.eq.mockReturnValue(mockSupabaseClient);
 
-      mockSupabaseClient.update.mockResolvedValue({
-        data: mockOrder,
-        error: null,
-      });
+      // Mock resolveOrderId and update (only 2 maybeSingle calls)
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: '123' }, error: null }) // resolveOrderId
+        .mockResolvedValueOnce({ data: mockOrder, error: null }); // Update result
+
+      mockSupabaseClient.update.mockReturnValue(mockSupabaseClient);
 
       const result = await service.updateStatus(
         'token',
@@ -284,6 +310,8 @@ describe('OrdersService', () => {
 
       // Status updated but no inventory operations
       expect(result.status).toBe(OrderStatus.PREPARING);
+      // Verify inventory methods were not called
+      expect(mockSupabaseClient.insert).not.toHaveBeenCalled();
     });
   });
 

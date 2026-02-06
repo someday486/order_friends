@@ -6,10 +6,10 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 type Props = {
-  redirectTo?: string; // default: /app
+  redirectTo?: string; // default: / (main page will handle role-based redirect)
 };
 
-export function LoginForm({ redirectTo = "/app" }: Props) {
+export function LoginForm({ redirectTo = "/" }: Props) {
   const router = useRouter();
   const { refresh } = useAuth(); // ✅ 여기서만 호출 (컴포넌트 본문)
   

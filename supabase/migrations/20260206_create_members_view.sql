@@ -10,7 +10,9 @@ DROP VIEW IF EXISTS public.members;
 -- Create the members view
 CREATE VIEW public.members AS
 SELECT
-  bm.id,
+  -- Generate deterministic ID from branch_id + user_id
+  -- This ensures same membership always has same ID
+  md5(bm.branch_id::text || bm.user_id::text)::uuid as id,
   bm.user_id,
   bm.branch_id,
   bm.status,

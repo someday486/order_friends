@@ -16,6 +16,10 @@ export default function LoginPage() {
     if (status === "authenticated" && !roleLoading) {
       // 역할에 따라 적절한 대시보드로 리다이렉트
       switch (role) {
+        case "system_admin":
+          // 시스템 관리자는 /admin으로 (모든 브랜드/지점 접근 가능)
+          router.replace("/admin");
+          break;
         case "brand_owner":
         case "branch_manager":
         case "staff":

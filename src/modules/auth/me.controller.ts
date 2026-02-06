@@ -11,6 +11,32 @@ export class MeController {
   @Get('/me')
   @UseGuards(AuthGuard)
   async me(@CurrentUser() user: RequestUser) {
+    // First, check if user is a system admin
+    const { data: profile, error: profileError } = await this.supabase
+      .adminClient()
+      .from('profiles')
+      .select('is_system_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+    }
+
+    // If user is system admin, return immediately with highest privileges
+    if (profile?.is_system_admin) {
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: 'system_admin',
+        },
+        memberships: [],
+        ownedBrands: [],
+        isSystemAdmin: true,
+      };
+    }
+
     // Get user's memberships to determine their role and access
     const { data: memberships, error } = await this.supabase
       .adminClient()
@@ -71,6 +97,7 @@ export class MeController {
       },
       memberships: memberships || [],
       ownedBrands: ownedBrands || [],
+      isSystemAdmin: false,
     };
   }
 }

@@ -21,6 +21,7 @@ import {
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { UploadService } from './upload.service';
+import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
 
 @ApiTags('upload')
 @ApiBearerAuth()
@@ -30,6 +31,7 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post('image')
+  @UserRateLimit({ points: 20, duration: 60 }) // 20 uploads per minute
   @ApiOperation({
     summary: '이미지 업로드',
     description: '단일 이미지를 업로드합니다.',
@@ -75,6 +77,7 @@ export class UploadController {
   }
 
   @Post('images')
+  @UserRateLimit({ points: 10, duration: 60 }) // 10 batch uploads per minute
   @ApiOperation({
     summary: '다중 이미지 업로드',
     description: '여러 이미지를 한번에 업로드합니다.',
@@ -126,6 +129,7 @@ export class UploadController {
   }
 
   @Delete('image')
+  @UserRateLimit({ points: 30, duration: 60 }) // 30 deletes per minute
   @ApiOperation({
     summary: '이미지 삭제',
     description: '업로드된 이미지를 삭제합니다.',
@@ -152,6 +156,7 @@ export class UploadController {
   }
 
   @Delete('images')
+  @UserRateLimit({ points: 10, duration: 60 }) // 10 batch deletes per minute
   @ApiOperation({
     summary: '다중 이미지 삭제',
     description: '여러 이미지를 한번에 삭제합니다.',

@@ -7,7 +7,8 @@
 CREATE EXTENSION IF NOT EXISTS pg_trgm; -- For text search
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements; -- For query monitoring
 
-BEGIN;
+-- Note: CREATE INDEX CONCURRENTLY cannot run inside a transaction block
+-- So we removed BEGIN/COMMIT to allow concurrent index creation
 
 -- ============================================================
 -- ORDERS TABLE INDICES
@@ -157,8 +158,6 @@ ON branches(brand_id);
 -- Optimizes: GET /brands (user's brands)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_brands_owner_id
 ON brands(owner_id);
-
-COMMIT;
 
 -- ============================================================
 -- ANALYZE TABLES

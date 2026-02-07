@@ -17,6 +17,8 @@ class BrandListItemResponse {
     slug;
     bizName;
     bizRegNo;
+    logoUrl;
+    thumbnailUrl;
     createdAt;
 }
 exports.BrandListItemResponse = BrandListItemResponse;
@@ -27,6 +29,9 @@ class BrandDetailResponse {
     ownerUserId;
     bizName;
     bizRegNo;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
     createdAt;
 }
 exports.BrandDetailResponse = BrandDetailResponse;
@@ -35,6 +40,9 @@ class CreateBrandRequest {
     slug;
     bizName;
     bizRegNo;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
 }
 exports.CreateBrandRequest = CreateBrandRequest;
 __decorate([
@@ -56,11 +64,29 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateBrandRequest.prototype, "bizRegNo", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "coverImageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "thumbnailUrl", void 0);
 class UpdateBrandRequest {
     name;
     slug;
     bizName;
     bizRegNo;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
 }
 exports.UpdateBrandRequest = UpdateBrandRequest;
 __decorate([
@@ -83,4 +109,19 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateBrandRequest.prototype, "bizRegNo", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "coverImageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "thumbnailUrl", void 0);
 //# sourceMappingURL=brand.dto.js.map

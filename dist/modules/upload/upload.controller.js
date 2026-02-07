@@ -17,7 +17,6 @@ const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const auth_guard_1 = require("../../common/guards/auth.guard");
-const admin_guard_1 = require("../../common/guards/admin.guard");
 const upload_service_1 = require("./upload.service");
 const user_rate_limit_decorator_1 = require("../../common/decorators/user-rate-limit.decorator");
 let UploadController = class UploadController {
@@ -196,7 +195,7 @@ exports.UploadController = UploadController = __decorate([
     (0, swagger_1.ApiTags)('upload'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('upload'),
-    (0, common_1.UseGuards)(auth_guard_1.AuthGuard, admin_guard_1.AdminGuard),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
     __metadata("design:paramtypes", [upload_service_1.UploadService])
 ], UploadController);
 //# sourceMappingURL=upload.controller.js.map

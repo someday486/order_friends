@@ -7,6 +7,8 @@ export class BrandListItemResponse {
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
+  logoUrl?: string | null;
+  thumbnailUrl?: string | null;
   createdAt: string;
 }
 
@@ -17,6 +19,9 @@ export class BrandDetailResponse {
   ownerUserId?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  thumbnailUrl?: string | null;
   createdAt: string;
 }
 
@@ -36,6 +41,18 @@ export class CreateBrandRequest {
   @IsString()
   @IsOptional()
   bizRegNo?: string;
+
+  @IsString()
+  @IsOptional()
+  logoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  coverImageUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  thumbnailUrl?: string;
 }
 
 export class UpdateBrandRequest {
@@ -54,4 +71,16 @@ export class UpdateBrandRequest {
   @IsString()
   @IsOptional()
   bizRegNo?: string;
+
+  @IsString()
+  @IsOptional()
+  logoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  coverImageUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  thumbnailUrl?: string;
 }

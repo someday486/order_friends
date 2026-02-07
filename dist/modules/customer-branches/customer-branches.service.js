@@ -30,7 +30,7 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
         const sb = this.supabase.adminClient();
         const { data: branch, error } = await sb
             .from('branches')
-            .select('id, brand_id, name, slug, created_at')
+            .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
             .eq('id', branchId)
             .single();
         if (error || !branch) {
@@ -58,7 +58,7 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
         const sb = this.supabase.adminClient();
         const { data, error } = await sb
             .from('branches')
-            .select('id, brand_id, name, slug, created_at')
+            .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
             .eq('brand_id', brandId)
             .order('created_at', { ascending: false });
         if (error) {
@@ -73,6 +73,8 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
                 brandId: branch.brand_id,
                 name: branch.name,
                 slug: branch.slug,
+                logoUrl: branch.logo_url ?? null,
+                thumbnailUrl: branch.thumbnail_url ?? null,
                 createdAt: branch.created_at,
                 myRole: branchMembership?.role || brandMembership?.role || null,
             };
@@ -88,6 +90,9 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
             brandId: branch.brand_id,
             name: branch.name,
             slug: branch.slug,
+            logoUrl: branch.logo_url ?? null,
+            coverImageUrl: branch.cover_image_url ?? null,
+            thumbnailUrl: branch.thumbnail_url ?? null,
             createdAt: branch.created_at,
             myRole: branchMembership?.role || brandMembership?.role,
         };
@@ -97,14 +102,21 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
         const membership = this.checkBrandAccess(dto.brandId, brandMemberships);
         this.checkModificationPermission(membership.role, 'create branches', userId);
         const sb = this.supabase.adminClient();
-        const { data, error } = await sb
-            .from('branches')
-            .insert({
+        const insertPayload = {
             brand_id: dto.brandId,
             name: dto.name,
             slug: dto.slug,
-        })
-            .select('id, brand_id, name, slug, created_at')
+        };
+        if (dto.logoUrl)
+            insertPayload.logo_url = dto.logoUrl;
+        if (dto.coverImageUrl)
+            insertPayload.cover_image_url = dto.coverImageUrl;
+        if (dto.thumbnailUrl)
+            insertPayload.thumbnail_url = dto.thumbnailUrl;
+        const { data, error } = await sb
+            .from('branches')
+            .insert(insertPayload)
+            .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
             .single();
         if (error) {
             if (error.code === '23505') {
@@ -119,6 +131,9 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
             brandId: data.brand_id,
             name: data.name,
             slug: data.slug,
+            logoUrl: data.logo_url ?? null,
+            coverImageUrl: data.cover_image_url ?? null,
+            thumbnailUrl: data.thumbnail_url ?? null,
             createdAt: data.created_at,
             myRole: membership.role,
         };
@@ -137,6 +152,12 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
             updateFields.name = dto.name;
         if (dto.slug !== undefined)
             updateFields.slug = dto.slug;
+        if (dto.logoUrl !== undefined)
+            updateFields.logo_url = dto.logoUrl;
+        if (dto.coverImageUrl !== undefined)
+            updateFields.cover_image_url = dto.coverImageUrl;
+        if (dto.thumbnailUrl !== undefined)
+            updateFields.thumbnail_url = dto.thumbnailUrl;
         if (Object.keys(updateFields).length === 0) {
             return this.getMyBranch(userId, branchId, brandMemberships, branchMemberships);
         }
@@ -144,7 +165,7 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
             .from('branches')
             .update(updateFields)
             .eq('id', branchId)
-            .select('id, brand_id, name, slug, created_at')
+            .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
             .single();
         if (error) {
             if (error.code === '23505') {
@@ -159,6 +180,9 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
             brandId: data.brand_id,
             name: data.name,
             slug: data.slug,
+            logoUrl: data.logo_url ?? null,
+            coverImageUrl: data.cover_image_url ?? null,
+            thumbnailUrl: data.thumbnail_url ?? null,
             createdAt: data.created_at,
             myRole: role,
         };

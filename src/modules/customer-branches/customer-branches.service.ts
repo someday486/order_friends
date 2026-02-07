@@ -52,7 +52,7 @@ export class CustomerBranchesService {
     // 브랜치 정보 조회
     const { data: branch, error } = await sb
       .from('branches')
-      .select('id, brand_id, name, slug, created_at')
+      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
       .eq('id', branchId)
       .single();
 
@@ -113,7 +113,7 @@ export class CustomerBranchesService {
 
     const { data, error } = await sb
       .from('branches')
-      .select('id, brand_id, name, slug, created_at')
+      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
       .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
 
@@ -136,6 +136,8 @@ export class CustomerBranchesService {
         brandId: branch.brand_id,
         name: branch.name,
         slug: branch.slug,
+        logoUrl: (branch as any).logo_url ?? null,
+        thumbnailUrl: (branch as any).thumbnail_url ?? null,
         createdAt: branch.created_at,
         myRole: branchMembership?.role || brandMembership?.role || null,
       };
@@ -172,6 +174,9 @@ export class CustomerBranchesService {
       brandId: branch.brand_id,
       name: branch.name,
       slug: branch.slug,
+      logoUrl: branch.logo_url ?? null,
+      coverImageUrl: branch.cover_image_url ?? null,
+      thumbnailUrl: branch.thumbnail_url ?? null,
       createdAt: branch.created_at,
       myRole: branchMembership?.role || brandMembership?.role,
     };
@@ -199,14 +204,19 @@ export class CustomerBranchesService {
 
     const sb = this.supabase.adminClient();
 
+    const insertPayload: any = {
+      brand_id: dto.brandId,
+      name: dto.name,
+      slug: dto.slug,
+    };
+    if (dto.logoUrl) insertPayload.logo_url = dto.logoUrl;
+    if (dto.coverImageUrl) insertPayload.cover_image_url = dto.coverImageUrl;
+    if (dto.thumbnailUrl) insertPayload.thumbnail_url = dto.thumbnailUrl;
+
     const { data, error } = await sb
       .from('branches')
-      .insert({
-        brand_id: dto.brandId,
-        name: dto.name,
-        slug: dto.slug,
-      })
-      .select('id, brand_id, name, slug, created_at')
+      .insert(insertPayload)
+      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
       .single();
 
     if (error) {
@@ -229,6 +239,9 @@ export class CustomerBranchesService {
       brandId: data.brand_id,
       name: data.name,
       slug: data.slug,
+      logoUrl: data.logo_url ?? null,
+      coverImageUrl: data.cover_image_url ?? null,
+      thumbnailUrl: data.thumbnail_url ?? null,
       createdAt: data.created_at,
       myRole: membership.role,
     };
@@ -269,6 +282,9 @@ export class CustomerBranchesService {
     const updateFields: any = {};
     if (dto.name !== undefined) updateFields.name = dto.name;
     if (dto.slug !== undefined) updateFields.slug = dto.slug;
+    if (dto.logoUrl !== undefined) updateFields.logo_url = dto.logoUrl;
+    if (dto.coverImageUrl !== undefined) updateFields.cover_image_url = dto.coverImageUrl;
+    if (dto.thumbnailUrl !== undefined) updateFields.thumbnail_url = dto.thumbnailUrl;
 
     if (Object.keys(updateFields).length === 0) {
       return this.getMyBranch(
@@ -283,7 +299,7 @@ export class CustomerBranchesService {
       .from('branches')
       .update(updateFields)
       .eq('id', branchId)
-      .select('id, brand_id, name, slug, created_at')
+      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
       .single();
 
     if (error) {
@@ -303,6 +319,9 @@ export class CustomerBranchesService {
       brandId: data.brand_id,
       name: data.name,
       slug: data.slug,
+      logoUrl: data.logo_url ?? null,
+      coverImageUrl: data.cover_image_url ?? null,
+      thumbnailUrl: data.thumbnail_url ?? null,
       createdAt: data.created_at,
       myRole: role,
     };

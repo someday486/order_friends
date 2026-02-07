@@ -11,6 +11,9 @@ export declare class CustomerBrandsService {
         biz_name: any;
         biz_reg_no: any;
         owner_user_id: any;
+        logo_url: any;
+        cover_image_url: any;
+        thumbnail_url: any;
         created_at: any;
     }[]>;
     getMyBrand(brandId: string, userId: string, brandMemberships: BrandMembership[]): Promise<{
@@ -20,6 +23,9 @@ export declare class CustomerBrandsService {
         biz_name: any;
         biz_reg_no: any;
         owner_user_id: any;
+        logo_url: any;
+        cover_image_url: any;
+        thumbnail_url: any;
         created_at: any;
     }>;
     updateMyBrand(brandId: string, updateData: any, userId: string, brandMemberships: BrandMembership[]): Promise<any>;

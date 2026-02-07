@@ -4,6 +4,8 @@ export declare class BrandListItemResponse {
     slug?: string | null;
     bizName?: string | null;
     bizRegNo?: string | null;
+    logoUrl?: string | null;
+    thumbnailUrl?: string | null;
     createdAt: string;
 }
 export declare class BrandDetailResponse {
@@ -13,6 +15,9 @@ export declare class BrandDetailResponse {
     ownerUserId?: string | null;
     bizName?: string | null;
     bizRegNo?: string | null;
+    logoUrl?: string | null;
+    coverImageUrl?: string | null;
+    thumbnailUrl?: string | null;
     createdAt: string;
 }
 export declare class CreateBrandRequest {
@@ -20,10 +25,16 @@ export declare class CreateBrandRequest {
     slug?: string;
     bizName?: string;
     bizRegNo?: string;
+    logoUrl?: string;
+    coverImageUrl?: string;
+    thumbnailUrl?: string;
 }
 export declare class UpdateBrandRequest {
     name?: string;
     slug?: string;
     bizName?: string;
     bizRegNo?: string;
+    logoUrl?: string;
+    coverImageUrl?: string;
+    thumbnailUrl?: string;
 }

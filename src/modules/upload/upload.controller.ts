@@ -19,14 +19,13 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/guards/auth.guard';
-import { AdminGuard } from '../../common/guards/admin.guard';
 import { UploadService } from './upload.service';
 import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
 
 @ApiTags('upload')
 @ApiBearerAuth()
 @Controller('upload')
-@UseGuards(AuthGuard, AdminGuard)
+@UseGuards(AuthGuard)
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 

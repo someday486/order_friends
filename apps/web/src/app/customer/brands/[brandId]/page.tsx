@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { ImageUpload } from "@/components/ui/ImageUpload";
 
 // ============================================================
 // Types
@@ -11,11 +12,13 @@ import { createClient } from "@/lib/supabaseClient";
 type Brand = {
   id: string;
   name: string;
-  description: string | null;
+  biz_name: string | null;
+  biz_reg_no: string | null;
   logo_url: string | null;
+  cover_image_url: string | null;
+  thumbnail_url: string | null;
   myRole: string;
   created_at: string;
-  updated_at: string;
 };
 
 // ============================================================
@@ -51,7 +54,14 @@ export default function BrandDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ name: "", description: "", logo_url: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    biz_name: "",
+    biz_reg_no: "",
+    logo_url: null as string | null,
+    cover_image_url: null as string | null,
+    thumbnail_url: null as string | null,
+  });
   const [saveLoading, setSaveLoading] = useState(false);
 
   useEffect(() => {
@@ -75,8 +85,11 @@ export default function BrandDetailPage() {
         setBrand(data);
         setFormData({
           name: data.name || "",
-          description: data.description || "",
-          logo_url: data.logo_url || "",
+          biz_name: data.biz_name || "",
+          biz_reg_no: data.biz_reg_no || "",
+          logo_url: data.logo_url || null,
+          cover_image_url: data.cover_image_url || null,
+          thumbnail_url: data.thumbnail_url || null,
         });
       } catch (e) {
         console.error(e);
@@ -174,23 +187,48 @@ export default function BrandDetailPage() {
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>설명</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
-                placeholder="브랜드 설명을 입력하세요"
+              <label style={labelStyle}>사업자명</label>
+              <input
+                type="text"
+                value={formData.biz_name}
+                onChange={(e) => setFormData({ ...formData, biz_name: e.target.value })}
+                style={inputStyle}
+                placeholder="사업자명"
               />
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>로고 URL</label>
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>사업자등록번호</label>
               <input
                 type="text"
-                value={formData.logo_url}
-                onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+                value={formData.biz_reg_no}
+                onChange={(e) => setFormData({ ...formData, biz_reg_no: e.target.value })}
                 style={inputStyle}
-                placeholder="https://example.com/logo.png"
+                placeholder="000-00-00000"
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
+              <ImageUpload
+                value={formData.logo_url}
+                onChange={(url) => setFormData({ ...formData, logo_url: url })}
+                folder="brands/logos"
+                label="로고"
+                aspectRatio="1/1"
+              />
+              <ImageUpload
+                value={formData.cover_image_url}
+                onChange={(url) => setFormData({ ...formData, cover_image_url: url })}
+                folder="brands/covers"
+                label="커버 이미지"
+                aspectRatio="16/9"
+              />
+              <ImageUpload
+                value={formData.thumbnail_url}
+                onChange={(url) => setFormData({ ...formData, thumbnail_url: url })}
+                folder="brands/thumbnails"
+                label="썸네일"
+                aspectRatio="1/1"
               />
             </div>
 
@@ -205,6 +243,17 @@ export default function BrandDetailPage() {
           </div>
         ) : (
           <div>
+            {/* Cover image banner */}
+            {brand.cover_image_url && (
+              <div style={{ marginBottom: 24 }}>
+                <img
+                  src={brand.cover_image_url}
+                  alt="커버 이미지"
+                  style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 8 }}
+                />
+              </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
               {brand.logo_url ? (
                 <img
@@ -234,10 +283,29 @@ export default function BrandDetailPage() {
               </div>
             </div>
 
-            {brand.description && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 20 }}>
+              {brand.biz_name && (
+                <div>
+                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>사업자명</div>
+                  <div style={{ fontSize: 15, color: "#fff" }}>{brand.biz_name}</div>
+                </div>
+              )}
+              {brand.biz_reg_no && (
+                <div>
+                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>사업자등록번호</div>
+                  <div style={{ fontSize: 15, color: "#fff" }}>{brand.biz_reg_no}</div>
+                </div>
+              )}
+            </div>
+
+            {brand.thumbnail_url && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>설명</div>
-                <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.6 }}>{brand.description}</div>
+                <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>썸네일</div>
+                <img
+                  src={brand.thumbnail_url}
+                  alt="썸네일"
+                  style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 8, border: "1px solid #333" }}
+                />
               </div>
             )}
 
@@ -245,10 +313,6 @@ export default function BrandDetailPage() {
               <div>
                 <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>등록일</div>
                 <div style={{ fontSize: 14, color: "#fff" }}>{new Date(brand.created_at).toLocaleString()}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>수정일</div>
-                <div style={{ fontSize: 14, color: "#fff" }}>{new Date(brand.updated_at).toLocaleString()}</div>
               </div>
             </div>
           </div>

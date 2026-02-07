@@ -28,7 +28,7 @@ let CustomerBrandsService = CustomerBrandsService_1 = class CustomerBrandsServic
         const sb = this.supabase.adminClient();
         const { data, error } = await sb
             .from('brands')
-            .select('id, name, biz_name, biz_reg_no, owner_user_id, created_at')
+            .select('id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at')
             .in('id', brandIds)
             .order('created_at', { ascending: false });
         if (error) {
@@ -55,7 +55,7 @@ let CustomerBrandsService = CustomerBrandsService_1 = class CustomerBrandsServic
         const sb = this.supabase.adminClient();
         const { data, error } = await sb
             .from('brands')
-            .select('id, name, biz_name, biz_reg_no, owner_user_id, created_at')
+            .select('id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at')
             .eq('id', brandId)
             .single();
         if (error || !data) {
@@ -78,7 +78,7 @@ let CustomerBrandsService = CustomerBrandsService_1 = class CustomerBrandsServic
             throw new common_1.ForbiddenException('Only OWNER or ADMIN can update brand information');
         }
         const sb = this.supabase.adminClient();
-        const { name, biz_name, biz_reg_no } = updateData;
+        const { name, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url } = updateData;
         const updateFields = {};
         if (name !== undefined)
             updateFields.name = name;
@@ -86,6 +86,12 @@ let CustomerBrandsService = CustomerBrandsService_1 = class CustomerBrandsServic
             updateFields.biz_name = biz_name;
         if (biz_reg_no !== undefined)
             updateFields.biz_reg_no = biz_reg_no;
+        if (logo_url !== undefined)
+            updateFields.logo_url = logo_url;
+        if (cover_image_url !== undefined)
+            updateFields.cover_image_url = cover_image_url;
+        if (thumbnail_url !== undefined)
+            updateFields.thumbnail_url = thumbnail_url;
         const { data, error } = await sb
             .from('brands')
             .update(updateFields)

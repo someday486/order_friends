@@ -13,6 +13,8 @@ export declare class CustomerBranchesService {
         brandId: any;
         name: any;
         slug: any;
+        logoUrl: any;
+        thumbnailUrl: any;
         createdAt: any;
         myRole: string | null;
     }[]>;
@@ -21,6 +23,9 @@ export declare class CustomerBranchesService {
         brandId: any;
         name: any;
         slug: any;
+        logoUrl: any;
+        coverImageUrl: any;
+        thumbnailUrl: any;
         createdAt: any;
         myRole: string | undefined;
     }>;
@@ -29,6 +34,9 @@ export declare class CustomerBranchesService {
         brandId: any;
         name: any;
         slug: any;
+        logoUrl: any;
+        coverImageUrl: any;
+        thumbnailUrl: any;
         createdAt: any;
         myRole: string;
     }>;
@@ -37,6 +45,9 @@ export declare class CustomerBranchesService {
         brandId: any;
         name: any;
         slug: any;
+        logoUrl: any;
+        coverImageUrl: any;
+        thumbnailUrl: any;
         createdAt: any;
         myRole: string | undefined;
     }>;

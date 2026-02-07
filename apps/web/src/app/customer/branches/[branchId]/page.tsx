@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { ImageUpload } from "@/components/ui/ImageUpload";
 
 // ============================================================
 // Types
@@ -13,6 +14,9 @@ type Branch = {
   brandId: string;
   name: string;
   slug: string;
+  logoUrl: string | null;
+  coverImageUrl: string | null;
+  thumbnailUrl: string | null;
   myRole: string | null;
   createdAt: string;
 };
@@ -50,7 +54,13 @@ export default function BranchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ name: "", slug: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    slug: "",
+    logoUrl: null as string | null,
+    coverImageUrl: null as string | null,
+    thumbnailUrl: null as string | null,
+  });
   const [saveLoading, setSaveLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -76,6 +86,9 @@ export default function BranchDetailPage() {
         setFormData({
           name: data.name || "",
           slug: data.slug || "",
+          logoUrl: data.logoUrl || null,
+          coverImageUrl: data.coverImageUrl || null,
+          thumbnailUrl: data.thumbnailUrl || null,
         });
       } catch (e) {
         console.error(e);
@@ -202,7 +215,7 @@ export default function BranchDetailPage() {
               />
             </div>
 
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 20 }}>
               <label style={labelStyle}>Slug (영문, 숫자, 하이픈만)</label>
               <input
                 type="text"
@@ -217,6 +230,30 @@ export default function BranchDetailPage() {
               </div>
             </div>
 
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
+              <ImageUpload
+                value={formData.logoUrl}
+                onChange={(url) => setFormData({ ...formData, logoUrl: url })}
+                folder="branches/logos"
+                label="로고"
+                aspectRatio="1/1"
+              />
+              <ImageUpload
+                value={formData.coverImageUrl}
+                onChange={(url) => setFormData({ ...formData, coverImageUrl: url })}
+                folder="branches/covers"
+                label="커버 이미지"
+                aspectRatio="16/9"
+              />
+              <ImageUpload
+                value={formData.thumbnailUrl}
+                onChange={(url) => setFormData({ ...formData, thumbnailUrl: url })}
+                folder="branches/thumbnails"
+                label="썸네일"
+                aspectRatio="1/1"
+              />
+            </div>
+
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={handleSave} disabled={saveLoading} style={saveButton}>
                 {saveLoading ? "저장 중..." : "저장"}
@@ -224,7 +261,13 @@ export default function BranchDetailPage() {
               <button
                 onClick={() => {
                   setIsEditing(false);
-                  setFormData({ name: branch.name, slug: branch.slug });
+                  setFormData({
+                    name: branch.name,
+                    slug: branch.slug,
+                    logoUrl: branch.logoUrl,
+                    coverImageUrl: branch.coverImageUrl,
+                    thumbnailUrl: branch.thumbnailUrl,
+                  });
                 }}
                 disabled={saveLoading}
                 style={cancelButton}
@@ -235,21 +278,40 @@ export default function BranchDetailPage() {
           </div>
         ) : (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-              <div
-                style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: 12,
-                  background: "#222",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 40,
-                }}
-              >
-                🏪
+            {/* Cover image banner */}
+            {branch.coverImageUrl && (
+              <div style={{ marginBottom: 24 }}>
+                <img
+                  src={branch.coverImageUrl}
+                  alt="커버 이미지"
+                  style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 8 }}
+                />
               </div>
+            )}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+              {branch.logoUrl ? (
+                <img
+                  src={branch.logoUrl}
+                  alt={branch.name}
+                  style={{ width: 80, height: 80, borderRadius: 12, objectFit: "cover" }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 12,
+                    background: "#222",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 40,
+                  }}
+                >
+                  🏪
+                </div>
+              )}
               <div>
                 <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0" }}>{branch.name}</h2>
                 {branch.myRole && (
@@ -267,6 +329,17 @@ export default function BranchDetailPage() {
               <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>브랜드 ID</div>
               <div style={{ fontSize: 15, color: "#fff", fontFamily: "monospace" }}>{branch.brandId}</div>
             </div>
+
+            {branch.thumbnailUrl && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>썸네일</div>
+                <img
+                  src={branch.thumbnailUrl}
+                  alt="썸네일"
+                  style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 8, border: "1px solid #333" }}
+                />
+              </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginTop: 24 }}>
               <div>

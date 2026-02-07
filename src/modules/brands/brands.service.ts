@@ -32,7 +32,7 @@ export class BrandsService {
       const sb = this.supabase.adminClient();
       const { data, error } = await sb
         .from('brands')
-        .select('id, name, slug, biz_name, biz_reg_no, created_at')
+        .select('id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -45,6 +45,8 @@ export class BrandsService {
         slug: row.slug ?? null,
         bizName: row.biz_name ?? null,
         bizRegNo: row.biz_reg_no ?? null,
+        logoUrl: row.logo_url ?? null,
+        thumbnailUrl: row.thumbnail_url ?? null,
         createdAt: row.created_at ?? '',
       }));
     }
@@ -57,7 +59,7 @@ export class BrandsService {
         `
         brand_id,
         brands (
-          id, name, slug, biz_name, biz_reg_no, created_at
+          id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at
         )
       `,
       )
@@ -75,6 +77,8 @@ export class BrandsService {
         slug: row.brands.slug ?? null,
         bizName: row.brands.biz_name ?? null,
         bizRegNo: row.brands.biz_reg_no ?? null,
+        logoUrl: row.brands.logo_url ?? null,
+        thumbnailUrl: row.brands.thumbnail_url ?? null,
         createdAt: row.brands.created_at ?? '',
       }));
   }
@@ -91,7 +95,7 @@ export class BrandsService {
 
     const { data, error } = await sb
       .from('brands')
-      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, created_at')
+      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
       .eq('id', brandId)
       .single();
 
@@ -110,6 +114,9 @@ export class BrandsService {
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
       bizRegNo: data.biz_reg_no ?? null,
+      logoUrl: data.logo_url ?? null,
+      coverImageUrl: data.cover_image_url ?? null,
+      thumbnailUrl: data.thumbnail_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }
@@ -155,8 +162,11 @@ export class BrandsService {
         owner_user_id: userId,
         biz_name: dto.bizName ?? null,
         biz_reg_no: dto.bizRegNo ?? null,
+        logo_url: dto.logoUrl ?? null,
+        cover_image_url: dto.coverImageUrl ?? null,
+        thumbnail_url: dto.thumbnailUrl ?? null,
       })
-      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, created_at')
+      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
       .single();
 
     if (brandError || !brand) {
@@ -206,6 +216,9 @@ export class BrandsService {
     if (dto.slug !== undefined) updateData.slug = dto.slug;
     if (dto.bizName !== undefined) updateData.biz_name = dto.bizName;
     if (dto.bizRegNo !== undefined) updateData.biz_reg_no = dto.bizRegNo;
+    if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
+    if (dto.coverImageUrl !== undefined) updateData.cover_image_url = dto.coverImageUrl;
+    if (dto.thumbnailUrl !== undefined) updateData.thumbnail_url = dto.thumbnailUrl;
 
     if (Object.keys(updateData).length === 0) {
       return this.getBrand(accessToken, brandId, isAdmin);
@@ -241,7 +254,7 @@ export class BrandsService {
       .from('brands')
       .update(updateData)
       .eq('id', brandId)
-      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, created_at')
+      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
       .maybeSingle();
 
     if (error) {
@@ -259,6 +272,9 @@ export class BrandsService {
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
       bizRegNo: data.biz_reg_no ?? null,
+      logoUrl: data.logo_url ?? null,
+      coverImageUrl: data.cover_image_url ?? null,
+      thumbnailUrl: data.thumbnail_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }

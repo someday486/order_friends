@@ -10,6 +10,9 @@ export declare class CustomerBrandsController {
         biz_name: any;
         biz_reg_no: any;
         owner_user_id: any;
+        logo_url: any;
+        cover_image_url: any;
+        thumbnail_url: any;
         created_at: any;
     }[]>;
     getMyBrand(brandId: string, req: AuthRequest): Promise<{
@@ -19,6 +22,9 @@ export declare class CustomerBrandsController {
         biz_name: any;
         biz_reg_no: any;
         owner_user_id: any;
+        logo_url: any;
+        cover_image_url: any;
+        thumbnail_url: any;
         created_at: any;
     }>;
     updateMyBrand(brandId: string, updateData: any, req: AuthRequest): Promise<any>;

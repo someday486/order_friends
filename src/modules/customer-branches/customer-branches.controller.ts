@@ -42,23 +42,20 @@ export class CustomerBranchesController {
   @Get()
   @ApiOperation({
     summary: '내 브랜드의 지점 목록 조회',
-    description: '내가 멤버로 등록된 브랜드의 지점 목록을 조회합니다.',
+    description:
+      'brandId가 주어지면 해당 브랜드의 지점만, 없으면 접근 가능한 모든 지점을 반환합니다.',
   })
-  @ApiQuery({ name: 'brandId', description: '브랜드 ID', required: true })
+  @ApiQuery({ name: 'brandId', description: '브랜드 ID', required: false })
   @ApiResponse({ status: 200, description: '지점 목록 조회 성공' })
-  @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
   async getBranches(
     @Req() req: AuthRequest,
-    @Query('brandId') brandId: string,
+    @Query('brandId') brandId?: string,
   ) {
     if (!req.user) throw new Error('Missing user');
-    if (!brandId) {
-      throw new BadRequestException('brandId is required');
-    }
 
     this.logger.log(
-      `User ${req.user.id} fetching branches for brand ${brandId}`,
+      `User ${req.user.id} fetching branches${brandId ? ` for brand ${brandId}` : ' (all)'}`,
     );
     return this.branchesService.getMyBranches(
       req.user.id,

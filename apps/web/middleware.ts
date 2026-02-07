@@ -53,10 +53,10 @@ export async function middleware(request: NextRequest) {
     return redirect;
   }
 
-  // 2) /login 접근: 로그인 -> /app
+  // 2) /login 접근: 로그인 -> / (역할 기반 라우팅)
   if (AUTH_PAGES.has(pathname) && isAuthed) {
     const url = request.nextUrl.clone();
-    url.pathname = '/app';
+    url.pathname = '/';
 
     const redirect = NextResponse.redirect(url);
     response.cookies.getAll().forEach((c) => {

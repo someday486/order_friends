@@ -136,6 +136,16 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 
   -- ============================================================================
+  -- Assign Brand Members (owners)
+  -- ============================================================================
+
+  INSERT INTO public.brand_members (brand_id, user_id, role, status)
+  VALUES
+    (brand_cafe_id, brand_owner1_id, 'OWNER', 'ACTIVE'),
+    (brand_restaurant_id, brand_owner2_id, 'OWNER', 'ACTIVE')
+  ON CONFLICT DO NOTHING;
+
+  -- ============================================================================
   -- Assign Branch Members
   -- ============================================================================
 

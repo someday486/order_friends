@@ -40,9 +40,10 @@ export class CustomerGuard implements CanActivate {
       );
     }
 
-    // 3. 브랜드 멤버십 확인
+    // 3. 멤버십 확인
     const sb = this.supabase.adminClient();
 
+    // 3a. brand_members 테이블 확인
     const { data: brandMemberships, error: brandError } = await sb
       .from('brand_members')
       .select('brand_id, role, status')
@@ -55,6 +56,36 @@ export class CustomerGuard implements CanActivate {
         brandError,
       );
       throw new UnauthorizedException('Failed to verify memberships');
+    }
+
+    // 3b. brands.owner_user_id로 직접 소유 브랜드 확인
+    const { data: ownedBrands, error: ownedError } = await sb
+      .from('brands')
+      .select('id')
+      .eq('owner_user_id', user.id);
+
+    if (ownedError) {
+      this.logger.error(
+        `CustomerGuard: Failed to check owned brands for user ${user.id}`,
+        ownedError,
+      );
+    }
+
+    // brand_members에 없지만 owner_user_id로 소유한 브랜드를 멤버십에 합산
+    const allBrandMemberships = [...(brandMemberships || [])];
+    if (ownedBrands && ownedBrands.length > 0) {
+      const memberBrandIds = new Set(
+        allBrandMemberships.map((m) => m.brand_id),
+      );
+      for (const brand of ownedBrands) {
+        if (!memberBrandIds.has(brand.id)) {
+          allBrandMemberships.push({
+            brand_id: brand.id,
+            role: 'OWNER',
+            status: 'ACTIVE',
+          });
+        }
+      }
     }
 
     // 4. 브랜치 멤버십 확인
@@ -73,7 +104,7 @@ export class CustomerGuard implements CanActivate {
     }
 
     // 5. 최소 하나 이상의 멤버십 필요
-    const hasBrandMembership = brandMemberships && brandMemberships.length > 0;
+    const hasBrandMembership = allBrandMemberships.length > 0;
     const hasBranchMembership =
       branchMemberships && branchMemberships.length > 0;
 
@@ -87,7 +118,7 @@ export class CustomerGuard implements CanActivate {
     }
 
     // 6. Request에 멤버십 정보 첨부
-    request.brandMemberships = brandMemberships || [];
+    request.brandMemberships = allBrandMemberships;
     request.branchMemberships = branchMemberships || [];
 
     this.logger.log(

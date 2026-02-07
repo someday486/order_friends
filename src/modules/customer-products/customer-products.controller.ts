@@ -66,6 +66,35 @@ export class CustomerProductsController {
     );
   }
 
+  @Get('categories')
+  @ApiOperation({
+    summary: '지점의 상품 카테고리 목록 조회',
+    description: '내가 멤버로 등록된 지점의 상품 카테고리 목록을 조회합니다.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiResponse({ status: 200, description: '카테고리 목록 조회 성공' })
+  @ApiResponse({ status: 400, description: '잘못된 요청' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async getCategories(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!branchId) {
+      throw new BadRequestException('branchId is required');
+    }
+
+    this.logger.log(
+      `User ${req.user.id} fetching categories for branch ${branchId}`,
+    );
+    return this.productsService.getMyCategories(
+      req.user.id,
+      branchId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
   @Get(':productId')
   @ApiOperation({
     summary: '내 상품 상세 조회',

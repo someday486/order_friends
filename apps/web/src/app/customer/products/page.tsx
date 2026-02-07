@@ -10,14 +10,17 @@ import { createClient } from "@/lib/supabaseClient";
 
 type Product = {
   id: string;
+  branch_id: string;
   name: string;
+  description?: string | null;
+  category_id?: string | null;
   price: number;
-  category?: string | null;
-  status: string;
-  isActive: boolean;
-  options?: unknown[];
-  imageUrl?: string | null;
-  createdAt: string;
+  base_price?: number;
+  is_active?: boolean;
+  is_hidden?: boolean;
+  sort_order?: number;
+  image_url?: string | null;
+  created_at: string;
 };
 
 type Branch = {
@@ -220,34 +223,28 @@ function CustomerProductCard({ product }: { product: Product }) {
       href={`/customer/products/${product.id}`}
       className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
     >
-      {product.imageUrl && (
+      {product.image_url && (
         <img
-          src={product.imageUrl}
+          src={product.image_url}
           alt={product.name}
           className="w-full h-40 rounded object-cover mb-3"
         />
       )}
       <div className="font-bold text-base mb-2">{product.name}</div>
-      <div className="text-lg font-extrabold text-foreground mb-2">{formatWon(product.price)}</div>
-      {product.category && (
-        <div className="text-xs text-text-secondary mb-2">카테고리: {product.category}</div>
-      )}
+      <div className="text-lg font-extrabold text-foreground mb-2">{formatWon(product.base_price ?? product.price ?? 0)}</div>
       <div className="flex justify-between items-center mt-3">
         <span
           className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
-            product.isActive
+            (product.is_active ?? !product.is_hidden)
               ? "bg-success/20 text-success"
               : "bg-neutral-500/20 text-text-secondary"
           }`}
         >
-          {product.isActive ? "판매중" : "숨김"}
+          {(product.is_active ?? !product.is_hidden) ? "판매중" : "숨김"}
         </span>
-        {product.options && product.options.length > 0 && (
-          <div className="text-2xs text-text-tertiary">옵션 {product.options.length}개</div>
-        )}
       </div>
       <div className="text-2xs text-text-tertiary mt-2">
-        등록일: {new Date(product.createdAt).toLocaleDateString()}
+        등록일: {new Date(product.created_at).toLocaleDateString()}
       </div>
     </Link>
   );

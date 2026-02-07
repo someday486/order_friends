@@ -11,7 +11,7 @@ export default function LoginClient({ next }: { next: string }) {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/app");
+      router.replace("/");
       router.refresh();
     }
   }, [status, router]);

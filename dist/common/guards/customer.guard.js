@@ -40,6 +40,26 @@ let CustomerGuard = CustomerGuard_1 = class CustomerGuard {
             this.logger.error(`CustomerGuard: Failed to check brand memberships for user ${user.id}`, brandError);
             throw new common_1.UnauthorizedException('Failed to verify memberships');
         }
+        const { data: ownedBrands, error: ownedError } = await sb
+            .from('brands')
+            .select('id')
+            .eq('owner_user_id', user.id);
+        if (ownedError) {
+            this.logger.error(`CustomerGuard: Failed to check owned brands for user ${user.id}`, ownedError);
+        }
+        const allBrandMemberships = [...(brandMemberships || [])];
+        if (ownedBrands && ownedBrands.length > 0) {
+            const memberBrandIds = new Set(allBrandMemberships.map((m) => m.brand_id));
+            for (const brand of ownedBrands) {
+                if (!memberBrandIds.has(brand.id)) {
+                    allBrandMemberships.push({
+                        brand_id: brand.id,
+                        role: 'OWNER',
+                        status: 'ACTIVE',
+                    });
+                }
+            }
+        }
         const { data: branchMemberships, error: branchError } = await sb
             .from('branch_members')
             .select('branch_id, role, status')
@@ -49,13 +69,13 @@ let CustomerGuard = CustomerGuard_1 = class CustomerGuard {
             this.logger.error(`CustomerGuard: Failed to check branch memberships for user ${user.id}`, branchError);
             throw new common_1.UnauthorizedException('Failed to verify memberships');
         }
-        const hasBrandMembership = brandMemberships && brandMemberships.length > 0;
+        const hasBrandMembership = allBrandMemberships.length > 0;
         const hasBranchMembership = branchMemberships && branchMemberships.length > 0;
         if (!hasBrandMembership && !hasBranchMembership) {
             this.logger.warn(`CustomerGuard: User ${user.id} has no active memberships`);
             throw new common_1.UnauthorizedException('No active brand or branch memberships found');
         }
-        request.brandMemberships = brandMemberships || [];
+        request.brandMemberships = allBrandMemberships;
         request.branchMemberships = branchMemberships || [];
         this.logger.log(`CustomerGuard: User ${user.id} authorized with ${brandMemberships?.length || 0} brand(s) and ${branchMemberships?.length || 0} branch(es)`);
         return true;

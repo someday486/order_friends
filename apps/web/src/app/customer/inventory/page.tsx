@@ -10,17 +10,19 @@ import { createClient } from "@/lib/supabaseClient";
 
 type InventoryItem = {
   id: string;
-  productId: string;
-  branchId: string;
+  product_id: string;
+  product_name: string;
+  branch_id: string;
   qty_available: number;
   qty_reserved: number;
   qty_sold: number;
   low_stock_threshold: number;
-  product?: {
-    id: string;
-    name: string;
-    imageUrl?: string | null;
-  };
+  is_low_stock: boolean;
+  total_quantity?: number;
+  image_url?: string;
+  category?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type Branch = {
@@ -51,7 +53,7 @@ async function getAccessToken() {
 }
 
 function isLowStock(item: InventoryItem): boolean {
-  return item.qty_available <= item.low_stock_threshold;
+  return item.is_low_stock;
 }
 
 // ============================================================
@@ -219,20 +221,20 @@ export default function CustomerInventoryPage() {
                   <tr
                     key={item.id}
                     className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
-                    onClick={() => window.location.href = `/customer/inventory/${item.productId}`}
+                    onClick={() => window.location.href = `/customer/inventory/${item.product_id}`}
                   >
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <div className="flex items-center gap-3">
-                        {item.product?.imageUrl && (
+                        {item.image_url && (
                           <img
-                            src={item.product.imageUrl}
-                            alt={item.product.name || "상품 이미지"}
+                            src={item.image_url}
+                            alt={item.product_name || "상품 이미지"}
                             className="w-12 h-12 rounded-lg object-cover border border-border"
                           />
                         )}
                         <div>
                           <div className="font-semibold text-sm">
-                            {item.product?.name || "상품명 없음"}
+                            {item.product_name || "상품명 없음"}
                           </div>
                         </div>
                       </div>

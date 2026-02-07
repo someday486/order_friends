@@ -9,25 +9,21 @@ import { createClient } from "@/lib/supabaseClient";
 // ============================================================
 
 type OrderStatus =
-  | "PENDING"
+  | "CREATED"
   | "CONFIRMED"
   | "PREPARING"
   | "READY"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REFUNDED";
 
 type Order = {
   id: string;
-  order_no: string | null;
-  customer_name: string;
-  customer_phone: string;
-  total_amount: number;
+  orderNo: string | null;
+  customerName: string;
+  totalAmount: number;
   status: OrderStatus;
-  created_at: string;
-  branch?: {
-    id: string;
-    name: string;
-  };
+  orderedAt: string;
 };
 
 type Branch = {
@@ -43,7 +39,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
 
 const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
-  { value: "PENDING", label: "대기" },
+  { value: "CREATED", label: "주문접수" },
   { value: "CONFIRMED", label: "확인" },
   { value: "PREPARING", label: "준비중" },
   { value: "READY", label: "준비완료" },
@@ -52,21 +48,23 @@ const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "대기",
+  CREATED: "주문접수",
   CONFIRMED: "확인",
   PREPARING: "준비중",
   READY: "준비완료",
   COMPLETED: "완료",
   CANCELLED: "취소",
+  REFUNDED: "환불",
 };
 
 const statusClass: Record<OrderStatus, string> = {
-  PENDING: "bg-warning/20 text-warning",
-  CONFIRMED: "bg-accent/20 text-accent",
-  PREPARING: "bg-accent/20 text-accent",
+  CREATED: "bg-warning-500/20 text-warning-500",
+  CONFIRMED: "bg-primary-500/20 text-primary-500",
+  PREPARING: "bg-primary-500/20 text-primary-500",
   READY: "bg-success/20 text-success",
   COMPLETED: "bg-neutral-500/20 text-text-secondary",
-  CANCELLED: "bg-danger/20 text-danger",
+  CANCELLED: "bg-danger-500/20 text-danger-500",
+  REFUNDED: "bg-pink-500/20 text-pink-400",
 };
 
 // ============================================================
@@ -272,8 +270,6 @@ export default function CustomerOrdersPage() {
                 <tr>
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문번호</th>
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">고객명</th>
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">연락처</th>
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">지점</th>
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
                   <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">금액</th>
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문일시</th>
@@ -287,12 +283,10 @@ export default function CustomerOrdersPage() {
                         href={`/customer/orders/${order.id}`}
                         className="text-foreground no-underline hover:text-primary-500 transition-colors"
                       >
-                        {order.order_no ?? order.id.slice(0, 8)}
+                        {order.orderNo ?? order.id.slice(0, 8)}
                       </Link>
                     </td>
-                    <td className="py-3 px-3.5 text-sm text-foreground">{order.customer_name || "-"}</td>
-                    <td className="py-3 px-3.5 text-sm text-foreground">{order.customer_phone || "-"}</td>
-                    <td className="py-3 px-3.5 text-sm text-foreground">{order.branch?.name || "-"}</td>
+                    <td className="py-3 px-3.5 text-sm text-foreground">{order.customerName || "-"}</td>
                     <td className="py-3 px-3.5 text-sm">
                       <span
                         className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${statusClass[order.status]}`}
@@ -300,8 +294,8 @@ export default function CustomerOrdersPage() {
                         {statusLabel[order.status]}
                       </span>
                     </td>
-                    <td className="py-3 px-3.5 text-sm text-foreground text-right">{formatWon(order.total_amount)}</td>
-                    <td className="py-3 px-3.5 text-sm text-text-secondary">{formatDateTime(order.created_at)}</td>
+                    <td className="py-3 px-3.5 text-sm text-foreground text-right">{formatWon(order.totalAmount)}</td>
+                    <td className="py-3 px-3.5 text-sm text-text-secondary">{formatDateTime(order.orderedAt)}</td>
                   </tr>
                 ))}
               </tbody>

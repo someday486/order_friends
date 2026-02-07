@@ -6,17 +6,14 @@ export declare class CustomerProductsController {
     private readonly productsService;
     private readonly logger;
     constructor(productsService: CustomerProductsService);
-    getProducts(req: AuthRequest, branchId: string): Promise<{
+    getProducts(req: AuthRequest, branchId: string): Promise<any[]>;
+    getCategories(req: AuthRequest, branchId: string): Promise<{
         id: any;
-        branch_id: any;
+        branchId: any;
         name: any;
-        description: any;
-        category_id: any;
-        price: any;
-        is_active: any;
-        sort_order: any;
-        image_url: any;
-        created_at: any;
+        sortOrder: any;
+        isActive: any;
+        createdAt: any;
     }[]>;
     getProduct(req: AuthRequest, productId: string): Promise<any>;
     createProduct(req: AuthRequest, dto: CreateProductRequest): Promise<any>;

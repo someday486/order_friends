@@ -97,33 +97,107 @@ export class CustomerBranchesService {
 
   /**
    * 내 브랜드의 지점 목록 조회
+   * brandId가 주어지면 해당 브랜드의 지점만, 없으면 접근 가능한 모든 지점을 반환
    */
   async getMyBranches(
     userId: string,
-    brandId: string,
+    brandId: string | undefined,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ) {
-    this.logger.log(`Fetching branches for brand ${brandId} by user ${userId}`);
-
-    // 브랜드 접근 권한 확인
-    this.checkBrandAccess(brandId, brandMemberships);
-
     const sb = this.supabase.adminClient();
 
-    const { data, error } = await sb
-      .from('branches')
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
-      .eq('brand_id', brandId)
-      .order('created_at', { ascending: false });
+    if (brandId) {
+      // 특정 브랜드의 지점만 조회
+      this.logger.log(
+        `Fetching branches for brand ${brandId} by user ${userId}`,
+      );
+      this.checkBrandAccess(brandId, brandMemberships);
 
-    if (error) {
-      this.logger.error(`Failed to fetch branches for brand ${brandId}`, error);
-      throw new Error('Failed to fetch branches');
+      const { data, error } = await sb
+        .from('branches')
+        .select(
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        this.logger.error(
+          `Failed to fetch branches for brand ${brandId}`,
+          error,
+        );
+        throw new Error('Failed to fetch branches');
+      }
+
+      return this.mapBranchesWithRole(
+        data || [],
+        brandMemberships,
+        branchMemberships,
+      );
     }
 
-    // 각 브랜치에 대한 내 역할 정보 추가
-    const branchesWithRole = (data || []).map((branch) => {
+    // brandId 없으면 접근 가능한 모든 지점 조회
+    this.logger.log(`Fetching all accessible branches for user ${userId}`);
+
+    const accessibleBrandIds = brandMemberships.map((m) => m.brand_id);
+    const accessibleBranchIds = branchMemberships.map((m) => m.branch_id);
+
+    let data: any[] = [];
+
+    // 브랜드 멤버십으로 접근 가능한 지점
+    if (accessibleBrandIds.length > 0) {
+      const { data: brandBranches, error } = await sb
+        .from('branches')
+        .select(
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
+        .in('brand_id', accessibleBrandIds)
+        .order('created_at', { ascending: false });
+
+      if (!error && brandBranches) {
+        data = brandBranches;
+      }
+    }
+
+    // 브랜치 멤버십으로 접근 가능한 지점 (중복 제거)
+    if (accessibleBranchIds.length > 0) {
+      const existingIds = new Set(data.map((b) => b.id));
+      const missingIds = accessibleBranchIds.filter(
+        (id) => !existingIds.has(id),
+      );
+
+      if (missingIds.length > 0) {
+        const { data: branchData, error } = await sb
+          .from('branches')
+          .select(
+            'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          )
+          .in('id', missingIds)
+          .order('created_at', { ascending: false });
+
+        if (!error && branchData) {
+          data = [...data, ...branchData];
+        }
+      }
+    }
+
+    this.logger.log(
+      `Fetched ${data.length} accessible branches for user ${userId}`,
+    );
+
+    return this.mapBranchesWithRole(data, brandMemberships, branchMemberships);
+  }
+
+  /**
+   * 브랜치 목록에 역할 정보 추가
+   */
+  private mapBranchesWithRole(
+    branches: any[],
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    return branches.map((branch) => {
       const branchMembership = branchMemberships.find(
         (m) => m.branch_id === branch.id,
       );
@@ -136,18 +210,12 @@ export class CustomerBranchesService {
         brandId: branch.brand_id,
         name: branch.name,
         slug: branch.slug,
-        logoUrl: (branch as any).logo_url ?? null,
-        thumbnailUrl: (branch as any).thumbnail_url ?? null,
+        logoUrl: branch.logo_url ?? null,
+        thumbnailUrl: branch.thumbnail_url ?? null,
         createdAt: branch.created_at,
         myRole: branchMembership?.role || brandMembership?.role || null,
       };
     });
-
-    this.logger.log(
-      `Fetched ${branchesWithRole.length} branches for brand ${brandId}`,
-    );
-
-    return branchesWithRole;
   }
 
   /**

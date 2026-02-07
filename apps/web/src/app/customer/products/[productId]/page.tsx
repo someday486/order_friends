@@ -10,17 +10,19 @@ import { createClient } from "@/lib/supabaseClient";
 
 type Product = {
   id: string;
-  branchId: string;
+  branch_id: string;
   name: string;
-  categoryId?: string | null;
-  category?: string | null;
+  category_id?: string | null;
   description?: string | null;
   price: number;
-  imageUrl?: string | null;
-  isActive: boolean;
-  options?: unknown[];
-  createdAt: string;
-  updatedAt: string;
+  base_price?: number;
+  image_url?: string | null;
+  is_active?: boolean;
+  is_hidden?: boolean;
+  sort_order?: number;
+  options?: any[];
+  created_at: string;
+  updated_at: string;
 };
 
 type ProductCategory = {
@@ -155,15 +157,15 @@ function ProductDetailPageContent() {
         const data = await res.json();
         setProduct(data);
         setFormData({
-          branchId: data.branchId || "",
+          branchId: data.branch_id || "",
           name: data.name || "",
-          categoryId: data.categoryId || "",
+          categoryId: data.category_id || "",
           description: data.description || "",
-          price: data.price || 0,
-          imageUrl: data.imageUrl || "",
-          isActive: data.isActive ?? true,
+          price: data.base_price ?? data.price ?? 0,
+          imageUrl: data.image_url || "",
+          isActive: data.is_active ?? !data.is_hidden,
         });
-        setImagePreviewUrl(data.imageUrl || null);
+        setImagePreviewUrl(data.image_url || null);
 
         // Get branch role
         const token2 = await getAccessToken();
@@ -174,7 +176,7 @@ function ProductDetailPageContent() {
         });
         if (branchRes.ok) {
           const branchesData = await branchRes.json();
-          const branch = branchesData.find((b: Branch) => b.id === data.branchId);
+          const branch = branchesData.find((b: Branch) => b.id === data.branch_id);
           if (branch) {
             setUserRole(branch.myRole);
           }
@@ -362,15 +364,15 @@ function ProductDetailPageContent() {
         const updated = await res.json();
         setProduct(updated);
         setFormData({
-          branchId: updated.branchId || "",
+          branchId: updated.branch_id || "",
           name: updated.name || "",
-          categoryId: updated.categoryId || "",
+          categoryId: updated.category_id || "",
           description: updated.description || "",
-          price: updated.price || 0,
-          imageUrl: updated.imageUrl || "",
-          isActive: updated.isActive ?? true,
+          price: updated.base_price ?? updated.price ?? 0,
+          imageUrl: updated.image_url || "",
+          isActive: updated.is_active ?? !updated.is_hidden,
         });
-        setImagePreviewUrl(updated.imageUrl || null);
+        setImagePreviewUrl(updated.image_url || null);
         setIsEditing(false);
         alert("상품 정보가 수정되었습니다");
       }
@@ -575,15 +577,15 @@ function ProductDetailPageContent() {
                     setIsEditing(false);
                     if (product) {
                       setFormData({
-                        branchId: product.branchId || "",
+                        branchId: product.branch_id || "",
                         name: product.name || "",
-                        categoryId: product.categoryId || "",
+                        categoryId: product.category_id || "",
                         description: product.description || "",
-                        price: product.price || 0,
-                        imageUrl: product.imageUrl || "",
-                        isActive: product.isActive ?? true,
+                        price: product.base_price ?? product.price ?? 0,
+                        imageUrl: product.image_url || "",
+                        isActive: product.is_active ?? !product.is_hidden,
                       });
-                      setImagePreviewUrl(product.imageUrl || null);
+                      setImagePreviewUrl(product.image_url || null);
                     }
                   }}
                   disabled={saveLoading}
@@ -597,9 +599,9 @@ function ProductDetailPageContent() {
         ) : (
           product && (
             <div>
-              {product.imageUrl && (
+              {product.image_url && (
                 <img
-                  src={product.imageUrl}
+                  src={product.image_url}
                   alt={product.name}
                   className="w-full max-w-[400px] rounded-xl object-cover mb-6"
                 />
@@ -609,15 +611,8 @@ function ProductDetailPageContent() {
 
               <div className="mb-5">
                 <div className="text-[13px] text-text-secondary mb-2">가격</div>
-                <div className="text-2xl text-foreground font-bold">{formatWon(product.price)}</div>
+                <div className="text-2xl text-foreground font-bold">{formatWon(product.base_price ?? product.price ?? 0)}</div>
               </div>
-
-              {product.category && (
-                <div className="mb-5">
-                  <div className="text-[13px] text-text-secondary mb-2">카테고리</div>
-                  <div className="text-[15px] text-foreground">{product.category}</div>
-                </div>
-              )}
 
               {product.description && (
                 <div className="mb-5">
@@ -630,10 +625,10 @@ function ProductDetailPageContent() {
                 <div className="text-[13px] text-text-secondary mb-2">판매 상태</div>
                 <div
                   className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
-                    product.isActive ? "bg-success/20 text-success" : "bg-neutral-500/20 text-text-secondary"
+                    (product.is_active ?? !product.is_hidden) ? "bg-success/20 text-success" : "bg-neutral-500/20 text-text-secondary"
                   }`}
                 >
-                  {product.isActive ? "판매중" : "숨김"}
+                  {(product.is_active ?? !product.is_hidden) ? "판매중" : "숨김"}
                 </div>
               </div>
 
@@ -647,11 +642,11 @@ function ProductDetailPageContent() {
               <div className="grid grid-cols-2 gap-4 mt-6">
                 <div>
                   <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
-                  <div className="text-sm text-foreground">{new Date(product.createdAt).toLocaleString()}</div>
+                  <div className="text-sm text-foreground">{new Date(product.created_at).toLocaleString()}</div>
                 </div>
                 <div>
                   <div className="text-[11px] text-text-tertiary mb-1">수정일</div>
-                  <div className="text-sm text-foreground">{new Date(product.updatedAt).toLocaleString()}</div>
+                  <div className="text-sm text-foreground">{new Date(product.updated_at).toLocaleString()}</div>
                 </div>
               </div>
             </div>

@@ -29,10 +29,7 @@ let CustomerBranchesController = CustomerBranchesController_1 = class CustomerBr
     async getBranches(req, brandId) {
         if (!req.user)
             throw new Error('Missing user');
-        if (!brandId) {
-            throw new common_1.BadRequestException('brandId is required');
-        }
-        this.logger.log(`User ${req.user.id} fetching branches for brand ${brandId}`);
+        this.logger.log(`User ${req.user.id} fetching branches${brandId ? ` for brand ${brandId}` : ' (all)'}`);
         return this.branchesService.getMyBranches(req.user.id, brandId, req.brandMemberships || [], req.branchMemberships || []);
     }
     async getBranch(req, branchId) {
@@ -68,11 +65,10 @@ __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({
         summary: '내 브랜드의 지점 목록 조회',
-        description: '내가 멤버로 등록된 브랜드의 지점 목록을 조회합니다.',
+        description: 'brandId가 주어지면 해당 브랜드의 지점만, 없으면 접근 가능한 모든 지점을 반환합니다.',
     }),
-    (0, swagger_1.ApiQuery)({ name: 'brandId', description: '브랜드 ID', required: true }),
+    (0, swagger_1.ApiQuery)({ name: 'brandId', description: '브랜드 ID', required: false }),
     (0, swagger_1.ApiResponse)({ status: 200, description: '지점 목록 조회 성공' }),
-    (0, swagger_1.ApiResponse)({ status: 400, description: '잘못된 요청' }),
     (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('brandId')),

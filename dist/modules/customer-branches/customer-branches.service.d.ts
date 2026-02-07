@@ -8,7 +8,7 @@ export declare class CustomerBranchesService {
     private checkBrandAccess;
     private checkBranchAccess;
     private checkModificationPermission;
-    getMyBranches(userId: string, brandId: string, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[]): Promise<{
+    getMyBranches(userId: string, brandId: string | undefined, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[]): Promise<{
         id: any;
         brandId: any;
         name: any;
@@ -18,6 +18,7 @@ export declare class CustomerBranchesService {
         createdAt: any;
         myRole: string | null;
     }[]>;
+    private mapBranchesWithRole;
     getMyBranch(userId: string, branchId: string, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[]): Promise<{
         id: any;
         brandId: any;

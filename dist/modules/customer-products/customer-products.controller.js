@@ -36,6 +36,15 @@ let CustomerProductsController = CustomerProductsController_1 = class CustomerPr
         this.logger.log(`User ${req.user.id} fetching products for branch ${branchId}`);
         return this.productsService.getMyProducts(req.user.id, branchId, req.brandMemberships || [], req.branchMemberships || []);
     }
+    async getCategories(req, branchId) {
+        if (!req.user)
+            throw new Error('Missing user');
+        if (!branchId) {
+            throw new common_1.BadRequestException('branchId is required');
+        }
+        this.logger.log(`User ${req.user.id} fetching categories for branch ${branchId}`);
+        return this.productsService.getMyCategories(req.user.id, branchId, req.brandMemberships || [], req.branchMemberships || []);
+    }
     async getProduct(req, productId) {
         if (!req.user)
             throw new Error('Missing user');
@@ -81,6 +90,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], CustomerProductsController.prototype, "getProducts", null);
+__decorate([
+    (0, common_1.Get)('categories'),
+    (0, swagger_1.ApiOperation)({
+        summary: '지점의 상품 카테고리 목록 조회',
+        description: '내가 멤버로 등록된 지점의 상품 카테고리 목록을 조회합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '카테고리 목록 조회 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: '잘못된 요청' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "getCategories", null);
 __decorate([
     (0, common_1.Get)(':productId'),
     (0, swagger_1.ApiOperation)({

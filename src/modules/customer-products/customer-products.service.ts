@@ -124,6 +124,54 @@ export class CustomerProductsService {
   }
 
   /**
+   * 내 지점의 상품 카테고리 목록 조회
+   */
+  async getMyCategories(
+    userId: string,
+    branchId: string,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Fetching categories for branch ${branchId} by user ${userId}`,
+    );
+
+    // 브랜치 접근 권한 확인
+    await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('product_categories')
+      .select('*')
+      .eq('branch_id', branchId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      this.logger.error(
+        `Failed to fetch categories for branch ${branchId}`,
+        error,
+      );
+      throw new Error('Failed to fetch categories');
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      branchId: row.branch_id,
+      name: row.name,
+      sortOrder: row.sort_order ?? 0,
+      isActive: row.is_active ?? true,
+      createdAt: row.created_at ?? '',
+    }));
+  }
+
+  /**
    * 내 지점의 상품 목록 조회
    */
   async getMyProducts(
@@ -148,11 +196,8 @@ export class CustomerProductsService {
 
     const { data, error } = await sb
       .from('products')
-      .select(
-        'id, branch_id, name, description, category_id, price, is_active, sort_order, image_url, created_at',
-      )
+      .select('*')
       .eq('branch_id', branchId)
-      .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -248,9 +293,8 @@ export class CustomerProductsService {
         name: dto.name,
         description: dto.description,
         category_id: dto.categoryId,
-        price: dto.price,
-        is_active: dto.isActive ?? true,
-        sort_order: dto.sortOrder ?? 0,
+        base_price: dto.price,
+        is_hidden: !(dto.isActive ?? true),
         image_url: dto.imageUrl,
       })
       .select()
@@ -323,9 +367,8 @@ export class CustomerProductsService {
     if (dto.description !== undefined)
       updateFields.description = dto.description;
     if (dto.categoryId !== undefined) updateFields.category_id = dto.categoryId;
-    if (dto.price !== undefined) updateFields.price = dto.price;
-    if (dto.isActive !== undefined) updateFields.is_active = dto.isActive;
-    if (dto.sortOrder !== undefined) updateFields.sort_order = dto.sortOrder;
+    if (dto.price !== undefined) updateFields.base_price = dto.price;
+    if (dto.isActive !== undefined) updateFields.is_hidden = !dto.isActive;
     if (dto.imageUrl !== undefined) updateFields.image_url = dto.imageUrl;
 
     if (Object.keys(updateFields).length === 0) {

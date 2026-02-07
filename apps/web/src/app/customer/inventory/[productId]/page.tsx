@@ -11,34 +11,40 @@ import { createClient } from "@/lib/supabaseClient";
 
 type InventoryDetail = {
   id: string;
-  productId: string;
-  branchId: string;
+  product_id: string;
+  product_name: string;
+  branch_id: string;
   qty_available: number;
   qty_reserved: number;
   qty_sold: number;
   low_stock_threshold: number;
+  is_low_stock: boolean;
+  total_quantity?: number;
+  image_url?: string;
+  category?: string;
+  created_at: string;
+  updated_at: string;
   product?: {
     id: string;
     name: string;
+    description?: string;
     price: number;
-    imageUrl?: string | null;
-  };
-  branch?: {
-    id: string;
-    name: string;
+    image_url?: string;
+    category?: string;
   };
 };
 
 type InventoryLog = {
   id: string;
-  inventoryId: string;
-  transactionType: "RESTOCK" | "ADJUSTMENT" | "DAMAGE" | "RETURN" | "SALE" | "RESERVATION";
-  qtyChange: number;
-  qtyBefore: number;
-  qtyAfter: number;
+  product_id: string;
+  branch_id: string;
+  transaction_type: string;
+  qty_change: number;
+  qty_before: number;
+  qty_after: number;
   notes?: string | null;
-  createdAt: string;
-  createdBy?: string;
+  created_at: string;
+  created_by?: string;
 };
 
 type Branch = {
@@ -173,8 +179,11 @@ function InventoryDetailPageContent() {
   // Load inventory and logs
   useEffect(() => {
     const loadData = async () => {
-      if (!productId || !selectedBranchId) {
+      if (!productId || productId === "undefined" || !selectedBranchId) {
         setLoading(false);
+        if (productId === "undefined") {
+          setError("잘못된 상품 ID입니다. 재고 목록에서 다시 선택해주세요.");
+        }
         return;
       }
 
@@ -310,8 +319,8 @@ function InventoryDetailPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            transactionType: adjustmentType,
-            qtyChange,
+            transaction_type: adjustmentType,
+            qty_change: qtyChange,
             notes: adjustmentNotes || undefined,
           }),
         }
@@ -353,7 +362,7 @@ function InventoryDetailPageContent() {
   };
 
   const canEdit = userRole === "OWNER" || userRole === "ADMIN";
-  const isLowStock = inventory && inventory.qty_available <= inventory.low_stock_threshold;
+  const isLowStock = inventory?.is_low_stock;
 
   if (loading) {
     return (
@@ -415,23 +424,22 @@ function InventoryDetailPageContent() {
       {/* Product Info */}
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-6 mb-6">
-          {inventory.product?.imageUrl && (
+          {inventory.product?.image_url && (
             <img
-              src={inventory.product.imageUrl}
-              alt={inventory.product.name || "상품 이미지"}
+              src={inventory.product.image_url}
+              alt={inventory.product?.name || "상품 이미지"}
               className="w-[120px] h-[120px] rounded-xl object-cover border border-border"
             />
           )}
           <div className="flex-1">
             <h2 className="text-xl font-bold mb-2 text-foreground">
-              {inventory.product?.name || "상품명 없음"}
+              {inventory.product?.name || inventory.product_name || "상품명 없음"}
             </h2>
-            {inventory.product?.price && (
+            {inventory.product?.price != null && (
               <div className="text-lg font-extrabold text-foreground mb-2">
                 {formatWon(inventory.product.price)}
               </div>
             )}
-            <div className="text-[13px] text-text-secondary">매장: {inventory.branch?.name || "-"}</div>
           </div>
           {isLowStock && (
             <span className="inline-flex items-center h-8 px-4 rounded-full bg-danger-500/20 text-danger-500 text-sm font-semibold">
@@ -583,18 +591,18 @@ function InventoryDetailPageContent() {
                 {logs.map((log) => (
                   <tr key={log.id} className="border-t border-border">
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${TRANSACTION_BADGE_CLASSES[log.transactionType] || "bg-neutral-500/20 text-neutral-400"}`}>
-                        {TRANSACTION_LABELS[log.transactionType] || log.transactionType}
+                      <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${TRANSACTION_BADGE_CLASSES[log.transaction_type] || "bg-neutral-500/20 text-neutral-400"}`}>
+                        {TRANSACTION_LABELS[log.transaction_type] || log.transaction_type}
                       </span>
                     </td>
-                    <td className={`py-3 px-3.5 text-[13px] text-right font-bold ${log.qtyChange > 0 ? "text-success" : log.qtyChange < 0 ? "text-danger-500" : "text-text-secondary"}`}>
-                      {log.qtyChange > 0 ? "+" : ""}
-                      {log.qtyChange}
+                    <td className={`py-3 px-3.5 text-[13px] text-right font-bold ${log.qty_change > 0 ? "text-success" : log.qty_change < 0 ? "text-danger-500" : "text-text-secondary"}`}>
+                      {log.qty_change > 0 ? "+" : ""}
+                      {log.qty_change}
                     </td>
-                    <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{log.qtyBefore}</td>
-                    <td className="py-3 px-3.5 text-[13px] text-right text-foreground">{log.qtyAfter}</td>
+                    <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{log.qty_before}</td>
+                    <td className="py-3 px-3.5 text-[13px] text-right text-foreground">{log.qty_after}</td>
                     <td className="py-3 px-3.5 text-xs text-text-secondary">{log.notes || "-"}</td>
-                    <td className="py-3 px-3.5 text-xs text-text-secondary">{formatDateTime(log.createdAt)}</td>
+                    <td className="py-3 px-3.5 text-xs text-text-secondary">{formatDateTime(log.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

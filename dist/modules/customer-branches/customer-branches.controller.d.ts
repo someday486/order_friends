@@ -5,7 +5,7 @@ export declare class CustomerBranchesController {
     private readonly branchesService;
     private readonly logger;
     constructor(branchesService: CustomerBranchesService);
-    getBranches(req: AuthRequest, brandId: string): Promise<{
+    getBranches(req: AuthRequest, brandId?: string): Promise<{
         id: any;
         brandId: any;
         name: any;

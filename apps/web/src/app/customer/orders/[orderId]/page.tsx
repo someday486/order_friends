@@ -10,34 +10,40 @@ import { createClient } from "@/lib/supabaseClient";
 // ============================================================
 
 type OrderStatus =
-  | "PENDING"
+  | "CREATED"
   | "CONFIRMED"
   | "PREPARING"
   | "READY"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REFUNDED";
 
 type OrderItem = {
   id: string;
-  product_name: string;
-  option_name?: string | null;
-  quantity: number;
-  unit_price: number;
+  name: string;
+  option?: string;
+  qty: number;
+  unitPrice: number;
 };
 
 type OrderDetail = {
   id: string;
-  order_no: string | null;
-  customer_name: string;
-  customer_phone: string;
-  customer_address?: string;
-  customer_memo?: string;
-  total_amount: number;
+  orderNo: string | null;
+  orderedAt: string;
   status: OrderStatus;
-  created_at: string;
-  branch?: {
-    id: string;
+  customer: {
     name: string;
+    phone: string;
+    address1: string;
+    address2?: string;
+    memo?: string;
+  };
+  payment: {
+    method: string;
+    subtotal: number;
+    shippingFee: number;
+    discount: number;
+    total: number;
   };
   items: OrderItem[];
   myRole?: string;
@@ -50,34 +56,37 @@ type OrderDetail = {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "대기",
+  CREATED: "주문접수",
   CONFIRMED: "확인",
   PREPARING: "준비중",
   READY: "준비완료",
   COMPLETED: "완료",
   CANCELLED: "취소",
+  REFUNDED: "환불",
 };
 
 const statusBadgeClasses: Record<OrderStatus, string> = {
-  PENDING: "bg-warning-500/20 text-warning-500",
+  CREATED: "bg-warning-500/20 text-warning-500",
   CONFIRMED: "bg-primary-500/20 text-primary-500",
   PREPARING: "bg-primary-500/20 text-primary-500",
   READY: "bg-success/20 text-success",
   COMPLETED: "bg-neutral-500/20 text-neutral-500",
   CANCELLED: "bg-danger-500/20 text-danger-500",
+  REFUNDED: "bg-pink-500/20 text-pink-400",
 };
 
 const statusBtnActiveClasses: Record<OrderStatus, string> = {
-  PENDING: "bg-warning-500/30 border-warning-500 text-warning-500",
+  CREATED: "bg-warning-500/30 border-warning-500 text-warning-500",
   CONFIRMED: "bg-primary-500/30 border-primary-500 text-primary-500",
   PREPARING: "bg-primary-500/30 border-primary-500 text-primary-500",
   READY: "bg-success/30 border-success text-success",
   COMPLETED: "bg-neutral-500/30 border-neutral-500 text-neutral-500",
   CANCELLED: "bg-danger-500/30 border-danger-500 text-danger-500",
+  REFUNDED: "bg-pink-500/30 border-pink-400 text-pink-400",
 };
 
 const STATUS_OPTIONS: OrderStatus[] = [
-  "PENDING",
+  "CREATED",
   "CONFIRMED",
   "PREPARING",
   "READY",
@@ -253,9 +262,9 @@ export default function CustomerOrderDetailPage() {
         <div className="mt-2 text-text-secondary text-[13px]">
           주문번호{" "}
           <span className="font-mono text-foreground">
-            {order.order_no ?? order.id}
+            {order.orderNo ?? order.id}
           </span>{" "}
-          · {formatDateTime(order.created_at)}
+          · {formatDateTime(order.orderedAt)}
         </div>
       </div>
 
@@ -285,12 +294,12 @@ export default function CustomerOrderDetailPage() {
               <tbody>
                 {order.items.map((item) => (
                   <tr key={item.id} className="border-t border-border">
-                    <td className="py-2.5 px-3 text-[13px] text-foreground">{item.product_name}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">{item.option_name ?? "-"}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{item.quantity}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(item.unit_price)}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground">{item.name}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">{item.option ?? "-"}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{item.qty}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(item.unitPrice)}</td>
                     <td className="py-2.5 px-3 text-[13px] text-foreground text-right">
-                      {formatWon(item.unit_price * item.quantity)}
+                      {formatWon(item.unitPrice * item.qty)}
                     </td>
                   </tr>
                 ))}
@@ -307,7 +316,7 @@ export default function CustomerOrderDetailPage() {
 
           <div className="mt-4 flex justify-between items-center">
             <div className="text-sm text-text-secondary">총 결제금액</div>
-            <div className="text-xl font-extrabold text-foreground">{formatWon(order.total_amount)}</div>
+            <div className="text-xl font-extrabold text-foreground">{formatWon(order.payment.total)}</div>
           </div>
         </section>
 
@@ -318,26 +327,20 @@ export default function CustomerOrderDetailPage() {
 
             <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
               <div className="text-text-secondary text-[13px]">이름</div>
-              <div className="text-foreground text-[13px]">{order.customer_name || "-"}</div>
+              <div className="text-foreground text-[13px]">{order.customer.name || "-"}</div>
             </div>
             <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
               <div className="text-text-secondary text-[13px]">연락처</div>
-              <div className="text-foreground text-[13px]">{order.customer_phone || "-"}</div>
+              <div className="text-foreground text-[13px]">{order.customer.phone || "-"}</div>
             </div>
             <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
               <div className="text-text-secondary text-[13px]">주소</div>
-              <div className="text-foreground text-[13px]">{order.customer_address || "-"}</div>
+              <div className="text-foreground text-[13px]">{order.customer.address1 || "-"}</div>
             </div>
             <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
               <div className="text-text-secondary text-[13px]">메모</div>
-              <div className="text-foreground text-[13px]">{order.customer_memo || "-"}</div>
+              <div className="text-foreground text-[13px]">{order.customer.memo || "-"}</div>
             </div>
-            {order.branch && (
-              <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
-                <div className="text-text-secondary text-[13px]">지점</div>
-                <div className="text-foreground text-[13px]">{order.branch.name}</div>
-              </div>
-            )}
           </section>
 
           {canUpdateStatus && (

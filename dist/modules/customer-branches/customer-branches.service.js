@@ -53,19 +53,54 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
         }
     }
     async getMyBranches(userId, brandId, brandMemberships, branchMemberships) {
-        this.logger.log(`Fetching branches for brand ${brandId} by user ${userId}`);
-        this.checkBrandAccess(brandId, brandMemberships);
         const sb = this.supabase.adminClient();
-        const { data, error } = await sb
-            .from('branches')
-            .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
-            .eq('brand_id', brandId)
-            .order('created_at', { ascending: false });
-        if (error) {
-            this.logger.error(`Failed to fetch branches for brand ${brandId}`, error);
-            throw new Error('Failed to fetch branches');
+        if (brandId) {
+            this.logger.log(`Fetching branches for brand ${brandId} by user ${userId}`);
+            this.checkBrandAccess(brandId, brandMemberships);
+            const { data, error } = await sb
+                .from('branches')
+                .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+                .eq('brand_id', brandId)
+                .order('created_at', { ascending: false });
+            if (error) {
+                this.logger.error(`Failed to fetch branches for brand ${brandId}`, error);
+                throw new Error('Failed to fetch branches');
+            }
+            return this.mapBranchesWithRole(data || [], brandMemberships, branchMemberships);
         }
-        const branchesWithRole = (data || []).map((branch) => {
+        this.logger.log(`Fetching all accessible branches for user ${userId}`);
+        const accessibleBrandIds = brandMemberships.map((m) => m.brand_id);
+        const accessibleBranchIds = branchMemberships.map((m) => m.branch_id);
+        let data = [];
+        if (accessibleBrandIds.length > 0) {
+            const { data: brandBranches, error } = await sb
+                .from('branches')
+                .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+                .in('brand_id', accessibleBrandIds)
+                .order('created_at', { ascending: false });
+            if (!error && brandBranches) {
+                data = brandBranches;
+            }
+        }
+        if (accessibleBranchIds.length > 0) {
+            const existingIds = new Set(data.map((b) => b.id));
+            const missingIds = accessibleBranchIds.filter((id) => !existingIds.has(id));
+            if (missingIds.length > 0) {
+                const { data: branchData, error } = await sb
+                    .from('branches')
+                    .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+                    .in('id', missingIds)
+                    .order('created_at', { ascending: false });
+                if (!error && branchData) {
+                    data = [...data, ...branchData];
+                }
+            }
+        }
+        this.logger.log(`Fetched ${data.length} accessible branches for user ${userId}`);
+        return this.mapBranchesWithRole(data, brandMemberships, branchMemberships);
+    }
+    mapBranchesWithRole(branches, brandMemberships, branchMemberships) {
+        return branches.map((branch) => {
             const branchMembership = branchMemberships.find((m) => m.branch_id === branch.id);
             const brandMembership = brandMemberships.find((m) => m.brand_id === branch.brand_id);
             return {
@@ -79,8 +114,6 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
                 myRole: branchMembership?.role || brandMembership?.role || null,
             };
         });
-        this.logger.log(`Fetched ${branchesWithRole.length} branches for brand ${brandId}`);
-        return branchesWithRole;
     }
     async getMyBranch(userId, branchId, brandMemberships, branchMemberships) {
         this.logger.log(`Fetching branch ${branchId} by user ${userId}`);

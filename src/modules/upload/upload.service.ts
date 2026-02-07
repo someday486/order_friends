@@ -11,7 +11,7 @@ export interface UploadResult {
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
-  private readonly bucketName = 'products';
+  private readonly bucketName = 'product-images';
 
   // Allowed file types
   private readonly allowedMimeTypes = [

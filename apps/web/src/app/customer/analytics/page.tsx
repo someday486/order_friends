@@ -166,7 +166,7 @@ function AnalyticsContent() {
   if (status === "loading") {
     return (
       <div className="p-6">
-        <p>Loading...</p>
+        <p className="text-text-secondary">Loading...</p>
       </div>
     );
   }
@@ -174,8 +174,8 @@ function AnalyticsContent() {
   if (!branchId) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Analytics</h1>
-        <p className="text-red-600">
+        <h1 className="text-2xl font-bold mb-4 text-foreground">Analytics</h1>
+        <p className="text-danger-500">
           Please select a branch from the URL (e.g., ?branchId=xxx)
         </p>
       </div>
@@ -185,77 +185,77 @@ function AnalyticsContent() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Analytics Dashboard</h1>
+        <h1 className="text-2xl font-bold text-foreground">Analytics Dashboard</h1>
         <div className="flex gap-4">
           <div>
-            <label className="block text-sm mb-1">Start Date</label>
+            <label className="block text-sm mb-1 text-text-secondary">Start Date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="border rounded px-3 py-2"
+              className="input-field"
             />
           </div>
           <div>
-            <label className="block text-sm mb-1">End Date</label>
+            <label className="block text-sm mb-1 text-text-secondary">End Date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="border rounded px-3 py-2"
+              className="input-field"
             />
           </div>
         </div>
       </div>
 
-      {loading && <p>Loading analytics data...</p>}
-      {error && <p className="text-red-600">Error: {error}</p>}
+      {loading && <p className="text-text-secondary">Loading analytics data...</p>}
+      {error && <p className="text-danger-500">Error: {error}</p>}
 
       {!loading && !error && (
         <>
           {/* Sales Analytics */}
           {salesData && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Sales Analytics</h2>
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4 text-foreground">Sales Analytics</h2>
               <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Total Revenue</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-primary-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Total Revenue</p>
+                  <p className="text-2xl font-bold text-foreground">
                     ₩{salesData.totalRevenue.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-green-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Order Count</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-success-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Order Count</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {salesData.orderCount.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Avg Order Value</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-secondary-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Avg Order Value</p>
+                  <p className="text-2xl font-bold text-foreground">
                     ₩{salesData.avgOrderValue.toLocaleString()}
                   </p>
                 </div>
               </div>
               <div>
-                <h3 className="font-semibold mb-2">Revenue by Day</h3>
+                <h3 className="font-semibold mb-2 text-foreground">Revenue by Day</h3>
                 <div className="max-h-64 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
+                    <thead className="bg-bg-tertiary sticky top-0">
                       <tr>
-                        <th className="text-left p-2">Date</th>
-                        <th className="text-right p-2">Revenue</th>
-                        <th className="text-right p-2">Orders</th>
+                        <th className="text-left p-2 text-text-secondary">Date</th>
+                        <th className="text-right p-2 text-text-secondary">Revenue</th>
+                        <th className="text-right p-2 text-text-secondary">Orders</th>
                       </tr>
                     </thead>
                     <tbody>
                       {salesData.revenueByDay.map((day) => (
-                        <tr key={day.date} className="border-t">
-                          <td className="p-2">{day.date}</td>
-                          <td className="text-right p-2">
+                        <tr key={day.date} className="border-t border-border">
+                          <td className="p-2 text-foreground">{day.date}</td>
+                          <td className="text-right p-2 text-foreground">
                             ₩{day.revenue.toLocaleString()}
                           </td>
-                          <td className="text-right p-2">{day.orderCount}</td>
+                          <td className="text-right p-2 text-foreground">{day.orderCount}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -267,26 +267,26 @@ function AnalyticsContent() {
 
           {/* Product Analytics */}
           {productData && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Product Analytics</h2>
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4 text-foreground">Product Analytics</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="font-semibold mb-2">Top 10 Products</h3>
+                  <h3 className="font-semibold mb-2 text-foreground">Top 10 Products</h3>
                   <div className="space-y-2">
                     {productData.topProducts.map((product, idx) => (
                       <div
                         key={product.productId}
-                        className="flex justify-between items-center p-3 bg-gray-50 rounded"
+                        className="flex justify-between items-center p-3 bg-bg-tertiary rounded"
                       >
                         <div>
-                          <span className="font-semibold mr-2">#{idx + 1}</span>
-                          <span>{product.productName}</span>
+                          <span className="font-semibold mr-2 text-primary-500">#{idx + 1}</span>
+                          <span className="text-foreground">{product.productName}</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-text-secondary">
                             {product.soldQuantity} sold
                           </p>
-                          <p className="font-semibold">
+                          <p className="font-semibold text-foreground">
                             ₩{product.totalRevenue.toLocaleString()}
                           </p>
                         </div>
@@ -295,13 +295,13 @@ function AnalyticsContent() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2">Inventory Turnover</h3>
-                  <div className="bg-orange-50 p-4 rounded">
-                    <p className="text-sm text-gray-600">Average Turnover Rate</p>
-                    <p className="text-3xl font-bold">
+                  <h3 className="font-semibold mb-2 text-foreground">Inventory Turnover</h3>
+                  <div className="bg-bg-tertiary border-l-4 border-warning-500 p-4 rounded">
+                    <p className="text-sm text-text-secondary">Average Turnover Rate</p>
+                    <p className="text-3xl font-bold text-foreground">
                       {productData.inventoryTurnover.averageTurnoverRate.toFixed(2)}x
                     </p>
-                    <p className="text-sm text-gray-600 mt-2">
+                    <p className="text-sm text-text-secondary mt-2">
                       Period: {productData.inventoryTurnover.periodDays} days
                     </p>
                   </div>
@@ -312,21 +312,21 @@ function AnalyticsContent() {
 
           {/* Order Analytics */}
           {orderData && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Order Analytics</h2>
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4 text-foreground">Order Analytics</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="font-semibold mb-2">Status Distribution</h3>
+                  <h3 className="font-semibold mb-2 text-foreground">Status Distribution</h3>
                   <div className="space-y-2">
                     {orderData.statusDistribution.map((item) => (
                       <div
                         key={item.status}
-                        className="flex justify-between items-center p-3 bg-gray-50 rounded"
+                        className="flex justify-between items-center p-3 bg-bg-tertiary rounded"
                       >
-                        <span className="font-medium">{item.status}</span>
+                        <span className="font-medium text-foreground">{item.status}</span>
                         <div className="text-right">
-                          <span className="font-semibold">{item.count}</span>
-                          <span className="text-sm text-gray-600 ml-2">
+                          <span className="font-semibold text-foreground">{item.count}</span>
+                          <span className="text-sm text-text-secondary ml-2">
                             ({item.percentage.toFixed(1)}%)
                           </span>
                         </div>
@@ -335,17 +335,17 @@ function AnalyticsContent() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2">Peak Hours</h3>
+                  <h3 className="font-semibold mb-2 text-foreground">Peak Hours</h3>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {orderData.peakHours
                       .sort((a, b) => b.orderCount - a.orderCount)
                       .map((hour) => (
                         <div
                           key={hour.hour}
-                          className="flex justify-between items-center p-3 bg-gray-50 rounded"
+                          className="flex justify-between items-center p-3 bg-bg-tertiary rounded"
                         >
-                          <span>{hour.hour}:00 - {hour.hour + 1}:00</span>
-                          <span className="font-semibold">
+                          <span className="text-foreground">{hour.hour}:00 - {hour.hour + 1}:00</span>
+                          <span className="font-semibold text-foreground">
                             {hour.orderCount} orders
                           </span>
                         </div>
@@ -358,42 +358,42 @@ function AnalyticsContent() {
 
           {/* Customer Analytics */}
           {customerData && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Customer Analytics</h2>
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4 text-foreground">Customer Analytics</h2>
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-indigo-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Total Customers</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-primary-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Total Customers</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {customerData.totalCustomers.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-green-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">New Customers</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-success-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">New Customers</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {customerData.newCustomers.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-blue-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Returning Customers</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-secondary-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Returning Customers</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {customerData.returningCustomers.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-yellow-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Customer Lifetime Value</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-warning-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Customer Lifetime Value</p>
+                  <p className="text-2xl font-bold text-foreground">
                     ₩{customerData.clv.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-pink-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Repeat Customer Rate</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-danger-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Repeat Customer Rate</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {customerData.repeatCustomerRate.toFixed(1)}%
                   </p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded">
-                  <p className="text-sm text-gray-600">Avg Orders per Customer</p>
-                  <p className="text-2xl font-bold">
+                <div className="bg-bg-tertiary border-l-4 border-neutral-500 p-4 rounded">
+                  <p className="text-sm text-text-secondary">Avg Orders per Customer</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {customerData.avgOrdersPerCustomer.toFixed(1)}
                   </p>
                 </div>

@@ -75,11 +75,11 @@ describe('UploadService', () => {
       expect(result).toEqual({
         url: mockUrl,
         path: expect.stringMatching(/^folder\/[a-f0-9-]+\.jpg$/),
-        bucket: 'products',
+        bucket: 'product-images',
       });
 
       expect(supabaseService.adminClient).toHaveBeenCalled();
-      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith('products');
+      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith('product-images');
       expect(mockStorageClient.upload).toHaveBeenCalledWith(
         expect.stringMatching(/^folder\/[a-f0-9-]+\.jpg$/),
         mockFile.buffer,
@@ -283,7 +283,7 @@ describe('UploadService', () => {
       await expect(service.deleteImage(filePath)).resolves.toBeUndefined();
 
       expect(supabaseService.adminClient).toHaveBeenCalled();
-      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith('products');
+      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith('product-images');
       expect(mockStorageClient.remove).toHaveBeenCalledWith([filePath]);
     });
 

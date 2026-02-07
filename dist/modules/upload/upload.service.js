@@ -17,7 +17,7 @@ const uuid_1 = require("uuid");
 let UploadService = UploadService_1 = class UploadService {
     supabase;
     logger = new common_1.Logger(UploadService_1.name);
-    bucketName = 'products';
+    bucketName = 'product-images';
     allowedMimeTypes = [
         'image/jpeg',
         'image/jpg',

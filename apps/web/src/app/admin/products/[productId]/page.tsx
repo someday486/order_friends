@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -323,8 +323,8 @@ function ProductDetailPageContent() {
 
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        <p style={{ color: "#aaa" }}>불러오는 중...</p>
+      <div>
+        <p className="text-text-secondary">불러오는 중...</p>
       </div>
     );
   }
@@ -332,28 +332,28 @@ function ProductDetailPageContent() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <Link href="/admin/products" style={{ color: "white", textDecoration: "none" }}>
+      <div className="mb-6">
+        <Link href="/admin/products" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 상품 목록
         </Link>
 
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "10px 0 0 0" }}>
+        <h1 className="text-[22px] font-extrabold mt-2.5 text-foreground">
           {isNew ? "상품 등록" : "상품 수정"}
         </h1>
       </div>
 
       {/* Error */}
-      {error && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{error}</p>}
+      {error && <p className="text-danger-500 mb-4">{error}</p>}
 
       {/* Form */}
-      <div style={{ maxWidth: 600 }}>
+      <div className="max-w-[600px]">
         {/* 가게 선택 (등록 시에만) */}
         {isNew && (
-          <div style={formGroup}>
-            <label style={label}>가게 선택 *</label>
+          <div className="mb-4">
+            <label className="block text-text-secondary text-[13px] mb-1.5">가게 선택 *</label>
             <BranchSelector />
             {!branchId && (
-              <p style={{ color: "#666", marginTop: 8, fontSize: 12 }}>
+              <p className="text-text-tertiary mt-2 text-xs">
                 가게를 선택하면 카테고리를 불러옵니다.
               </p>
             )}
@@ -361,24 +361,24 @@ function ProductDetailPageContent() {
         )}
 
         {/* 상품명 */}
-        <div style={formGroup}>
-          <label style={label}>상품명 *</label>
+        <div className="mb-4">
+          <label className="block text-text-secondary text-[13px] mb-1.5">상품명 *</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="상품명 입력"
-            style={input}
+            className="input-field w-full"
           />
         </div>
 
         {/* 카테고리 */}
-        <div style={formGroup}>
-          <label style={label}>카테고리 *</label>
+        <div className="mb-4">
+          <label className="block text-text-secondary text-[13px] mb-1.5">카테고리 *</label>
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            style={input}
+            className="input-field w-full"
           >
             <option value="">카테고리 선택</option>
             {categories.map((category) => (
@@ -390,53 +390,53 @@ function ProductDetailPageContent() {
         </div>
 
         {/* 설명 */}
-        <div style={formGroup}>
-          <label style={label}>설명</label>
+        <div className="mb-4">
+          <label className="block text-text-secondary text-[13px] mb-1.5">설명</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="상품 설명 (선택)"
             rows={3}
-            style={{ ...input, height: "auto", padding: "10px 12px" }}
+            className="input-field w-full h-auto py-2.5 px-3"
           />
         </div>
 
         {/* 상품 이미지 */}
-        <div style={formGroup}>
-          <label style={label}>상품 이미지 *</label>
+        <div className="mb-4">
+          <label className="block text-text-secondary text-[13px] mb-1.5">상품 이미지 *</label>
           <input
             type="file"
             accept="image/*"
             onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
-            style={inputFile}
+            className="input-field w-full h-auto py-2 px-3"
           />
           {uploadingImage && (
-            <p style={{ color: "#999", fontSize: 12, marginTop: 8 }}>이미지 업로드 중...</p>
+            <p className="text-text-tertiary text-xs mt-2">이미지 업로드 중...</p>
           )}
           {imagePreviewUrl && (
             <img
               src={imagePreviewUrl}
               alt="상품 미리보기"
-              style={{ marginTop: 12, width: "100%", maxWidth: 240, borderRadius: 12 }}
+              className="mt-3 w-full max-w-[240px] rounded-xl"
             />
           )}
         </div>
 
         {/* 가격 */}
-        <div style={formGroup}>
-          <label style={label}>가격(원)</label>
+        <div className="mb-4">
+          <label className="block text-text-secondary text-[13px] mb-1.5">가격(원)</label>
           <input
             type="number"
             value={price}
             onChange={(e) => setPrice(Number(e.target.value))}
             min={0}
-            style={input}
+            className="input-field w-full"
           />
         </div>
 
         {/* 활성 상태 */}
-        <div style={formGroup}>
-          <label style={{ ...label, display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="mb-4">
+          <label className="flex items-center gap-2 text-text-secondary text-[13px] cursor-pointer">
             <input
               type="checkbox"
               checked={isActive}
@@ -447,85 +447,20 @@ function ProductDetailPageContent() {
         </div>
 
         {/* Buttons */}
-        <div style={{ marginTop: 32, display: "flex", gap: 12 }}>
-          <button onClick={handleSave} disabled={saving || uploadingImage} style={btnPrimary}>
+        <div className="mt-8 flex gap-3">
+          <button onClick={handleSave} disabled={saving || uploadingImage} className="btn-primary h-10 px-6 text-sm">
             {saving ? "저장 중..." : isNew ? "등록" : "저장"}
           </button>
           <Link href="/admin/products">
-            <button style={btnGhost}>취소</button>
+            <button className="h-10 px-6 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-sm hover:bg-bg-tertiary transition-colors">
+              취소
+            </button>
           </Link>
         </div>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const formGroup: React.CSSProperties = {
-  marginBottom: 16,
-};
-
-const label: React.CSSProperties = {
-  display: "block",
-  color: "#aaa",
-  fontSize: 13,
-  marginBottom: 6,
-};
-
-const input: React.CSSProperties = {
-  width: "100%",
-  height: 40,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 14,
-};
-
-const inputFile: React.CSSProperties = {
-  ...input,
-  padding: "8px 12px",
-  height: "auto",
-};
-
-const btnPrimary: React.CSSProperties = {
-  height: 40,
-  padding: "0 24px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 14,
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 40,
-  padding: "0 24px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 600,
-  cursor: "pointer",
-  fontSize: 14,
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 6,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 500,
-  cursor: "pointer",
-  fontSize: 12,
-};
 
 export default function ProductDetailPage() {
   return (

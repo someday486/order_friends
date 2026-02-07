@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,7 +19,7 @@ export function BrandSelectButton({ brandId }: { brandId: string }) {
         selectBrand(brandId);
         router.push("/admin/stores");
       }}
-      style={btnPrimarySmall}
+      className="btn-primary py-1.5 px-2.5 text-xs whitespace-nowrap"
     >
       선택하고 가게 관리
     </button>
@@ -284,42 +284,35 @@ export default function BrandPage() {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>브랜드 관리</h1>
-          <p style={{ color: "#aaa", margin: "4px 0 0 0", fontSize: 13 }}>
+          <h1 className="text-[22px] font-extrabold m-0 text-foreground">브랜드 관리</h1>
+          <p className="text-text-secondary mt-1 text-[13px]">
             내 브랜드 목록
           </p>
         </div>
 
-        <button style={btnPrimary} onClick={() => setShowAddForm(true)}>
+        <button className="btn-primary h-9 px-4 text-[13px]" onClick={() => setShowAddForm(true)}>
           + 브랜드 추가
         </button>
       </div>
 
       {/* 추가 폼 */}
       {showAddForm && (
-        <div style={formCard}>
-          <h3 style={{ margin: "0 0 16px 0", fontSize: 16 }}>새 브랜드</h3>
-          <div style={formGroup}>
-            <label style={label}>브랜드명 *</label>
+        <div className="card p-5 mb-6">
+          <h3 className="m-0 mb-4 text-base text-foreground">새 브랜드</h3>
+          <div className="mb-3">
+            <label className="block text-text-secondary text-xs mb-1">브랜드명 *</label>
             <input
               type="text"
               value={newName}
               onChange={(e) => handleNewNameChange(e.target.value)}
               placeholder="브랜드 이름"
-              style={input}
+              className="input-field max-w-[320px]"
             />
           </div>
-          <div style={formGroup}>
-            <label style={label}>브랜드 URL (slug)</label>
+          <div className="mb-3">
+            <label className="block text-text-secondary text-xs mb-1">브랜드 URL (slug)</label>
             <input
               type="text"
               value={newSlug}
@@ -328,37 +321,40 @@ export default function BrandPage() {
                 setNewSlugTouched(true);
               }}
               placeholder="예) orderfriends"
-              style={input}
+              className="input-field max-w-[320px]"
             />
-            <div style={{ color: "#666", fontSize: 11, marginTop: 4 }}>
+            <div className="text-text-tertiary text-[11px] mt-1">
               영어는 자동으로 소문자/하이픈 처리되고, 한글은 랜덤으로 생성됩니다.
             </div>
           </div>
-          <div style={formGroup}>
-            <label style={label}>사업자명</label>
+          <div className="mb-3">
+            <label className="block text-text-secondary text-xs mb-1">사업자명</label>
             <input
               type="text"
               value={newBizName}
               onChange={(e) => setNewBizName(e.target.value)}
               placeholder="사업자명 (선택)"
-              style={input}
+              className="input-field max-w-[320px]"
             />
           </div>
-          <div style={formGroup}>
-            <label style={label}>사업자등록번호</label>
+          <div className="mb-3">
+            <label className="block text-text-secondary text-xs mb-1">사업자등록번호</label>
             <input
               type="text"
               value={newBizRegNo}
               onChange={(e) => setNewBizRegNo(e.target.value)}
               placeholder="000-00-00000"
-              style={input}
+              className="input-field max-w-[320px]"
             />
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button style={btnPrimary} onClick={handleAdd} disabled={adding || !newName.trim()}>
+          <div className="flex gap-2">
+            <button className="btn-primary h-9 px-4 text-[13px]" onClick={handleAdd} disabled={adding || !newName.trim()}>
               {adding ? "추가 중..." : "추가"}
             </button>
-            <button style={btnGhost} onClick={() => setShowAddForm(false)}>
+            <button
+              className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
+              onClick={() => setShowAddForm(false)}
+            >
               취소
             </button>
           </div>
@@ -366,95 +362,101 @@ export default function BrandPage() {
       )}
 
       {/* Error */}
-      {error && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{error}</p>}
+      {error && <p className="text-danger-500 mb-4">{error}</p>}
 
       {/* 브랜드 목록 */}
       {loading ? (
-        <p style={{ color: "#aaa" }}>불러오는 중...</p>
+        <p className="text-text-secondary">불러오는 중...</p>
       ) : brands.length === 0 ? (
-        <p style={{ color: "#666" }}>브랜드가 없습니다. 새 브랜드를 추가하세요.</p>
+        <p className="text-text-tertiary">브랜드가 없습니다. 새 브랜드를 추가하세요.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {brands.map((brand) => (
-            <div key={brand.id} style={brandCard}>
+            <div key={brand.id} className="card p-4">
               {editingId === brand.id ? (
                 // 수정 모드
                 <div>
-                  <div style={formGroup}>
-                    <label style={label}>브랜드명</label>
+                  <div className="mb-3">
+                    <label className="block text-text-secondary text-xs mb-1">브랜드명</label>
                     <input
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      style={input}
+                      className="input-field max-w-[320px]"
                     />
                   </div>
-                  <div style={formGroup}>
-                    <label style={label}>브랜드 URL (slug)</label>
+                  <div className="mb-3">
+                    <label className="block text-text-secondary text-xs mb-1">브랜드 URL (slug)</label>
                     <input
                       type="text"
                       value={editSlug}
                       onChange={(e) => setEditSlug(e.target.value)}
                       placeholder="예) orderfriends"
-                      style={input}
+                      className="input-field max-w-[320px]"
                     />
                   </div>
-                  <div style={formGroup}>
-                    <label style={label}>사업자명</label>
+                  <div className="mb-3">
+                    <label className="block text-text-secondary text-xs mb-1">사업자명</label>
                     <input
                       type="text"
                       value={editBizName}
                       onChange={(e) => setEditBizName(e.target.value)}
-                      style={input}
+                      className="input-field max-w-[320px]"
                     />
                   </div>
-                  <div style={formGroup}>
-                    <label style={label}>사업자등록번호</label>
+                  <div className="mb-3">
+                    <label className="block text-text-secondary text-xs mb-1">사업자등록번호</label>
                     <input
                       type="text"
                       value={editBizRegNo}
                       onChange={(e) => setEditBizRegNo(e.target.value)}
-                      style={input}
+                      className="input-field max-w-[320px]"
                     />
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button style={btnPrimary} onClick={handleSave} disabled={saving}>
+                  <div className="flex gap-2">
+                    <button className="btn-primary h-9 px-4 text-[13px]" onClick={handleSave} disabled={saving}>
                       {saving ? "저장 중..." : "저장"}
                     </button>
-                    <button style={btnGhost} onClick={() => setEditingId(null)}>
+                    <button
+                      className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
+                      onClick={() => setEditingId(null)}
+                    >
                       취소
                     </button>
                   </div>
                 </div>
               ) : (
                 // 보기 모드
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div className="flex justify-between items-start">
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 16 }}>{brand.name}</div>
+                    <div className="font-bold text-base text-foreground">{brand.name}</div>
                     {brand.slug && (
-                      <div style={{ color: "#aaa", fontSize: 12, marginTop: 4 }}>
+                      <div className="text-text-secondary text-xs mt-1">
                         슬러그: {brand.slug}
                       </div>
                     )}
                     {brand.bizName && (
-                      <div style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>
+                      <div className="text-text-secondary text-[13px] mt-1">
                         {brand.bizName}
                         {brand.bizRegNo && ` · ${brand.bizRegNo}`}
                       </div>
                     )}
-                    <div style={{ color: "#666", fontSize: 12, marginTop: 8, fontFamily: "monospace" }}>
+                    <div className="text-text-tertiary text-xs mt-2 font-mono">
                       ID: {brand.id}
                     </div>
                   </div>
 
                   {/* 우측 버튼 영역 */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div className="flex gap-2 flex-wrap justify-end">
                     <BrandSelectButton brandId={brand.id} />
-                    <button style={btnSmall} onClick={() => startEdit(brand)}>
+                    <button
+                      className="py-1 px-2.5 rounded-md border border-border bg-transparent text-foreground font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors"
+                      onClick={() => startEdit(brand)}
+                    >
                       수정
                     </button>
                     <button
-                      style={{ ...btnSmall, color: "#ef4444" }}
+                      className="py-1 px-2.5 rounded-md border border-border bg-transparent text-danger-500 font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors"
                       onClick={() => handleDelete(brand.id, brand.name)}
                     >
                       삭제
@@ -469,92 +471,3 @@ export default function BrandPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const brandCard: React.CSSProperties = {
-  padding: 16,
-  border: "1px solid #222",
-  borderRadius: 12,
-  background: "#0a0a0a",
-};
-
-const formCard: React.CSSProperties = {
-  padding: 20,
-  marginBottom: 24,
-  border: "1px solid #333",
-  borderRadius: 12,
-  background: "#0a0a0a",
-};
-
-const formGroup: React.CSSProperties = {
-  marginBottom: 12,
-};
-
-const label: React.CSSProperties = {
-  display: "block",
-  color: "#aaa",
-  fontSize: 12,
-  marginBottom: 4,
-};
-
-const input: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 320,
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 13,
-};
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const btnPrimarySmall: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-  fontSize: 12,
-  whiteSpace: "nowrap",
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 600,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: 6,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 500,
-  cursor: "pointer",
-  fontSize: 12,
-};

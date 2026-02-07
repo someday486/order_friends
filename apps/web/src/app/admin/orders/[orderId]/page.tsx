@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
@@ -235,44 +235,44 @@ function OrderDetailPageContent() {
 
   if (!branchId) {
     return (
-      <div style={{ padding: 24 }}>
-        <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+      <div>
+        <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <div style={{ marginTop: 12 }}>
+        <div className="mt-3">
           <BranchSelector />
         </div>
-        <p style={{ color: "#aaa", marginTop: 12 }}>가게를 선택해주세요.</p>
+        <p className="text-text-secondary mt-3">가게를 선택해주세요.</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        <p style={{ color: "#aaa" }}>불러오는 중...</p>
+      <div>
+        <p className="text-text-secondary">불러오는 중...</p>
       </div>
     );
   }
 
   if (error && !order) {
     return (
-      <div style={{ padding: 24 }}>
-        <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+      <div>
+        <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <p style={{ color: "#ff8a8a", marginTop: 16 }}>{error}</p>
+        <p className="text-danger-500 mt-4">{error}</p>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div style={{ padding: 24 }}>
-        <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+      <div>
+        <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <p style={{ color: "#aaa", marginTop: 16 }}>주문을 찾을 수 없습니다.</p>
+        <p className="text-text-secondary mt-4">주문을 찾을 수 없습니다.</p>
       </div>
     );
   }
@@ -282,94 +282,82 @@ function OrderDetailPageContent() {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+          <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
             ← 주문 목록
           </Link>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>주문 상세</h1>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: 26,
-                padding: "0 10px",
-                borderRadius: 999,
-                border: "1px solid #333",
-                background: "#121212",
-                color: "#fff",
-                fontSize: 12,
-              }}
-            >
+          <div className="flex items-center gap-2.5 mt-2.5">
+            <h1 className="m-0 text-[22px] font-extrabold text-foreground">주문 상세</h1>
+            <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border border-border bg-bg-tertiary text-foreground text-xs">
               {statusLabel[order.status]}
             </span>
           </div>
 
-          <div style={{ marginTop: 6, color: "#aaa", fontSize: 13 }}>
+          <div className="mt-1.5 text-text-secondary text-[13px]">
             주문번호{" "}
-            <span style={{ fontFamily: "monospace", color: "#fff" }}>{order.orderNo ?? order.id}</span>{" "}
+            <span className="font-mono text-foreground">{order.orderNo ?? order.id}</span>{" "}
             · {formatDateTime(order.orderedAt)}
           </div>
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="flex gap-2 items-center">
           {isCancellable && (
-            <button style={btnGhost} onClick={handleCancel} disabled={statusLoading}>
+            <button
+              className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer hover:bg-bg-tertiary transition-colors"
+              onClick={handleCancel}
+              disabled={statusLoading}
+            >
               취소
             </button>
           )}
 
           {next && (
-            <button style={btnPrimary} onClick={() => handleStatusChange(next)} disabled={statusLoading}>
+            <button
+              className="btn-primary h-9 px-4"
+              onClick={() => handleStatusChange(next)}
+              disabled={statusLoading}
+            >
               {statusLoading ? "변경 중..." : `${statusLabel[next]}로 변경`}
             </button>
           )}
 
-          {error && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{error}</span>}
+          {error && <span className="text-danger-500 text-xs">{error}</span>}
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>
+      <div className="mt-[18px] grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-3.5">
         {/* Left: Items */}
-        <section style={card}>
-          <div style={cardTitle}>주문 상품</div>
+        <section className="card p-3.5">
+          <div className="font-extrabold text-sm text-foreground">주문 상품</div>
 
-          <div style={{ marginTop: 10, border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
+          <div className="mt-2.5 border border-border rounded-xl overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="bg-bg-tertiary">
                 <tr>
-                  <th style={th}>상품</th>
-                  <th style={th}>옵션</th>
-                  <th style={{ ...th, textAlign: "right" }}>수량</th>
-                  <th style={{ ...th, textAlign: "right" }}>단가</th>
-                  <th style={{ ...th, textAlign: "right" }}>합계</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">상품</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">옵션</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">수량</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">단가</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">합계</th>
                 </tr>
               </thead>
               <tbody>
                 {order.items.map((it) => (
-                  <tr key={it.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>{it.name}</td>
-                    <td style={{ ...td, color: "#aaa" }}>{it.option ?? "-"}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{it.qty}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{formatWon(it.unitPrice)}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{formatWon(it.unitPrice * it.qty)}</td>
+                  <tr key={it.id} className="border-t border-border">
+                    <td className="py-2.5 px-3 text-[13px] text-foreground">{it.name}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">{it.option ?? "-"}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{it.qty}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(it.unitPrice)}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(it.unitPrice * it.qty)}</td>
                   </tr>
                 ))}
                 {order.items.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                    <td colSpan={5} className="py-2.5 px-3 text-[13px] text-center text-text-tertiary">
                       상품 없음
                     </td>
                   </tr>
@@ -378,75 +366,67 @@ function OrderDetailPageContent() {
             </table>
           </div>
 
-          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={miniCard}>
-              <div style={miniLabel}>상품 합계</div>
-              <div style={miniValue}>{formatWon(order.payment.subtotal)}</div>
+          <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+            <div className="border border-border rounded-xl p-3 bg-bg-secondary">
+              <div className="text-text-secondary text-xs">상품 합계</div>
+              <div className="mt-1.5 font-extrabold text-foreground">{formatWon(order.payment.subtotal)}</div>
             </div>
-            <div style={miniCard}>
-              <div style={miniLabel}>총 결제금액</div>
-              <div style={miniValue}>{formatWon(order.payment.total)}</div>
+            <div className="border border-border rounded-xl p-3 bg-bg-secondary">
+              <div className="text-text-secondary text-xs">총 결제금액</div>
+              <div className="mt-1.5 font-extrabold text-foreground">{formatWon(order.payment.total)}</div>
             </div>
           </div>
         </section>
 
         {/* Right: Customer & Payment */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <section style={card}>
-            <div style={cardTitle}>고객 정보</div>
+        <div className="flex flex-col gap-3.5">
+          <section className="card p-3.5">
+            <div className="font-extrabold text-sm text-foreground">고객 정보</div>
 
-            <div style={kv}>
-              <div style={k}>이름</div>
-              <div style={v}>{order.customer.name || "-"}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">이름</div>
+              <div className="text-foreground text-[13px]">{order.customer.name || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>연락처</div>
-              <div style={v}>{order.customer.phone || "-"}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">연락처</div>
+              <div className="text-foreground text-[13px]">{order.customer.phone || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>주소</div>
-              <div style={v}>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">주소</div>
+              <div className="text-foreground text-[13px]">
                 {order.customer.address1 || "-"}
                 {order.customer.address2 ? `, ${order.customer.address2}` : ""}
               </div>
             </div>
-            <div style={kv}>
-              <div style={k}>메모</div>
-              <div style={v}>{order.customer.memo ?? "-"}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">메모</div>
+              <div className="text-foreground text-[13px]">{order.customer.memo ?? "-"}</div>
             </div>
           </section>
 
-          <section style={card}>
-            <div style={cardTitle}>결제 정보</div>
+          <section className="card p-3.5">
+            <div className="font-extrabold text-sm text-foreground">결제 정보</div>
 
-            <div style={kv}>
-              <div style={k}>결제수단</div>
-              <div style={v}>{paymentMethodLabel[order.payment.method] ?? order.payment.method}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">결제수단</div>
+              <div className="text-foreground text-[13px]">{paymentMethodLabel[order.payment.method] ?? order.payment.method}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>상품금액</div>
-              <div style={v}>{formatWon(order.payment.subtotal)}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">상품금액</div>
+              <div className="text-foreground text-[13px]">{formatWon(order.payment.subtotal)}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>배송비</div>
-              <div style={v}>{formatWon(order.payment.shippingFee)}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">배송비</div>
+              <div className="text-foreground text-[13px]">{formatWon(order.payment.shippingFee)}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>할인</div>
-              <div style={v}>{formatWon(order.payment.discount)}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">할인</div>
+              <div className="text-foreground text-[13px]">{formatWon(order.payment.discount)}</div>
             </div>
 
-            <div
-              style={{
-                borderTop: "1px solid #222",
-                marginTop: 10,
-                paddingTop: 10,
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={{ color: "#aaa" }}>총 결제금액</div>
-              <div style={{ fontWeight: 800 }}>{formatWon(order.payment.total)}</div>
+            <div className="border-t border-border mt-2.5 pt-2.5 flex justify-between">
+              <div className="text-text-secondary">총 결제금액</div>
+              <div className="font-extrabold text-foreground">{formatWon(order.payment.total)}</div>
             </div>
           </section>
         </div>
@@ -454,78 +434,6 @@ function OrderDetailPageContent() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const card: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 14,
-  padding: 14,
-  background: "#0b0b0b",
-};
-
-const cardTitle: React.CSSProperties = {
-  fontWeight: 800,
-  fontSize: 14,
-};
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 12px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "10px 12px",
-  fontSize: 13,
-  color: "white",
-};
-
-const kv: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "90px 1fr",
-  gap: 10,
-  padding: "8px 0",
-};
-
-const k: React.CSSProperties = { color: "#aaa", fontSize: 13 };
-const v: React.CSSProperties = { color: "white", fontSize: 13 };
-
-const miniCard: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 12,
-  background: "#090909",
-};
-
-const miniLabel: React.CSSProperties = { color: "#aaa", fontSize: 12 };
-const miniValue: React.CSSProperties = { marginTop: 6, fontWeight: 800 };
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-};
 
 export default function OrderDetailPage() {
   return (

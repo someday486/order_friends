@@ -416,8 +416,8 @@ function ProductDetailPageContent() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 32 }}>상품 상세</h1>
-        <div>로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">상품 상세</h1>
+        <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
   }
@@ -425,44 +425,46 @@ function ProductDetailPageContent() {
   if (error || (!isNew && !product)) {
     return (
       <div>
-        <button onClick={() => router.back()} style={backButton}>
+        <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
           ← 뒤로 가기
         </button>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>상품 상세</h1>
-        <div style={errorBox}>{error || "상품을 찾을 수 없습니다"}</div>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">상품 상세</h1>
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
+          {error || "상품을 찾을 수 없습니다"}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <button onClick={() => router.back()} style={backButton}>
+      <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
         ← 뒤로 가기
       </button>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">
           {isNew ? "상품 등록" : isEditing ? "상품 수정" : "상품 상세"}
         </h1>
         {!isNew && canEdit && !isEditing && (
-          <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => setIsEditing(true)} style={editButton}>
+          <div className="flex gap-3">
+            <button onClick={() => setIsEditing(true)} className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors">
               수정하기
             </button>
-            <button onClick={handleDelete} disabled={deleteLoading} style={deleteButton}>
+            <button onClick={handleDelete} disabled={deleteLoading} className="py-2.5 px-5 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm cursor-pointer font-semibold hover:bg-danger-500/10 transition-colors">
               {deleteLoading ? "삭제 중..." : "삭제"}
             </button>
           </div>
         )}
       </div>
 
-      <div style={contentBox}>
+      <div className="card p-6">
         {isEditing ? (
           <div>
             {/* Branch selection (only for new products) */}
             {isNew && (
-              <div style={{ marginBottom: 20 }}>
-                <label style={labelStyle}>매장 선택 *</label>
+              <div className="mb-5">
+                <label className="block text-[13px] text-text-secondary mb-2 font-semibold">매장 선택 *</label>
                 <select
                   value={formData.branchId}
                   onChange={(e) => {
@@ -472,7 +474,7 @@ function ProductDetailPageContent() {
                       setUserRole(branch.myRole);
                     }
                   }}
-                  style={inputStyle}
+                  className="input-field w-full"
                 >
                   <option value="">매장을 선택하세요</option>
                   {branches.map((branch) => (
@@ -484,23 +486,23 @@ function ProductDetailPageContent() {
               </div>
             )}
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>상품명 *</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">상품명 *</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                style={inputStyle}
+                className="input-field w-full"
                 placeholder="상품명을 입력하세요"
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>카테고리 *</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">카테고리 *</label>
               <select
                 value={formData.categoryId}
                 onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                style={inputStyle}
+                className="input-field w-full"
               >
                 <option value="">카테고리 선택</option>
                 {categories.map((category) => (
@@ -511,49 +513,49 @@ function ProductDetailPageContent() {
               </select>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>설명</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">설명</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
+                className="input-field w-full min-h-[100px] resize-y"
                 placeholder="상품 설명을 입력하세요"
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>가격(원) *</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">가격(원) *</label>
               <input
                 type="number"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                style={inputStyle}
+                className="input-field w-full"
                 min={0}
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>상품 이미지</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">상품 이미지</label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
-                style={{ ...inputStyle, padding: "8px 12px", height: "auto" }}
+                className="input-field w-full h-auto py-2 px-3"
               />
               {uploadingImage && (
-                <p style={{ color: "#999", fontSize: 12, marginTop: 8 }}>이미지 업로드 중...</p>
+                <p className="text-text-tertiary text-xs mt-2">이미지 업로드 중...</p>
               )}
               {imagePreviewUrl && (
                 <img
                   src={imagePreviewUrl}
                   alt="상품 미리보기"
-                  style={{ marginTop: 12, width: "100%", maxWidth: 240, borderRadius: 12 }}
+                  className="mt-3 w-full max-w-[240px] rounded-xl"
                 />
               )}
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <div className="mb-6">
+              <label className="flex items-center gap-2 text-[13px] text-text-secondary font-semibold cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.isActive}
@@ -563,8 +565,8 @@ function ProductDetailPageContent() {
               </label>
             </div>
 
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={handleSave} disabled={saveLoading || uploadingImage} style={saveButton}>
+            <div className="flex gap-3">
+              <button onClick={handleSave} disabled={saveLoading || uploadingImage} className="btn-primary py-2.5 px-5 text-sm">
                 {saveLoading ? "저장 중..." : isNew ? "등록" : "저장"}
               </button>
               {!isNew && (
@@ -585,7 +587,7 @@ function ProductDetailPageContent() {
                     }
                   }}
                   disabled={saveLoading}
-                  style={cancelButton}
+                  className="py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
                 >
                   취소
                 </button>
@@ -599,65 +601,57 @@ function ProductDetailPageContent() {
                 <img
                   src={product.imageUrl}
                   alt={product.name}
-                  style={{
-                    width: "100%",
-                    maxWidth: 400,
-                    borderRadius: 12,
-                    objectFit: "cover",
-                    marginBottom: 24,
-                  }}
+                  className="w-full max-w-[400px] rounded-xl object-cover mb-6"
                 />
               )}
 
-              <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px 0" }}>{product.name}</h2>
+              <h2 className="text-xl font-bold mb-4 text-foreground">{product.name}</h2>
 
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>가격</div>
-                <div style={{ fontSize: 24, color: "#fff", fontWeight: 700 }}>{formatWon(product.price)}</div>
+              <div className="mb-5">
+                <div className="text-[13px] text-text-secondary mb-2">가격</div>
+                <div className="text-2xl text-foreground font-bold">{formatWon(product.price)}</div>
               </div>
 
               {product.category && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>카테고리</div>
-                  <div style={{ fontSize: 15, color: "#fff" }}>{product.category}</div>
+                <div className="mb-5">
+                  <div className="text-[13px] text-text-secondary mb-2">카테고리</div>
+                  <div className="text-[15px] text-foreground">{product.category}</div>
                 </div>
               )}
 
               {product.description && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>설명</div>
-                  <div style={{ fontSize: 15, color: "#fff", lineHeight: 1.6 }}>{product.description}</div>
+                <div className="mb-5">
+                  <div className="text-[13px] text-text-secondary mb-2">설명</div>
+                  <div className="text-[15px] text-foreground leading-relaxed">{product.description}</div>
                 </div>
               )}
 
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>판매 상태</div>
+              <div className="mb-5">
+                <div className="text-[13px] text-text-secondary mb-2">판매 상태</div>
                 <div
-                  style={{
-                    ...statusBadge,
-                    background: product.isActive ? "#10b98120" : "#6b728020",
-                    color: product.isActive ? "#10b981" : "#6b7280",
-                  }}
+                  className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                    product.isActive ? "bg-success/20 text-success" : "bg-neutral-500/20 text-text-secondary"
+                  }`}
                 >
                   {product.isActive ? "판매중" : "숨김"}
                 </div>
               </div>
 
               {product.options && product.options.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>옵션</div>
-                  <div style={{ fontSize: 15, color: "#fff" }}>{product.options.length}개 옵션 사용 가능</div>
+                <div className="mb-5">
+                  <div className="text-[13px] text-text-secondary mb-2">옵션</div>
+                  <div className="text-[15px] text-foreground">{product.options.length}개 옵션 사용 가능</div>
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginTop: 24 }}>
+              <div className="grid grid-cols-2 gap-4 mt-6">
                 <div>
-                  <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>등록일</div>
-                  <div style={{ fontSize: 14, color: "#fff" }}>{new Date(product.createdAt).toLocaleString()}</div>
+                  <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
+                  <div className="text-sm text-foreground">{new Date(product.createdAt).toLocaleString()}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>수정일</div>
-                  <div style={{ fontSize: 14, color: "#fff" }}>{new Date(product.updatedAt).toLocaleString()}</div>
+                  <div className="text-[11px] text-text-tertiary mb-1">수정일</div>
+                  <div className="text-sm text-foreground">{new Date(product.updatedAt).toLocaleString()}</div>
                 </div>
               </div>
             </div>
@@ -667,108 +661,6 @@ function ProductDetailPageContent() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const backButton: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#aaa",
-  fontSize: 14,
-  cursor: "pointer",
-  marginBottom: 24,
-};
-
-const editButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const deleteButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #ff4444",
-  background: "transparent",
-  color: "#ff4444",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const saveButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "none",
-  background: "#0070f3",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const cancelButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#aaa",
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const contentBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 24,
-  background: "#0f0f0f",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  color: "#aaa",
-  marginBottom: 8,
-  fontWeight: 600,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  outline: "none",
-};
-
-const statusBadge: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  height: 24,
-  padding: "0 10px",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-};
 
 export default function ProductDetailPage() {
   return (

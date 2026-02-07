@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -106,44 +106,29 @@ function StatusActionsContent({
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <button style={btnGhost} disabled={loading}>
+    <div className="flex gap-2 items-center">
+      <button
+        className="h-9 px-3 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer hover:bg-bg-tertiary transition-colors"
+        disabled={loading}
+      >
         취소
       </button>
 
-      <button style={btnPrimary} onClick={onAdvance} disabled={!next || loading}>
+      <button
+        className="btn-primary h-9 px-3"
+        onClick={onAdvance}
+        disabled={!next || loading}
+      >
         {loading ? "변경 중..." : next ? `${statusLabel[next]}로 변경` : "상태 변경 완료"}
       </button>
 
-      <div style={{ color: "#aaa", fontSize: 12 }}>
-        현재: <b style={{ color: "white" }}>{statusLabel[status]}</b>
-        {err ? <span style={{ marginLeft: 8, color: "#ff8a8a" }}>({err})</span> : null}
+      <div className="text-text-secondary text-xs">
+        현재: <b className="text-foreground">{statusLabel[status]}</b>
+        {err ? <span className="ml-2 text-danger-500">({err})</span> : null}
       </div>
     </div>
   );
 }
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-};
 
 export default function StatusActions({
   orderId,

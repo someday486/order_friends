@@ -145,117 +145,117 @@ export default function CheckoutPage() {
 
   if (cart.length === 0) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>장바구니가 비어있습니다.</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <p className="text-text-secondary text-center p-10">장바구니가 비어있습니다.</p>
       </div>
     );
   }
 
   return (
-    <div style={pageContainer}>
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header style={header}>
-        <Link href={`/order/branch/${branchId}`} style={{ color: "#fff", textDecoration: "none" }}>
+      <header className="p-4 border-b border-border">
+        <Link href={`/order/branch/${branchId}`} className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 돌아가기
         </Link>
-        <h1 style={{ margin: "12px 0 0 0", fontSize: 20, fontWeight: 700 }}>주문서 작성</h1>
+        <h1 className="mt-3 mb-0 text-xl font-bold text-foreground">주문서 작성</h1>
       </header>
 
-      <main style={{ padding: 16 }}>
+      <main className="p-4">
         {/* 주문 내역 */}
-        <section style={section}>
-          <h2 style={sectionTitle}>주문 내역</h2>
+        <section className="py-4 border-b border-border">
+          <h2 className="text-sm font-bold mb-3 text-text-secondary">주문 내역</h2>
           {cart.map((item, idx) => (
-            <div key={idx} style={orderItem}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{item.product.name}</div>
+            <div key={idx} className="flex items-center gap-3 py-2">
+              <div className="flex-1">
+                <div className="font-semibold text-foreground">{item.product.name}</div>
                 {item.selectedOptions.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                  <div className="text-xs text-text-tertiary mt-0.5">
                     {item.selectedOptions.map((o) => o.name).join(", ")}
                   </div>
                 )}
-                <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
+                <div className="text-[13px] text-text-secondary mt-1">
                   {formatWon(item.itemPrice)} × {item.qty}개
                 </div>
               </div>
-              <div style={{ fontWeight: 700 }}>{formatWon(item.itemPrice * item.qty)}</div>
+              <div className="font-bold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
             </div>
           ))}
-          <div style={totalRow}>
-            <span>총 결제금액</span>
-            <span style={{ fontSize: 20, fontWeight: 800 }}>{formatWon(totalAmount)}</span>
+          <div className="flex justify-between items-center mt-4 pt-4 border-t border-border">
+            <span className="text-foreground">총 결제금액</span>
+            <span className="text-xl font-extrabold text-foreground">{formatWon(totalAmount)}</span>
           </div>
         </section>
 
         {/* 고객 정보 */}
-        <section style={section}>
-          <h2 style={sectionTitle}>고객 정보</h2>
+        <section className="py-4 border-b border-border">
+          <h2 className="text-sm font-bold mb-3 text-text-secondary">고객 정보</h2>
 
-          <div style={formGroup}>
-            <label style={label}>이름 *</label>
+          <div className="mb-4">
+            <label className="block text-[13px] text-text-secondary mb-1.5">이름 *</label>
             <input
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="홍길동"
-              style={input}
+              className="input-field w-full h-11"
             />
           </div>
 
-          <div style={formGroup}>
-            <label style={label}>연락처</label>
+          <div className="mb-4">
+            <label className="block text-[13px] text-text-secondary mb-1.5">연락처</label>
             <input
               type="tel"
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
               placeholder="010-1234-5678"
-              style={input}
+              className="input-field w-full h-11"
             />
           </div>
 
-          <div style={formGroup}>
-            <label style={label}>주소</label>
+          <div className="mb-4">
+            <label className="block text-[13px] text-text-secondary mb-1.5">주소</label>
             <input
               type="text"
               value={customerAddress1}
               onChange={(e) => setCustomerAddress1(e.target.value)}
               placeholder="기본 주소"
-              style={input}
+              className="input-field w-full h-11"
             />
             <input
               type="text"
               value={customerAddress2}
               onChange={(e) => setCustomerAddress2(e.target.value)}
               placeholder="상세 주소"
-              style={{ ...input, marginTop: 8 }}
+              className="input-field w-full h-11 mt-2"
             />
           </div>
 
-          <div style={formGroup}>
-            <label style={label}>요청사항</label>
+          <div className="mb-4">
+            <label className="block text-[13px] text-text-secondary mb-1.5">요청사항</label>
             <textarea
               value={customerMemo}
               onChange={(e) => setCustomerMemo(e.target.value)}
               placeholder="예: 문 앞에 놓아주세요"
               rows={2}
-              style={{ ...input, height: "auto", padding: "10px 12px" }}
+              className="input-field w-full h-auto py-2.5 px-3"
             />
           </div>
         </section>
 
         {/* 결제 수단 */}
-        <section style={section}>
-          <h2 style={sectionTitle}>결제 수단</h2>
-          <div style={{ display: "flex", gap: 8 }}>
+        <section className="py-4 border-b border-border">
+          <h2 className="text-sm font-bold mb-3 text-text-secondary">결제 수단</h2>
+          <div className="flex gap-2">
             {(["CARD", "TRANSFER", "CASH"] as const).map((method) => (
               <button
                 key={method}
                 onClick={() => setPaymentMethod(method)}
-                style={{
-                  ...paymentBtn,
-                  background: paymentMethod === method ? "#333" : "transparent",
-                  borderColor: paymentMethod === method ? "#555" : "#333",
-                }}
+                className={`flex-1 p-3 rounded-[10px] border text-sm font-semibold cursor-pointer transition-colors ${
+                  paymentMethod === method
+                    ? "bg-bg-tertiary border-border text-foreground"
+                    : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
+                }`}
               >
                 {method === "CARD" && "카드"}
                 {method === "TRANSFER" && "계좌이체"}
@@ -266,11 +266,11 @@ export default function CheckoutPage() {
         </section>
 
         {/* Error */}
-        {error && <p style={{ color: "#ff8a8a", marginTop: 16 }}>{error}</p>}
+        {error && <p className="text-danger-500 mt-4">{error}</p>}
 
         {/* Submit */}
         <button
-          style={submitBtn}
+          className="w-full p-4 mt-6 rounded-xl border-none bg-foreground text-background text-base font-bold cursor-pointer hover:opacity-90 transition-opacity"
           onClick={handleSubmit}
           disabled={loading || !customerName.trim()}
         >
@@ -280,93 +280,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const pageContainer: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#000",
-  color: "#fff",
-};
-
-const header: React.CSSProperties = {
-  padding: "16px",
-  borderBottom: "1px solid #222",
-};
-
-const section: React.CSSProperties = {
-  padding: "16px 0",
-  borderBottom: "1px solid #222",
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  marginBottom: 12,
-  color: "#aaa",
-};
-
-const orderItem: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "8px 0",
-};
-
-const totalRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginTop: 16,
-  paddingTop: 16,
-  borderTop: "1px solid #333",
-};
-
-const formGroup: React.CSSProperties = {
-  marginBottom: 16,
-};
-
-const label: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  color: "#aaa",
-  marginBottom: 6,
-};
-
-const input: React.CSSProperties = {
-  width: "100%",
-  height: 44,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "#fff",
-  fontSize: 15,
-};
-
-const paymentBtn: React.CSSProperties = {
-  flex: 1,
-  padding: "12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#fff",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const submitBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "16px",
-  marginTop: 24,
-  borderRadius: 12,
-  border: "none",
-  background: "#fff",
-  color: "#000",
-  fontSize: 16,
-  fontWeight: 700,
-  cursor: "pointer",
-};

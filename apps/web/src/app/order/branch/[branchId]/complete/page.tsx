@@ -74,10 +74,10 @@ export default function CompletePage() {
 
   if (!order) {
     return (
-      <div style={pageContainer}>
-        <div style={{ padding: 40, textAlign: "center" }}>
-          <p style={{ color: "#aaa" }}>주문 정보를 찾을 수 없습니다.</p>
-          <Link href={`/order/branch/${branchId}`} style={linkStyle}>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="p-10 text-center">
+          <p className="text-text-secondary">주문 정보를 찾을 수 없습니다.</p>
+          <Link href={`/order/branch/${branchId}`} className="inline-block mt-4 text-foreground underline">
             메뉴로 돌아가기
           </Link>
         </div>
@@ -86,131 +86,67 @@ export default function CompletePage() {
   }
 
   return (
-    <div style={pageContainer}>
-      <div style={{ padding: 24, textAlign: "center" }}>
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="p-6 text-center">
         {/* Success Icon */}
-        <div style={{ fontSize: 60, marginBottom: 16 }}>✅</div>
+        <div className="text-[60px] mb-4">✅</div>
 
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px 0" }}>
+        <h1 className="text-2xl font-extrabold mb-2 text-foreground">
           주문이 완료되었습니다!
         </h1>
-        <p style={{ color: "#aaa", margin: 0 }}>
+        <p className="text-text-secondary m-0">
           주문 번호를 확인해주세요.
         </p>
       </div>
 
       {/* Order Info */}
-      <div style={orderCard}>
-        <div style={infoRow}>
-          <span style={{ color: "#888" }}>주문번호</span>
-          <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 18 }}>
+      <div className="mx-4 mb-6 p-4 rounded-[14px] border border-border bg-bg-secondary">
+        <div className="flex justify-between items-center py-2">
+          <span className="text-text-tertiary">주문번호</span>
+          <span className="font-mono font-bold text-lg text-foreground">
             {order.orderNo}
           </span>
         </div>
 
-        <div style={infoRow}>
-          <span style={{ color: "#888" }}>주문상태</span>
-          <span style={{ color: "#10b981", fontWeight: 600 }}>
+        <div className="flex justify-between items-center py-2">
+          <span className="text-text-tertiary">주문상태</span>
+          <span className="text-success font-semibold">
             {statusLabel[order.status] ?? order.status}
           </span>
         </div>
 
-        <div style={infoRow}>
-          <span style={{ color: "#888" }}>주문일시</span>
-          <span>{formatDateTime(order.createdAt)}</span>
+        <div className="flex justify-between items-center py-2">
+          <span className="text-text-tertiary">주문일시</span>
+          <span className="text-foreground">{formatDateTime(order.createdAt)}</span>
         </div>
 
-        <div style={{ ...infoRow, borderTop: "1px solid #333", paddingTop: 12, marginTop: 4 }}>
-          <span style={{ color: "#888" }}>결제금액</span>
-          <span style={{ fontSize: 20, fontWeight: 800 }}>{formatWon(order.totalAmount)}</span>
+        <div className="flex justify-between items-center py-2 border-t border-border pt-3 mt-1">
+          <span className="text-text-tertiary">결제금액</span>
+          <span className="text-xl font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
         </div>
       </div>
 
       {/* Order Items */}
-      <div style={{ padding: "0 16px" }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: "#888", marginBottom: 8 }}>주문 내역</h3>
+      <div className="px-4">
+        <h3 className="text-sm font-semibold text-text-tertiary mb-2">주문 내역</h3>
         {order.items.map((item, idx) => (
-          <div key={idx} style={itemRow}>
-            <span>{item.name} × {item.qty}</span>
-            <span style={{ color: "#aaa" }}>{formatWon(item.unitPrice * item.qty)}</span>
+          <div key={idx} className="flex justify-between py-2 border-b border-border">
+            <span className="text-foreground">{item.name} × {item.qty}</span>
+            <span className="text-text-secondary">{formatWon(item.unitPrice * item.qty)}</span>
           </div>
         ))}
       </div>
 
       {/* Actions */}
-      <div style={{ padding: 16, marginTop: 24 }}>
-        <Link href={`/order/track/${order.id}`} style={{ textDecoration: "none" }}>
-          <button style={primaryBtn}>주문 상태 확인</button>
+      <div className="p-4 mt-6">
+        <Link href={`/order/track/${order.id}`} className="no-underline">
+          <button className="w-full p-3.5 rounded-xl border-none bg-foreground text-background text-[15px] font-bold cursor-pointer mb-3">주문 상태 확인</button>
         </Link>
 
-        <Link href={`/order/branch/${branchId}`} style={{ textDecoration: "none" }}>
-          <button style={ghostBtn}>메뉴로 돌아가기</button>
+        <Link href={`/order/branch/${branchId}`} className="no-underline">
+          <button className="w-full p-3.5 rounded-xl border border-border bg-transparent text-foreground text-[15px] font-semibold cursor-pointer">메뉴로 돌아가기</button>
         </Link>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const pageContainer: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#000",
-  color: "#fff",
-};
-
-const orderCard: React.CSSProperties = {
-  margin: "0 16px 24px 16px",
-  padding: 16,
-  borderRadius: 14,
-  border: "1px solid #222",
-  background: "#0a0a0a",
-};
-
-const infoRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "8px 0",
-};
-
-const itemRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "8px 0",
-  borderBottom: "1px solid #222",
-};
-
-const primaryBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "14px",
-  borderRadius: 12,
-  border: "none",
-  background: "#fff",
-  color: "#000",
-  fontSize: 15,
-  fontWeight: 700,
-  cursor: "pointer",
-  marginBottom: 12,
-};
-
-const ghostBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "14px",
-  borderRadius: 12,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#fff",
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const linkStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 16,
-  color: "#fff",
-  textDecoration: "underline",
-};

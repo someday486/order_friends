@@ -139,8 +139,8 @@ export default function BrandDetailPage() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 32 }}>브랜드 상세</h1>
-        <div>로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">브랜드 상세</h1>
+        <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
   }
@@ -148,67 +148,69 @@ export default function BrandDetailPage() {
   if (error || !brand) {
     return (
       <div>
-        <button onClick={() => router.back()} style={backButton}>
+        <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
           ← 뒤로 가기
         </button>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>브랜드 상세</h1>
-        <div style={errorBox}>{error || "브랜드를 찾을 수 없습니다"}</div>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">브랜드 상세</h1>
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
+          {error || "브랜드를 찾을 수 없습니다"}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <button onClick={() => router.back()} style={backButton}>
+      <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
         ← 뒤로 가기
       </button>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>브랜드 상세</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">브랜드 상세</h1>
         {canEdit && !isEditing && (
-          <button onClick={() => setIsEditing(true)} style={editButton}>
+          <button onClick={() => setIsEditing(true)} className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors">
             수정하기
           </button>
         )}
       </div>
 
-      <div style={contentBox}>
+      <div className="card p-6">
         {isEditing ? (
           <div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>브랜드명</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">브랜드명</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                style={inputStyle}
+                className="input-field w-full"
                 placeholder="브랜드명을 입력하세요"
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>사업자명</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">사업자명</label>
               <input
                 type="text"
                 value={formData.biz_name}
                 onChange={(e) => setFormData({ ...formData, biz_name: e.target.value })}
-                style={inputStyle}
+                className="input-field w-full"
                 placeholder="사업자명"
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>사업자등록번호</label>
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">사업자등록번호</label>
               <input
                 type="text"
                 value={formData.biz_reg_no}
                 onChange={(e) => setFormData({ ...formData, biz_reg_no: e.target.value })}
-                style={inputStyle}
+                className="input-field w-full"
                 placeholder="000-00-00000"
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 mb-6">
               <ImageUpload
                 value={formData.logo_url}
                 onChange={(url) => setFormData({ ...formData, logo_url: url })}
@@ -232,11 +234,11 @@ export default function BrandDetailPage() {
               />
             </div>
 
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={handleSave} disabled={saveLoading} style={saveButton}>
+            <div className="flex gap-3">
+              <button onClick={handleSave} disabled={saveLoading} className="btn-primary py-2.5 px-5 text-sm">
                 {saveLoading ? "저장 중..." : "저장"}
               </button>
-              <button onClick={() => setIsEditing(false)} disabled={saveLoading} style={cancelButton}>
+              <button onClick={() => setIsEditing(false)} disabled={saveLoading} className="py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors">
                 취소
               </button>
             </div>
@@ -245,74 +247,64 @@ export default function BrandDetailPage() {
           <div>
             {/* Cover image banner */}
             {brand.cover_image_url && (
-              <div style={{ marginBottom: 24 }}>
+              <div className="mb-6">
                 <img
                   src={brand.cover_image_url}
                   alt="커버 이미지"
-                  style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 8 }}
+                  className="w-full rounded-lg object-cover"
+                  style={{ aspectRatio: "16/9" }}
                 />
               </div>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+            <div className="flex items-center gap-4 mb-6">
               {brand.logo_url ? (
                 <img
                   src={brand.logo_url}
                   alt={brand.name}
-                  style={{ width: 80, height: 80, borderRadius: 12, objectFit: "cover" }}
+                  className="w-20 h-20 rounded-xl object-cover"
                 />
               ) : (
-                <div
-                  style={{
-                    width: 80,
-                    height: 80,
-                    borderRadius: 12,
-                    background: "#222",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 40,
-                  }}
-                >
+                <div className="w-20 h-20 rounded-xl bg-bg-tertiary flex items-center justify-center text-[40px]">
                   🏢
                 </div>
               )}
               <div>
-                <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0" }}>{brand.name}</h2>
-                <div style={{ fontSize: 14, color: "#aaa" }}>역할: {brand.myRole}</div>
+                <h2 className="text-xl font-bold mb-2 text-foreground">{brand.name}</h2>
+                <div className="text-sm text-text-secondary">역할: {brand.myRole}</div>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 20 }}>
+            <div className="grid grid-cols-2 gap-4 mb-5">
               {brand.biz_name && (
                 <div>
-                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>사업자명</div>
-                  <div style={{ fontSize: 15, color: "#fff" }}>{brand.biz_name}</div>
+                  <div className="text-[13px] text-text-secondary mb-1">사업자명</div>
+                  <div className="text-[15px] text-foreground">{brand.biz_name}</div>
                 </div>
               )}
               {brand.biz_reg_no && (
                 <div>
-                  <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>사업자등록번호</div>
-                  <div style={{ fontSize: 15, color: "#fff" }}>{brand.biz_reg_no}</div>
+                  <div className="text-[13px] text-text-secondary mb-1">사업자등록번호</div>
+                  <div className="text-[15px] text-foreground">{brand.biz_reg_no}</div>
                 </div>
               )}
             </div>
 
             {brand.thumbnail_url && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>썸네일</div>
+              <div className="mb-5">
+                <div className="text-[13px] text-text-secondary mb-2">썸네일</div>
                 <img
                   src={brand.thumbnail_url}
                   alt="썸네일"
-                  style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 8, border: "1px solid #333" }}
+                  className="w-[120px] h-[120px] object-cover rounded-lg border border-border"
                 />
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginTop: 24 }}>
+            <div className="grid grid-cols-2 gap-4 mt-6">
               <div>
-                <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>등록일</div>
-                <div style={{ fontSize: 14, color: "#fff" }}>{new Date(brand.created_at).toLocaleString()}</div>
+                <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
+                <div className="text-sm text-foreground">{new Date(brand.created_at).toLocaleString()}</div>
               </div>
             </div>
           </div>
@@ -321,84 +313,3 @@ export default function BrandDetailPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const backButton: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#aaa",
-  fontSize: 14,
-  cursor: "pointer",
-  marginBottom: 24,
-};
-
-const editButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const saveButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "none",
-  background: "#0070f3",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const cancelButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#aaa",
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const contentBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 24,
-  background: "#0f0f0f",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  color: "#aaa",
-  marginBottom: 8,
-  fontWeight: 600,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  outline: "none",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-};

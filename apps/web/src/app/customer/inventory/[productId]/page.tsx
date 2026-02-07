@@ -69,6 +69,15 @@ const TRANSACTION_LABELS: Record<string, string> = {
   RESERVATION: "예약",
 };
 
+const TRANSACTION_BADGE_CLASSES: Record<string, string> = {
+  RESTOCK: "bg-success/20 text-success",
+  ADJUSTMENT: "bg-primary-500/20 text-primary-500",
+  DAMAGE: "bg-danger-500/20 text-danger-500",
+  RETURN: "bg-warning-500/20 text-warning-500",
+  SALE: "bg-neutral-500/20 text-neutral-400",
+  RESERVATION: "bg-purple-500/20 text-purple-400",
+};
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -349,11 +358,11 @@ function InventoryDetailPageContent() {
   if (loading) {
     return (
       <div>
-        <Link href="/customer/inventory" style={backLink}>
+        <Link href="/customer/inventory" className="text-foreground no-underline hover:text-primary-500 transition-colors text-sm font-semibold">
           ← 재고 목록
         </Link>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginTop: 16 }}>재고 상세</h1>
-        <div style={{ marginTop: 32 }}>로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mt-4 text-foreground">재고 상세</h1>
+        <div className="mt-8 text-text-secondary">로딩 중...</div>
       </div>
     );
   }
@@ -361,32 +370,32 @@ function InventoryDetailPageContent() {
   if (!inventory) {
     return (
       <div>
-        <Link href="/customer/inventory" style={backLink}>
+        <Link href="/customer/inventory" className="text-foreground no-underline hover:text-primary-500 transition-colors text-sm font-semibold">
           ← 재고 목록
         </Link>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginTop: 16 }}>재고 상세</h1>
-        <div style={errorBox}>재고 정보를 찾을 수 없습니다</div>
+        <h1 className="text-2xl font-extrabold mt-4 text-foreground">재고 상세</h1>
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">재고 정보를 찾을 수 없습니다</div>
       </div>
     );
   }
 
   return (
     <div>
-      <Link href="/customer/inventory" style={backLink}>
+      <Link href="/customer/inventory" className="text-foreground no-underline hover:text-primary-500 transition-colors text-sm font-semibold">
         ← 재고 목록
       </Link>
 
-      <div style={{ marginTop: 16, marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>재고 상세</h1>
+      <div className="mt-4 mb-8">
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">재고 상세</h1>
       </div>
 
       {/* Branch Filter */}
-      <div style={{ marginBottom: 24 }}>
-        <label style={labelStyle}>매장 선택</label>
+      <div className="mb-6">
+        <label className="block text-[13px] text-text-secondary mb-2 font-semibold">매장 선택</label>
         <select
           value={selectedBranchId}
           onChange={(e) => setSelectedBranchId(e.target.value)}
-          style={selectStyle}
+          className="input-field w-full max-w-[400px]"
         >
           <option value="">매장을 선택하세요</option>
           {branches.map((branch) => (
@@ -397,99 +406,97 @@ function InventoryDetailPageContent() {
         </select>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && (
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500 mb-4">
+          {error}
+        </div>
+      )}
 
       {/* Product Info */}
-      <div style={card}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, marginBottom: 24 }}>
+      <div className="card p-6 mb-6">
+        <div className="flex items-start gap-6 mb-6">
           {inventory.product?.imageUrl && (
             <img
               src={inventory.product.imageUrl}
               alt={inventory.product.name || "상품 이미지"}
-              style={{
-                width: 120,
-                height: 120,
-                borderRadius: 12,
-                objectFit: "cover",
-                border: "1px solid #333",
-              }}
+              className="w-[120px] h-[120px] rounded-xl object-cover border border-border"
             />
           )}
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0" }}>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold mb-2 text-foreground">
               {inventory.product?.name || "상품명 없음"}
             </h2>
             {inventory.product?.price && (
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 8 }}>
+              <div className="text-lg font-extrabold text-foreground mb-2">
                 {formatWon(inventory.product.price)}
               </div>
             )}
-            <div style={{ fontSize: 13, color: "#aaa" }}>매장: {inventory.branch?.name || "-"}</div>
+            <div className="text-[13px] text-text-secondary">매장: {inventory.branch?.name || "-"}</div>
           </div>
           {isLowStock && (
-            <div style={{ ...lowStockBadge, height: 32, padding: "0 16px", fontSize: 14 }}>
+            <span className="inline-flex items-center h-8 px-4 rounded-full bg-danger-500/20 text-danger-500 text-sm font-semibold">
               재고 부족
-            </div>
+            </span>
           )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-          <div style={statBox}>
-            <div style={statLabel}>재고 가능</div>
-            <div style={{ ...statValue, color: isLowStock ? "#ef4444" : "#10b981" }}>
+        <div className="grid grid-cols-4 gap-4">
+          <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
+            <div className="text-xs text-text-secondary mb-2 font-semibold">재고 가능</div>
+            <div className={`text-2xl font-extrabold ${isLowStock ? "text-danger-500" : "text-success"}`}>
               {inventory.qty_available}
             </div>
           </div>
-          <div style={statBox}>
-            <div style={statLabel}>예약됨</div>
-            <div style={statValue}>{inventory.qty_reserved}</div>
+          <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
+            <div className="text-xs text-text-secondary mb-2 font-semibold">예약됨</div>
+            <div className="text-2xl font-extrabold text-foreground">{inventory.qty_reserved}</div>
           </div>
-          <div style={statBox}>
-            <div style={statLabel}>판매됨</div>
-            <div style={statValue}>{inventory.qty_sold}</div>
+          <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
+            <div className="text-xs text-text-secondary mb-2 font-semibold">판매됨</div>
+            <div className="text-2xl font-extrabold text-foreground">{inventory.qty_sold}</div>
           </div>
-          <div style={statBox}>
-            <div style={statLabel}>최소 재고</div>
-            <div style={statValue}>{inventory.low_stock_threshold}</div>
+          <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
+            <div className="text-xs text-text-secondary mb-2 font-semibold">최소 재고</div>
+            <div className="text-2xl font-extrabold text-foreground">{inventory.low_stock_threshold}</div>
           </div>
         </div>
       </div>
 
       {/* Edit Form (OWNER/ADMIN only) */}
       {canEdit && (
-        <div style={card}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>재고 정보 수정</h3>
+        <div className="card p-6 mb-6">
+          <h3 className="text-lg font-bold mb-4 text-foreground">재고 정보 수정</h3>
 
           {!editMode ? (
-            <button onClick={() => setEditMode(true)} style={editButton}>
+            <button onClick={() => setEditMode(true)} className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors">
               수정하기
             </button>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 16 }}>
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label style={labelStyle}>재고 가능 수량</label>
+                  <label className="block text-[13px] text-text-secondary mb-2 font-semibold">재고 가능 수량</label>
                   <input
                     type="number"
                     value={editQtyAvailable}
                     onChange={(e) => setEditQtyAvailable(parseInt(e.target.value) || 0)}
-                    style={inputStyle}
+                    className="input-field w-full"
                     min="0"
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>최소 재고 기준</label>
+                  <label className="block text-[13px] text-text-secondary mb-2 font-semibold">최소 재고 기준</label>
                   <input
                     type="number"
                     value={editLowStockThreshold}
                     onChange={(e) => setEditLowStockThreshold(parseInt(e.target.value) || 0)}
-                    style={inputStyle}
+                    className="input-field w-full"
                     min="0"
                   />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={handleSaveEdit} disabled={saving} style={saveButton}>
+              <div className="flex gap-2">
+                <button onClick={handleSaveEdit} disabled={saving} className="btn-primary py-2.5 px-5 text-sm">
                   {saving ? "저장 중..." : "저장"}
                 </button>
                 <button
@@ -498,7 +505,7 @@ function InventoryDetailPageContent() {
                     setEditQtyAvailable(inventory.qty_available);
                     setEditLowStockThreshold(inventory.low_stock_threshold);
                   }}
-                  style={cancelButton}
+                  className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
                 >
                   취소
                 </button>
@@ -510,13 +517,13 @@ function InventoryDetailPageContent() {
 
       {/* Manual Adjustment */}
       {canEdit && (
-        <div style={card}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>재고 수동 조정</h3>
+        <div className="card p-6 mb-6">
+          <h3 className="text-lg font-bold mb-4 text-foreground">재고 수동 조정</h3>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label style={labelStyle}>거래 유형</label>
-              <select value={adjustmentType} onChange={(e) => setAdjustmentType(e.target.value)} style={selectStyle}>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">거래 유형</label>
+              <select value={adjustmentType} onChange={(e) => setAdjustmentType(e.target.value)} className="input-field w-full">
                 {TRANSACTION_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
@@ -525,76 +532,69 @@ function InventoryDetailPageContent() {
               </select>
             </div>
             <div>
-              <label style={labelStyle}>수량 변경 (양수 또는 음수)</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">수량 변경 (양수 또는 음수)</label>
               <input
                 type="number"
                 value={adjustmentQty}
                 onChange={(e) => setAdjustmentQty(e.target.value)}
                 placeholder="예: +10 또는 -5"
-                style={inputStyle}
+                className="input-field w-full"
               />
             </div>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>메모 (선택)</label>
+          <div className="mb-4">
+            <label className="block text-[13px] text-text-secondary mb-2 font-semibold">메모 (선택)</label>
             <textarea
               value={adjustmentNotes}
               onChange={(e) => setAdjustmentNotes(e.target.value)}
               placeholder="조정 사유를 입력하세요"
-              style={textareaStyle}
+              className="input-field w-full resize-y font-[inherit]"
               rows={3}
             />
           </div>
 
-          <button onClick={handleAdjustment} disabled={adjusting || !adjustmentQty} style={adjustButton}>
+          <button onClick={handleAdjustment} disabled={adjusting || !adjustmentQty} className="py-3 px-6 rounded-lg border-none bg-success text-white text-sm cursor-pointer font-bold hover:opacity-80 transition-opacity">
             {adjusting ? "처리 중..." : "재고 조정 실행"}
           </button>
         </div>
       )}
 
       {/* Inventory Logs */}
-      <div style={card}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>재고 변경 이력</h3>
+      <div className="card p-6 mb-6">
+        <h3 className="text-lg font-bold mb-4 text-foreground">재고 변경 이력</h3>
 
         {logs.length === 0 ? (
-          <div style={emptyBox}>재고 변경 이력이 없습니다</div>
+          <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">재고 변경 이력이 없습니다</div>
         ) : (
-          <div style={{ border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="bg-bg-tertiary">
                 <tr>
-                  <th style={th}>거래 유형</th>
-                  <th style={{ ...th, textAlign: "right" }}>수량 변경</th>
-                  <th style={{ ...th, textAlign: "right" }}>변경 전</th>
-                  <th style={{ ...th, textAlign: "right" }}>변경 후</th>
-                  <th style={th}>메모</th>
-                  <th style={th}>일시</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">거래 유형</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">수량 변경</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">변경 전</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">변경 후</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">메모</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">일시</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => (
-                  <tr key={log.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>
-                      <span style={transactionBadge(log.transactionType)}>
+                  <tr key={log.id} className="border-t border-border">
+                    <td className="py-3 px-3.5 text-[13px] text-foreground">
+                      <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${TRANSACTION_BADGE_CLASSES[log.transactionType] || "bg-neutral-500/20 text-neutral-400"}`}>
                         {TRANSACTION_LABELS[log.transactionType] || log.transactionType}
                       </span>
                     </td>
-                    <td
-                      style={{
-                        ...td,
-                        textAlign: "right",
-                        fontWeight: 700,
-                        color: log.qtyChange > 0 ? "#10b981" : log.qtyChange < 0 ? "#ef4444" : "#aaa",
-                      }}
-                    >
+                    <td className={`py-3 px-3.5 text-[13px] text-right font-bold ${log.qtyChange > 0 ? "text-success" : log.qtyChange < 0 ? "text-danger-500" : "text-text-secondary"}`}>
                       {log.qtyChange > 0 ? "+" : ""}
                       {log.qtyChange}
                     </td>
-                    <td style={{ ...td, textAlign: "right", color: "#aaa" }}>{log.qtyBefore}</td>
-                    <td style={{ ...td, textAlign: "right", color: "#fff" }}>{log.qtyAfter}</td>
-                    <td style={{ ...td, color: "#aaa", fontSize: 12 }}>{log.notes || "-"}</td>
-                    <td style={{ ...td, color: "#aaa", fontSize: 12 }}>{formatDateTime(log.createdAt)}</td>
+                    <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{log.qtyBefore}</td>
+                    <td className="py-3 px-3.5 text-[13px] text-right text-foreground">{log.qtyAfter}</td>
+                    <td className="py-3 px-3.5 text-xs text-text-secondary">{log.notes || "-"}</td>
+                    <td className="py-3 px-3.5 text-xs text-text-secondary">{formatDateTime(log.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -604,203 +604,6 @@ function InventoryDetailPageContent() {
       </div>
     </div>
   );
-}
-
-// ============================================================
-// Styles
-// ============================================================
-
-const backLink: React.CSSProperties = {
-  display: "inline-block",
-  color: "#0070f3",
-  textDecoration: "none",
-  fontSize: 14,
-  fontWeight: 600,
-};
-
-const card: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 24,
-  background: "#0f0f0f",
-  marginBottom: 24,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  color: "#aaa",
-  marginBottom: 8,
-  fontWeight: 600,
-};
-
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 400,
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  outline: "none",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  outline: "none",
-};
-
-const textareaStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  outline: "none",
-  fontFamily: "inherit",
-  resize: "vertical",
-};
-
-const statBox: React.CSSProperties = {
-  padding: 16,
-  borderRadius: 8,
-  background: "#1a1a1a",
-  border: "1px solid #333",
-};
-
-const statLabel: React.CSSProperties = {
-  fontSize: 12,
-  color: "#aaa",
-  marginBottom: 8,
-  fontWeight: 600,
-};
-
-const statValue: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 800,
-  color: "#fff",
-};
-
-const editButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const saveButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "none",
-  background: "#0070f3",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const cancelButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const adjustButton: React.CSSProperties = {
-  padding: "12px 24px",
-  borderRadius: 8,
-  border: "none",
-  background: "#10b981",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 14px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: 13,
-  color: "white",
-};
-
-const lowStockBadge: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  height: 24,
-  padding: "0 10px",
-  borderRadius: 999,
-  background: "#ef444420",
-  color: "#ef4444",
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const emptyBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 48,
-  background: "#0a0a0a",
-  color: "#666",
-  textAlign: "center",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-  marginBottom: 16,
-};
-
-function transactionBadge(type: string): React.CSSProperties {
-  const colors: Record<string, { bg: string; text: string }> = {
-    RESTOCK: { bg: "#10b98120", text: "#10b981" },
-    ADJUSTMENT: { bg: "#3b82f620", text: "#3b82f6" },
-    DAMAGE: { bg: "#ef444420", text: "#ef4444" },
-    RETURN: { bg: "#f59e0b20", text: "#f59e0b" },
-    SALE: { bg: "#6b728020", text: "#9ca3af" },
-    RESERVATION: { bg: "#8b5cf620", text: "#a78bfa" },
-  };
-
-  const color = colors[type] || { bg: "#6b728020", text: "#9ca3af" };
-
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    height: 24,
-    padding: "0 10px",
-    borderRadius: 999,
-    background: color.bg,
-    color: color.text,
-    fontSize: 12,
-    fontWeight: 600,
-  };
 }
 
 export default function InventoryDetailPage() {

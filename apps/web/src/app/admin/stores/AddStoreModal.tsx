@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
@@ -44,11 +44,15 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       onClose={adding ? () => {} : onClose}
       footer={
         <>
-          <button style={btnGhost} onClick={onClose} disabled={adding}>
+          <button
+            className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
+            onClick={onClose}
+            disabled={adding}
+          >
             취소
           </button>
           <button
-            style={btnPrimary}
+            className="btn-primary h-9 px-4 text-[13px]"
             onClick={() => onSubmit({ name, slug })}
             disabled={disabled}
           >
@@ -57,30 +61,32 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         </>
       }
     >
-      <div style={sectionCard}>
-        <div style={sectionTitle}>기본 정보</div>
+      <div className="card p-3.5">
+        <div className="text-[13px] font-extrabold mb-3 text-foreground">기본 정보</div>
 
-        <label style={label}>가게명</label>
+        <label className="block text-xs text-text-secondary mb-1.5">가게명</label>
         <input
-          style={input}
+          className="input-field w-full"
           placeholder="예) 동탄 본점"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
         />
 
-        <label style={{ ...label, marginTop: 12 }}>가게 고유 주소(URL)</label>
-        <div style={slugRow}>
-          <div style={slugPrefix}>openoda.com/store/</div>
+        <label className="block text-xs text-text-secondary mb-1.5 mt-3">가게 고유 주소(URL)</label>
+        <div className="flex items-center border border-border rounded-lg overflow-hidden bg-bg-secondary">
+          <div className="px-2.5 h-[38px] flex items-center text-xs text-text-tertiary border-r border-border whitespace-nowrap">
+            openoda.com/store/
+          </div>
           <input
-            style={slugInput}
+            className="h-[38px] px-3 border-none outline-none bg-transparent text-foreground text-[13px] flex-1"
             placeholder="예) dongtan-main"
             value={slug}
             onChange={(e) => setSlug(normalizeSlug(e.target.value))}
           />
         </div>
 
-        <div style={helpText}>
+        <div className="mt-2.5 text-xs text-text-tertiary leading-relaxed">
           기본 정보만 먼저 생성됩니다. (상세/주소/이미지는 다음 단계에서 추가)
           <br />
           slug는 <b>영문/숫자/하이픈(-)</b>만 가능합니다.
@@ -89,98 +95,3 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
     </Modal>
   );
 }
-
-// styles
-const sectionCard: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  background: "#0a0a0a",
-  padding: 14,
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 800,
-  marginBottom: 12,
-  color: "white",
-};
-
-const label: React.CSSProperties = {
-  display: "block",
-  fontSize: 12,
-  color: "#aaa",
-  marginBottom: 6,
-};
-
-const helpText: React.CSSProperties = {
-  marginTop: 10,
-  fontSize: 12,
-  color: "#777",
-  lineHeight: 1.5,
-};
-
-const input: React.CSSProperties = {
-  height: 38,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "#060606",
-  color: "white",
-  fontSize: 13,
-  width: "100%",
-};
-
-const slugRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  border: "1px solid #333",
-  borderRadius: 10,
-  overflow: "hidden",
-  background: "#060606",
-};
-
-const slugPrefix: React.CSSProperties = {
-  padding: "0 10px",
-  height: 38,
-  display: "flex",
-  alignItems: "center",
-  fontSize: 12,
-  color: "#888",
-  borderRight: "1px solid #222",
-  whiteSpace: "nowrap",
-};
-
-const slugInput: React.CSSProperties = {
-  height: 38,
-  padding: "0 12px",
-  border: "none",
-  outline: "none",
-  background: "transparent",
-  color: "white",
-  fontSize: 13,
-  flex: 1,
-};
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 13,
-};

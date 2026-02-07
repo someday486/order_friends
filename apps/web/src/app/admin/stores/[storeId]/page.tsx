@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -243,70 +243,70 @@ export default function StoreDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: 16 }}>
-        <Link href="/admin/stores" style={{ color: "#aaa", fontSize: 12 }}>
+      <div className="mb-4">
+        <Link href="/admin/stores" className="text-text-secondary text-xs hover:text-foreground transition-colors">
           ← 가게 관리로 돌아가기
         </Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "8px 0 0 0" }}>
+        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">
           {branch?.name ?? "가게 상세"}
         </h1>
-        <p style={{ color: "#aaa", margin: "4px 0 0 0", fontSize: 13 }}>
+        <p className="text-text-secondary mt-1 text-[13px]">
           {branch?.slug ? `openoda.com/store/${branch.slug}` : "-"}
         </p>
       </div>
 
-      {loading && <p style={{ color: "#666" }}>불러오는 중...</p>}
-      {error && <p style={{ color: "#ff8a8a" }}>{error}</p>}
+      {loading && <p className="text-text-tertiary">불러오는 중...</p>}
+      {error && <p className="text-danger-500">{error}</p>}
 
       {!loading && branch && (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className="grid gap-3">
           {/* Info + Edit */}
-          <div style={card}>
-            <div style={{ fontSize: 12, color: "#aaa" }}>가게 정보</div>
-            <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
+          <div className="card p-4">
+            <div className="text-xs text-text-secondary">가게 정보</div>
+            <div className="mt-2 grid gap-2.5">
               <div>
-                <label style={label}>가게 ID</label>
-                <div style={valueText}>{branch.id}</div>
+                <label className="block mb-1.5 text-xs text-text-secondary">가게 ID</label>
+                <div className="text-[13px] text-foreground">{branch.id}</div>
               </div>
 
               <div>
-                <label style={label}>가게명</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">가게명</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  style={inputStyle}
+                  className="input-field w-full"
                   placeholder="가게명을 입력하세요"
                 />
               </div>
 
               <div>
-                <label style={label}>가게 URL</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">가게 URL</label>
                 <input
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
-                  style={inputStyle}
+                  className="input-field w-full"
                   placeholder="예: my-store-01"
                 />
-                <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>
+                <div className="text-xs text-text-tertiary mt-1.5">
                   영문/숫자/하이픈(-)만 가능합니다.
                 </div>
               </div>
 
               <div>
-                <label style={label}>생성일</label>
-                <div style={valueText}>{formatDate(branch.createdAt)}</div>
+                <label className="block mb-1.5 text-xs text-text-secondary">생성일</label>
+                <div className="text-[13px] text-foreground">{formatDate(branch.createdAt)}</div>
               </div>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <div className="flex gap-2 mt-1.5">
                 <button
-                  style={btnPrimary}
+                  className="btn-primary h-9 px-4 text-[13px]"
                   onClick={handleSave}
                   disabled={saving || !isDirty}
                 >
                   {saving ? "저장 중..." : "저장"}
                 </button>
                 <button
-                  style={btnDanger}
+                  className="h-9 px-4 rounded-lg border border-border bg-transparent text-danger-500 font-bold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
                   onClick={handleDelete}
                   disabled={deleting}
                 >
@@ -317,24 +317,24 @@ export default function StoreDetailPage() {
           </div>
 
           {/* Members */}
-          <div style={card}>
-            <div style={{ fontSize: 12, color: "#aaa" }}>가게 멤버</div>
-            {membersLoading && <p style={{ color: "#666" }}>불러오는 중...</p>}
-            {membersError && <p style={{ color: "#ff8a8a" }}>{membersError}</p>}
+          <div className="card p-4">
+            <div className="text-xs text-text-secondary">가게 멤버</div>
+            {membersLoading && <p className="text-text-tertiary">불러오는 중...</p>}
+            {membersError && <p className="text-danger-500">{membersError}</p>}
             {!membersLoading && members.length === 0 && (
-              <p style={{ color: "#666" }}>등록된 멤버가 없습니다.</p>
+              <p className="text-text-tertiary">등록된 멤버가 없습니다.</p>
             )}
             {!membersLoading && members.length > 0 && (
-              <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+              <div className="mt-2 grid gap-1.5">
                 {members.map((m) => (
-                  <div key={m.id} style={memberRow}>
+                  <div key={m.id} className="flex items-center justify-between py-2.5 px-3 border border-border rounded-lg bg-bg-secondary">
                     <div>
-                      <div style={{ fontSize: 13 }}>
+                      <div className="text-[13px] text-foreground">
                         {m.displayName ?? m.email ?? m.userId}
                       </div>
-                      <div style={{ fontSize: 12, color: "#888" }}>{m.userId}</div>
+                      <div className="text-xs text-text-tertiary">{m.userId}</div>
                     </div>
-                    <div style={{ fontSize: 12, color: "#aaa" }}>
+                    <div className="text-xs text-text-secondary">
                       {m.role} · {m.status}
                     </div>
                   </div>
@@ -344,17 +344,19 @@ export default function StoreDetailPage() {
           </div>
 
           {/* Next steps */}
-          <div style={card}>
-            <div style={{ fontSize: 12, color: "#aaa" }}>다음 단계</div>
-            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="card p-4">
+            <div className="text-xs text-text-secondary">다음 단계</div>
+            <div className="mt-2.5 flex gap-2 flex-wrap">
               <Link href={`/admin/products?branchId=${branch.id}`}>
-                <button style={btnPrimary}>상품 관리</button>
+                <button className="btn-primary h-9 px-4 text-[13px]">상품 관리</button>
               </Link>
               <Link href={`/admin/orders?branchId=${branch.id}`}>
-                <button style={btnPrimary}>주문 관리</button>
+                <button className="btn-primary h-9 px-4 text-[13px]">주문 관리</button>
               </Link>
               <Link href={`/admin/members?tab=branch&branchId=${branch.id}`}>
-                <button style={btnGhost}>가게 멤버</button>
+                <button className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors">
+                  가게 멤버
+                </button>
               </Link>
             </div>
           </div>
@@ -363,83 +365,3 @@ export default function StoreDetailPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const card: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 16,
-  background: "#0f0f0f",
-};
-
-const label: React.CSSProperties = {
-  display: "block",
-  marginBottom: 6,
-  fontSize: 12,
-  color: "#aaa",
-};
-
-const valueText: React.CSSProperties = {
-  fontSize: 13,
-  color: "white",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontSize: 13,
-};
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 600,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const btnDanger: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#ef4444",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const memberRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "10px 12px",
-  border: "1px solid #222",
-  borderRadius: 8,
-  background: "#0b0b0b",
-};

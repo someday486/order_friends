@@ -58,13 +58,22 @@ const statusLabel: Record<OrderStatus, string> = {
   CANCELLED: "취소",
 };
 
-const statusColor: Record<OrderStatus, string> = {
-  PENDING: "#f59e0b",
-  CONFIRMED: "#3b82f6",
-  PREPARING: "#3b82f6",
-  READY: "#10b981",
-  COMPLETED: "#6b7280",
-  CANCELLED: "#ef4444",
+const statusBadgeClasses: Record<OrderStatus, string> = {
+  PENDING: "bg-warning-500/20 text-warning-500",
+  CONFIRMED: "bg-primary-500/20 text-primary-500",
+  PREPARING: "bg-primary-500/20 text-primary-500",
+  READY: "bg-success/20 text-success",
+  COMPLETED: "bg-neutral-500/20 text-neutral-500",
+  CANCELLED: "bg-danger-500/20 text-danger-500",
+};
+
+const statusBtnActiveClasses: Record<OrderStatus, string> = {
+  PENDING: "bg-warning-500/30 border-warning-500 text-warning-500",
+  CONFIRMED: "bg-primary-500/30 border-primary-500 text-primary-500",
+  PREPARING: "bg-primary-500/30 border-primary-500 text-primary-500",
+  READY: "bg-success/30 border-success text-success",
+  COMPLETED: "bg-neutral-500/30 border-neutral-500 text-neutral-500",
+  CANCELLED: "bg-danger-500/30 border-danger-500 text-danger-500",
 };
 
 const STATUS_OPTIONS: OrderStatus[] = [
@@ -194,10 +203,10 @@ export default function CustomerOrderDetailPage() {
   if (loading) {
     return (
       <div>
-        <Link href="/customer/orders" style={{ color: "white", textDecoration: "none" }}>
+        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <div style={{ marginTop: 24 }}>로딩 중...</div>
+        <div className="mt-6 text-text-secondary">로딩 중...</div>
       </div>
     );
   }
@@ -205,10 +214,12 @@ export default function CustomerOrderDetailPage() {
   if (error && !order) {
     return (
       <div>
-        <Link href="/customer/orders" style={{ color: "white", textDecoration: "none" }}>
+        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <div style={errorBox}>{error}</div>
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500 mt-4 mb-4">
+          {error}
+        </div>
       </div>
     );
   }
@@ -216,10 +227,10 @@ export default function CustomerOrderDetailPage() {
   if (!order) {
     return (
       <div>
-        <Link href="/customer/orders" style={{ color: "white", textDecoration: "none" }}>
+        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <div style={{ marginTop: 24, color: "#666" }}>주문을 찾을 수 없습니다.</div>
+        <div className="mt-6 text-text-tertiary">주문을 찾을 수 없습니다.</div>
       </div>
     );
   }
@@ -227,73 +238,65 @@ export default function CustomerOrderDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <Link href="/customer/orders" style={{ color: "white", textDecoration: "none" }}>
+      <div className="mb-6">
+        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>주문 상세</h1>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              height: 28,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: statusColor[order.status] + "20",
-              color: statusColor[order.status],
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
+        <div className="flex items-center gap-2.5 mt-4">
+          <h1 className="m-0 text-2xl font-extrabold text-foreground">주문 상세</h1>
+          <span className={`inline-flex items-center h-7 px-3 rounded-full text-[13px] font-semibold ${statusBadgeClasses[order.status]}`}>
             {statusLabel[order.status]}
           </span>
         </div>
 
-        <div style={{ marginTop: 8, color: "#aaa", fontSize: 13 }}>
+        <div className="mt-2 text-text-secondary text-[13px]">
           주문번호{" "}
-          <span style={{ fontFamily: "monospace", color: "#fff" }}>
+          <span className="font-mono text-foreground">
             {order.order_no ?? order.id}
           </span>{" "}
           · {formatDateTime(order.created_at)}
         </div>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && (
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500 mb-4">
+          {error}
+        </div>
+      )}
 
       {/* Content */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-[1.5fr_1fr] gap-4">
         {/* Left: Items */}
-        <section style={card}>
-          <div style={cardTitle}>주문 상품</div>
+        <section className="card p-4">
+          <div className="font-extrabold text-sm text-foreground">주문 상품</div>
 
-          <div style={{ marginTop: 12, border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
+          <div className="mt-3 border border-border rounded-xl overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="bg-bg-tertiary">
                 <tr>
-                  <th style={th}>상품명</th>
-                  <th style={th}>옵션</th>
-                  <th style={{ ...th, textAlign: "right" }}>수량</th>
-                  <th style={{ ...th, textAlign: "right" }}>단가</th>
-                  <th style={{ ...th, textAlign: "right" }}>합계</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">상품명</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">옵션</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">수량</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">단가</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">합계</th>
                 </tr>
               </thead>
               <tbody>
                 {order.items.map((item) => (
-                  <tr key={item.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>{item.product_name}</td>
-                    <td style={{ ...td, color: "#aaa" }}>{item.option_name ?? "-"}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{item.quantity}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{formatWon(item.unit_price)}</td>
-                    <td style={{ ...td, textAlign: "right" }}>
+                  <tr key={item.id} className="border-t border-border">
+                    <td className="py-2.5 px-3 text-[13px] text-foreground">{item.product_name}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">{item.option_name ?? "-"}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{item.quantity}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(item.unit_price)}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">
                       {formatWon(item.unit_price * item.quantity)}
                     </td>
                   </tr>
                 ))}
                 {order.items.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                    <td colSpan={5} className="py-2.5 px-3 text-[13px] text-text-tertiary text-center">
                       상품 없음
                     </td>
                   </tr>
@@ -302,62 +305,59 @@ export default function CustomerOrderDetailPage() {
             </table>
           </div>
 
-          <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 14, color: "#aaa" }}>총 결제금액</div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{formatWon(order.total_amount)}</div>
+          <div className="mt-4 flex justify-between items-center">
+            <div className="text-sm text-text-secondary">총 결제금액</div>
+            <div className="text-xl font-extrabold text-foreground">{formatWon(order.total_amount)}</div>
           </div>
         </section>
 
         {/* Right: Customer Info & Status Update */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <section style={card}>
-            <div style={cardTitle}>고객 정보</div>
+        <div className="flex flex-col gap-4">
+          <section className="card p-4">
+            <div className="font-extrabold text-sm text-foreground">고객 정보</div>
 
-            <div style={kv}>
-              <div style={k}>이름</div>
-              <div style={v}>{order.customer_name || "-"}</div>
+            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">이름</div>
+              <div className="text-foreground text-[13px]">{order.customer_name || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>연락처</div>
-              <div style={v}>{order.customer_phone || "-"}</div>
+            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">연락처</div>
+              <div className="text-foreground text-[13px]">{order.customer_phone || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>주소</div>
-              <div style={v}>{order.customer_address || "-"}</div>
+            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">주소</div>
+              <div className="text-foreground text-[13px]">{order.customer_address || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>메모</div>
-              <div style={v}>{order.customer_memo || "-"}</div>
+            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">메모</div>
+              <div className="text-foreground text-[13px]">{order.customer_memo || "-"}</div>
             </div>
             {order.branch && (
-              <div style={kv}>
-                <div style={k}>지점</div>
-                <div style={v}>{order.branch.name}</div>
+              <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
+                <div className="text-text-secondary text-[13px]">지점</div>
+                <div className="text-foreground text-[13px]">{order.branch.name}</div>
               </div>
             )}
           </section>
 
           {canUpdateStatus && (
-            <section style={card}>
-              <div style={cardTitle}>상태 변경</div>
-              <div style={{ fontSize: 12, color: "#666", marginTop: 4, marginBottom: 12 }}>
+            <section className="card p-4">
+              <div className="font-extrabold text-sm text-foreground">상태 변경</div>
+              <div className="text-xs text-text-tertiary mt-1 mb-3">
                 OWNER/ADMIN만 변경 가능
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="flex flex-col gap-2">
                 {STATUS_OPTIONS.map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusUpdate(status)}
                     disabled={statusLoading || order.status === status}
-                    style={{
-                      ...statusBtn,
-                      background: order.status === status ? statusColor[status] + "30" : "transparent",
-                      borderColor: order.status === status ? statusColor[status] : "#333",
-                      color: order.status === status ? statusColor[status] : "white",
-                      opacity: order.status === status ? 1 : 0.7,
-                      cursor: order.status === status ? "default" : "pointer",
-                    }}
+                    className={`h-9 px-4 rounded-[10px] border text-[13px] font-semibold transition-all ${
+                      order.status === status
+                        ? `${statusBtnActiveClasses[status]} cursor-default`
+                        : "border-border bg-transparent text-foreground opacity-70 cursor-pointer hover:bg-bg-tertiary"
+                    }`}
                   >
                     {statusLabel[status]}
                     {order.status === status && " (현재)"}
@@ -366,7 +366,7 @@ export default function CustomerOrderDetailPage() {
               </div>
 
               {statusLoading && (
-                <div style={{ marginTop: 12, fontSize: 12, color: "#666", textAlign: "center" }}>
+                <div className="mt-3 text-xs text-text-tertiary text-center">
                   변경 중...
                 </div>
               )}
@@ -374,12 +374,12 @@ export default function CustomerOrderDetailPage() {
           )}
 
           {!canUpdateStatus && (
-            <section style={card}>
-              <div style={cardTitle}>권한 정보</div>
-              <div style={{ marginTop: 12, fontSize: 13, color: "#aaa" }}>
+            <section className="card p-4">
+              <div className="font-extrabold text-sm text-foreground">권한 정보</div>
+              <div className="mt-3 text-[13px] text-text-secondary">
                 현재 역할: {order.myRole || "VIEWER"}
               </div>
-              <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
+              <div className="mt-2 text-xs text-text-tertiary">
                 주문 상태를 변경하려면 OWNER 또는 ADMIN 권한이 필요합니다.
               </div>
             </section>
@@ -389,65 +389,3 @@ export default function CustomerOrderDetailPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const card: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 16,
-  background: "#0b0b0b",
-};
-
-const cardTitle: React.CSSProperties = {
-  fontWeight: 800,
-  fontSize: 14,
-};
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 12px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "10px 12px",
-  fontSize: 13,
-  color: "white",
-};
-
-const kv: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "80px 1fr",
-  gap: 10,
-  padding: "8px 0",
-};
-
-const k: React.CSSProperties = { color: "#aaa", fontSize: 13 };
-const v: React.CSSProperties = { color: "white", fontSize: 13 };
-
-const statusBtn: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 600,
-  fontSize: 13,
-  transition: "all 0.15s",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-  marginTop: 16,
-  marginBottom: 16,
-};

@@ -176,53 +176,53 @@ export default function OrderPage() {
 
   if (loading) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>로딩 중...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <p className="text-text-secondary text-center p-10">로딩 중...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#ff8a8a", textAlign: "center", padding: 40 }}>{error}</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <p className="text-danger-500 text-center p-10">{error}</p>
       </div>
     );
   }
 
   return (
-    <div style={pageContainer}>
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header style={header}>
+      <header className="py-5 px-4 border-b border-border">
         <div>
-          <div style={{ fontSize: 12, color: "#888" }}>{branch?.brandName}</div>
-          <h1 style={{ margin: "4px 0 0 0", fontSize: 20, fontWeight: 700 }}>{branch?.name}</h1>
+          <div className="text-xs text-text-tertiary">{branch?.brandName}</div>
+          <h1 className="mt-1 mb-0 text-xl font-bold text-foreground">{branch?.name}</h1>
         </div>
       </header>
 
       {/* Products */}
-      <main style={{ padding: "16px 16px 120px 16px" }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>메뉴</h2>
+      <main className="p-4 pb-[120px]">
+        <h2 className="text-base font-bold mb-3 text-foreground">메뉴</h2>
 
         {products.length === 0 ? (
-          <p style={{ color: "#666" }}>등록된 상품이 없습니다.</p>
+          <p className="text-text-tertiary">등록된 상품이 없습니다.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {products.map((product) => (
               <div
                 key={product.id}
-                style={productCard}
+                className="flex items-center gap-3 p-4 rounded-xl border border-border bg-bg-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
                 onClick={() => handleSelectProduct(product)}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{product.name}</div>
+                <div className="flex-1">
+                  <div className="font-semibold text-foreground">{product.name}</div>
                   {product.description && (
-                    <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
+                    <div className="text-[13px] text-text-tertiary mt-1">
                       {product.description}
                     </div>
                   )}
                 </div>
-                <div style={{ fontWeight: 700, color: "#fff" }}>{formatWon(product.price)}</div>
+                <div className="font-bold text-foreground">{formatWon(product.price)}</div>
               </div>
             ))}
           </div>
@@ -231,12 +231,12 @@ export default function OrderPage() {
 
       {/* Cart Summary (Fixed Bottom) */}
       {cart.length > 0 && (
-        <div style={cartBar}>
+        <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between p-3 px-4 bg-bg-secondary border-t border-border">
           <div>
-            <div style={{ fontSize: 13, color: "#aaa" }}>장바구니 {cart.length}개</div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{formatWon(totalAmount)}</div>
+            <div className="text-[13px] text-text-secondary">장바구니 {cart.length}개</div>
+            <div className="font-bold text-lg text-foreground">{formatWon(totalAmount)}</div>
           </div>
-          <button style={orderBtn} onClick={goToCheckout}>
+          <button className="py-3 px-6 rounded-[10px] border-none bg-foreground text-background font-bold text-sm cursor-pointer" onClick={goToCheckout}>
             주문하기
           </button>
         </div>
@@ -244,33 +244,27 @@ export default function OrderPage() {
 
       {/* Product Modal */}
       {selectedProduct && (
-        <div style={modalOverlay} onClick={() => setSelectedProduct(null)}>
-          <div style={modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: 18 }}>{selectedProduct.name}</h3>
-            <div style={{ color: "#888", marginBottom: 16 }}>{formatWon(selectedProduct.price)}</div>
+        <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-[100]" onClick={() => setSelectedProduct(null)}>
+          <div className="w-full max-w-[480px] max-h-[80vh] p-5 rounded-t-2xl bg-bg-secondary overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="m-0 mb-2 text-lg text-foreground">{selectedProduct.name}</h3>
+            <div className="text-text-tertiary mb-4">{formatWon(selectedProduct.price)}</div>
 
             {/* Options */}
             {selectedProduct.options.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 선택</div>
+              <div className="mb-4">
+                <div className="text-sm font-semibold mb-2 text-foreground">옵션 선택</div>
                 {selectedProduct.options.map((opt) => (
                   <label
                     key={opt.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "8px 0",
-                      cursor: "pointer",
-                    }}
+                    className="flex items-center gap-2 py-2 cursor-pointer text-foreground"
                   >
                     <input
                       type="checkbox"
                       checked={selectedOptions.some((o) => o.id === opt.id)}
                       onChange={() => toggleOption(opt)}
                     />
-                    <span style={{ flex: 1 }}>{opt.name}</span>
-                    <span style={{ color: "#888" }}>
+                    <span className="flex-1">{opt.name}</span>
+                    <span className="text-text-tertiary">
                       {opt.priceDelta > 0 ? `+${formatWon(opt.priceDelta)}` : ""}
                     </span>
                   </label>
@@ -279,30 +273,30 @@ export default function OrderPage() {
             )}
 
             {/* Quantity */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>수량</span>
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-sm font-semibold text-foreground">수량</span>
               <button
-                style={qtyBtn}
+                className="w-9 h-9 rounded-lg border border-border bg-transparent text-foreground text-lg cursor-pointer"
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
               >
                 -
               </button>
-              <span style={{ width: 40, textAlign: "center" }}>{qty}</span>
-              <button style={qtyBtn} onClick={() => setQty((q) => q + 1)}>
+              <span className="w-10 text-center text-foreground">{qty}</span>
+              <button className="w-9 h-9 rounded-lg border border-border bg-transparent text-foreground text-lg cursor-pointer" onClick={() => setQty((q) => q + 1)}>
                 +
               </button>
             </div>
 
             {/* Total */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <div className="flex justify-between mb-4 text-foreground">
               <span>합계</span>
-              <span style={{ fontWeight: 700, fontSize: 18 }}>
+              <span className="font-bold text-lg">
                 {formatWon(calculateItemPrice(selectedProduct, selectedOptions) * qty)}
               </span>
             </div>
 
             {/* Add Button */}
-            <button style={addBtn} onClick={addToCart}>
+            <button className="w-full py-3.5 rounded-[10px] border-none bg-foreground text-background font-bold text-[15px] cursor-pointer" onClick={addToCart}>
               장바구니에 담기
             </button>
           </div>
@@ -311,25 +305,25 @@ export default function OrderPage() {
 
       {/* Cart Detail (if needed) */}
       {cart.length > 0 && (
-        <div style={{ padding: "0 16px 16px 16px" }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>장바구니</h3>
+        <div className="px-4 pb-4">
+          <h3 className="text-sm font-semibold mb-2 text-foreground">장바구니</h3>
           {cart.map((item, idx) => (
-            <div key={idx} style={cartItem}>
-              <div style={{ flex: 1 }}>
-                <div>{item.product.name}</div>
+            <div key={idx} className="flex items-center gap-3 p-3 mb-2 rounded-[10px] bg-bg-secondary border border-border">
+              <div className="flex-1">
+                <div className="text-foreground">{item.product.name}</div>
                 {item.selectedOptions.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#888" }}>
+                  <div className="text-xs text-text-tertiary">
                     옵션: {item.selectedOptions.map((o) => o.name).join(", ")}
                   </div>
                 )}
-                <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
+                <div className="text-[13px] text-text-secondary mt-1">
                   {formatWon(item.itemPrice)} × {item.qty}
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: 600 }}>{formatWon(item.itemPrice * item.qty)}</div>
+              <div className="text-right">
+                <div className="font-semibold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
                 <button
-                  style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}
+                  className="text-xs text-danger-500 bg-transparent border-none cursor-pointer"
                   onClick={() => removeFromCart(idx)}
                 >
                   삭제
@@ -342,110 +336,3 @@ export default function OrderPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const pageContainer: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#000",
-  color: "#fff",
-};
-
-const header: React.CSSProperties = {
-  padding: "20px 16px",
-  borderBottom: "1px solid #222",
-};
-
-const productCard: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: 16,
-  borderRadius: 12,
-  border: "1px solid #222",
-  background: "#0a0a0a",
-  cursor: "pointer",
-};
-
-const cartBar: React.CSSProperties = {
-  position: "fixed",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "12px 16px",
-  background: "#111",
-  borderTop: "1px solid #333",
-};
-
-const orderBtn: React.CSSProperties = {
-  padding: "12px 24px",
-  borderRadius: 10,
-  border: "none",
-  background: "#fff",
-  color: "#000",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const modalOverlay: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "rgba(0,0,0,0.8)",
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "center",
-  zIndex: 100,
-};
-
-const modalContent: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 480,
-  maxHeight: "80vh",
-  padding: 20,
-  borderRadius: "16px 16px 0 0",
-  background: "#111",
-  overflowY: "auto",
-};
-
-const qtyBtn: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#fff",
-  fontSize: 18,
-  cursor: "pointer",
-};
-
-const addBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "14px",
-  borderRadius: 10,
-  border: "none",
-  background: "#fff",
-  color: "#000",
-  fontWeight: 700,
-  fontSize: 15,
-  cursor: "pointer",
-};
-
-const cartItem: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: 12,
-  marginBottom: 8,
-  borderRadius: 10,
-  background: "#0a0a0a",
-  border: "1px solid #222",
-};

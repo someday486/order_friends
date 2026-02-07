@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
-import { Cache } from 'cache-manager';
+import type { Cache } from 'cache-manager';
 
 export const USER_RATE_LIMIT_KEY = 'userRateLimit';
 

@@ -16,6 +16,7 @@ exports.PublicController = void 0;
 const common_1 = require("@nestjs/common");
 const public_service_1 = require("./public.service");
 const public_dto_1 = require("./dto/public.dto");
+const user_rate_limit_decorator_1 = require("../../common/decorators/user-rate-limit.decorator");
 let PublicController = class PublicController {
     publicService;
     constructor(publicService) {
@@ -37,6 +38,7 @@ let PublicController = class PublicController {
 exports.PublicController = PublicController;
 __decorate([
     (0, common_1.Get)('branch/:branchId'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 60, duration: 60 }),
     __param(0, (0, common_1.Param)('branchId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -44,6 +46,7 @@ __decorate([
 ], PublicController.prototype, "getBranch", null);
 __decorate([
     (0, common_1.Get)('branch/:branchId/products'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 30, duration: 60 }),
     __param(0, (0, common_1.Param)('branchId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -51,6 +54,7 @@ __decorate([
 ], PublicController.prototype, "getProducts", null);
 __decorate([
     (0, common_1.Post)('orders'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 5, duration: 60, blockDuration: 300 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [public_dto_1.CreatePublicOrderRequest]),
@@ -58,6 +62,7 @@ __decorate([
 ], PublicController.prototype, "createOrder", null);
 __decorate([
     (0, common_1.Get)('orders/:orderId'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 30, duration: 60 }),
     __param(0, (0, common_1.Param)('orderId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),

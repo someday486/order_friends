@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Cache } from 'cache-manager';
+import type { Cache } from 'cache-manager';
 export declare const USER_RATE_LIMIT_KEY = "userRateLimit";
 export interface UserRateLimitOptions {
     points: number;

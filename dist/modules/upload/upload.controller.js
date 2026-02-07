@@ -19,6 +19,7 @@ const swagger_1 = require("@nestjs/swagger");
 const auth_guard_1 = require("../../common/guards/auth.guard");
 const admin_guard_1 = require("../../common/guards/admin.guard");
 const upload_service_1 = require("./upload.service");
+const user_rate_limit_decorator_1 = require("../../common/decorators/user-rate-limit.decorator");
 let UploadController = class UploadController {
     uploadService;
     constructor(uploadService) {
@@ -54,6 +55,7 @@ let UploadController = class UploadController {
 exports.UploadController = UploadController;
 __decorate([
     (0, common_1.Post)('image'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 20, duration: 60 }),
     (0, swagger_1.ApiOperation)({
         summary: '이미지 업로드',
         description: '단일 이미지를 업로드합니다.',
@@ -95,6 +97,7 @@ __decorate([
 ], UploadController.prototype, "uploadImage", null);
 __decorate([
     (0, common_1.Post)('images'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 10, duration: 60 }),
     (0, swagger_1.ApiOperation)({
         summary: '다중 이미지 업로드',
         description: '여러 이미지를 한번에 업로드합니다.',
@@ -142,6 +145,7 @@ __decorate([
 ], UploadController.prototype, "uploadMultipleImages", null);
 __decorate([
     (0, common_1.Delete)('image'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 30, duration: 60 }),
     (0, swagger_1.ApiOperation)({
         summary: '이미지 삭제',
         description: '업로드된 이미지를 삭제합니다.',
@@ -165,6 +169,7 @@ __decorate([
 ], UploadController.prototype, "deleteImage", null);
 __decorate([
     (0, common_1.Delete)('images'),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 10, duration: 60 }),
     (0, swagger_1.ApiOperation)({
         summary: '다중 이미지 삭제',
         description: '여러 이미지를 한번에 삭제합니다.',

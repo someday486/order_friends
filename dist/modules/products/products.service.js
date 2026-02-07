@@ -91,6 +91,8 @@ let ProductsService = ProductsService_1 = class ProductsService {
                 limit,
                 total: count || 0,
                 totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1,
             },
         };
     }

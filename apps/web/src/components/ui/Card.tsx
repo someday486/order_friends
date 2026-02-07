@@ -45,7 +45,7 @@ interface CardTitleProps {
 
 export function CardTitle({ children, className = '' }: CardTitleProps) {
   return (
-    <h3 className={`text-lg font-bold text-white ${className}`}>
+    <h3 className={`text-lg font-bold text-foreground ${className}`}>
       {children}
     </h3>
   );

@@ -98,27 +98,21 @@ export function ImageUpload({
   };
 
   return (
-    <div style={{ marginBottom: 20 }}>
-      <label style={labelStyle}>{label}</label>
+    <div className="mb-5">
+      <label className="block text-sm text-text-secondary mb-2 font-semibold">{label}</label>
 
       {value ? (
-        <div style={{ position: "relative", display: "inline-block" }}>
+        <div className="relative inline-block">
           <img
             src={value}
             alt={label}
-            style={{
-              width: "100%",
-              maxWidth: 240,
-              aspectRatio,
-              objectFit: "cover",
-              borderRadius: 8,
-              border: "1px solid #333",
-            }}
+            className="w-full max-w-[240px] object-cover rounded border border-border"
+            style={{ aspectRatio }}
           />
           <button
             type="button"
             onClick={handleRemove}
-            style={removeButton}
+            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 text-white text-xs font-bold flex items-center justify-center cursor-pointer border-none hover:bg-black/90 transition-colors"
             title="이미지 삭제"
           >
             X
@@ -133,21 +127,25 @@ export function ImageUpload({
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          style={{
-            ...dropZone,
-            borderColor: dragOver ? "#0070f3" : "#333",
-            background: dragOver ? "#0a1628" : "#1a1a1a",
-          }}
+          className={`
+            w-full max-w-[240px] aspect-square border-2 border-dashed rounded
+            flex flex-col items-center justify-center cursor-pointer
+            text-text-tertiary transition-colors duration-200
+            ${dragOver
+              ? "border-primary-500 bg-primary-500/10"
+              : "border-border bg-bg-tertiary hover:border-text-tertiary"
+            }
+          `}
         >
           {uploading ? (
-            <span style={{ color: "#aaa", fontSize: 14 }}>업로드 중...</span>
+            <span className="text-sm text-text-secondary">업로드 중...</span>
           ) : (
             <>
-              <span style={{ fontSize: 28, marginBottom: 8 }}>+</span>
-              <span style={{ color: "#aaa", fontSize: 13 }}>
+              <span className="text-[28px] mb-2">+</span>
+              <span className="text-sm text-text-secondary">
                 클릭 또는 드래그하여 이미지 업로드
               </span>
-              <span style={{ color: "#666", fontSize: 11, marginTop: 4 }}>
+              <span className="text-2xs text-text-tertiary mt-1">
                 JPG, PNG, WebP, GIF (최대 5MB)
               </span>
             </>
@@ -160,57 +158,10 @@ export function ImageUpload({
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
         onChange={handleFileChange}
-        style={{ display: "none" }}
+        className="hidden"
       />
 
-      {error && <div style={errorText}>{error}</div>}
+      {error && <div className="text-danger-500 text-xs mt-1.5">{error}</div>}
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  color: "#aaa",
-  marginBottom: 8,
-  fontWeight: 600,
-};
-
-const dropZone: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 240,
-  aspectRatio: "1/1",
-  border: "2px dashed #333",
-  borderRadius: 8,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  color: "#666",
-  transition: "border-color 0.2s, background 0.2s",
-};
-
-const removeButton: React.CSSProperties = {
-  position: "absolute",
-  top: 6,
-  right: 6,
-  width: 28,
-  height: 28,
-  borderRadius: "50%",
-  border: "none",
-  background: "rgba(0,0,0,0.7)",
-  color: "#fff",
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const errorText: React.CSSProperties = {
-  color: "#ff6666",
-  fontSize: 12,
-  marginTop: 6,
-};

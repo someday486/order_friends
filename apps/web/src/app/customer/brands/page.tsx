@@ -79,8 +79,8 @@ export default function CustomerBrandsPage() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 32 }}>브랜드 관리</h1>
-        <div>로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">브랜드 관리</h1>
+        <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
   }
@@ -88,25 +88,25 @@ export default function CustomerBrandsPage() {
   if (error) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>브랜드 관리</h1>
-        <div style={errorBox}>{error}</div>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">브랜드 관리</h1>
+        <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500">{error}</div>
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>브랜드 관리</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">브랜드 관리</h1>
       </div>
 
       {brands.length === 0 ? (
-        <div style={emptyBox}>
-          <div style={{ fontSize: 16, marginBottom: 8 }}>등록된 브랜드가 없습니다</div>
-          <div style={{ fontSize: 13, color: "#666" }}>관리자에게 브랜드 멤버십을 요청하세요</div>
+        <div className="card p-12 text-center text-text-tertiary">
+          <div className="text-base mb-2">등록된 브랜드가 없습니다</div>
+          <div className="text-sm">관리자에게 브랜드 멤버십을 요청하세요</div>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {brands.map((brand) => (
             <BrandCard key={brand.id} brand={brand} />
           ))}
@@ -122,73 +122,33 @@ export default function CustomerBrandsPage() {
 
 function BrandCard({ brand }: { brand: Brand }) {
   return (
-    <Link href={`/customer/brands/${brand.id}`} style={brandCardStyle}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+    <Link
+      href={`/customer/brands/${brand.id}`}
+      className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
+    >
+      <div className="flex items-center gap-3 mb-3">
         {brand.logo_url ? (
           <img
             src={brand.logo_url}
             alt={brand.name}
-            style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" }}
+            className="w-12 h-12 rounded object-cover"
           />
         ) : (
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 8,
-              background: "#222",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-            }}
-          >
+          <div className="w-12 h-12 rounded bg-bg-tertiary flex items-center justify-center text-2xl">
             🏢
           </div>
         )}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{brand.name}</div>
-          <div style={{ fontSize: 12, color: "#aaa" }}>역할: {brand.myRole}</div>
+        <div className="flex-1">
+          <div className="font-bold text-base mb-1">{brand.name}</div>
+          <div className="text-xs text-text-secondary">역할: {brand.myRole}</div>
         </div>
       </div>
       {brand.description && (
-        <div style={{ fontSize: 13, color: "#999", marginBottom: 8, lineHeight: 1.5 }}>{brand.description}</div>
+        <div className="text-sm text-text-secondary mb-2 leading-relaxed">{brand.description}</div>
       )}
-      <div style={{ fontSize: 11, color: "#666" }}>
+      <div className="text-2xs text-text-tertiary">
         등록일: {new Date(brand.created_at).toLocaleDateString()}
       </div>
     </Link>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const brandCardStyle: React.CSSProperties = {
-  display: "block",
-  padding: 16,
-  borderRadius: 12,
-  border: "1px solid #222",
-  background: "#0f0f0f",
-  color: "white",
-  textDecoration: "none",
-  transition: "all 0.15s",
-};
-
-const emptyBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 48,
-  background: "#0a0a0a",
-  color: "#666",
-  textAlign: "center",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-};

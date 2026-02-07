@@ -96,9 +96,9 @@ export default function BranchSelector({
 
   if (!brandId) {
     return (
-      <div style={infoBox}>
-        <div style={{ fontSize: 12, color: "#aaa" }}>브랜드가 선택되어 있지 않습니다.</div>
-        <Link href="/admin/brand" style={{ color: "white", fontSize: 13 }}>
+      <div className="p-2.5 border border-border rounded bg-bg-secondary flex items-center gap-3">
+        <div className="text-xs text-text-secondary">브랜드가 선택되어 있지 않습니다.</div>
+        <Link href="/admin/brand" className="text-foreground text-sm">
           브랜드 선택하러 가기
         </Link>
       </div>
@@ -106,12 +106,15 @@ export default function BranchSelector({
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <label style={{ color: "#aaa", fontSize: 12 }}>{label}:</label>
+    <div className="flex items-center gap-2 flex-wrap">
+      <label className="text-text-secondary text-xs">{label}:</label>
       <select
         value={selected}
         onChange={(e) => selectBranch(e.target.value)}
-        style={compact ? selectSmall : select}
+        className={`
+          rounded border border-border bg-bg-secondary text-foreground text-xs
+          ${compact ? "h-[30px] px-2 rounded-sm" : "h-[34px] px-2.5 min-w-[200px]"}
+        `}
       >
         <option value="">가게를 선택하세요</option>
         {branches.map((b) => (
@@ -121,47 +124,12 @@ export default function BranchSelector({
         ))}
       </select>
 
-      <Link href="/admin/stores" style={{ color: "#aaa", fontSize: 12 }}>
+      <Link href="/admin/stores" className="text-text-secondary text-xs hover:text-foreground transition-colors">
         가게 관리
       </Link>
 
-      {loading && <span style={{ color: "#666", fontSize: 12 }}>불러오는 중...</span>}
-      {error && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{error}</span>}
+      {loading && <span className="text-text-tertiary text-xs">불러오는 중...</span>}
+      {error && <span className="text-danger-500 text-xs">{error}</span>}
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const infoBox: React.CSSProperties = {
-  padding: 10,
-  border: "1px solid #222",
-  borderRadius: 8,
-  background: "#0a0a0a",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-};
-
-const select: React.CSSProperties = {
-  height: 34,
-  padding: "0 10px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 12,
-  minWidth: 200,
-};
-
-const selectSmall: React.CSSProperties = {
-  height: 30,
-  padding: "0 8px",
-  borderRadius: 6,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 12,
-};

@@ -60,13 +60,13 @@ const statusLabel: Record<OrderStatus, string> = {
   CANCELLED: "취소",
 };
 
-const statusColor: Record<OrderStatus, string> = {
-  PENDING: "#f59e0b",
-  CONFIRMED: "#3b82f6",
-  PREPARING: "#3b82f6",
-  READY: "#10b981",
-  COMPLETED: "#6b7280",
-  CANCELLED: "#ef4444",
+const statusClass: Record<OrderStatus, string> = {
+  PENDING: "bg-warning/20 text-warning",
+  CONFIRMED: "bg-accent/20 text-accent",
+  PREPARING: "bg-accent/20 text-accent",
+  READY: "bg-success/20 text-success",
+  COMPLETED: "bg-neutral-500/20 text-text-secondary",
+  CANCELLED: "bg-danger/20 text-danger",
 };
 
 // ============================================================
@@ -205,32 +205,32 @@ export default function CustomerOrdersPage() {
   if (loading && orders.length === 0) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 32 }}>주문 관리</h1>
-        <div>로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">주문 관리</h1>
+        <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>주문 관리</h1>
-          <p style={{ color: "#aaa", margin: "4px 0 0 0", fontSize: 13 }}>
+          <h1 className="text-2xl font-extrabold m-0 text-foreground">주문 관리</h1>
+          <p className="text-text-secondary mt-1 text-sm">
             총 {total}건
           </p>
         </div>
       </div>
 
       {/* Filters */}
-      <div style={{ marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="mb-4 flex gap-3 flex-wrap items-center">
         <select
           value={branchFilter}
           onChange={(e) => {
             setBranchFilter(e.target.value);
             setPage(1);
           }}
-          style={selectStyle}
+          className="h-9 px-3 rounded border border-border bg-bg-secondary text-foreground text-sm cursor-pointer"
         >
           <option value="ALL">모든 지점</option>
           {branches.map((branch) => (
@@ -246,7 +246,7 @@ export default function CustomerOrdersPage() {
             setStatusFilter(e.target.value as OrderStatus | "ALL");
             setPage(1);
           }}
-          style={selectStyle}
+          className="h-9 px-3 rounded border border-border bg-bg-secondary text-foreground text-sm cursor-pointer"
         >
           {STATUS_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -256,62 +256,52 @@ export default function CustomerOrdersPage() {
         </select>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4">{error}</div>}
 
       {/* Orders Table */}
       {orders.length === 0 ? (
-        <div style={emptyBox}>
-          <div style={{ fontSize: 16, marginBottom: 8 }}>주문이 없습니다</div>
-          <div style={{ fontSize: 13, color: "#666" }}>필터를 변경해보세요</div>
+        <div className="card p-12 text-center text-text-tertiary">
+          <div className="text-base mb-2">주문이 없습니다</div>
+          <div className="text-sm">필터를 변경해보세요</div>
         </div>
       ) : (
         <>
-          <div style={{ border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
+          <div className="border border-border rounded-md overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="bg-bg-tertiary">
                 <tr>
-                  <th style={th}>주문번호</th>
-                  <th style={th}>고객명</th>
-                  <th style={th}>연락처</th>
-                  <th style={th}>지점</th>
-                  <th style={th}>상태</th>
-                  <th style={{ ...th, textAlign: "right" }}>금액</th>
-                  <th style={th}>주문일시</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문번호</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">고객명</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">연락처</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">지점</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">금액</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문일시</th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map((order) => (
-                  <tr key={order.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>
+                  <tr key={order.id} className="border-t border-border">
+                    <td className="py-3 px-3.5 text-sm text-foreground">
                       <Link
                         href={`/customer/orders/${order.id}`}
-                        style={{ color: "white", textDecoration: "none" }}
+                        className="text-foreground no-underline hover:text-primary-500 transition-colors"
                       >
                         {order.order_no ?? order.id.slice(0, 8)}
                       </Link>
                     </td>
-                    <td style={td}>{order.customer_name || "-"}</td>
-                    <td style={td}>{order.customer_phone || "-"}</td>
-                    <td style={td}>{order.branch?.name || "-"}</td>
-                    <td style={td}>
+                    <td className="py-3 px-3.5 text-sm text-foreground">{order.customer_name || "-"}</td>
+                    <td className="py-3 px-3.5 text-sm text-foreground">{order.customer_phone || "-"}</td>
+                    <td className="py-3 px-3.5 text-sm text-foreground">{order.branch?.name || "-"}</td>
+                    <td className="py-3 px-3.5 text-sm">
                       <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          height: 24,
-                          padding: "0 10px",
-                          borderRadius: 999,
-                          background: statusColor[order.status] + "20",
-                          color: statusColor[order.status],
-                          fontSize: 12,
-                          fontWeight: 600,
-                        }}
+                        className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${statusClass[order.status]}`}
                       >
                         {statusLabel[order.status]}
                       </span>
                     </td>
-                    <td style={{ ...td, textAlign: "right" }}>{formatWon(order.total_amount)}</td>
-                    <td style={{ ...td, color: "#aaa" }}>{formatDateTime(order.created_at)}</td>
+                    <td className="py-3 px-3.5 text-sm text-foreground text-right">{formatWon(order.total_amount)}</td>
+                    <td className="py-3 px-3.5 text-sm text-text-secondary">{formatDateTime(order.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -320,21 +310,21 @@ export default function CustomerOrdersPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 24 }}>
+            <div className="flex justify-center gap-2 mt-6">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                style={paginationBtn}
+                className="h-9 px-4 rounded border border-border bg-bg-secondary text-foreground font-semibold cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
               >
                 이전
               </button>
-              <span style={{ display: "flex", alignItems: "center", padding: "0 16px", color: "#aaa" }}>
+              <span className="flex items-center px-4 text-text-secondary text-sm">
                 {page} / {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                style={paginationBtn}
+                className="h-9 px-4 rounded border border-border bg-bg-secondary text-foreground font-semibold cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
               >
                 다음
               </button>
@@ -345,62 +335,3 @@ export default function CustomerOrdersPage() {
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 14px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: 13,
-  color: "white",
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "#0f0f0f",
-  color: "white",
-  fontSize: 13,
-  cursor: "pointer",
-};
-
-const paginationBtn: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "#0f0f0f",
-  color: "white",
-  fontWeight: 600,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const emptyBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 48,
-  background: "#0a0a0a",
-  color: "#666",
-  textAlign: "center",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-  marginBottom: 16,
-};

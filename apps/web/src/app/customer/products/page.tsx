@@ -144,30 +144,30 @@ export default function CustomerProductsPage() {
   if (loading && branches.length === 0) {
     return (
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 32 }}>상품 관리</h1>
-        <div>로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">상품 관리</h1>
+        <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>상품 관리</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">상품 관리</h1>
         {canManageProducts && selectedBranchId && (
-          <Link href={`/customer/products/new?branchId=${selectedBranchId}`} style={{ textDecoration: "none" }}>
-            <button style={addButton}>+ 상품 추가</button>
+          <Link href={`/customer/products/new?branchId=${selectedBranchId}`} className="no-underline">
+            <button className="btn-primary px-5 py-2.5 text-sm">+ 상품 추가</button>
           </Link>
         )}
       </div>
 
       {/* Branch Filter */}
-      <div style={{ marginBottom: 24 }}>
-        <label style={labelStyle}>매장 선택</label>
+      <div className="mb-6">
+        <label className="block text-sm text-text-secondary mb-2 font-semibold">매장 선택</label>
         <select
           value={selectedBranchId}
           onChange={(e) => setSelectedBranchId(e.target.value)}
-          style={selectStyle}
+          className="input-field max-w-[400px]"
         >
           <option value="">매장을 선택하세요</option>
           {branches.map((branch) => (
@@ -178,31 +178,31 @@ export default function CustomerProductsPage() {
         </select>
       </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4">{error}</div>}
 
       {branches.length === 0 ? (
-        <div style={emptyBox}>
-          <div style={{ fontSize: 16, marginBottom: 8 }}>등록된 매장이 없습니다</div>
-          <div style={{ fontSize: 13, color: "#666" }}>먼저 매장을 등록해주세요</div>
+        <div className="card p-12 text-center text-text-tertiary">
+          <div className="text-base mb-2">등록된 매장이 없습니다</div>
+          <div className="text-sm">먼저 매장을 등록해주세요</div>
         </div>
       ) : !selectedBranchId ? (
-        <div style={emptyBox}>
-          <div style={{ fontSize: 16, marginBottom: 8 }}>매장을 선택하세요</div>
-          <div style={{ fontSize: 13, color: "#666" }}>위에서 매장을 선택하면 상품 목록이 표시됩니다</div>
+        <div className="card p-12 text-center text-text-tertiary">
+          <div className="text-base mb-2">매장을 선택하세요</div>
+          <div className="text-sm">위에서 매장을 선택하면 상품 목록이 표시됩니다</div>
         </div>
       ) : loading ? (
-        <div style={emptyBox}>로딩 중...</div>
+        <div className="card p-12 text-center text-text-secondary">로딩 중...</div>
       ) : products.length === 0 ? (
-        <div style={emptyBox}>
-          <div style={{ fontSize: 16, marginBottom: 8 }}>등록된 상품이 없습니다</div>
+        <div className="card p-12 text-center text-text-tertiary">
+          <div className="text-base mb-2">등록된 상품이 없습니다</div>
           {canManageProducts && (
-            <div style={{ fontSize: 13, color: "#666" }}>상품 추가 버튼을 클릭하여 상품을 등록하세요</div>
+            <div className="text-sm">상품 추가 버튼을 클릭하여 상품을 등록하세요</div>
           )}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <CustomerProductCard key={product.id} product={product} />
           ))}
         </div>
       )}
@@ -214,112 +214,41 @@ export default function CustomerProductsPage() {
 // Sub Components
 // ============================================================
 
-function ProductCard({ product }: { product: Product }) {
+function CustomerProductCard({ product }: { product: Product }) {
   return (
-    <Link href={`/customer/products/${product.id}`} style={productCardStyle}>
+    <Link
+      href={`/customer/products/${product.id}`}
+      className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
+    >
       {product.imageUrl && (
         <img
           src={product.imageUrl}
           alt={product.name}
-          style={{ width: "100%", height: 160, borderRadius: 8, objectFit: "cover", marginBottom: 12 }}
+          className="w-full h-40 rounded object-cover mb-3"
         />
       )}
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{product.name}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 8 }}>{formatWon(product.price)}</div>
+      <div className="font-bold text-base mb-2">{product.name}</div>
+      <div className="text-lg font-extrabold text-foreground mb-2">{formatWon(product.price)}</div>
       {product.category && (
-        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 8 }}>카테고리: {product.category}</div>
+        <div className="text-xs text-text-secondary mb-2">카테고리: {product.category}</div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-        <div
-          style={{
-            ...statusBadge,
-            background: product.isActive ? "#10b98120" : "#6b728020",
-            color: product.isActive ? "#10b981" : "#6b7280",
-          }}
+      <div className="flex justify-between items-center mt-3">
+        <span
+          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+            product.isActive
+              ? "bg-success/20 text-success"
+              : "bg-neutral-500/20 text-text-secondary"
+          }`}
         >
           {product.isActive ? "판매중" : "숨김"}
-        </div>
+        </span>
         {product.options && product.options.length > 0 && (
-          <div style={{ fontSize: 11, color: "#666" }}>옵션 {product.options.length}개</div>
+          <div className="text-2xs text-text-tertiary">옵션 {product.options.length}개</div>
         )}
       </div>
-      <div style={{ fontSize: 11, color: "#666", marginTop: 8 }}>
+      <div className="text-2xs text-text-tertiary mt-2">
         등록일: {new Date(product.createdAt).toLocaleDateString()}
       </div>
     </Link>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const addButton: React.CSSProperties = {
-  padding: "10px 20px",
-  borderRadius: 8,
-  border: "none",
-  background: "#0070f3",
-  color: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  color: "#aaa",
-  marginBottom: 8,
-  fontWeight: 600,
-};
-
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 400,
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: 14,
-  outline: "none",
-};
-
-const productCardStyle: React.CSSProperties = {
-  display: "block",
-  padding: 16,
-  borderRadius: 12,
-  border: "1px solid #222",
-  background: "#0f0f0f",
-  color: "white",
-  textDecoration: "none",
-  transition: "all 0.15s",
-};
-
-const statusBadge: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  height: 24,
-  padding: "0 10px",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const emptyBox: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 48,
-  background: "#0a0a0a",
-  color: "#666",
-  textAlign: "center",
-};
-
-const errorBox: React.CSSProperties = {
-  border: "1px solid #ff4444",
-  borderRadius: 12,
-  padding: 16,
-  background: "#1a0000",
-  color: "#ff8888",
-  marginBottom: 16,
-};

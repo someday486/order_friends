@@ -188,7 +188,7 @@ export default function CustomerDashboardPage() {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold m-0">최근 주문</h2>
-          <Link href="/customer/orders" className="text-white text-sm hover:underline">
+          <Link href="/customer/orders" className="text-foreground text-sm hover:underline">
             전체 보기 →
           </Link>
         </div>
@@ -276,7 +276,7 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? "border-gray-700" : ""} padding="lg">
+    <Card className={highlight ? "border-warning" : ""} padding="lg">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xl">{icon}</span>
         <span className="text-muted-foreground text-sm">{title}</span>

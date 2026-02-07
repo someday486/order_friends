@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -75,6 +75,14 @@ interface CustomerAnalytics {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><p>Loading...</p></div>}>
+      <AnalyticsContent />
+    </Suspense>
+  );
+}
+
+function AnalyticsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, status } = useAuth();

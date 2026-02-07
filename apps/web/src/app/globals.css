@@ -2,18 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Light Mode (Default)
+   ============================================================ */
 :root {
+  --color-primary: #FF3B30;
+  --color-secondary: #3742FA;
+  --color-success: #34C759;
+  --color-warning: #FF9500;
+  --color-danger: #FF3B30;
+
+  --color-text-primary: #191919;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #888888;
+
+  --color-bg-primary: #FFFFFF;
+  --color-bg-secondary: #F8F9FA;
+  --color-bg-tertiary: #F0F0F0;
+
+  --color-border: #E0E0E0;
+  --color-border-light: #EEEEEE;
+
+  --color-card-shadow: rgba(0, 0, 0, 0.08);
+
+  /* Legacy compat */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #191919;
+
+  color-scheme: light;
 }
 
+/* ============================================================
+   Dark Mode (prefers-color-scheme)
+   ============================================================ */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not(.light) {
+    --color-primary: #FF453A;
+    --color-secondary: #5E5CE6;
+    --color-success: #30D158;
+    --color-warning: #FF9F0A;
+    --color-danger: #FF453A;
+
+    --color-text-primary: #FFFFFF;
+    --color-text-secondary: #AEAEB2;
+    --color-text-tertiary: #8E8E93;
+
+    --color-bg-primary: #000000;
+    --color-bg-secondary: #1C1C1E;
+    --color-bg-tertiary: #2C2C2E;
+
+    --color-border: #38383A;
+    --color-border-light: #48484A;
+
+    --color-card-shadow: rgba(0, 0, 0, 0.3);
+
+    --background: #000000;
+    --foreground: #FFFFFF;
+
+    color-scheme: dark;
   }
 }
 
+/* Force dark mode via class */
+.dark {
+  --color-primary: #FF453A;
+  --color-secondary: #5E5CE6;
+  --color-success: #30D158;
+  --color-warning: #FF9F0A;
+  --color-danger: #FF453A;
+
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #AEAEB2;
+  --color-text-tertiary: #8E8E93;
+
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #1C1C1E;
+  --color-bg-tertiary: #2C2C2E;
+
+  --color-border: #38383A;
+  --color-border-light: #48484A;
+
+  --color-card-shadow: rgba(0, 0, 0, 0.3);
+
+  --background: #000000;
+  --foreground: #FFFFFF;
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+   Base Styles
+   ============================================================ */
 html,
 body {
   max-width: 100vw;
@@ -21,9 +100,9 @@ body {
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -39,8 +118,80 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+/* ============================================================
+   Component Layer
+   ============================================================ */
+@layer components {
+  .btn-primary {
+    @apply bg-primary-500 text-white px-4 py-2 rounded-md font-semibold;
+    @apply hover:bg-primary-600 active:scale-95;
+    @apply transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply border border-border px-4 py-2 rounded-md font-semibold;
+    @apply text-foreground bg-bg-secondary;
+    @apply hover:bg-bg-tertiary active:scale-95;
+    @apply transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply bg-danger-500 text-white px-4 py-2 rounded-md font-semibold;
+    @apply hover:bg-danger-600 active:scale-95;
+    @apply transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-card rounded-md border border-border;
+    @apply shadow-md hover:shadow-lg transition-shadow duration-300;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 border border-border rounded bg-bg-secondary text-foreground;
+    @apply placeholder:text-text-tertiary;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent;
+    @apply transition-all duration-150;
+  }
+
+  /* 뱃지 */
+  .badge {
+    @apply text-xs font-bold inline-flex items-center justify-center;
+    @apply px-2 py-0.5 rounded leading-none;
+  }
+
+  .badge-event {
+    @apply badge bg-danger-500 text-white;
+  }
+
+  .badge-new {
+    @apply badge bg-success-500 text-white;
+  }
+
+  .badge-hot {
+    @apply badge bg-warning-500 text-white;
+  }
+
+  .badge-recommended {
+    @apply badge bg-secondary-500 text-white;
+  }
+
+  .badge-soldout-soon {
+    @apply badge bg-warning-500 text-white;
+  }
+
+  /* 카테고리 탭 */
+  .category-tabs {
+    @apply flex gap-2 overflow-x-auto scrollbar-hide py-2 px-4;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .category-tab {
+    @apply px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap;
+    @apply border border-border bg-bg-secondary text-text-secondary;
+    @apply transition-all duration-150 touch-feedback cursor-pointer;
+  }
+
+  .category-tab-active {
+    @apply bg-foreground text-background border-foreground font-bold;
   }
 }

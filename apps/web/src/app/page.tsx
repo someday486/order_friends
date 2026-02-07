@@ -11,24 +11,19 @@ export default function LoginPage() {
   const { status } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
 
-  // 이미 로그인 상태면 역할에 따라 리다이렉트
   useEffect(() => {
     if (status === "authenticated" && !roleLoading) {
-      // 역할에 따라 적절한 대시보드로 리다이렉트
       switch (role) {
         case "system_admin":
-          // 시스템 관리자는 /admin으로 (모든 브랜드/지점 접근 가능)
           router.replace("/admin");
           break;
         case "brand_owner":
         case "branch_manager":
         case "staff":
-          // 관리자는 /admin으로
           router.replace("/admin");
           break;
         case "customer":
         default:
-          // 소비자는 /customer로
           router.replace("/customer");
           break;
       }
@@ -36,21 +31,30 @@ export default function LoginPage() {
     }
   }, [status, role, roleLoading, router]);
 
-  // 로딩 중일 때 표시
   if (status === "loading" || (status === "authenticated" && roleLoading)) {
     return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <p>로딩 중...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center animate-fade-in">
+          <div className="text-4xl mb-4">🍽️</div>
+          <p className="text-text-secondary text-sm">로딩 중...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Login</h1>
-      <p style={{ marginBottom: 16 }}>Sign in with email and password.</p>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="w-full max-w-sm animate-fade-in">
+        <div className="text-center mb-8">
+          <div className="text-4xl mb-3">🍽️</div>
+          <h1 className="text-2xl font-extrabold text-foreground">OrderFriends</h1>
+          <p className="text-sm text-text-secondary mt-2">계정에 로그인하세요</p>
+        </div>
 
-      <LoginForm />
+        <div className="card p-6">
+          <LoginForm />
+        </div>
+      </div>
     </div>
   );
 }

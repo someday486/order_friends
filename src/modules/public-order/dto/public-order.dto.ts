@@ -17,6 +17,8 @@ export class PublicBranchResponse {
   id: string;
   name: string;
   brandName?: string;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
 }
 
 export class PublicProductOptionResponse {
@@ -30,6 +32,9 @@ export class PublicProductResponse {
   name: string;
   description?: string | null;
   price: number;
+  imageUrl?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
   options: PublicProductOptionResponse[];
 }
 

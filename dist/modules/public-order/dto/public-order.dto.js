@@ -16,6 +16,8 @@ class PublicBranchResponse {
     id;
     name;
     brandName;
+    logoUrl;
+    coverImageUrl;
 }
 exports.PublicBranchResponse = PublicBranchResponse;
 class PublicProductOptionResponse {
@@ -29,6 +31,9 @@ class PublicProductResponse {
     name;
     description;
     price;
+    imageUrl;
+    categoryId;
+    categoryName;
     options;
 }
 exports.PublicProductResponse = PublicProductResponse;

@@ -21,6 +21,8 @@ const customer_guard_1 = require("../../common/guards/customer.guard");
 const customer_products_service_1 = require("./customer-products.service");
 const create_product_request_1 = require("../../modules/products/dto/create-product.request");
 const update_product_request_1 = require("../../modules/products/dto/update-product.request");
+const reorder_products_request_1 = require("../../modules/products/dto/reorder-products.request");
+const category_crud_request_1 = require("../../modules/products/dto/category-crud.request");
 let CustomerProductsController = CustomerProductsController_1 = class CustomerProductsController {
     productsService;
     logger = new common_1.Logger(CustomerProductsController_1.name);
@@ -44,6 +46,39 @@ let CustomerProductsController = CustomerProductsController_1 = class CustomerPr
         }
         this.logger.log(`User ${req.user.id} fetching categories for branch ${branchId}`);
         return this.productsService.getMyCategories(req.user.id, branchId, req.brandMemberships || [], req.branchMemberships || []);
+    }
+    async createCategory(req, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        if (!dto.branchId) {
+            throw new common_1.BadRequestException('branchId is required');
+        }
+        this.logger.log(`User ${req.user.id} creating category for branch ${dto.branchId}`);
+        return this.productsService.createCategory(req.user.id, dto.branchId, dto.name, dto.sortOrder, dto.isActive, req.brandMemberships || [], req.branchMemberships || []);
+    }
+    async reorderCategories(req, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        this.logger.log(`User ${req.user.id} reordering categories for branch ${dto.branchId}`);
+        return this.productsService.reorderCategories(req.user.id, dto.branchId, dto.items, req.brandMemberships || [], req.branchMemberships || []);
+    }
+    async updateCategory(req, categoryId, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        this.logger.log(`User ${req.user.id} updating category ${categoryId}`);
+        return this.productsService.updateCategory(req.user.id, categoryId, dto, req.brandMemberships || [], req.branchMemberships || []);
+    }
+    async deleteCategory(req, categoryId) {
+        if (!req.user)
+            throw new Error('Missing user');
+        this.logger.log(`User ${req.user.id} deleting category ${categoryId}`);
+        return this.productsService.deleteCategory(req.user.id, categoryId, req.brandMemberships || [], req.branchMemberships || []);
+    }
+    async reorderProducts(req, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        this.logger.log(`User ${req.user.id} reordering products for branch ${dto.branchId}`);
+        return this.productsService.reorderProducts(req.user.id, dto.branchId, dto.items, req.brandMemberships || [], req.branchMemberships || []);
     }
     async getProduct(req, productId) {
         if (!req.user)
@@ -106,6 +141,81 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], CustomerProductsController.prototype, "getCategories", null);
+__decorate([
+    (0, common_1.Post)('categories'),
+    (0, swagger_1.ApiOperation)({
+        summary: '카테고리 생성',
+        description: '내가 OWNER 또는 ADMIN 권한을 가진 지점에 카테고리를 생성합니다.',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 201, description: '카테고리 생성 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, category_crud_request_1.CreateCategoryRequest]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "createCategory", null);
+__decorate([
+    (0, common_1.Patch)('categories/reorder'),
+    (0, swagger_1.ApiOperation)({
+        summary: '카테고리 정렬 순서 변경',
+        description: '카테고리의 정렬 순서를 일괄 변경합니다.',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '카테고리 순서 변경 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, category_crud_request_1.ReorderCategoriesRequest]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "reorderCategories", null);
+__decorate([
+    (0, common_1.Patch)('categories/:categoryId'),
+    (0, swagger_1.ApiOperation)({
+        summary: '카테고리 수정',
+        description: '카테고리의 이름, 정렬순서, 활성상태를 수정합니다.',
+    }),
+    (0, swagger_1.ApiParam)({ name: 'categoryId', description: '카테고리 ID' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '카테고리 수정 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: '카테고리를 찾을 수 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('categoryId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, category_crud_request_1.UpdateCategoryRequest]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "updateCategory", null);
+__decorate([
+    (0, common_1.Delete)('categories/:categoryId'),
+    (0, swagger_1.ApiOperation)({
+        summary: '카테고리 삭제',
+        description: '카테고리를 삭제합니다. 해당 카테고리의 상품은 카테고리 없음 상태가 됩니다.',
+    }),
+    (0, swagger_1.ApiParam)({ name: 'categoryId', description: '카테고리 ID' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '카테고리 삭제 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: '카테고리를 찾을 수 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('categoryId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "deleteCategory", null);
+__decorate([
+    (0, common_1.Patch)('reorder'),
+    (0, swagger_1.ApiOperation)({
+        summary: '상품 정렬 순서 변경',
+        description: '상품의 정렬 순서를 일괄 변경합니다.',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '상품 순서 변경 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, reorder_products_request_1.ReorderProductsRequest]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "reorderProducts", null);
 __decorate([
     (0, common_1.Get)(':productId'),
     (0, swagger_1.ApiOperation)({

@@ -162,52 +162,85 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   -- ============================================================================
-  -- Create Products
+  -- Create Product Categories
+  -- ============================================================================
+
+  INSERT INTO public.product_categories (branch_id, name, sort_order, is_active)
+  VALUES
+    -- Cafe Gangnam categories
+    (branch_cafe_gangnam_id, '커피', 1, TRUE),
+    (branch_cafe_gangnam_id, '디저트', 2, TRUE),
+    -- Cafe Hongdae categories
+    (branch_cafe_hongdae_id, '커피', 1, TRUE),
+    (branch_cafe_hongdae_id, '음료', 2, TRUE),
+    (branch_cafe_hongdae_id, '베이커리', 3, TRUE),
+    -- Restaurant categories
+    (branch_restaurant_main_id, '메인', 1, TRUE),
+    (branch_restaurant_main_id, '사이드', 2, TRUE),
+    -- Bakery categories
+    (branch_bakery_main_id, '빵', 1, TRUE),
+    (branch_bakery_main_id, '과자', 2, TRUE)
+  ON CONFLICT DO NOTHING;
+
+  -- ============================================================================
+  -- Create Products (with category_id)
   -- ============================================================================
 
   -- Cafe Products (Gangnam)
-  INSERT INTO public.products (branch_id, name, base_price, description)
-  VALUES
-    (branch_cafe_gangnam_id, '테스트 아메리카노', 4500, '깊고 진한 에스프레소'),
-    (branch_cafe_gangnam_id, '테스트 카페라떼', 5000, '부드러운 우유와 에스프레소'),
-    (branch_cafe_gangnam_id, '테스트 카푸치노', 5000, '크리미한 폼이 일품'),
-    (branch_cafe_gangnam_id, '테스트 바닐라라떼', 5500, '달콤한 바닐라향'),
-    (branch_cafe_gangnam_id, '테스트 카라멜마끼아또', 5500, '달콤한 카라멜 시럽'),
-    (branch_cafe_gangnam_id, '테스트 초코라떼', 5500, '진한 초콜릿'),
-    (branch_cafe_gangnam_id, '테스트 녹차라떼', 5500, '고소한 녹차'),
-    (branch_cafe_gangnam_id, '테스트 크로와상', 3500, '버터향 가득'),
-    (branch_cafe_gangnam_id, '테스트 치즈케이크', 6000, '부드러운 치즈케이크'),
-    (branch_cafe_gangnam_id, '테스트 티라미수', 6500, '이탈리안 디저트');
+  INSERT INTO public.products (branch_id, name, base_price, description, category_id)
+  SELECT branch_cafe_gangnam_id, v.name, v.price, v.descr, pc.id
+  FROM (VALUES
+    ('테스트 아메리카노', 4500, '깊고 진한 에스프레소', '커피'),
+    ('테스트 카페라떼', 5000, '부드러운 우유와 에스프레소', '커피'),
+    ('테스트 카푸치노', 5000, '크리미한 폼이 일품', '커피'),
+    ('테스트 바닐라라떼', 5500, '달콤한 바닐라향', '커피'),
+    ('테스트 카라멜마끼아또', 5500, '달콤한 카라멜 시럽', '커피'),
+    ('테스트 초코라떼', 5500, '진한 초콜릿', '커피'),
+    ('테스트 녹차라떼', 5500, '고소한 녹차', '커피'),
+    ('테스트 크로와상', 3500, '버터향 가득', '디저트'),
+    ('테스트 치즈케이크', 6000, '부드러운 치즈케이크', '디저트'),
+    ('테스트 티라미수', 6500, '이탈리안 디저트', '디저트')
+  ) AS v(name, price, descr, cat)
+  JOIN public.product_categories pc ON pc.branch_id = branch_cafe_gangnam_id AND pc.name = v.cat;
 
   -- Cafe Products (Hongdae)
-  INSERT INTO public.products (branch_id, name, base_price, description)
-  VALUES
-    (branch_cafe_hongdae_id, '테스트 아메리카노', 4500, '깊고 진한 에스프레소'),
-    (branch_cafe_hongdae_id, '테스트 카페라떼', 5000, '부드러운 우유와 에스프레소'),
-    (branch_cafe_hongdae_id, '테스트 콜드브루', 5000, '차가운 커피'),
-    (branch_cafe_hongdae_id, '테스트 아이스티', 4500, '시원한 차'),
-    (branch_cafe_hongdae_id, '테스트 레몬에이드', 5000, '상큼한 레몬'),
-    (branch_cafe_hongdae_id, '테스트 마들렌', 3000, '달콤한 마들렌'),
-    (branch_cafe_hongdae_id, '테스트 스콘', 3500, '영국식 스콘'),
-    (branch_cafe_hongdae_id, '테스트 브라우니', 4000, '초콜릿 브라우니');
+  INSERT INTO public.products (branch_id, name, base_price, description, category_id)
+  SELECT branch_cafe_hongdae_id, v.name, v.price, v.descr, pc.id
+  FROM (VALUES
+    ('테스트 아메리카노', 4500, '깊고 진한 에스프레소', '커피'),
+    ('테스트 카페라떼', 5000, '부드러운 우유와 에스프레소', '커피'),
+    ('테스트 콜드브루', 5000, '차가운 커피', '커피'),
+    ('테스트 아이스티', 4500, '시원한 차', '음료'),
+    ('테스트 레몬에이드', 5000, '상큼한 레몬', '음료'),
+    ('테스트 마들렌', 3000, '달콤한 마들렌', '베이커리'),
+    ('테스트 스콘', 3500, '영국식 스콘', '베이커리'),
+    ('테스트 브라우니', 4000, '초콜릿 브라우니', '베이커리')
+  ) AS v(name, price, descr, cat)
+  JOIN public.product_categories pc ON pc.branch_id = branch_cafe_hongdae_id AND pc.name = v.cat;
 
   -- Restaurant Products
-  INSERT INTO public.products (branch_id, name, base_price, description)
-  VALUES
-    (branch_restaurant_main_id, '테스트 파스타', 15000, '정통 이탈리안'),
-    (branch_restaurant_main_id, '테스트 피자', 20000, '오븐에 구운 피자'),
-    (branch_restaurant_main_id, '테스트 리조또', 18000, '크리미한 리조또'),
-    (branch_restaurant_main_id, '테스트 스테이크', 35000, '프리미엄 스테이크'),
-    (branch_restaurant_main_id, '테스트 샐러드', 12000, '신선한 채소');
+  INSERT INTO public.products (branch_id, name, base_price, description, category_id)
+  SELECT branch_restaurant_main_id, v.name, v.price, v.descr, pc.id
+  FROM (VALUES
+    ('테스트 파스타', 15000, '정통 이탈리안', '메인'),
+    ('테스트 피자', 20000, '오븐에 구운 피자', '메인'),
+    ('테스트 리조또', 18000, '크리미한 리조또', '메인'),
+    ('테스트 스테이크', 35000, '프리미엄 스테이크', '메인'),
+    ('테스트 샐러드', 12000, '신선한 채소', '사이드')
+  ) AS v(name, price, descr, cat)
+  JOIN public.product_categories pc ON pc.branch_id = branch_restaurant_main_id AND pc.name = v.cat;
 
   -- Bakery Products
-  INSERT INTO public.products (branch_id, name, base_price, description)
-  VALUES
-    (branch_bakery_main_id, '테스트 식빵', 5000, '촉촉한 식빵'),
-    (branch_bakery_main_id, '테스트 바게트', 4000, '프랑스 바게트'),
-    (branch_bakery_main_id, '테스트 단팥빵', 2500, '달콤한 단팥'),
-    (branch_bakery_main_id, '테스트 크림빵', 2500, '부드러운 크림'),
-    (branch_bakery_main_id, '테스트 도넛', 2000, '달콤한 도넛');
+  INSERT INTO public.products (branch_id, name, base_price, description, category_id)
+  SELECT branch_bakery_main_id, v.name, v.price, v.descr, pc.id
+  FROM (VALUES
+    ('테스트 식빵', 5000, '촉촉한 식빵', '빵'),
+    ('테스트 바게트', 4000, '프랑스 바게트', '빵'),
+    ('테스트 단팥빵', 2500, '달콤한 단팥', '빵'),
+    ('테스트 크림빵', 2500, '부드러운 크림', '빵'),
+    ('테스트 도넛', 2000, '달콤한 도넛', '과자')
+  ) AS v(name, price, descr, cat)
+  JOIN public.product_categories pc ON pc.branch_id = branch_bakery_main_id AND pc.name = v.cat;
 
   -- ============================================================================
   -- Create Inventory
@@ -388,6 +421,7 @@ SELECT '✅ Profiles' as item, COUNT(*) as count FROM public.profiles WHERE disp
 UNION ALL SELECT '✅ Brands', COUNT(*) FROM public.brands WHERE name LIKE 'Test%'
 UNION ALL SELECT '✅ Branches', COUNT(*) FROM public.branches WHERE name LIKE 'Test%'
 UNION ALL SELECT '✅ Channels', COUNT(*) FROM public.order_channels WHERE slug LIKE 'test-%'
+UNION ALL SELECT '✅ Categories', COUNT(*) FROM public.product_categories WHERE branch_id IN (SELECT id FROM public.branches WHERE name LIKE 'Test%')
 UNION ALL SELECT '✅ Products', COUNT(*) FROM public.products WHERE name LIKE '테스트%'
 UNION ALL SELECT '✅ Inventory', COUNT(*) FROM public.product_inventory WHERE product_id IN (SELECT id FROM public.products WHERE name LIKE '테스트%')
 UNION ALL SELECT '✅ Orders', COUNT(*) FROM public.orders WHERE customer_name LIKE 'Test%'

@@ -92,28 +92,53 @@ let CustomerOrdersService = CustomerOrdersService_1 = class CustomerOrdersServic
             throw new common_1.ForbiddenException(`Only OWNER or ADMIN can ${action}`);
         }
     }
+    async getAccessibleBranchIds(brandMemberships, branchMemberships) {
+        const branchIds = new Set(branchMemberships.map((m) => m.branch_id));
+        if (brandMemberships.length > 0) {
+            const sb = this.supabase.adminClient();
+            const brandIds = brandMemberships.map((m) => m.brand_id);
+            const { data: branches } = await sb
+                .from('branches')
+                .select('id')
+                .in('brand_id', brandIds);
+            if (branches) {
+                for (const b of branches) {
+                    branchIds.add(b.id);
+                }
+            }
+        }
+        return Array.from(branchIds);
+    }
     async getMyOrders(userId, branchId, brandMemberships, branchMemberships, paginationDto = {}, status) {
-        this.logger.log(`Fetching orders for branch ${branchId} by user ${userId}`);
-        await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+        this.logger.log(`Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`);
+        if (branchId) {
+            await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+        }
+        const targetBranchIds = branchId
+            ? [branchId]
+            : await this.getAccessibleBranchIds(brandMemberships, branchMemberships);
+        if (targetBranchIds.length === 0) {
+            return pagination_util_1.PaginationUtil.createResponse([], 0, paginationDto);
+        }
         const { page = 1, limit = 20 } = paginationDto;
         const sb = this.supabase.adminClient();
         const { from, to } = pagination_util_1.PaginationUtil.getRange(page, limit);
         let countQuery = sb
             .from('orders')
             .select('*', { count: 'exact', head: true })
-            .eq('branch_id', branchId);
+            .in('branch_id', targetBranchIds);
         if (status) {
             countQuery = countQuery.eq('status', status);
         }
         const { count, error: countError } = await countQuery;
         if (countError) {
-            this.logger.error(`Failed to count orders for branch ${branchId}`, countError);
+            this.logger.error('Failed to count orders', countError);
             throw new Error('Failed to count orders');
         }
         let dataQuery = sb
             .from('orders')
             .select('id, order_no, status, created_at, total_amount, customer_name')
-            .eq('branch_id', branchId)
+            .in('branch_id', targetBranchIds)
             .order('created_at', { ascending: false })
             .range(from, to);
         if (status) {
@@ -121,7 +146,7 @@ let CustomerOrdersService = CustomerOrdersService_1 = class CustomerOrdersServic
         }
         const { data, error } = await dataQuery;
         if (error) {
-            this.logger.error(`Failed to fetch orders for branch ${branchId}`, error);
+            this.logger.error('Failed to fetch orders', error);
             throw new Error('Failed to fetch orders');
         }
         const orders = (data ?? []).map((row) => ({
@@ -132,7 +157,7 @@ let CustomerOrdersService = CustomerOrdersService_1 = class CustomerOrdersServic
             totalAmount: row.total_amount ?? 0,
             status: row.status,
         }));
-        this.logger.log(`Fetched ${orders.length} orders for branch ${branchId}`);
+        this.logger.log(`Fetched ${orders.length} orders`);
         return pagination_util_1.PaginationUtil.createResponse(orders, count || 0, paginationDto);
     }
     async getMyOrder(userId, orderId, brandMemberships, branchMemberships) {

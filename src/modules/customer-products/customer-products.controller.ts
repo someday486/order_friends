@@ -27,6 +27,12 @@ import { CustomerGuard } from '../../common/guards/customer.guard';
 import { CustomerProductsService } from './customer-products.service';
 import { CreateProductRequest } from '../../modules/products/dto/create-product.request';
 import { UpdateProductRequest } from '../../modules/products/dto/update-product.request';
+import { ReorderProductsRequest } from '../../modules/products/dto/reorder-products.request';
+import {
+  CreateCategoryRequest,
+  UpdateCategoryRequest,
+  ReorderCategoriesRequest,
+} from '../../modules/products/dto/category-crud.request';
 
 @ApiTags('customer-products')
 @ApiBearerAuth()
@@ -90,6 +96,136 @@ export class CustomerProductsController {
     return this.productsService.getMyCategories(
       req.user.id,
       branchId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('categories')
+  @ApiOperation({
+    summary: '카테고리 생성',
+    description: '내가 OWNER 또는 ADMIN 권한을 가진 지점에 카테고리를 생성합니다.',
+  })
+  @ApiResponse({ status: 201, description: '카테고리 생성 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async createCategory(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateCategoryRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.branchId) {
+      throw new BadRequestException('branchId is required');
+    }
+
+    this.logger.log(
+      `User ${req.user.id} creating category for branch ${dto.branchId}`,
+    );
+    return this.productsService.createCategory(
+      req.user.id,
+      dto.branchId,
+      dto.name,
+      dto.sortOrder,
+      dto.isActive,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('categories/reorder')
+  @ApiOperation({
+    summary: '카테고리 정렬 순서 변경',
+    description: '카테고리의 정렬 순서를 일괄 변경합니다.',
+  })
+  @ApiResponse({ status: 200, description: '카테고리 순서 변경 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async reorderCategories(
+    @Req() req: AuthRequest,
+    @Body() dto: ReorderCategoriesRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} reordering categories for branch ${dto.branchId}`,
+    );
+    return this.productsService.reorderCategories(
+      req.user.id,
+      dto.branchId,
+      dto.items,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('categories/:categoryId')
+  @ApiOperation({
+    summary: '카테고리 수정',
+    description: '카테고리의 이름, 정렬순서, 활성상태를 수정합니다.',
+  })
+  @ApiParam({ name: 'categoryId', description: '카테고리 ID' })
+  @ApiResponse({ status: 200, description: '카테고리 수정 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  @ApiResponse({ status: 404, description: '카테고리를 찾을 수 없음' })
+  async updateCategory(
+    @Req() req: AuthRequest,
+    @Param('categoryId') categoryId: string,
+    @Body() dto: UpdateCategoryRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(`User ${req.user.id} updating category ${categoryId}`);
+    return this.productsService.updateCategory(
+      req.user.id,
+      categoryId,
+      dto,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Delete('categories/:categoryId')
+  @ApiOperation({
+    summary: '카테고리 삭제',
+    description: '카테고리를 삭제합니다. 해당 카테고리의 상품은 카테고리 없음 상태가 됩니다.',
+  })
+  @ApiParam({ name: 'categoryId', description: '카테고리 ID' })
+  @ApiResponse({ status: 200, description: '카테고리 삭제 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  @ApiResponse({ status: 404, description: '카테고리를 찾을 수 없음' })
+  async deleteCategory(
+    @Req() req: AuthRequest,
+    @Param('categoryId') categoryId: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(`User ${req.user.id} deleting category ${categoryId}`);
+    return this.productsService.deleteCategory(
+      req.user.id,
+      categoryId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('reorder')
+  @ApiOperation({
+    summary: '상품 정렬 순서 변경',
+    description: '상품의 정렬 순서를 일괄 변경합니다.',
+  })
+  @ApiResponse({ status: 200, description: '상품 순서 변경 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async reorderProducts(
+    @Req() req: AuthRequest,
+    @Body() dto: ReorderProductsRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} reordering products for branch ${dto.branchId}`,
+    );
+    return this.productsService.reorderProducts(
+      req.user.id,
+      dto.branchId,
+      dto.items,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

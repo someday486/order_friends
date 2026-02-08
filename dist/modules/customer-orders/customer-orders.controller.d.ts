@@ -7,7 +7,7 @@ export declare class CustomerOrdersController {
     private readonly ordersService;
     private readonly logger;
     constructor(ordersService: CustomerOrdersService);
-    getOrders(req: AuthRequest, branchId: string, status?: OrderStatus, paginationDto?: PaginationDto): Promise<import("../../common/dto/pagination.dto").PaginatedResponse<{
+    getOrders(req: AuthRequest, branchId?: string, status?: OrderStatus, paginationDto?: PaginationDto): Promise<import("../../common/dto/pagination.dto").PaginatedResponse<{
         id: any;
         orderNo: any;
         orderedAt: any;

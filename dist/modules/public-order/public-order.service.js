@@ -40,8 +40,12 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             .select(`
         id,
         name,
+        logo_url,
+        cover_image_url,
         brands (
-          name
+          name,
+          logo_url,
+          cover_image_url
         )
       `)
             .eq('id', branchId)
@@ -49,10 +53,13 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
         if (error || !data) {
             throw new common_1.NotFoundException('사용할 수 없는 가게입니다.');
         }
+        const row = data;
         return {
-            id: data.id,
-            name: data.name,
-            brandName: data.brands?.name ?? undefined,
+            id: row.id,
+            name: row.name,
+            brandName: row.brands?.name ?? undefined,
+            logoUrl: row.logo_url || row.brands?.logo_url || null,
+            coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
         };
     }
     async getBranchBySlug(slug) {
@@ -63,8 +70,12 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
         id,
         name,
         slug,
+        logo_url,
+        cover_image_url,
         brands (
-          name
+          name,
+          logo_url,
+          cover_image_url
         )
       `)
             .eq('slug', slug)
@@ -83,6 +94,8 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             id: row.id,
             name: row.name,
             brandName: row.brands?.name ?? undefined,
+            logoUrl: row.logo_url || row.brands?.logo_url || null,
+            coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
         };
     }
     async getBranchByBrandSlug(brandSlug, branchSlug) {
@@ -93,10 +106,14 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
         id,
         name,
         slug,
+        logo_url,
+        cover_image_url,
         brands!inner (
           id,
           name,
-          slug
+          slug,
+          logo_url,
+          cover_image_url
         )
       `)
             .eq('slug', branchSlug)
@@ -116,6 +133,8 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             id: row.id,
             name: row.name,
             brandName: row.brands?.name ?? undefined,
+            logoUrl: row.logo_url || row.brands?.logo_url || null,
+            coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
         };
     }
     async getProducts(branchId) {
@@ -161,11 +180,29 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             throw new Error(`상품 목록 조회 실패: ${error.message}`);
         }
         const products = data ?? [];
+        const categoryIds = [
+            ...new Set(products
+                .map((p) => p.category_id)
+                .filter(Boolean)),
+        ];
+        let categoryMap = new Map();
+        if (categoryIds.length > 0) {
+            const { data: categories } = await sb
+                .from('product_categories')
+                .select('id, name')
+                .in('id', categoryIds);
+            if (categories) {
+                categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+            }
+        }
         return products.map((product) => ({
             id: product.id,
             name: product.name,
             description: product.description ?? null,
             price: this.getPriceFromRow(product),
+            imageUrl: product.image_url ?? null,
+            categoryId: product.category_id ?? null,
+            categoryName: categoryMap.get(product.category_id) ?? null,
             options: [],
         }));
     }

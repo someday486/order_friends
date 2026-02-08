@@ -170,25 +170,67 @@ export class CustomerOrdersService {
   }
 
   /**
+   * 접근 가능한 모든 브랜치 ID 목록 조회
+   */
+  private async getAccessibleBranchIds(
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ): Promise<string[]> {
+    const branchIds = new Set<string>(
+      branchMemberships.map((m) => m.branch_id),
+    );
+
+    if (brandMemberships.length > 0) {
+      const sb = this.supabase.adminClient();
+      const brandIds = brandMemberships.map((m) => m.brand_id);
+      const { data: branches } = await sb
+        .from('branches')
+        .select('id')
+        .in('brand_id', brandIds);
+
+      if (branches) {
+        for (const b of branches) {
+          branchIds.add(b.id);
+        }
+      }
+    }
+
+    return Array.from(branchIds);
+  }
+
+  /**
    * 내 지점의 주문 목록 조회 (페이지네이션 지원)
    */
   async getMyOrders(
     userId: string,
-    branchId: string,
+    branchId: string | undefined,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
   ) {
-    this.logger.log(`Fetching orders for branch ${branchId} by user ${userId}`);
-
-    // 브랜치 접근 권한 확인
-    await this.checkBranchAccess(
-      branchId,
-      userId,
-      brandMemberships,
-      branchMemberships,
+    this.logger.log(
+      `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
     );
+
+    // branchId가 지정된 경우 해당 브랜치 접근 권한 확인
+    if (branchId) {
+      await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
+    }
+
+    // branchId 없으면 접근 가능한 전체 브랜치 조회
+    const targetBranchIds = branchId
+      ? [branchId]
+      : await this.getAccessibleBranchIds(brandMemberships, branchMemberships);
+
+    if (targetBranchIds.length === 0) {
+      return PaginationUtil.createResponse([], 0, paginationDto);
+    }
 
     const { page = 1, limit = 20 } = paginationDto;
     const sb = this.supabase.adminClient();
@@ -198,7 +240,7 @@ export class CustomerOrdersService {
     let countQuery = sb
       .from('orders')
       .select('*', { count: 'exact', head: true })
-      .eq('branch_id', branchId);
+      .in('branch_id', targetBranchIds);
 
     if (status) {
       countQuery = countQuery.eq('status', status);
@@ -207,10 +249,7 @@ export class CustomerOrdersService {
     const { count, error: countError } = await countQuery;
 
     if (countError) {
-      this.logger.error(
-        `Failed to count orders for branch ${branchId}`,
-        countError,
-      );
+      this.logger.error('Failed to count orders', countError);
       throw new Error('Failed to count orders');
     }
 
@@ -218,7 +257,7 @@ export class CustomerOrdersService {
     let dataQuery = sb
       .from('orders')
       .select('id, order_no, status, created_at, total_amount, customer_name')
-      .eq('branch_id', branchId)
+      .in('branch_id', targetBranchIds)
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -229,7 +268,7 @@ export class CustomerOrdersService {
     const { data, error } = await dataQuery;
 
     if (error) {
-      this.logger.error(`Failed to fetch orders for branch ${branchId}`, error);
+      this.logger.error('Failed to fetch orders', error);
       throw new Error('Failed to fetch orders');
     }
 
@@ -242,7 +281,7 @@ export class CustomerOrdersService {
       status: row.status as OrderStatus,
     }));
 
-    this.logger.log(`Fetched ${orders.length} orders for branch ${branchId}`);
+    this.logger.log(`Fetched ${orders.length} orders`);
 
     return PaginationUtil.createResponse(orders, count || 0, paginationDto);
   }

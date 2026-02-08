@@ -198,7 +198,8 @@ export class CustomerProductsService {
       .from('products')
       .select('*')
       .eq('branch_id', branchId)
-      .order('created_at', { ascending: false });
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
 
     if (error) {
       this.logger.error(
@@ -296,6 +297,7 @@ export class CustomerProductsService {
         base_price: dto.price,
         is_hidden: !(dto.isActive ?? true),
         image_url: dto.imageUrl,
+        sort_order: dto.sortOrder ?? 0,
       })
       .select()
       .single();
@@ -370,6 +372,7 @@ export class CustomerProductsService {
     if (dto.price !== undefined) updateFields.base_price = dto.price;
     if (dto.isActive !== undefined) updateFields.is_hidden = !dto.isActive;
     if (dto.imageUrl !== undefined) updateFields.image_url = dto.imageUrl;
+    if (dto.sortOrder !== undefined) updateFields.sort_order = dto.sortOrder;
 
     if (Object.keys(updateFields).length === 0) {
       return this.getMyProduct(
@@ -431,5 +434,296 @@ export class CustomerProductsService {
     this.logger.log(`Product ${productId} deleted successfully`);
 
     return { deleted: true };
+  }
+
+  /**
+   * 상품 정렬 순서 일괄 변경 (OWNER, ADMIN만 가능)
+   */
+  async reorderProducts(
+    userId: string,
+    branchId: string,
+    items: { id: string; sortOrder: number }[],
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Reordering ${items.length} products for branch ${branchId} by user ${userId}`,
+    );
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(role, 'reorder products', userId);
+
+    const sb = this.supabase.adminClient();
+
+    for (const item of items) {
+      const { error } = await sb
+        .from('products')
+        .update({ sort_order: item.sortOrder })
+        .eq('id', item.id)
+        .eq('branch_id', branchId);
+
+      if (error) {
+        this.logger.error(
+          `Failed to update sort_order for product ${item.id}`,
+          error,
+        );
+      }
+    }
+
+    this.logger.log(`Products reordered successfully for branch ${branchId}`);
+
+    return this.getMyProducts(
+      userId,
+      branchId,
+      brandMemberships,
+      branchMemberships,
+    );
+  }
+
+  /**
+   * 카테고리 생성 (OWNER, ADMIN만 가능)
+   */
+  async createCategory(
+    userId: string,
+    branchId: string,
+    name: string,
+    sortOrder: number | undefined,
+    isActive: boolean | undefined,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Creating category for branch ${branchId} by user ${userId}`,
+    );
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(role, 'create categories', userId);
+
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('product_categories')
+      .insert({
+        branch_id: branchId,
+        name,
+        sort_order: sortOrder ?? 0,
+        is_active: isActive ?? true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      this.logger.error(
+        `Failed to create category for branch ${branchId}`,
+        error,
+      );
+      throw new Error(`Failed to create category: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      branchId: data.branch_id,
+      name: data.name,
+      sortOrder: data.sort_order ?? 0,
+      isActive: data.is_active ?? true,
+      createdAt: data.created_at ?? '',
+    };
+  }
+
+  /**
+   * 카테고리 수정 (OWNER, ADMIN만 가능)
+   */
+  async updateCategory(
+    userId: string,
+    categoryId: string,
+    dto: { name?: string; sortOrder?: number; isActive?: boolean },
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(`Updating category ${categoryId} by user ${userId}`);
+
+    const sb = this.supabase.adminClient();
+
+    // 카테고리 조회하여 branch_id 확인
+    const { data: category, error: catError } = await sb
+      .from('product_categories')
+      .select('*')
+      .eq('id', categoryId)
+      .single();
+
+    if (catError || !category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      category.branch_id,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(role, 'update categories', userId);
+
+    const updateFields: any = {};
+    if (dto.name !== undefined) updateFields.name = dto.name;
+    if (dto.sortOrder !== undefined) updateFields.sort_order = dto.sortOrder;
+    if (dto.isActive !== undefined) updateFields.is_active = dto.isActive;
+
+    if (Object.keys(updateFields).length === 0) {
+      return {
+        id: category.id,
+        branchId: category.branch_id,
+        name: category.name,
+        sortOrder: category.sort_order ?? 0,
+        isActive: category.is_active ?? true,
+        createdAt: category.created_at ?? '',
+      };
+    }
+
+    const { data, error } = await sb
+      .from('product_categories')
+      .update(updateFields)
+      .eq('id', categoryId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      this.logger.error(`Failed to update category ${categoryId}`, error);
+      throw new Error('Failed to update category');
+    }
+
+    return {
+      id: data.id,
+      branchId: data.branch_id,
+      name: data.name,
+      sortOrder: data.sort_order ?? 0,
+      isActive: data.is_active ?? true,
+      createdAt: data.created_at ?? '',
+    };
+  }
+
+  /**
+   * 카테고리 삭제 (OWNER, ADMIN만 가능)
+   */
+  async deleteCategory(
+    userId: string,
+    categoryId: string,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(`Deleting category ${categoryId} by user ${userId}`);
+
+    const sb = this.supabase.adminClient();
+
+    const { data: category, error: catError } = await sb
+      .from('product_categories')
+      .select('*')
+      .eq('id', categoryId)
+      .single();
+
+    if (catError || !category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      category.branch_id,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(role, 'delete categories', userId);
+
+    const { error } = await sb
+      .from('product_categories')
+      .delete()
+      .eq('id', categoryId);
+
+    if (error) {
+      this.logger.error(`Failed to delete category ${categoryId}`, error);
+      throw new Error('Failed to delete category');
+    }
+
+    return { deleted: true };
+  }
+
+  /**
+   * 카테고리 정렬 순서 일괄 변경 (OWNER, ADMIN만 가능)
+   */
+  async reorderCategories(
+    userId: string,
+    branchId: string,
+    items: { id: string; sortOrder: number }[],
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Reordering ${items.length} categories for branch ${branchId} by user ${userId}`,
+    );
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(role, 'reorder categories', userId);
+
+    const sb = this.supabase.adminClient();
+
+    for (const item of items) {
+      const { error } = await sb
+        .from('product_categories')
+        .update({ sort_order: item.sortOrder })
+        .eq('id', item.id)
+        .eq('branch_id', branchId);
+
+      if (error) {
+        this.logger.error(
+          `Failed to update sort_order for category ${item.id}`,
+          error,
+        );
+      }
+    }
+
+    return this.getMyCategories(
+      userId,
+      branchId,
+      brandMemberships,
+      branchMemberships,
+    );
   }
 }

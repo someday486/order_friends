@@ -41,7 +41,7 @@ export class CustomerOrdersController {
     description:
       '내가 멤버로 등록된 지점의 주문 목록을 조회합니다. (페이지네이션 지원)',
   })
-  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: false })
   @ApiQuery({ name: 'status', description: '주문 상태 필터', required: false })
   @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
   @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
@@ -50,17 +50,14 @@ export class CustomerOrdersController {
   @ApiResponse({ status: 403, description: '권한 없음' })
   async getOrders(
     @Req() req: AuthRequest,
-    @Query('branchId') branchId: string,
+    @Query('branchId') branchId?: string,
     @Query('status') status?: OrderStatus,
     @Query() paginationDto?: PaginationDto,
   ) {
     if (!req.user) throw new Error('Missing user');
-    if (!branchId) {
-      throw new BadRequestException('branchId is required');
-    }
 
     this.logger.log(
-      `User ${req.user.id} fetching orders for branch ${branchId}`,
+      `User ${req.user.id} fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'}`,
     );
     return this.ordersService.getMyOrders(
       req.user.id,

@@ -45,8 +45,12 @@ export class PublicOrderService {
         `
         id,
         name,
+        logo_url,
+        cover_image_url,
         brands (
-          name
+          name,
+          logo_url,
+          cover_image_url
         )
       `,
       )
@@ -57,10 +61,13 @@ export class PublicOrderService {
       throw new NotFoundException('사용할 수 없는 가게입니다.');
     }
 
+    const row = data as any;
     return {
-      id: data.id,
-      name: data.name,
-      brandName: (data as any).brands?.name ?? undefined,
+      id: row.id,
+      name: row.name,
+      brandName: row.brands?.name ?? undefined,
+      logoUrl: row.logo_url || row.brands?.logo_url || null,
+      coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
     };
   }
 
@@ -77,8 +84,12 @@ export class PublicOrderService {
         id,
         name,
         slug,
+        logo_url,
+        cover_image_url,
         brands (
-          name
+          name,
+          logo_url,
+          cover_image_url
         )
       `,
       )
@@ -102,6 +113,8 @@ export class PublicOrderService {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      logoUrl: row.logo_url || row.brands?.logo_url || null,
+      coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
     };
   }
 
@@ -121,10 +134,14 @@ export class PublicOrderService {
         id,
         name,
         slug,
+        logo_url,
+        cover_image_url,
         brands!inner (
           id,
           name,
-          slug
+          slug,
+          logo_url,
+          cover_image_url
         )
       `,
       )
@@ -149,6 +166,8 @@ export class PublicOrderService {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      logoUrl: row.logo_url || row.brands?.logo_url || null,
+      coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
     };
   }
   /**
@@ -213,11 +232,33 @@ export class PublicOrderService {
 
     const products = data ?? [];
 
+    // Fetch category names for mapping
+    const categoryIds = [
+      ...new Set(
+        products
+          .map((p: any) => p.category_id)
+          .filter(Boolean),
+      ),
+    ];
+    let categoryMap = new Map<string, string>();
+    if (categoryIds.length > 0) {
+      const { data: categories } = await sb
+        .from('product_categories')
+        .select('id, name')
+        .in('id', categoryIds);
+      if (categories) {
+        categoryMap = new Map(categories.map((c: any) => [c.id, c.name]));
+      }
+    }
+
     return products.map((product: any) => ({
       id: product.id,
       name: product.name,
       description: product.description ?? null,
       price: this.getPriceFromRow(product),
+      imageUrl: product.image_url ?? null,
+      categoryId: product.category_id ?? null,
+      categoryName: categoryMap.get(product.category_id) ?? null,
       options: [],
     }));
   }

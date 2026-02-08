@@ -185,8 +185,8 @@ export default function CustomerOrdersPage() {
         }
 
         const data = await res.json();
-        setOrders(data.items || data);
-        setTotal(data.total || data.length || 0);
+        setOrders(data.data || data.items || data);
+        setTotal(data.pagination?.total || data.total || 0);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "주문 목록 조회 중 오류 발생");

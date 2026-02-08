@@ -12,7 +12,8 @@ export declare class CustomerOrdersService {
     private checkBranchAccess;
     private checkOrderAccess;
     private checkModificationPermission;
-    getMyOrders(userId: string, branchId: string, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[], paginationDto?: PaginationDto, status?: OrderStatus): Promise<import("../../common/dto/pagination.dto").PaginatedResponse<{
+    private getAccessibleBranchIds;
+    getMyOrders(userId: string, branchId: string | undefined, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[], paginationDto?: PaginationDto, status?: OrderStatus): Promise<import("../../common/dto/pagination.dto").PaginatedResponse<{
         id: any;
         orderNo: any;
         orderedAt: any;

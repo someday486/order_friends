@@ -23,6 +23,7 @@ type Branch = {
 type Category = {
   id: string;
   name: string;
+  sortOrder?: number;
 };
 
 type CartItem = {
@@ -121,18 +122,14 @@ export default function OrderPage() {
         }));
         setProducts(mapped);
 
-        // Extract unique categories if available
-        const cats: Category[] = [];
-        const seen = new Set<string>();
-        for (const p of productsData) {
-          const catId = p.categoryId || p.category_id;
-          const catName = p.categoryName || p.category_name;
-          if (catId && catName && !seen.has(catId)) {
-            seen.add(catId);
-            cats.push({ id: catId, name: catName });
-          }
+        // Fetch categories from API (sorted by server-defined order)
+        const catsRes = await fetch(
+          `${API_BASE}/public/branches/${encodeURIComponent(branchData.id)}/categories`,
+        );
+        if (catsRes.ok) {
+          const catsData = await catsRes.json();
+          setCategories(catsData);
         }
-        setCategories(cats);
       } catch (e: unknown) {
         setError((e as Error)?.message ?? "오류가 발생했습니다.");
       } finally {

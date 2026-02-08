@@ -13,4 +13,9 @@ export declare class PublicOrderService {
     getProducts(branchId: string): Promise<PublicProductResponse[]>;
     createOrder(dto: CreatePublicOrderRequest): Promise<PublicOrderResponse>;
     getOrder(orderIdOrNo: string): Promise<PublicOrderResponse>;
+    getCategories(branchId: string): Promise<{
+        id: any;
+        name: any;
+        sortOrder: any;
+    }[]>;
 }

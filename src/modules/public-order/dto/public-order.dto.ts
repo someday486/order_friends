@@ -35,7 +35,14 @@ export class PublicProductResponse {
   imageUrl?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
+  sortOrder?: number;
   options: PublicProductOptionResponse[];
+}
+
+export class PublicCategoryResponse {
+  id: string;
+  name: string;
+  sortOrder: number;
 }
 
 export class PublicOrderResponse {

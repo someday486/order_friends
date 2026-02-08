@@ -41,6 +41,15 @@ export class PublicOrderController {
    * 媛寃??곹뭹 紐⑸줉 議고쉶
    * GET /public/branches/:branchId/products
    */
+  /**
+   * 가게 카테고리 목록 조회
+   * GET /public/branches/:branchId/categories
+   */
+  @Get('branches/:branchId/categories')
+  async getCategories(@Param('branchId') branchId: string) {
+    return this.publicOrderService.getCategories(branchId);
+  }
+
   @Get('branches/:branchId/products')
   async getProducts(@Param('branchId') branchId: string) {
     return this.publicOrderService.getProducts(branchId);

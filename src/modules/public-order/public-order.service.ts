@@ -202,10 +202,15 @@ export class PublicOrderService {
     let error: any;
     let includeIsHidden = true;
     let includeIsSoldOut = true;
+    let includeSortOrder = true;
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
       const query = buildBaseQuery(includeIsHidden, includeIsSoldOut);
-      const orderedQuery = query.order('created_at', { ascending: false });
+      const orderedQuery = includeSortOrder
+        ? query
+            .order('sort_order', { ascending: true })
+            .order('created_at', { ascending: true })
+        : query.order('created_at', { ascending: true });
       ({ data, error } = await orderedQuery);
 
       if (!error) break;
@@ -220,6 +225,11 @@ export class PublicOrderService {
 
       if (message.includes('is_sold_out')) {
         includeIsSoldOut = false;
+        retried = true;
+      }
+
+      if (message.includes('sort_order')) {
+        includeSortOrder = false;
         retried = true;
       }
 
@@ -259,6 +269,7 @@ export class PublicOrderService {
       imageUrl: product.image_url ?? null,
       categoryId: product.category_id ?? null,
       categoryName: categoryMap.get(product.category_id) ?? null,
+      sortOrder: product.sort_order ?? 0,
       options: [],
     }));
   }
@@ -583,5 +594,30 @@ export class PublicOrderService {
         ),
       })),
     };
+  }
+
+  /**
+   * Get categories for a branch (public, active only)
+   */
+  async getCategories(branchId: string) {
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('product_categories')
+      .select('id, name, sort_order')
+      .eq('branch_id', branchId)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`카테고리 목록 조회 실패: ${error.message}`);
+    }
+
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      sortOrder: row.sort_order ?? 0,
+    }));
   }
 }

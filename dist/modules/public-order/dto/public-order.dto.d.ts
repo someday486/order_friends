@@ -18,7 +18,13 @@ export declare class PublicProductResponse {
     imageUrl?: string | null;
     categoryId?: string | null;
     categoryName?: string | null;
+    sortOrder?: number;
     options: PublicProductOptionResponse[];
+}
+export declare class PublicCategoryResponse {
+    id: string;
+    name: string;
+    sortOrder: number;
 }
 export declare class PublicOrderResponse {
     id: string;

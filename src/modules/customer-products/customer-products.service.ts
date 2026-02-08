@@ -194,12 +194,21 @@ export class CustomerProductsService {
 
     const sb = this.supabase.adminClient();
 
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from('products')
       .select('*')
       .eq('branch_id', branchId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
+
+    // Fallback if sort_order column doesn't exist yet
+    if (error && error.message?.includes('sort_order')) {
+      ({ data, error } = await sb
+        .from('products')
+        .select('*')
+        .eq('branch_id', branchId)
+        .order('created_at', { ascending: true }));
+    }
 
     if (error) {
       this.logger.error(

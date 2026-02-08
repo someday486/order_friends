@@ -94,12 +94,19 @@ let CustomerProductsService = CustomerProductsService_1 = class CustomerProducts
         this.logger.log(`Fetching products for branch ${branchId} by user ${userId}`);
         await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
         const sb = this.supabase.adminClient();
-        const { data, error } = await sb
+        let { data, error } = await sb
             .from('products')
             .select('*')
             .eq('branch_id', branchId)
             .order('sort_order', { ascending: true })
             .order('created_at', { ascending: true });
+        if (error && error.message?.includes('sort_order')) {
+            ({ data, error } = await sb
+                .from('products')
+                .select('*')
+                .eq('branch_id', branchId)
+                .order('created_at', { ascending: true }));
+        }
         if (error) {
             this.logger.error(`Failed to fetch products for branch ${branchId}`, error);
             throw new Error('Failed to fetch products');

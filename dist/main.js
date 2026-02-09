@@ -51,7 +51,7 @@ async function bootstrap() {
             tracesSampleRate: 1.0,
         });
     }
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
     app.use((0, helmet_1.default)());
     app.useGlobalFilters(new global_exception_filter_1.GlobalExceptionFilter());
     app.useGlobalPipes(new common_1.ValidationPipe({
@@ -82,7 +82,7 @@ async function bootstrap() {
     });
     const config = new swagger_1.DocumentBuilder()
         .setTitle('Order Friends API')
-        .setDescription('멀티테넌트 기반 브랜드/매장 관리 및 주문 시스템 API')
+        .setDescription('메뉴보드 기반 브랜드/매장 관리 및 주문 시스템 API')
         .setVersion('1.0')
         .addBearerAuth()
         .addTag('auth', '인증 및 권한 관리')
@@ -90,16 +90,16 @@ async function bootstrap() {
         .addTag('branches', '지점 관리')
         .addTag('products', '상품 관리')
         .addTag('orders', '주문 관리')
-        .addTag('members', '멤버십 관리')
+        .addTag('members', '멤버 관리')
         .addTag('dashboard', '대시보드')
         .addTag('public', '공개 API')
-        .addTag('health', '헬스체크')
+        .addTag('health', '헬스 체크')
         .build();
     const document = swagger_1.SwaggerModule.createDocument(app, config);
     swagger_1.SwaggerModule.setup('api-docs', app, document);
     await app.listen(process.env.PORT ?? 4000);
-    console.log(`🚀 Application is running on: http://localhost:${process.env.PORT ?? 4000}`);
-    console.log(`📚 API Documentation: http://localhost:${process.env.PORT ?? 4000}/api-docs`);
+    console.log(`Application is running on: http://localhost:${process.env.PORT ?? 4000}`);
+    console.log(`API Documentation: http://localhost:${process.env.PORT ?? 4000}/api-docs`);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

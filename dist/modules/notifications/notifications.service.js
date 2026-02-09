@@ -30,10 +30,10 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
         this.fromName = this.configService.get('FROM_NAME') || 'OrderFriends';
         this.mockMode = !this.sendGridApiKey || !this.smsApiKey;
         if (this.mockMode) {
-            this.logger.warn('🔔 Notification service running in MOCK MODE - API keys not configured');
+            this.logger.warn('Notification service running in MOCK MODE - API keys not configured');
         }
         else {
-            this.logger.log('✅ Notification service initialized with external APIs');
+            this.logger.log('Notification service initialized with external APIs');
         }
     }
     async sendOrderConfirmation(orderId, orderData, recipientEmail) {
@@ -42,7 +42,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
         return this.sendEmail(recipientEmail, template.subject, template.html, template.text);
     }
     async sendOrderStatusUpdate(orderId, orderData, recipientEmail) {
-        this.logger.log(`Sending order status update email for order: ${orderId} (${orderData.oldStatus} → ${orderData.newStatus})`);
+        this.logger.log(`Sending order status update email for order: ${orderId} (${orderData.oldStatus} ??${orderData.newStatus})`);
         const template = this.getOrderStatusUpdateEmailTemplate(orderData);
         return this.sendEmail(recipientEmail, template.subject, template.html, template.text);
     }
@@ -85,7 +85,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
         };
         try {
             if (this.mockMode) {
-                this.logger.log('📧 [MOCK EMAIL] ================================');
+                this.logger.log('[MOCK EMAIL] ================================');
                 this.logger.log(`To: ${to}`);
                 this.logger.log(`From: ${this.fromName} <${this.fromEmail}>`);
                 this.logger.log(`Subject: ${subject}`);
@@ -118,7 +118,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
         };
         try {
             if (this.mockMode) {
-                this.logger.log('📱 [MOCK SMS] ===================================');
+                this.logger.log('[MOCK SMS] ===================================');
                 this.logger.log(`To: ${to}`);
                 this.logger.log(`Message: ${message}`);
                 this.logger.log('==============================================');
@@ -139,7 +139,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
         return result;
     }
     getOrderConfirmationEmailTemplate(data) {
-        const subject = `주문 확인 - 주문번호 ${data.orderNo}`;
+        const subject = `Order Confirmation - ${data.orderNo}`;
         const itemsHtml = data.items
             .map((item) => `
         <tr>
@@ -163,30 +163,30 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>주문 확인</title>
+          <title>Order Confirmation</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #4CAF50; border-bottom: 2px solid #4CAF50; padding-bottom: 10px;">
-              주문이 완료되었습니다
+              Order Confirmed
             </h1>
 
-            <p>안녕하세요, ${data.customerName}님!</p>
-            <p>주문이 성공적으로 완료되었습니다.</p>
+            <p>Hello ${data.customerName},</p>
+            <p>Your order has been confirmed.</p>
 
             <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
-              <p style="margin: 5px 0;"><strong>주문번호:</strong> ${data.orderNo}</p>
-              <p style="margin: 5px 0;"><strong>주문일시:</strong> ${new Date(data.orderedAt).toLocaleString('ko-KR')}</p>
+              <p style="margin: 5px 0;"><strong>Order No:</strong> ${data.orderNo}</p>
+              <p style="margin: 5px 0;"><strong>Ordered At:</strong> ${new Date(data.orderedAt).toLocaleString('ko-KR')}</p>
             </div>
 
-            <h2 style="color: #333; margin-top: 30px;">주문 상품</h2>
+            <h2 style="color: #333; margin-top: 30px;">Items</h2>
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
               <thead>
                 <tr style="background-color: #f5f5f5;">
-                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">상품명</th>
-                  <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">수량</th>
-                  <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">단가</th>
-                  <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">합계</th>
+                  <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Item</th>
+                  <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Qty</th>
+                  <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">Unit</th>
+                  <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd;">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,23 +197,23 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             <div style="margin-top: 30px; padding: 15px; background-color: #f9f9f9; border-radius: 5px;">
               <table style="width: 100%;">
                 <tr>
-                  <td style="padding: 5px;">상품 금액:</td>
+                  <td style="padding: 5px;">Subtotal:</td>
                   <td style="padding: 5px; text-align: right;">${data.subtotal.toLocaleString()}원</td>
                 </tr>
                 <tr>
-                  <td style="padding: 5px;">배송비:</td>
+                  <td style="padding: 5px;">Shipping:</td>
                   <td style="padding: 5px; text-align: right;">${data.shippingFee.toLocaleString()}원</td>
                 </tr>
                 ${data.discount > 0
             ? `
                 <tr>
-                  <td style="padding: 5px;">할인:</td>
+                  <td style="padding: 5px;">Discount:</td>
                   <td style="padding: 5px; text-align: right; color: #f44336;">-${data.discount.toLocaleString()}원</td>
                 </tr>
                 `
             : ''}
                 <tr style="border-top: 2px solid #ddd; font-weight: bold; font-size: 1.1em;">
-                  <td style="padding: 10px 5px;">총 결제금액:</td>
+                  <td style="padding: 10px 5px;">Total:</td>
                   <td style="padding: 10px 5px; text-align: right; color: #4CAF50;">${data.total.toLocaleString()}원</td>
                 </tr>
               </table>
@@ -221,295 +221,237 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
 
             ${data.deliveryAddress
             ? `
-            <h2 style="color: #333; margin-top: 30px;">배송 정보</h2>
+            <h2 style="color: #333; margin-top: 30px;">Delivery</h2>
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
-              <p style="margin: 5px 0;"><strong>배송지:</strong> ${data.deliveryAddress}</p>
-              ${data.deliveryMemo ? `<p style="margin: 5px 0;"><strong>배송 메모:</strong> ${data.deliveryMemo}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>Address:</strong> ${data.deliveryAddress}</p>
+              ${data.deliveryMemo ? `<p style="margin: 5px 0;"><strong>Note:</strong> ${data.deliveryMemo}</p>` : ''}
             </div>
             `
             : ''}
-
-            <p style="margin-top: 30px; color: #666;">
-              주문 내역은 주문 내역 페이지에서 확인하실 수 있습니다.
-            </p>
-
-            <p style="margin-top: 20px; color: #999; font-size: 0.9em;">
-              문의사항이 있으시면 고객센터로 연락 주세요.<br>
-              감사합니다.
-            </p>
           </div>
         </body>
       </html>
     `;
         const text = `
-주문이 완료되었습니다
+Order confirmed.
 
-안녕하세요, ${data.customerName}님!
+Hello ${data.customerName},
 
-주문번호: ${data.orderNo}
-주문일시: ${new Date(data.orderedAt).toLocaleString('ko-KR')}
-
-총 결제금액: ${data.total.toLocaleString()}원
-
-주문해 주셔서 감사합니다.
+Order No: ${data.orderNo}
+Ordered At: ${new Date(data.orderedAt).toLocaleString('ko-KR')}
+Total: ${data.total.toLocaleString()}원
     `;
         return { subject, html, text };
     }
     getOrderStatusUpdateEmailTemplate(data) {
-        const subject = `주문 상태 변경 - 주문번호 ${data.orderNo}`;
+        const subject = `Order Status Update - ${data.orderNo}`;
         const statusMessages = {
-            PENDING: '주문 접수 대기 중',
-            CONFIRMED: '주문이 확인되었습니다',
-            PREPARING: '상품을 준비 중입니다',
-            READY: '상품이 준비되었습니다',
-            SHIPPING: '배송 중입니다',
-            DELIVERED: '배송이 완료되었습니다',
-            CANCELLED: '주문이 취소되었습니다',
-            REFUNDED: '환불이 완료되었습니다',
+            PENDING: 'Pending',
+            CONFIRMED: 'Confirmed',
+            PREPARING: 'Preparing',
+            READY: 'Ready',
+            SHIPPING: 'Shipping',
+            DELIVERED: 'Delivered',
+            CANCELLED: 'Cancelled',
+            REFUNDED: 'Refunded',
         };
         const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>주문 상태 변경</title>
+          <title>Order Status Update</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #2196F3; border-bottom: 2px solid #2196F3; padding-bottom: 10px;">
-              주문 상태가 변경되었습니다
+              Order Status Updated
             </h1>
 
-            <p>안녕하세요, ${data.customerName}님!</p>
+            <p>Hello ${data.customerName},</p>
 
             <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
-              <p style="margin: 5px 0;"><strong>주문번호:</strong> ${data.orderNo}</p>
-              <p style="margin: 5px 0;"><strong>변경일시:</strong> ${new Date(data.updatedAt).toLocaleString('ko-KR')}</p>
+              <p style="margin: 5px 0;"><strong>Order No:</strong> ${data.orderNo}</p>
+              <p style="margin: 5px 0;"><strong>Updated At:</strong> ${new Date(data.updatedAt).toLocaleString('ko-KR')}</p>
             </div>
 
             <div style="background-color: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #2196F3;">
               <p style="margin: 0; font-size: 1.1em;">
-                <strong>현재 상태:</strong> ${statusMessages[data.newStatus] || data.newStatus}
+                <strong>Status:</strong> ${statusMessages[data.newStatus] || data.newStatus}
               </p>
               ${data.statusMessage ? `<p style="margin: 10px 0 0 0; color: #666;">${data.statusMessage}</p>` : ''}
             </div>
-
-            <p style="margin-top: 20px; color: #666;">
-              주문 상세 내역은 주문 내역 페이지에서 확인하실 수 있습니다.
-            </p>
-
-            <p style="margin-top: 20px; color: #999; font-size: 0.9em;">
-              문의사항이 있으시면 고객센터로 연락 주세요.<br>
-              감사합니다.
-            </p>
           </div>
         </body>
       </html>
     `;
         const text = `
-주문 상태가 변경되었습니다
+Order status updated.
 
-안녕하세요, ${data.customerName}님!
+Hello ${data.customerName},
 
-주문번호: ${data.orderNo}
-현재 상태: ${statusMessages[data.newStatus] || data.newStatus}
-${data.statusMessage ? `메시지: ${data.statusMessage}` : ''}
+Order No: ${data.orderNo}
+Status: ${statusMessages[data.newStatus] || data.newStatus}
+${data.statusMessage ? `Message: ${data.statusMessage}` : ''}
 
-변경일시: ${new Date(data.updatedAt).toLocaleString('ko-KR')}
+Updated At: ${new Date(data.updatedAt).toLocaleString('ko-KR')}
     `;
         return { subject, html, text };
     }
     getPaymentConfirmationEmailTemplate(data) {
-        const subject = `결제 완료 - 주문번호 ${data.orderNo}`;
+        const subject = `Payment Confirmation - ${data.orderNo}`;
         const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>결제 완료</title>
+          <title>Payment Confirmation</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #4CAF50; border-bottom: 2px solid #4CAF50; padding-bottom: 10px;">
-              결제가 완료되었습니다
+              Payment Completed
             </h1>
 
-            <p>안녕하세요, ${data.customerName}님!</p>
-            <p>결제가 성공적으로 완료되었습니다.</p>
+            <p>Hello ${data.customerName},</p>
+            <p>Your payment has been completed successfully.</p>
 
             <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
-              <p style="margin: 5px 0;"><strong>주문번호:</strong> ${data.orderNo}</p>
-              <p style="margin: 5px 0;"><strong>결제일시:</strong> ${new Date(data.paidAt).toLocaleString('ko-KR')}</p>
-              ${data.transactionId ? `<p style="margin: 5px 0;"><strong>거래번호:</strong> ${data.transactionId}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>Order No:</strong> ${data.orderNo}</p>
+              <p style="margin: 5px 0;"><strong>Paid At:</strong> ${new Date(data.paidAt).toLocaleString('ko-KR')}</p>
+              ${data.transactionId ? `<p style="margin: 5px 0;"><strong>Transaction ID:</strong> ${data.transactionId}</p>` : ''}
             </div>
 
             <div style="background-color: #e8f5e9; padding: 20px; margin: 20px 0; border-radius: 5px;">
               <table style="width: 100%;">
                 <tr>
-                  <td style="padding: 5px;"><strong>결제수단:</strong></td>
+                  <td style="padding: 5px;"><strong>Payment Method:</strong></td>
                   <td style="padding: 5px; text-align: right;">${data.paymentMethod}</td>
                 </tr>
                 <tr style="border-top: 2px solid #4CAF50;">
-                  <td style="padding: 10px 5px; font-size: 1.2em;"><strong>결제금액:</strong></td>
+                  <td style="padding: 10px 5px; font-size: 1.2em;"><strong>Amount:</strong></td>
                   <td style="padding: 10px 5px; text-align: right; font-size: 1.2em; color: #4CAF50;">
                     <strong>${data.amount.toLocaleString()}원</strong>
                   </td>
                 </tr>
               </table>
             </div>
-
-            <p style="margin-top: 20px; color: #666;">
-              영수증은 주문 내역 페이지에서 확인하실 수 있습니다.
-            </p>
-
-            <p style="margin-top: 20px; color: #999; font-size: 0.9em;">
-              문의사항이 있으시면 고객센터로 연락 주세요.<br>
-              감사합니다.
-            </p>
           </div>
         </body>
       </html>
     `;
         const text = `
-결제가 완료되었습니다
+Payment completed.
 
-안녕하세요, ${data.customerName}님!
+Hello ${data.customerName},
 
-주문번호: ${data.orderNo}
-결제수단: ${data.paymentMethod}
-결제금액: ${data.amount.toLocaleString()}원
-결제일시: ${new Date(data.paidAt).toLocaleString('ko-KR')}
-${data.transactionId ? `거래번호: ${data.transactionId}` : ''}
-
-결제해 주셔서 감사합니다.
+Order No: ${data.orderNo}
+Payment Method: ${data.paymentMethod}
+Amount: ${data.amount.toLocaleString()}원
+Paid At: ${new Date(data.paidAt).toLocaleString('ko-KR')}
+${data.transactionId ? `Transaction ID: ${data.transactionId}` : ''}
     `;
         return { subject, html, text };
     }
     getRefundConfirmationEmailTemplate(data) {
-        const subject = `환불 완료 - 주문번호 ${data.orderNo}`;
+        const subject = `Refund Confirmation - ${data.orderNo}`;
         const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>환불 완료</title>
+          <title>Refund Confirmation</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #FF9800; border-bottom: 2px solid #FF9800; padding-bottom: 10px;">
-              환불이 완료되었습니다
+              Refund Completed
             </h1>
 
-            <p>안녕하세요, ${data.customerName}님!</p>
-            <p>환불 처리가 완료되었습니다.</p>
+            <p>Hello ${data.customerName},</p>
+            <p>Your refund has been processed.</p>
 
             <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
-              <p style="margin: 5px 0;"><strong>주문번호:</strong> ${data.orderNo}</p>
-              <p style="margin: 5px 0;"><strong>환불일시:</strong> ${new Date(data.refundedAt).toLocaleString('ko-KR')}</p>
-              ${data.transactionId ? `<p style="margin: 5px 0;"><strong>거래번호:</strong> ${data.transactionId}</p>` : ''}
-              ${data.refundReason ? `<p style="margin: 5px 0;"><strong>환불사유:</strong> ${data.refundReason}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>Order No:</strong> ${data.orderNo}</p>
+              <p style="margin: 5px 0;"><strong>Refunded At:</strong> ${new Date(data.refundedAt).toLocaleString('ko-KR')}</p>
+              ${data.transactionId ? `<p style="margin: 5px 0;"><strong>Transaction ID:</strong> ${data.transactionId}</p>` : ''}
+              ${data.refundReason ? `<p style="margin: 5px 0;"><strong>Reason:</strong> ${data.refundReason}</p>` : ''}
             </div>
 
             <div style="background-color: #fff3e0; padding: 20px; margin: 20px 0; border-radius: 5px;">
               <p style="margin: 0; font-size: 1.2em;">
-                <strong>환불금액:</strong>
+                <strong>Refund Amount:</strong>
                 <span style="color: #FF9800; font-size: 1.2em;">${data.refundAmount.toLocaleString()}원</span>
               </p>
             </div>
-
-            <p style="margin-top: 20px; color: #666;">
-              환불 금액은 결제하신 수단으로 영업일 기준 3-5일 이내에 입금될 예정입니다.
-            </p>
-
-            <p style="margin-top: 20px; color: #999; font-size: 0.9em;">
-              문의사항이 있으시면 고객센터로 연락 주세요.<br>
-              감사합니다.
-            </p>
           </div>
         </body>
       </html>
     `;
         const text = `
-환불이 완료되었습니다
+Refund completed.
 
-안녕하세요, ${data.customerName}님!
+Hello ${data.customerName},
 
-주문번호: ${data.orderNo}
-환불금액: ${data.refundAmount.toLocaleString()}원
-환불일시: ${new Date(data.refundedAt).toLocaleString('ko-KR')}
-${data.refundReason ? `환불사유: ${data.refundReason}` : ''}
-
-환불 금액은 결제하신 수단으로 영업일 기준 3-5일 이내에 입금될 예정입니다.
+Order No: ${data.orderNo}
+Refund Amount: ${data.refundAmount.toLocaleString()}원
+Refunded At: ${new Date(data.refundedAt).toLocaleString('ko-KR')}
+${data.refundReason ? `Reason: ${data.refundReason}` : ''}
     `;
         return { subject, html, text };
     }
     getLowStockAlertEmailTemplate(data) {
-        const subject = `⚠️ 재고 부족 알림 - ${data.productName}`;
+        const subject = `Low Stock Alert - ${data.productName}`;
         const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>재고 부족 알림</title>
+          <title>Low Stock Alert</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #f44336; border-bottom: 2px solid #f44336; padding-bottom: 10px;">
-              ⚠️ 재고 부족 알림
+              Low Stock Alert
             </h1>
 
-            <p>다음 상품의 재고가 최소 수량 미만으로 떨어졌습니다.</p>
+            <p>The following item is below the minimum stock level.</p>
 
             <div style="background-color: #ffebee; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #f44336;">
-              <p style="margin: 5px 0;"><strong>상품명:</strong> ${data.productName}</p>
+              <p style="margin: 5px 0;"><strong>Product:</strong> ${data.productName}</p>
               ${data.productSku ? `<p style="margin: 5px 0;"><strong>SKU:</strong> ${data.productSku}</p>` : ''}
-              <p style="margin: 5px 0;"><strong>지점:</strong> ${data.branchName}</p>
-              <p style="margin: 5px 0;"><strong>현재 재고:</strong> <span style="color: #f44336; font-size: 1.2em; font-weight: bold;">${data.currentStock}개</span></p>
-              <p style="margin: 5px 0;"><strong>최소 재고:</strong> ${data.minimumStock}개</p>
-              <p style="margin: 5px 0;"><strong>알림일시:</strong> ${new Date(data.alertedAt).toLocaleString('ko-KR')}</p>
+              <p style="margin: 5px 0;"><strong>Branch:</strong> ${data.branchName}</p>
+              <p style="margin: 5px 0;"><strong>Current Stock:</strong> <span style="color: #f44336; font-size: 1.2em; font-weight: bold;">${data.currentStock}</span></p>
+              <p style="margin: 5px 0;"><strong>Minimum Stock:</strong> ${data.minimumStock}</p>
+              <p style="margin: 5px 0;"><strong>Alerted At:</strong> ${new Date(data.alertedAt).toLocaleString('ko-KR')}</p>
             </div>
-
-            <div style="background-color: #fff3cd; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #ffc107;">
-              <p style="margin: 0;"><strong>⚡ 조치가 필요합니다:</strong></p>
-              <ul style="margin: 10px 0;">
-                <li>재고를 확인하세요</li>
-                <li>필요시 발주를 진행하세요</li>
-                <li>상품 판매 여부를 검토하세요</li>
-              </ul>
-            </div>
-
-            <p style="margin-top: 20px; color: #999; font-size: 0.9em;">
-              이 알림은 자동으로 발송되었습니다.
-            </p>
           </div>
         </body>
       </html>
     `;
         const text = `
-⚠️ 재고 부족 알림
+Low Stock Alert
 
-상품명: ${data.productName}
+Product: ${data.productName}
 ${data.productSku ? `SKU: ${data.productSku}` : ''}
-지점: ${data.branchName}
-현재 재고: ${data.currentStock}개
-최소 재고: ${data.minimumStock}개
-알림일시: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
-
-조치가 필요합니다.
+Branch: ${data.branchName}
+Current Stock: ${data.currentStock}
+Minimum Stock: ${data.minimumStock}
+Alerted At: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
     `;
         return { subject, html, text };
     }
     getOrderConfirmationSMSTemplate(data) {
-        return `[OrderFriends] ${data.customerName}님, 주문이 완료되었습니다. 주문번호: ${data.orderNo}, 금액: ${data.total.toLocaleString()}원`;
+        return `[OrderFriends] ${data.customerName}, your order is confirmed. Order No: ${data.orderNo}, Amount: ${data.total.toLocaleString()}원`;
     }
     getOrderReadySMSTemplate(data) {
         const contactInfo = data.branchPhone
-            ? ` (문의: ${data.branchPhone})`
+            ? ` (Contact: ${data.branchPhone})`
             : '';
-        return `[OrderFriends] 주문번호 ${data.orderNo}의 상품이 준비되었습니다. ${data.branchName}에서 수령 가능합니다${contactInfo}`;
+        return `[OrderFriends] Order ${data.orderNo} is ready at ${data.branchName}.${contactInfo}`;
     }
     getDeliveryCompleteSMSTemplate(data) {
-        return `[OrderFriends] 주문번호 ${data.orderNo}의 배송이 완료되었습니다. 이용해 주셔서 감사합니다.`;
+        return `[OrderFriends] Order ${data.orderNo} has been delivered. Thank you.`;
     }
     async retryNotification(notificationId) {
         this.logger.warn(`Retry notification not implemented yet: ${notificationId}`);

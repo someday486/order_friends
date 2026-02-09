@@ -20,7 +20,7 @@ export declare class MeController {
                 brands: {
                     id: any;
                     name: any;
-                    owner_id: any;
+                    owner_user_id: any;
                 }[];
             }[];
         }[];

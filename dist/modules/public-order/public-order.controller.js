@@ -26,6 +26,9 @@ let PublicOrderController = class PublicOrderController {
     async getBranch(branchId) {
         return this.publicOrderService.getBranch(branchId);
     }
+    async getBranchLegacy(branchId) {
+        return this.publicOrderService.getBranch(branchId);
+    }
     async getBranchBySlug(slug) {
         return this.publicOrderService.getBranchBySlug(slug);
     }
@@ -36,6 +39,9 @@ let PublicOrderController = class PublicOrderController {
         return this.publicOrderService.getCategories(branchId);
     }
     async getProducts(branchId) {
+        return this.publicOrderService.getProducts(branchId);
+    }
+    async getProductsLegacy(branchId) {
         return this.publicOrderService.getProducts(branchId);
     }
     async createOrder(dto) {
@@ -53,6 +59,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], PublicOrderController.prototype, "getBranch", null);
+__decorate([
+    (0, common_1.Get)('branch/:branchId'),
+    __param(0, (0, common_1.Param)('branchId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getBranchLegacy", null);
 __decorate([
     (0, common_1.Get)('branches/slug/:slug'),
     __param(0, (0, common_1.Param)('slug')),
@@ -82,6 +95,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], PublicOrderController.prototype, "getProducts", null);
+__decorate([
+    (0, common_1.Get)('branch/:branchId/products'),
+    __param(0, (0, common_1.Param)('branchId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getProductsLegacy", null);
 __decorate([
     (0, common_1.Post)('orders'),
     (0, common_1.UseGuards)(user_rate_limit_guard_1.UserRateLimitGuard),

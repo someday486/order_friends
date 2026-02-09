@@ -12,6 +12,7 @@ var PaymentsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentsService = void 0;
 const common_1 = require("@nestjs/common");
+const crypto_1 = require("crypto");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
 const payment_dto_1 = require("./dto/payment.dto");
 const payment_exception_1 = require("../../common/exceptions/payment.exception");
@@ -23,9 +24,22 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
     logger = new common_1.Logger(PaymentsService_1.name);
     tossSecretKey = process.env.TOSS_SECRET_KEY || '';
     tossClientKey = process.env.TOSS_CLIENT_KEY || '';
-    tossApiBaseUrl = 'https://api.tosspayments.com/v1';
+    tossApiBaseUrl = process.env.TOSS_API_BASE_URL || 'https://api.tosspayments.com/v1';
+    tossTimeoutMs;
+    tossMockMode;
+    tossWebhookSecret = process.env.TOSS_WEBHOOK_SECRET || '';
+    tossWebhookSignatureHeader = (process.env.TOSS_WEBHOOK_SIGNATURE_HEADER || 'toss-signature').toLowerCase();
     constructor(supabase) {
         this.supabase = supabase;
+        const rawTimeout = Number(process.env.TOSS_TIMEOUT_MS);
+        this.tossTimeoutMs =
+            Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 15000;
+        const rawMock = process.env.TOSS_MOCK_MODE;
+        const envMock = rawMock !== undefined
+            ? ['true', '1', 'yes'].includes(rawMock.trim().toLowerCase())
+            : false;
+        this.tossMockMode =
+            envMock || (!this.tossSecretKey && process.env.NODE_ENV !== 'production');
     }
     isUuid(v) {
         return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -140,11 +154,18 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             throw new payment_exception_1.OrderAlreadyPaidException(resolvedId);
         }
         let providerPaymentId = null;
-        const providerResponse = null;
-        if (this.tossSecretKey) {
+        let providerResponse = null;
+        if (this.tossMockMode) {
+            this.logger.warn('Toss Payments running in mock mode (TOSS_MOCK_MODE or missing key)');
+            providerPaymentId = `mock_${Date.now()}`;
+        }
+        else if (!this.tossSecretKey) {
+            throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, 'Toss Payments secret key is not configured');
+        }
+        else {
             try {
-                this.logger.warn('Toss Payments API integration not implemented - using mock mode');
-                providerPaymentId = `mock_${Date.now()}`;
+                providerResponse = await this.callTossPaymentsConfirmApi(dto.paymentKey, dto.orderId, dto.amount);
+                providerPaymentId = providerResponse?.paymentKey || dto.paymentKey;
             }
             catch (error) {
                 this.logger.error('Toss Payments API call failed', error);
@@ -157,16 +178,12 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     status: payment_dto_1.PaymentStatus.FAILED,
                     payment_method: payment_dto_1.PaymentMethod.CARD,
                     failed_at: new Date().toISOString(),
-                    failure_reason: error.message || 'Payment confirmation failed',
+                    failure_reason: error?.message || 'Payment confirmation failed',
                 });
-                throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, error.message || 'Payment confirmation failed', error.response?.data);
+                throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, error?.message || 'Payment confirmation failed', error?.response);
             }
         }
-        else {
-            this.logger.warn('TOSS_SECRET_KEY not configured - running in mock mode');
-            providerPaymentId = `mock_${Date.now()}`;
-        }
-        const paidAt = new Date().toISOString();
+        const paidAt = providerResponse?.approvedAt || new Date().toISOString();
         let payment;
         if (existingPayment) {
             const { data: updated, error: updateError } = await sb
@@ -177,6 +194,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 provider_payment_key: dto.paymentKey,
                 paid_at: paidAt,
                 failure_reason: null,
+                metadata: providerResponse || {},
             })
                 .eq('id', existingPayment.id)
                 .select()
@@ -366,14 +384,26 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         if (refundAmount > availableAmount) {
             throw new payment_exception_1.RefundAmountExceededException(refundAmount, availableAmount);
         }
-        if (this.tossSecretKey && payment.provider_payment_key) {
+        if (this.tossMockMode) {
+            this.logger.warn('Toss Payments refund running in mock mode');
+        }
+        else if (!this.tossSecretKey) {
+            throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, 'Toss Payments secret key is not configured');
+        }
+        else if (payment.provider_payment_key) {
             try {
-                this.logger.warn('Toss Payments refund API not implemented - using mock mode');
+                await this.callTossPaymentsRefundApi(payment.provider_payment_key, refundAmount, dto.reason);
             }
             catch (error) {
+                if (error instanceof payment_exception_1.PaymentProviderException) {
+                    throw error;
+                }
                 this.logger.error('Toss Payments refund API call failed', error);
-                throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, error.message || 'Refund failed', error.response?.data);
+                throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, error?.message || 'Refund failed', error?.response);
             }
+        }
+        else {
+            throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, 'Missing provider payment key for refund');
         }
         const newRefundAmount = payment.refund_amount + refundAmount;
         const newStatus = newRefundAmount >= payment.amount
@@ -403,9 +433,18 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             refundedAt,
         };
     }
-    async handleTossWebhook(webhookData, headers) {
+    async handleTossWebhook(webhookData, headers, rawBody) {
         this.logger.log(`Received Toss webhook: ${webhookData.eventType}`);
         const sb = this.supabase.adminClient();
+        if (this.tossWebhookSecret) {
+            if (!rawBody) {
+                throw new payment_exception_1.WebhookSignatureVerificationException();
+            }
+            const isValid = this.verifyTossWebhookSignature(rawBody, headers);
+            if (!isValid) {
+                throw new payment_exception_1.WebhookSignatureVerificationException();
+            }
+        }
         const { orderId, paymentKey, status, amount } = webhookData.data;
         let paymentId = null;
         const { data: payment } = await sb
@@ -498,6 +537,85 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             throw new business_exception_1.BusinessException('Failed to update payment cancellation', 'WEBHOOK_CANCELLATION_UPDATE_FAILED', 500, { error: error.message });
         }
         this.logger.log(`Payment cancelled via webhook: ${orderId}`);
+    }
+    async callTossPaymentsConfirmApi(paymentKey, orderId, amount) {
+        return this.callTossApi('/payments/confirm', {
+            paymentKey,
+            orderId,
+            amount,
+        });
+    }
+    async callTossPaymentsRefundApi(paymentKey, amount, reason) {
+        return this.callTossApi(`/payments/${paymentKey}/cancel`, {
+            cancelReason: reason,
+            cancelAmount: amount,
+        });
+    }
+    async callTossApi(path, body) {
+        if (!this.tossSecretKey) {
+            throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, 'Toss Payments secret key is not configured');
+        }
+        const url = `${this.tossApiBaseUrl}${path}`;
+        const auth = Buffer.from(`${this.tossSecretKey}:`).toString('base64');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.tossTimeoutMs);
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Basic ${auth}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            });
+            const text = await res.text();
+            let data = null;
+            try {
+                data = text ? JSON.parse(text) : null;
+            }
+            catch {
+                data = text ? { raw: text } : null;
+            }
+            if (!res.ok) {
+                throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, data?.message || `HTTP ${res.status}`, data);
+            }
+            return data;
+        }
+        catch (error) {
+            if (error instanceof payment_exception_1.PaymentProviderException) {
+                throw error;
+            }
+            if (error?.name === 'AbortError') {
+                throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, 'Toss Payments request timed out');
+            }
+            throw error;
+        }
+        finally {
+            clearTimeout(timeout);
+        }
+    }
+    verifyTossWebhookSignature(rawBody, headers) {
+        if (!this.tossWebhookSecret)
+            return true;
+        const headerName = this.tossWebhookSignatureHeader;
+        const headerValue = headers[headerName] ||
+            headers[headerName.toLowerCase()] ||
+            headers[headerName.toUpperCase()];
+        const signature = Array.isArray(headerValue)
+            ? headerValue[0]
+            : headerValue;
+        if (!signature)
+            return false;
+        const normalized = signature.startsWith('v1=')
+            ? signature.slice(3)
+            : signature;
+        const hmac = (0, crypto_1.createHmac)('sha256', this.tossWebhookSecret)
+            .update(rawBody)
+            .digest('hex');
+        if (normalized.length !== hmac.length)
+            return false;
+        return (0, crypto_1.timingSafeEqual)(Buffer.from(normalized, 'utf8'), Buffer.from(hmac, 'utf8'));
     }
 };
 exports.PaymentsService = PaymentsService;

@@ -20,7 +20,6 @@ const branches_module_1 = require("./modules/branches/branches.module");
 const brands_module_1 = require("./modules/brands/brands.module");
 const members_module_1 = require("./modules/members/members.module");
 const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
-const public_module_1 = require("./modules/public/public.module");
 const public_order_module_1 = require("./modules/public-order/public-order.module");
 const health_module_1 = require("./modules/health/health.module");
 const customer_dashboard_module_1 = require("./modules/customer-dashboard/customer-dashboard.module");
@@ -65,7 +64,6 @@ exports.AppModule = AppModule = __decorate([
             brands_module_1.BrandsModule,
             members_module_1.MembersModule,
             dashboard_module_1.DashboardModule,
-            public_module_1.PublicModule,
             public_order_module_1.PublicOrderModule,
             health_module_1.HealthModule,
             customer_dashboard_module_1.CustomerDashboardModule,

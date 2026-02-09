@@ -42,7 +42,7 @@ class PreparePaymentRequest {
 exports.PreparePaymentRequest = PreparePaymentRequest;
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: '주문 ID (UUID or order_no)',
+        description: '주문 ID (UUID 또는 order_no)',
         example: '550e8400-e29b-41d4-a716-446655440000',
     }),
     (0, class_validator_1.IsString)(),
@@ -79,7 +79,7 @@ __decorate([
 ], ConfirmPaymentRequest.prototype, "orderId", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: 'Toss Payments의 paymentKey',
+        description: 'Toss Payments 결제 키',
         example: 'tgen_payment_key_123456',
     }),
     (0, class_validator_1.IsString)(),
@@ -87,7 +87,7 @@ __decorate([
 ], ConfirmPaymentRequest.prototype, "paymentKey", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: '결제 금액 (재검증용)',
+        description: '결제 금액 (검증용)',
         example: 50000,
         minimum: 1,
     }),
@@ -101,13 +101,13 @@ class RefundPaymentRequest {
 }
 exports.RefundPaymentRequest = RefundPaymentRequest;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: '환불 사유', example: '고객 요청에 의한 환불' }),
+    (0, swagger_1.ApiProperty)({ description: '환불 사유', example: '고객 요청으로 인한 환불' }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RefundPaymentRequest.prototype, "reason", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({
-        description: '환불 금액 (미입력시 전액 환불)',
+        description: '환불 금액 (미입력 시 전액 환불)',
         example: 25000,
         minimum: 1,
     }),
@@ -142,7 +142,7 @@ __decorate([
 ], PreparePaymentResponse.prototype, "amount", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: '주문명 (결제창에 표시)',
+        description: '주문명 (결제창 표시용)',
         example: '커피 외 2건',
     }),
     __metadata("design:type", String)

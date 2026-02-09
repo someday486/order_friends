@@ -8,7 +8,7 @@ export declare class PaymentsPublicController {
     preparePayment(dto: PreparePaymentRequest): Promise<PreparePaymentResponse>;
     confirmPayment(dto: ConfirmPaymentRequest): Promise<ConfirmPaymentResponse>;
     getPaymentStatus(orderId: string): Promise<PaymentStatusResponse>;
-    handleTossWebhook(webhookData: TossWebhookRequest, headers: Record<string, string>): Promise<{
+    handleTossWebhook(webhookData: TossWebhookRequest, headers: Record<string, string>, req: any): Promise<{
         success: boolean;
     }>;
 }

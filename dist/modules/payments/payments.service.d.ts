@@ -7,6 +7,10 @@ export declare class PaymentsService {
     private readonly tossSecretKey;
     private readonly tossClientKey;
     private readonly tossApiBaseUrl;
+    private readonly tossTimeoutMs;
+    private readonly tossMockMode;
+    private readonly tossWebhookSecret;
+    private readonly tossWebhookSignatureHeader;
     constructor(supabase: SupabaseService);
     private isUuid;
     private resolveOrderId;
@@ -17,7 +21,11 @@ export declare class PaymentsService {
     getPayments(branchId: string, paginationDto?: PaginationDto): Promise<PaginatedResponse<PaymentListItemResponse>>;
     getPaymentDetail(paymentId: string, branchId: string): Promise<PaymentDetailResponse>;
     refundPayment(paymentId: string, branchId: string, dto: RefundPaymentRequest): Promise<RefundPaymentResponse>;
-    handleTossWebhook(webhookData: TossWebhookRequest, headers: any): Promise<void>;
+    handleTossWebhook(webhookData: TossWebhookRequest, headers: Record<string, string | string[]>, rawBody?: Buffer): Promise<void>;
     private handlePaymentConfirmedWebhook;
     private handlePaymentCancelledWebhook;
+    private callTossPaymentsConfirmApi;
+    private callTossPaymentsRefundApi;
+    private callTossApi;
+    private verifyTossWebhookSignature;
 }

@@ -58,7 +58,7 @@ let MeController = class MeController {
           brands:brand_id (
             id,
             name,
-            owner_id
+            owner_user_id
           )
         )
       `)
@@ -70,7 +70,7 @@ let MeController = class MeController {
             .adminClient()
             .from('brands')
             .select('id, name')
-            .eq('owner_id', user.id);
+            .eq('owner_user_id', user.id);
         if (brandsError) {
             console.error('Error fetching owned brands:', brandsError);
         }

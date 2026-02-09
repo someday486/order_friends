@@ -35,8 +35,8 @@ let PaymentsPublicController = class PaymentsPublicController {
     async getPaymentStatus(orderId) {
         return this.paymentsService.getPaymentStatus(orderId);
     }
-    async handleTossWebhook(webhookData, headers) {
-        await this.paymentsService.handleTossWebhook(webhookData, headers);
+    async handleTossWebhook(webhookData, headers, req) {
+        await this.paymentsService.handleTossWebhook(webhookData, headers, req?.rawBody);
         return { success: true };
     }
 };
@@ -46,7 +46,7 @@ __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, swagger_1.ApiOperation)({
         summary: '결제 준비',
-        description: '주문 검증 및 결제 정보 반환 (인증 불필요)',
+        description: '주문 검증 및 결제 정보를 반환합니다. (인증 불필요)',
     }),
     (0, swagger_1.ApiBody)({ type: payment_dto_1.PreparePaymentRequest }),
     (0, swagger_1.ApiResponse)({
@@ -77,7 +77,7 @@ __decorate([
     }),
     (0, swagger_1.ApiResponse)({ status: 400, description: '잘못된 요청' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: '주문을 찾을 수 없음' }),
-    (0, swagger_1.ApiResponse)({ status: 502, description: '결제 제공자 오류' }),
+    (0, swagger_1.ApiResponse)({ status: 502, description: '결제 승인 실패' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [payment_dto_1.ConfirmPaymentRequest]),
@@ -87,7 +87,7 @@ __decorate([
     (0, common_1.Get)(':orderId/status'),
     (0, swagger_1.ApiOperation)({
         summary: '결제 상태 조회',
-        description: '주문의 결제 상태 조회 (인증 불필요)',
+        description: '주문 결제 상태를 조회합니다. (인증 불필요)',
     }),
     (0, swagger_1.ApiParam)({ name: 'orderId', description: '주문 ID 또는 주문 번호' }),
     (0, swagger_1.ApiResponse)({
@@ -106,15 +106,16 @@ __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, swagger_1.ApiOperation)({
         summary: 'Toss Payments 웹훅',
-        description: 'Toss Payments에서 전송하는 웹훅 이벤트 처리',
+        description: 'Toss Payments 웹훅 이벤트를 처리합니다.',
     }),
     (0, swagger_1.ApiBody)({ type: payment_dto_1.TossWebhookRequest }),
     (0, swagger_1.ApiResponse)({ status: 200, description: '웹훅 처리 성공' }),
     (0, swagger_1.ApiResponse)({ status: 401, description: '서명 검증 실패' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Headers)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [payment_dto_1.TossWebhookRequest, Object]),
+    __metadata("design:paramtypes", [payment_dto_1.TossWebhookRequest, Object, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsPublicController.prototype, "handleTossWebhook", null);
 exports.PaymentsPublicController = PaymentsPublicController = __decorate([
@@ -142,11 +143,11 @@ __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({
         summary: '결제 목록 조회',
-        description: '지점의 결제 목록 조회 (인증 필요)',
+        description: '지점의 결제 목록을 조회합니다. (인증 필요)',
     }),
     (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
     (0, swagger_1.ApiQuery)({ name: 'page', description: '페이지 번호', required: false }),
-    (0, swagger_1.ApiQuery)({ name: 'limit', description: '페이지당 항목 수', required: false }),
+    (0, swagger_1.ApiQuery)({ name: 'limit', description: '페이지 크기', required: false }),
     (0, swagger_1.ApiResponse)({
         status: 200,
         description: '결제 목록 조회 성공',
@@ -165,7 +166,7 @@ __decorate([
     (0, common_1.Get)(':paymentId'),
     (0, swagger_1.ApiOperation)({
         summary: '결제 상세 조회',
-        description: '특정 결제의 상세 정보 조회 (인증 필요)',
+        description: '특정 결제의 상세 정보를 조회합니다. (인증 필요)',
     }),
     (0, swagger_1.ApiParam)({ name: 'paymentId', description: '결제 ID' }),
     (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),

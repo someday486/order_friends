@@ -15,6 +15,12 @@ describe('ProductsService', () => {
     update: jest.fn().mockReturnThis(),
     delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
+    or: jest.fn().mockReturnThis(),
+    gte: jest.fn().mockReturnThis(),
+    lte: jest.fn().mockReturnThis(),
+    gt: jest.fn().mockReturnThis(),
+    range: jest.fn().mockReturnThis(),
+    ilike: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     single: jest.fn().mockReturnThis(),
     maybeSingle: jest.fn().mockReturnThis(),
@@ -58,7 +64,7 @@ describe('ProductsService', () => {
         },
       ];
 
-      mockSupabaseClient.order.mockResolvedValue({
+      mockSupabaseClient.order.mockResolvedValueOnce({
         data: mockProducts,
         error: null,
       });
@@ -76,8 +82,25 @@ describe('ProductsService', () => {
       });
     });
 
+    it('should map price fallback fields', async () => {
+      const mockProducts = [
+        { id: '1', name: 'A', price: 5, is_hidden: false, created_at: 't' },
+        { id: '2', name: 'B', price_amount: 7, is_hidden: true, created_at: 't' },
+      ];
+
+      mockSupabaseClient.order.mockResolvedValueOnce({
+        data: mockProducts,
+        error: null,
+      });
+
+      const result = await service.getProducts('token', 'branch-123', true);
+      expect(result[0].price).toBe(5);
+      expect(result[1].price).toBe(7);
+      expect(result[1].isActive).toBe(false);
+    });
+
     it('should throw BusinessException on database error', async () => {
-      mockSupabaseClient.order.mockResolvedValue({
+      mockSupabaseClient.order.mockResolvedValueOnce({
         data: null,
         error: { message: 'Database error' },
       });
@@ -124,6 +147,75 @@ describe('ProductsService', () => {
       await expect(
         service.getProduct('token', 'invalid-id', true),
       ).rejects.toThrow(ProductNotFoundException);
+    });
+
+    it('should throw BusinessException on fetch error', async () => {
+      mockSupabaseClient.single.mockResolvedValue({
+        data: null,
+        error: { message: 'fail' },
+      });
+
+      await expect(service.getProduct('token', 'bad', true)).rejects.toThrow(
+        BusinessException,
+      );
+    });
+  });
+
+  describe('searchProducts', () => {
+    it('should return paginated response', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: [{ id: '1', name: 'P', base_price: 10, is_hidden: false, created_at: 't' }],
+        error: null,
+        count: 1,
+      });
+
+      const result = await service.searchProducts(
+        'token',
+        'branch-123',
+        { page: 1, limit: 10 } as any,
+        true,
+      );
+      expect(result.data).toHaveLength(1);
+      expect(result.pagination.total).toBe(1);
+    });
+
+    it('should throw BusinessException on search error', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'fail' },
+        count: null,
+      });
+
+      await expect(
+        service.searchProducts('token', 'branch-123', {} as any, true),
+      ).rejects.toThrow(BusinessException);
+    });
+  });
+
+  describe('getCategories', () => {
+    it('should return categories list', async () => {
+      mockSupabaseClient.order
+        .mockReturnValueOnce(mockSupabaseClient)
+        .mockResolvedValueOnce({
+          data: [{ id: 'c1', branch_id: 'b1', name: 'Cat', sort_order: 1, is_active: true, created_at: 't' }],
+          error: null,
+        });
+
+      const result = await service.getCategories('token', 'b1', true);
+      expect(result[0].id).toBe('c1');
+    });
+
+    it('should throw on category fetch error', async () => {
+      mockSupabaseClient.order
+        .mockReturnValueOnce(mockSupabaseClient)
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: 'fail' },
+        });
+
+      await expect(service.getCategories('token', 'b1', true)).rejects.toThrow(
+        '[products.getCategories]',
+      );
     });
   });
 
@@ -184,6 +276,34 @@ describe('ProductsService', () => {
         service.createProduct('token', createDto, true),
       ).rejects.toThrow(BusinessException);
     });
+
+    it('should warn when options are provided', async () => {
+      const createDto = {
+        branchId: 'branch-123',
+        name: 'New Product',
+        categoryId: null,
+        description: 'Description',
+        price: 10000,
+        imageUrl: null,
+        isActive: true,
+        options: [{ name: 'Opt' }],
+      };
+
+      const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+
+      mockSupabaseClient.single
+        .mockResolvedValueOnce({
+          data: { id: 'new-123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: { id: 'new-123' },
+          error: null,
+        });
+
+      await service.createProduct('token', createDto as any, true);
+      expect(warnSpy).toHaveBeenCalled();
+    });
   });
 
   describe('updateProduct', () => {
@@ -233,6 +353,32 @@ describe('ProductsService', () => {
       await expect(
         service.updateProduct('token', 'invalid-id', { name: 'Test' }, true),
       ).rejects.toThrow(ProductNotFoundException);
+    });
+
+    it('should return current product when no fields to update', async () => {
+      const spy = jest
+        .spyOn(service, 'getProduct')
+        .mockResolvedValueOnce({ id: '123' } as any);
+
+      const result = await service.updateProduct(
+        'token',
+        '123',
+        {} as any,
+        true,
+      );
+      expect(result.id).toBe('123');
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should throw BusinessException on update error', async () => {
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'fail' },
+      });
+
+      await expect(
+        service.updateProduct('token', '123', { name: 'X' }, true),
+      ).rejects.toThrow(BusinessException);
     });
   });
 

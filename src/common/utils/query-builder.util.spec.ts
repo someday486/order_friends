@@ -247,6 +247,23 @@ describe('QueryBuilder', () => {
       expect(mockQuery.eq).toHaveBeenCalledWith('status', 'CONFIRMED');
     });
 
+    it('should add customer name filter when provided', () => {
+      const searchDto: OrderSearchDto = {
+        customerName: 'Kim',
+      };
+
+      QueryBuilder.buildOrderSearchQuery(
+        mockSupabase as any,
+        'branch-123',
+        searchDto,
+      );
+
+      expect(mockQuery.ilike).toHaveBeenCalledWith(
+        'customer_name',
+        '%Kim%',
+      );
+    });
+
     it('should add date range filters when provided', () => {
       const searchDto: OrderSearchDto = {
         startDate: '2024-01-01',
@@ -261,6 +278,22 @@ describe('QueryBuilder', () => {
 
       expect(mockQuery.gte).toHaveBeenCalledWith('created_at', '2024-01-01');
       expect(mockQuery.lt).toHaveBeenCalledWith('created_at', '2024-02-01');
+    });
+
+    it('should add amount range filters when provided', () => {
+      const searchDto: OrderSearchDto = {
+        minAmount: 1000,
+        maxAmount: 5000,
+      };
+
+      QueryBuilder.buildOrderSearchQuery(
+        mockSupabase as any,
+        'branch-123',
+        searchDto,
+      );
+
+      expect(mockQuery.gte).toHaveBeenCalledWith('total_amount', 1000);
+      expect(mockQuery.lte).toHaveBeenCalledWith('total_amount', 5000);
     });
 
     it('should apply sorting and pagination', () => {
@@ -311,6 +344,16 @@ describe('QueryBuilder', () => {
         ascending: false,
       });
       expect(mockQuery.range).toHaveBeenCalledWith(0, 24);
+    });
+  });
+
+  describe('buildGenericSearchQuery', () => {
+    it('should apply ilike filter on given field', () => {
+      const query = { ilike: jest.fn().mockReturnThis() };
+
+      QueryBuilder.buildGenericSearchQuery(query as any, 'name', 'foo');
+
+      expect(query.ilike).toHaveBeenCalledWith('name', '%foo%');
     });
   });
 });

@@ -1,0 +1,338 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { CustomerOrdersService } from './customer-orders.service';
+import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { OrderStatus } from '../../modules/orders/order-status.enum';
+
+describe('CustomerOrdersService', () => {
+  let service: CustomerOrdersService;
+  let ordersChain: any;
+  let branchesChain: any;
+  let mockSb: any;
+
+  const makeChain = () => ({
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    in: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    range: jest.fn().mockReturnThis(),
+    update: jest.fn().mockReturnThis(),
+    single: jest.fn(),
+    maybeSingle: jest.fn(),
+  });
+
+  const setup = () => {
+    ordersChain = makeChain();
+    branchesChain = makeChain();
+    mockSb = {
+      from: jest.fn((table: string) => {
+        if (table === 'orders') return ordersChain;
+        if (table === 'branches') return branchesChain;
+        return ordersChain;
+      }),
+    };
+    const supabase = { adminClient: jest.fn(() => mockSb) };
+    service = new CustomerOrdersService(supabase as SupabaseService);
+  };
+
+  beforeEach(() => {
+    setup();
+    jest.clearAllMocks();
+  });
+
+  it('isUuid should validate uuid', () => {
+    expect((service as any).isUuid('not-uuid')).toBe(false);
+    expect((service as any).isUuid('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
+  });
+
+  it('resolveOrderId should resolve by uuid and order_no', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
+
+    const byId = await (service as any).resolveOrderId(mockSb, '123e4567-e89b-12d3-a456-426614174000');
+    const byNo = await (service as any).resolveOrderId(mockSb, 'ORD-1');
+
+    expect(byId).toBe('o1');
+    expect(byNo).toBe('o2');
+  });
+
+  it('checkBranchAccess should return branch membership', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    const result = await (service as any).checkBranchAccess(
+      'b1',
+      'user-1',
+      [],
+      [{ branch_id: 'b1', role: 'STAFF' }],
+    );
+
+    expect(result.branchMembership.role).toBe('STAFF');
+  });
+
+  it('checkBranchAccess should return brand membership', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    const result = await (service as any).checkBranchAccess(
+      'b1',
+      'user-1',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result.brandMembership.role).toBe('OWNER');
+  });
+
+  it('checkBranchAccess should throw when forbidden', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    await expect(
+      (service as any).checkBranchAccess('b1', 'user-1', [], []),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('checkBranchAccess should throw when branch missing', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'missing' },
+    });
+
+    await expect(
+      (service as any).checkBranchAccess('b1', 'user-1', [], []),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('getAccessibleBranchIds should include brand branches', async () => {
+    branchesChain.in.mockResolvedValueOnce({
+      data: [{ id: 'b2' }],
+      error: null,
+    });
+
+    const ids = await (service as any).getAccessibleBranchIds(
+      [{ brand_id: 'brand-1' }],
+      [{ branch_id: 'b1' }],
+    );
+
+    expect(ids.sort()).toEqual(['b1', 'b2']);
+  });
+
+  it('getAccessibleBranchIds should return branch memberships only when no brands', async () => {
+    const ids = await (service as any).getAccessibleBranchIds([], [
+      { branch_id: 'b1' },
+      { branch_id: 'b2' },
+    ]);
+
+    expect(ids.sort()).toEqual(['b1', 'b2']);
+  });
+
+  it('getMyOrders should return empty when no accessible branches', async () => {
+    const result = await service.getMyOrders('user-1', undefined, [], [], {});
+    expect(result.data).toEqual([]);
+  });
+
+  it('getMyOrders should return paginated orders', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null }) // count
+      .mockReturnValueOnce(ordersChain); // data query
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [{ id: 'o1', status: OrderStatus.CREATED, created_at: 't', total_amount: 10 }],
+      error: null,
+    });
+
+    const result = await service.getMyOrders('user-1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }], { page: 1, limit: 10 });
+
+    expect(result.data).toHaveLength(1);
+    expect(result.pagination.total).toBe(1);
+  });
+
+  it('getMyOrders should apply status filter', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockReturnValueOnce(ordersChain)
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.eq
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockResolvedValueOnce({
+        data: [{ id: 'o1', status: OrderStatus.CONFIRMED, created_at: 't', total_amount: 10 }],
+        error: null,
+      });
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockReturnValueOnce(ordersChain);
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+      OrderStatus.CONFIRMED,
+    );
+
+    expect(result.data[0].status).toBe(OrderStatus.CONFIRMED);
+  });
+
+  it('getMyOrders should throw on count error', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in.mockResolvedValueOnce({ count: null, error: { message: 'fail' } });
+
+    await expect(
+      service.getMyOrders('user-1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }], {}),
+    ).rejects.toThrow('Failed to count orders');
+  });
+
+  it('getMyOrders should throw on data fetch error', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    await expect(
+      service.getMyOrders('user-1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }], {}),
+    ).rejects.toThrow('Failed to fetch orders');
+  });
+
+  it('getMyOrder should return order detail', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          customer_name: 'A',
+          customer_phone: '1',
+          delivery_address: 'addr',
+          delivery_memo: 'memo',
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          items: [
+            { id: 'i1', product_name_snapshot: 'P', qty: 1, unit_price_snapshot: 10, options: [] },
+          ],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder('user-1', 'o1', [{ brand_id: 'brand-1', role: 'OWNER' }], []);
+
+    expect(result.id).toBe('o1');
+    expect(result.items).toHaveLength(1);
+  });
+
+  it('getMyOrder should throw when detail fetch fails', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    await expect(
+      service.getMyOrder('user-1', 'o1', [{ brand_id: 'brand-1', role: 'OWNER' }], []),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('getMyOrder should throw when order missing', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(
+      service.getMyOrder('user-1', 'missing', [], []),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('updateMyOrderStatus should update status', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'o1', status: OrderStatus.READY, created_at: 't', customer_name: 'A', total_amount: 10 },
+        error: null,
+      });
+
+    const result = await service.updateMyOrderStatus(
+      'user-1',
+      'o1',
+      OrderStatus.READY,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result.status).toBe(OrderStatus.READY);
+  });
+
+  it('updateMyOrderStatus should throw for insufficient role', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrderStatus(
+        'user-1',
+        'o1',
+        OrderStatus.READY,
+        [],
+        [{ branch_id: 'b1', role: 'STAFF' }],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('updateMyOrderStatus should throw on update error', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    await expect(
+      service.updateMyOrderStatus(
+        'user-1',
+        'o1',
+        OrderStatus.READY,
+        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [],
+      ),
+    ).rejects.toThrow('Failed to update order status');
+  });
+});

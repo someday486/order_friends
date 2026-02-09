@@ -48,6 +48,15 @@ describe('PublicOrderController', () => {
     await expect(controller.getBranch('branch-1')).rejects.toThrow('boom');
   });
 
+  it('getBranchLegacy should call service and return result', async () => {
+    mockService.getBranch.mockResolvedValue({ id: 'branch-legacy' });
+
+    const result = await controller.getBranchLegacy('branch-legacy');
+
+    expect(result).toEqual({ id: 'branch-legacy' });
+    expect(mockService.getBranch).toHaveBeenCalledWith('branch-legacy');
+  });
+
   it('getBranchBySlug should call service and return result', async () => {
     mockService.getBranchBySlug.mockResolvedValue({ id: 'branch-1' });
 
@@ -106,6 +115,15 @@ describe('PublicOrderController', () => {
     mockService.getProducts.mockRejectedValue(new Error('boom'));
 
     await expect(controller.getProducts('branch-1')).rejects.toThrow('boom');
+  });
+
+  it('getProductsLegacy should call service and return result', async () => {
+    mockService.getProducts.mockResolvedValue([{ id: 'prod-legacy' }]);
+
+    const result = await controller.getProductsLegacy('branch-legacy');
+
+    expect(result).toEqual([{ id: 'prod-legacy' }]);
+    expect(mockService.getProducts).toHaveBeenCalledWith('branch-legacy');
   });
 
   it('createOrder should call service and return result', async () => {

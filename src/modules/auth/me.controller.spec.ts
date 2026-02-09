@@ -91,6 +91,71 @@ describe('MeController', () => {
     expect(result.isSystemAdmin).toBe(false);
   });
 
+  it('should set primaryRole from memberships when no owned brands', async () => {
+    profilesChain.single.mockResolvedValueOnce({
+      data: { is_system_admin: false },
+      error: null,
+    });
+
+    membersChain.eq.mockResolvedValueOnce({
+      data: [{ id: 'm1', role: 'branch_manager' }],
+      error: null,
+    });
+
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+
+    expect(result.user.role).toBe('branch_manager');
+    expect(result.ownedBrands).toEqual([]);
+  });
+
+  it('should fallback to staff role when only staff memberships', async () => {
+    profilesChain.single.mockResolvedValueOnce({
+      data: { is_system_admin: false },
+      error: null,
+    });
+
+    membersChain.eq.mockResolvedValueOnce({
+      data: [{ id: 'm1', role: 'staff' }],
+      error: null,
+    });
+
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+
+    expect(result.user.role).toBe('staff');
+  });
+
+  it('should handle profile/membership/brand errors gracefully', async () => {
+    profilesChain.single.mockResolvedValueOnce({
+      data: { is_system_admin: false },
+      error: { message: 'profile error' },
+    });
+
+    membersChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: { message: 'members error' },
+    });
+
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: { message: 'brands error' },
+    });
+
+    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+
+    expect(result.user.role).toBe('customer');
+    expect(result.isSystemAdmin).toBe(false);
+  });
+
   it('should propagate errors from supabase client creation', async () => {
     const errorSupabase = {
       adminClient: jest.fn(() => {

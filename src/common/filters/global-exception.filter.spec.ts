@@ -1,4 +1,4 @@
-import { ArgumentsHost, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, HttpStatus, HttpException } from '@nestjs/common';
 import { GlobalExceptionFilter } from './global-exception.filter';
 import { BusinessException } from '../exceptions/business.exception';
 
@@ -69,6 +69,33 @@ describe('GlobalExceptionFilter', () => {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Generic error',
         error: 'Error',
+      }),
+    );
+  });
+
+  it('should handle database errors', () => {
+    const exception = new Error('PGRST123: bad');
+
+    filter.catch(exception, mockHost);
+
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'DATABASE_ERROR',
+      }),
+    );
+  });
+
+  it('should handle HttpException with string response', () => {
+    const exception = new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+
+    filter.catch(exception, mockHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Bad request',
+        error: 'HttpException',
       }),
     );
   });

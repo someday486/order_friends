@@ -115,6 +115,20 @@ describe('MembershipGuard', () => {
     expect(ctx._req.role).toBe(Role.OWNER);
   });
 
+  it('should throw when brand membership lookup fails', async () => {
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockReturnValueOnce(brandMembersChain);
+    brandMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+
+    const ctx = createContext({ params: { brandId: 'brand-1' } });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
   it('should throw when brand membership is inactive', async () => {
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
@@ -145,6 +159,47 @@ describe('MembershipGuard', () => {
     expect(result).toBe(true);
     expect(ctx._req.branchId).toBe('branch-1');
     expect(ctx._req.role).toBe(Role.OWNER);
+  });
+
+  it('should throw when branch membership lookup fails', async () => {
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockReturnValueOnce(branchMembersChain);
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+
+    const ctx = createContext({ params: { branchId: 'branch-1' } });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should fallback when branch membership inactive', async () => {
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockReturnValueOnce(branchMembersChain);
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: { role: BranchRole.MANAGER, status: MemberStatus.SUSPENDED },
+      error: null,
+    });
+
+    branchesChain.eq.mockReturnValueOnce(branchesChain);
+    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockReturnValueOnce(brandMembersChain);
+    brandMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: { role: BrandRole.ADMIN, status: MemberStatus.ACTIVE },
+      error: null,
+    });
+
+    const ctx = createContext({ params: { branchId: 'branch-1' } });
+
+    const result = await guard.canActivate(ctx);
+    expect(result).toBe(true);
+    expect(ctx._req.role).toBe(Role.STAFF);
   });
 
   it('should fallback to brand membership when branch membership is missing', async () => {
@@ -186,5 +241,37 @@ describe('MembershipGuard', () => {
     const ctx = createContext({ params: { branchId: 'branch-1' } });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should throw when brand membership lookup fails in fallback', async () => {
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockReturnValueOnce(branchMembersChain);
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    branchesChain.eq.mockReturnValueOnce(branchesChain);
+    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockReturnValueOnce(brandMembersChain);
+    brandMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    const ctx = createContext({ params: { branchId: 'branch-1' } });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should normalize ids from query arrays', async () => {
+    const ctx = createContext({
+      isAdmin: true,
+      query: { branchId: ['branch-1'] },
+      body: { brandId: 'brand-1' },
+    });
+
+    const result = await guard.canActivate(ctx);
+    expect(result).toBe(true);
+    expect(ctx._req.branchId).toBe('branch-1');
+    expect(ctx._req.brandId).toBe('brand-1');
   });
 });

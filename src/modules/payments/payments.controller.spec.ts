@@ -82,15 +82,18 @@ describe('PaymentsController', () => {
     it('handleTossWebhook should call service and return success', async () => {
       mockService.handleTossWebhook.mockResolvedValue(undefined);
 
+      const rawBody = Buffer.from('raw-body');
       const result = await controller.handleTossWebhook(
         { eventType: 'PAYMENT' } as any,
         { 'x-signature': 'sig' },
+        { rawBody } as any,
       );
 
       expect(result).toEqual({ success: true });
       expect(mockService.handleTossWebhook).toHaveBeenCalledWith(
         { eventType: 'PAYMENT' },
         { 'x-signature': 'sig' },
+        rawBody,
       );
     });
 
@@ -98,7 +101,7 @@ describe('PaymentsController', () => {
       mockService.handleTossWebhook.mockRejectedValue(new Error('boom'));
 
       await expect(
-        controller.handleTossWebhook({} as any, {} as any),
+        controller.handleTossWebhook({} as any, {} as any, {} as any),
       ).rejects.toThrow('boom');
     });
   });

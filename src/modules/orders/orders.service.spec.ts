@@ -103,6 +103,20 @@ describe('OrdersService', () => {
         BusinessException,
       );
     });
+
+    it('should throw BusinessException on fetch error', async () => {
+      mockSupabaseClient.eq
+        .mockResolvedValueOnce({ count: 1, error: null })
+        .mockReturnValueOnce(mockSupabaseClient);
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'fail' },
+      });
+
+      await expect(service.getOrders('token', 'branch-123')).rejects.toThrow(
+        BusinessException,
+      );
+    });
   });
 
   describe('getOrder', () => {
@@ -148,6 +162,60 @@ describe('OrdersService', () => {
       expect(result.items).toHaveLength(1);
     });
 
+    it('should resolve uuid directly when id exists', async () => {
+      const uuid = '123e4567-e89b-12d3-a456-426614174000';
+      const mockOrder = {
+        id: uuid,
+        order_no: 'ORD-UUID',
+        status: OrderStatus.CONFIRMED,
+        created_at: '2024-02-01',
+        customer_name: 'Test',
+        customer_phone: '010-0000-0000',
+        delivery_address: 'Addr',
+        delivery_memo: null,
+        subtotal: 100,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 100,
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: uuid }, error: null })
+        .mockResolvedValueOnce({ data: mockOrder, error: null });
+
+      const result = await service.getOrder('token', uuid, 'branch-123');
+      expect(result.id).toBe(uuid);
+      expect(result.orderNo).toBe('ORD-UUID');
+    });
+
+    it('should fall back to order_no when uuid lookup fails', async () => {
+      const uuid = '123e4567-e89b-12d3-a456-426614174000';
+      const mockOrder = {
+        id: 'resolved-id',
+        order_no: 'ORD-001',
+        status: OrderStatus.PENDING,
+        created_at: '2024-01-01',
+        customer_name: 'Test',
+        customer_phone: '010-1111-1111',
+        delivery_address: 'Addr',
+        delivery_memo: null,
+        subtotal: 10,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 10,
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: null, error: { message: 'fail' } }) // by id
+        .mockResolvedValueOnce({ data: { id: 'resolved-id' }, error: null }) // by order_no
+        .mockResolvedValueOnce({ data: mockOrder, error: null }); // fetch
+
+      const result = await service.getOrder('token', uuid, 'branch-123');
+      expect(result.id).toBe('resolved-id');
+    });
+
     it('should throw OrderNotFoundException when order not found', async () => {
       mockSupabaseClient.maybeSingle.mockResolvedValue({
         data: null,
@@ -157,6 +225,43 @@ describe('OrdersService', () => {
       await expect(
         service.getOrder('token', 'invalid-id', 'branch-123'),
       ).rejects.toThrow(OrderNotFoundException);
+    });
+
+    it('should throw BusinessException on fetch error', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: '123' }, error: null }) // resolveOrderId
+        .mockResolvedValueOnce({ data: null, error: { message: 'fail' } }); // fetch
+
+      await expect(
+        service.getOrder('token', '123', 'branch-123'),
+      ).rejects.toThrow(BusinessException);
+    });
+
+    it('should throw OrderNotFoundException when data missing', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: '123' }, error: null })
+        .mockResolvedValueOnce({ data: null, error: null });
+
+      await expect(
+        service.getOrder('token', '123', 'branch-123'),
+      ).rejects.toThrow(OrderNotFoundException);
+    });
+  });
+
+  describe('resolveOrderId', () => {
+    it('should resolve by order_no without branch filter', async () => {
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: 'order-1' },
+        error: null,
+      });
+
+      const resolved = await (service as any).resolveOrderId(
+        mockSupabaseClient,
+        'ORD-001',
+      );
+
+      expect(resolved).toBe('order-1');
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('order_no', 'ORD-001');
     });
   });
 
@@ -200,6 +305,70 @@ describe('OrdersService', () => {
           'branch-123',
         ),
       ).rejects.toThrow(OrderNotFoundException);
+    });
+
+    it('should throw BusinessException on update error', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: '123' }, error: null }) // resolveOrderId
+        .mockResolvedValueOnce({ data: null, error: { message: 'fail' } }); // update
+
+      await expect(
+        service.updateStatus('token', '123', OrderStatus.CONFIRMED, 'branch-123'),
+      ).rejects.toThrow(BusinessException);
+    });
+
+    it('should throw OrderNotFoundException when update returns no data', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({ data: { id: '123' }, error: null })
+        .mockResolvedValueOnce({ data: null, error: null });
+
+      await expect(
+        service.updateStatus('token', '123', OrderStatus.CONFIRMED, 'branch-123'),
+      ).rejects.toThrow(OrderNotFoundException);
+    });
+
+    it('should swallow inventory release errors on cancellation', async () => {
+      const ordersChain = {
+        from: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn(),
+      };
+      const orderItemsChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn(() => {
+          throw new Error('boom');
+        }),
+      };
+
+      let maybeSingleCalls = 0;
+      ordersChain.maybeSingle.mockImplementation(() => {
+        maybeSingleCalls += 1;
+        if (maybeSingleCalls === 1) {
+          return Promise.resolve({ data: { id: 'o1' }, error: null });
+        }
+        return Promise.resolve({
+          data: { id: 'o1', order_no: 'ORD-1', status: OrderStatus.CANCELLED },
+          error: null,
+        });
+      });
+
+      const client = {
+        from: jest.fn((table: string) =>
+          table === 'orders' ? ordersChain : orderItemsChain,
+        ),
+      };
+      mockSupabaseService.adminClient.mockReturnValueOnce(client as any);
+
+      const result = await service.updateStatus(
+        'token',
+        'ORD-1',
+        OrderStatus.CANCELLED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.CANCELLED);
     });
   });
 

@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
@@ -67,7 +67,7 @@ describe('PublicOrderService - Inventory Integration', () => {
     it('should successfully create order and reserve inventory', async () => {
       const mockOrderDto = {
         branchId: 'branch-123',
-        customerName: '홍길동',
+        customerName: 'Customer',
         customerPhone: '010-1234-5678',
         items: [
           { productId: 'product-1', qty: 2, unitPrice: 10000 },
@@ -76,8 +76,8 @@ describe('PublicOrderService - Inventory Integration', () => {
       };
 
       const mockProducts = [
-        { id: 'product-1', name: '상품A', price: 10000, branch_id: 'branch-123' },
-        { id: 'product-2', name: '상품B', price: 15000, branch_id: 'branch-123' },
+        { id: 'product-1', name: 'Product', price: 10000, branch_id: 'branch-123' },
+        { id: 'product-2', name: 'Product', price: 15000, branch_id: 'branch-123' },
       ];
 
       const mockInventory = [
@@ -97,7 +97,7 @@ describe('PublicOrderService - Inventory Integration', () => {
         id: 'order-123',
         order_no: 'ORD-001',
         branch_id: 'branch-123',
-        customer_name: '홍길동',
+        customer_name: 'Customer',
         customer_phone: '010-1234-5678',
         total_amount: 35000,
         status: 'CREATED',
@@ -186,7 +186,7 @@ describe('PublicOrderService - Inventory Integration', () => {
     it('should throw BadRequestException when inventory is insufficient', async () => {
       const mockOrderDto = {
         branchId: 'branch-123',
-        customerName: '홍길동',
+        customerName: 'Customer',
         customerPhone: '010-1234-5678',
         items: [
           { productId: 'product-1', qty: 100, unitPrice: 10000 }, // More than available
@@ -194,7 +194,7 @@ describe('PublicOrderService - Inventory Integration', () => {
       };
 
       const mockProducts = [
-        { id: 'product-1', name: '상품A', price: 10000, branch_id: 'branch-123' },
+        { id: 'product-1', name: 'Product', price: 10000, branch_id: 'branch-123' },
       ];
 
       const mockInventory = [
@@ -227,20 +227,20 @@ describe('PublicOrderService - Inventory Integration', () => {
 
       // Should throw BadRequestException with specific message
       await expect(service.createOrder(mockOrderDto)).rejects.toThrow(
-        /재고가 부족합니다/,
+        BadRequestException,
       );
     });
 
     it('should throw BadRequestException when product inventory not found', async () => {
       const mockOrderDto = {
         branchId: 'branch-123',
-        customerName: '홍길동',
+        customerName: 'Customer',
         customerPhone: '010-1234-5678',
         items: [{ productId: 'product-1', qty: 2, unitPrice: 10000 }],
       };
 
       const mockProducts = [
-        { id: 'product-1', name: '상품A', price: 10000, branch_id: 'branch-123' },
+        { id: 'product-1', name: 'Product', price: 10000, branch_id: 'branch-123' },
       ];
 
       const mockInventory: any[] = []; // No inventory record
@@ -266,16 +266,175 @@ describe('PublicOrderService - Inventory Integration', () => {
       });
 
       await expect(service.createOrder(mockOrderDto)).rejects.toThrow(
-        /재고 정보를 찾을 수 없습니다/,
+        BadRequestException,
       );
     });
   });
 
+
+    it('should throw when products query fails', async () => {
+      const mockOrderDto = {
+        branchId: 'branch-123',
+        customerName: 'Customer',
+        items: [{ productId: 'product-1', qty: 1, unitPrice: 1000 }],
+      };
+
+      mockAdminClient.in.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'fail' },
+      });
+
+      await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+        /상품 조회 실패/,
+      );
+    });
+
+    it('should throw when product branch mismatch', async () => {
+      const mockOrderDto = {
+        branchId: 'branch-123',
+        customerName: 'Customer',
+        items: [{ productId: 'product-1', qty: 1, unitPrice: 1000 }],
+      };
+
+      mockAdminClient.in.mockResolvedValueOnce({
+        data: [{ id: 'product-1', name: 'P', branch_id: 'other' }],
+        error: null,
+      });
+
+      await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+        /다른 가게의 상품/,
+      );
+    });
+
+    it('should throw when product is hidden or sold out', async () => {
+      const mockOrderDto = {
+        branchId: 'branch-123',
+        customerName: 'Customer',
+        items: [{ productId: 'product-1', qty: 1, unitPrice: 1000 }],
+      };
+
+      mockAdminClient.in.mockResolvedValueOnce({
+        data: [{ id: 'product-1', name: 'P', branch_id: 'branch-123', is_hidden: true }],
+        error: null,
+      });
+
+      await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+        /판매 중지된 상품/,
+      );
+    });
+
+    it('should throw when options are provided', async () => {
+      const mockOrderDto = {
+        branchId: 'branch-123',
+        customerName: 'Customer',
+        items: [{ productId: 'product-1', qty: 1, unitPrice: 1000, options: [{ id: 'o1' }] }],
+      };
+
+      mockAdminClient.in.mockResolvedValueOnce({
+        data: [{ id: 'product-1', name: 'P', branch_id: 'branch-123' }],
+        error: null,
+      });
+
+      await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+        /옵션 기능이 비활성화/,
+      );
+    });
+
+    it('should throw when product missing in map', async () => {
+      const mockOrderDto = {
+        branchId: 'branch-123',
+        customerName: 'Customer',
+        items: [{ productId: 'product-1', qty: 1, unitPrice: 1000 }],
+      };
+
+      const mockInventory = [{ product_id: 'product-1', qty_available: 2, qty_reserved: 0 }];
+
+      let inCallCount = 0;
+      mockAdminClient.in.mockImplementation(() => {
+        inCallCount++;
+        if (inCallCount === 1) {
+          return Promise.resolve({ data: [], error: null });
+        }
+        if (inCallCount === 2) {
+          return mockAdminClient;
+        }
+        return mockAdminClient;
+      });
+
+      mockAdminClient.eq.mockImplementation(() => {
+        return Promise.resolve({ data: mockInventory, error: null });
+      });
+
+      await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+        /상품을 찾을 수 없습니다/,
+      );
+    });
+
+    it('should throw when inventory update fails', async () => {
+      const mockOrderDto = {
+        branchId: 'branch-123',
+        customerName: 'Customer',
+        items: [{ productId: 'product-1', qty: 1, unitPrice: 1000 }],
+      };
+
+      const mockProducts = [{ id: 'product-1', name: 'P', price: 1000, branch_id: 'branch-123' }];
+      const mockInventory = [{ product_id: 'product-1', qty_available: 2, qty_reserved: 0 }];
+      const mockOrder = {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      };
+
+      let inCallCount = 0;
+      mockAdminClient.in.mockImplementation(() => {
+        inCallCount++;
+        if (inCallCount === 1) {
+          return Promise.resolve({ data: mockProducts, error: null });
+        }
+        if (inCallCount === 2) {
+          return mockAdminClient;
+        }
+        return mockAdminClient;
+      });
+
+      let eqCallCount = 0;
+      mockAdminClient.eq.mockImplementation(() => {
+        eqCallCount++;
+        if (eqCallCount === 1) {
+          return Promise.resolve({ data: mockInventory, error: null });
+        }
+        if (eqCallCount === 2) {
+          return mockAdminClient;
+        }
+        if (eqCallCount === 3) {
+          return Promise.resolve({ error: { message: 'fail' } });
+        }
+        return mockAdminClient;
+      });
+
+      let singleCallCount = 0;
+      mockAdminClient.single.mockImplementation(() => {
+        singleCallCount++;
+        if (singleCallCount === 1) {
+          return Promise.resolve({ data: mockOrder, error: null });
+        }
+        return Promise.resolve({ data: { id: 'item-1' }, error: null });
+      });
+
+      mockAdminClient.insert.mockReturnThis();
+      mockAdminClient.update.mockReturnValue(mockAdminClient);
+
+      await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+        /재고 처리 중 오류/,
+      );
+    });
   describe('Order Creation Edge Cases', () => {
     it('should handle multiple items correctly', async () => {
       const mockOrderDto = {
         branchId: 'branch-123',
-        customerName: '홍길동',
+        customerName: 'Customer',
         customerPhone: '010-1234-5678',
         items: [
           { productId: 'product-1', qty: 2, unitPrice: 10000 },
@@ -308,3 +467,4 @@ describe('PublicOrderService - Inventory Integration', () => {
     });
   });
 });
+

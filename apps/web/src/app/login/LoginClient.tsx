@@ -11,17 +11,24 @@ export default function LoginClient({ next }: { next: string }) {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/app");
+      router.replace("/");
       router.refresh();
     }
   }, [status, router]);
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Login</h1>
-      <p style={{ marginBottom: 16 }}>Sign in with email and password.</p>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="w-full max-w-sm animate-fade-in">
+        <div className="text-center mb-8">
+          <div className="text-4xl mb-3">🍽️</div>
+          <h1 className="text-2xl font-extrabold text-foreground">OrderFriends</h1>
+          <p className="text-sm text-text-secondary mt-2">계정에 로그인하세요</p>
+        </div>
 
-      <LoginForm redirectTo={next} />
+        <div className="card p-6">
+          <LoginForm redirectTo={next} />
+        </div>
+      </div>
     </div>
   );
 }

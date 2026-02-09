@@ -30,7 +30,10 @@ export class MembershipGuard implements CanActivate {
     return undefined;
   }
 
-  private getRequestId(req: any, key: 'brandId' | 'branchId'): string | undefined {
+  private getRequestId(
+    req: any,
+    key: 'brandId' | 'branchId',
+  ): string | undefined {
     const fromParams = this.normalizeId(req?.params?.[key]);
     if (fromParams) return fromParams;
 

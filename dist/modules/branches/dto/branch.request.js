@@ -15,6 +15,9 @@ class CreateBranchRequest {
     brandId;
     name;
     slug;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
 }
 exports.CreateBranchRequest = CreateBranchRequest;
 __decorate([
@@ -32,9 +35,27 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], CreateBranchRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBranchRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBranchRequest.prototype, "coverImageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBranchRequest.prototype, "thumbnailUrl", void 0);
 class UpdateBranchRequest {
     name;
     slug;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
 }
 exports.UpdateBranchRequest = UpdateBranchRequest;
 __decorate([
@@ -50,4 +71,19 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], UpdateBranchRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "coverImageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "thumbnailUrl", void 0);
 //# sourceMappingURL=branch.request.js.map

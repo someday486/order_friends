@@ -1,4 +1,10 @@
-import { IsString, IsNumber, IsBoolean, IsOptional, Min } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
 export class UpdateProductRequest {
   @IsString()
@@ -8,6 +14,14 @@ export class UpdateProductRequest {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  categoryId?: string;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
 
   @IsNumber()
   @IsOptional()

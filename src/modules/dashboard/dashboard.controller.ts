@@ -1,4 +1,11 @@
-﻿import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+﻿import {
+  BadRequestException,
+  Controller,
+  Get,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import type { AuthRequest } from '../../common/types/auth-request';
@@ -19,6 +26,10 @@ export class DashboardController {
     if (!brandId) {
       throw new BadRequestException('brandId is required');
     }
-    return this.dashboardService.getStats(req.accessToken, brandId, req.isAdmin);
+    return this.dashboardService.getStats(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 }

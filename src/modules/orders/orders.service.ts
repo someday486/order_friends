@@ -1,15 +1,29 @@
-﻿import { Injectable } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from './order-status.enum';
-import { OrderDetailResponse, OrderItemResponse } from './dto/order-detail.response';
+import {
+  OrderDetailResponse,
+  OrderItemResponse,
+} from './dto/order-detail.response';
 import { OrderListItemResponse } from './dto/order-list.response';
+import { OrderNotFoundException } from '../../common/exceptions/order.exception';
+import { BusinessException } from '../../common/exceptions/business.exception';
+import {
+  PaginationDto,
+  PaginatedResponse,
+} from '../../common/dto/pagination.dto';
+import { PaginationUtil } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   private isUuid(v: string) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      v,
+    );
   }
 
   /**
@@ -41,22 +55,59 @@ export class OrdersService {
   /**
    * 주문 목록 (admin)
    * - RLS 때문에 userClient로는 안 보일 수 있어 adminClient 사용
+   * - 페이지네이션 지원
    */
-  async getOrders(accessToken: string, branchId: string): Promise<OrderListItemResponse[]> {
-    const sb = this.supabase.adminClient();
+  async getOrders(
+    accessToken: string,
+    branchId: string,
+    paginationDto: PaginationDto = {},
+  ): Promise<PaginatedResponse<OrderListItemResponse>> {
+    const { page = 1, limit = 20 } = paginationDto;
+    this.logger.log(
+      `Fetching orders for branch: ${branchId} (page: ${page}, limit: ${limit})`,
+    );
 
+    const sb = this.supabase.adminClient();
+    const { from, to } = PaginationUtil.getRange(page, limit);
+
+    // 총 개수 조회
+    const { count, error: countError } = await sb
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('branch_id', branchId);
+
+    if (countError) {
+      this.logger.error(
+        `Failed to count orders: ${countError.message}`,
+        countError,
+      );
+      throw new BusinessException(
+        'Failed to count orders',
+        'ORDER_COUNT_FAILED',
+        500,
+        { branchId, error: countError.message },
+      );
+    }
+
+    // 데이터 조회
     const { data, error } = await sb
       .from('orders')
       .select('id, order_no, status, created_at, total_amount, customer_name')
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .range(from, to);
 
     if (error) {
-      throw new Error(`[orders.getOrders] ${error.message}`);
+      this.logger.error(`Failed to fetch orders: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to fetch orders',
+        'ORDER_FETCH_FAILED',
+        500,
+        { branchId, error: error.message },
+      );
     }
 
-    return (data ?? []).map((row: any) => ({
+    const orders = (data ?? []).map((row: any) => ({
       id: row.id,
       orderNo: row.order_no ?? null,
       orderedAt: row.created_at ?? '',
@@ -64,6 +115,10 @@ export class OrdersService {
       totalAmount: row.total_amount ?? 0,
       status: row.status as OrderStatus,
     }));
+
+    this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);
+
+    return PaginationUtil.createResponse(orders, count || 0, paginationDto);
   }
 
   /**
@@ -71,7 +126,14 @@ export class OrdersService {
    * - RLS 때문에 adminClient 사용
    * - id / order_no 모두 지원
    */
-  async getOrder(accessToken: string, orderId: string, branchId: string): Promise<OrderDetailResponse> {
+  async getOrder(
+    accessToken: string,
+    orderId: string,
+    branchId: string,
+  ): Promise<OrderDetailResponse> {
+    this.logger.log(
+      `Fetching order detail: ${orderId} for branch: ${branchId}`,
+    );
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
@@ -87,7 +149,8 @@ export class OrdersService {
 
     const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
     if (!resolvedId) {
-      throw new Error(`[orders.getOrder] order not found: ${orderId}`);
+      this.logger.warn(`Order not found: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
 
     const { data, error } = await sb
@@ -98,14 +161,22 @@ export class OrdersService {
       .maybeSingle();
 
     if (error) {
-      throw new Error(`[orders.getOrder] ${error.message}`);
+      this.logger.error(`Failed to fetch order: ${error.message}`, error);
+      throw new BusinessException(
+        'Failed to fetch order',
+        'ORDER_FETCH_FAILED',
+        500,
+        { orderId, error: error.message },
+      );
     }
     if (!data) {
-      throw new Error(`[orders.getOrder] order not found: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
 
     const items: OrderItemResponse[] = (data.items ?? []).map((it: any) => {
-      const opts = (it.options ?? []).map((o: any) => o.option_name_snapshot).filter(Boolean);
+      const opts = (it.options ?? [])
+        .map((o: any) => o.option_name_snapshot)
+        .filter(Boolean);
 
       return {
         id: it.id,
@@ -144,12 +215,19 @@ export class OrdersService {
    * - RLS 때문에 adminClient 사용
    * - id / order_no 모두 지원
    */
-  async updateStatus(accessToken: string, orderId: string, status: OrderStatus, branchId: string) {
+  async updateStatus(
+    accessToken: string,
+    orderId: string,
+    status: OrderStatus,
+    branchId: string,
+  ) {
+    this.logger.log(`Updating order status: ${orderId} to ${status}`);
     const sb = this.supabase.adminClient();
 
     const resolvedId = await this.resolveOrderId(sb, orderId, branchId);
     if (!resolvedId) {
-      throw new Error(`[orders.updateStatus] order not found: ${orderId}`);
+      this.logger.warn(`Order not found for status update: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
 
     const { data, error } = await sb
@@ -161,12 +239,91 @@ export class OrdersService {
       .maybeSingle();
 
     if (error) {
-      throw new Error(`[orders.updateStatus] ${error.message}`);
+      this.logger.error(
+        `Failed to update order status: ${error.message}`,
+        error,
+      );
+      throw new BusinessException(
+        'Failed to update order status',
+        'ORDER_UPDATE_FAILED',
+        500,
+        { orderId, status, error: error.message },
+      );
     }
 
     if (!data) {
-      throw new Error(`[orders.updateStatus] order not found or not permitted: ${orderId}`);
+      throw new OrderNotFoundException(orderId);
     }
+
+    // ============================================================
+    // Handle inventory release for cancelled orders
+    // ============================================================
+    if (status === 'CANCELLED') {
+      try {
+        // Get order items to release inventory
+        const { data: orderItems } = await sb
+          .from('order_items')
+          .select('product_id, qty')
+          .eq('order_id', resolvedId);
+
+        if (orderItems && orderItems.length > 0) {
+          // Get current inventory for these products
+          const productIds = orderItems.map((item: any) => item.product_id);
+          const { data: inventories } = await sb
+            .from('product_inventory')
+            .select('product_id, qty_available, qty_reserved')
+            .in('product_id', productIds)
+            .eq('branch_id', branchId);
+
+          const inventoryMap = new Map(
+            inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
+          );
+
+          // Release inventory for each item
+          for (const item of orderItems) {
+            const inventory = inventoryMap.get(item.product_id);
+            if (!inventory) continue;
+
+            // Update inventory: increase available, decrease reserved
+            await sb
+              .from('product_inventory')
+              .update({
+                qty_available: inventory.qty_available + item.qty,
+                qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+              })
+              .eq('product_id', item.product_id)
+              .eq('branch_id', branchId);
+
+            // Create inventory log
+            await sb.from('inventory_logs').insert({
+              product_id: item.product_id,
+              branch_id: branchId,
+              transaction_type: 'RELEASE',
+              qty_change: item.qty,
+              qty_before: inventory.qty_available,
+              qty_after: inventory.qty_available + item.qty,
+              reference_id: resolvedId,
+              reference_type: 'ORDER',
+              notes: `주문 취소로 인한 재고 복구 (주문번호: ${data.order_no})`,
+            });
+          }
+
+          this.logger.log(
+            `Inventory released for cancelled order: ${data.order_no}`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to release inventory for cancelled order ${resolvedId}`,
+          error,
+        );
+        // Don't throw - order is already cancelled, just log the error
+      }
+    }
+
+    this.logger.log(
+      `Order status updated successfully: ${orderId} -> ${status}`,
+    );
 
     return {
       id: data.id,

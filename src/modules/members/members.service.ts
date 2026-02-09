@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   BrandMemberResponse,
@@ -17,7 +21,9 @@ export class MembersService {
   constructor(private readonly supabase: SupabaseService) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
-    return isAdmin ? this.supabase.adminClient() : this.supabase.userClient(accessToken);
+    return isAdmin
+      ? this.supabase.adminClient()
+      : this.supabase.userClient(accessToken);
   }
 
   // ============================================================
@@ -36,7 +42,8 @@ export class MembersService {
 
     const { data, error } = await sb
       .from('brand_members')
-      .select(`
+      .select(
+        `
         brand_id,
         user_id,
         role,
@@ -46,7 +53,8 @@ export class MembersService {
           id,
           display_name
         )
-      `)
+      `,
+      )
       .eq('brand_id', brandId)
       .order('created_at', { ascending: true });
 
@@ -56,7 +64,7 @@ export class MembersService {
 
     // 이메일 조회를 위해 user_id 목록 수집
     const userIds = (data ?? []).map((row: any) => row.user_id);
-    
+
     // auth.users에서 이메일 조회 (service role 필요, 없으면 스킵)
     const emailMap: Record<string, string> = {};
 
@@ -85,7 +93,7 @@ export class MembersService {
     // 1. 이메일로 사용자 찾기 (profiles 테이블에 없으면 초대 불가)
     // 실제로는 auth.users를 조회해야 하지만 RLS 제한으로 profiles 기준
     // 또는 초대 이메일 발송 로직 필요 - 여기서는 간단히 처리
-    
+
     // profiles에서 이메일로 사용자 찾기 (phone 필드를 임시로 사용하거나 별도 로직 필요)
     // 현재는 userId를 직접 입력받는 방식으로 우회
 
@@ -234,7 +242,8 @@ export class MembersService {
 
     const { data, error } = await sb
       .from('branch_members')
-      .select(`
+      .select(
+        `
         branch_id,
         user_id,
         role,
@@ -244,7 +253,8 @@ export class MembersService {
           id,
           display_name
         )
-      `)
+      `,
+      )
       .eq('branch_id', branchId)
       .order('created_at', { ascending: true });
 

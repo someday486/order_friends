@@ -2,6 +2,8 @@ export declare class PublicBranchResponse {
     id: string;
     name: string;
     brandName?: string;
+    logoUrl?: string | null;
+    coverImageUrl?: string | null;
 }
 export declare class PublicProductOptionResponse {
     id: string;
@@ -13,7 +15,16 @@ export declare class PublicProductResponse {
     name: string;
     description?: string | null;
     price: number;
+    imageUrl?: string | null;
+    categoryId?: string | null;
+    categoryName?: string | null;
+    sortOrder?: number;
     options: PublicProductOptionResponse[];
+}
+export declare class PublicCategoryResponse {
+    id: string;
+    name: string;
+    sortOrder: number;
 }
 export declare class PublicOrderResponse {
     id: string;

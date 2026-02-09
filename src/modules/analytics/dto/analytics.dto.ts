@@ -1,0 +1,193 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsDateString, IsUUID } from 'class-validator';
+
+/**
+ * Query parameters for analytics endpoints
+ */
+export class AnalyticsQueryDto {
+  @ApiProperty({ description: '지점 ID', required: true })
+  @IsUUID()
+  branchId: string;
+
+  @ApiPropertyOptional({ description: '시작 날짜 (ISO 8601)', example: '2026-01-01' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: '종료 날짜 (ISO 8601)', example: '2026-01-31' })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+}
+
+/**
+ * Revenue data point for time-series charts
+ */
+export class RevenueByDayDto {
+  @ApiProperty({ description: '날짜', example: '2026-01-15' })
+  date: string;
+
+  @ApiProperty({ description: '해당 날짜의 총 매출', example: 150000 })
+  revenue: number;
+
+  @ApiProperty({ description: '해당 날짜의 주문 수', example: 12 })
+  orderCount: number;
+}
+
+/**
+ * Sales analytics response
+ */
+export class SalesAnalyticsResponse {
+  @ApiProperty({ description: '총 매출액 (원)', example: 4500000 })
+  totalRevenue: number;
+
+  @ApiProperty({ description: '총 주문 수', example: 150 })
+  orderCount: number;
+
+  @ApiProperty({ description: '평균 주문 금액 (원)', example: 30000 })
+  avgOrderValue: number;
+
+  @ApiProperty({ description: '일별 매출 데이터', type: [RevenueByDayDto] })
+  revenueByDay: RevenueByDayDto[];
+}
+
+/**
+ * Top product data
+ */
+export class TopProductDto {
+  @ApiProperty({ description: '상품 ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+  productId: string;
+
+  @ApiProperty({ description: '상품명', example: '아메리카노' })
+  productName: string;
+
+  @ApiProperty({ description: '판매 수량', example: 120 })
+  soldQuantity: number;
+
+  @ApiProperty({ description: '총 매출액 (원)', example: 480000 })
+  totalRevenue: number;
+}
+
+/**
+ * Sales by product data
+ */
+export class SalesByProductDto {
+  @ApiProperty({ description: '상품 ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+  productId: string;
+
+  @ApiProperty({ description: '상품명', example: '카페라떼' })
+  productName: string;
+
+  @ApiProperty({ description: '판매 수량', example: 80 })
+  quantity: number;
+
+  @ApiProperty({ description: '총 매출액 (원)', example: 400000 })
+  revenue: number;
+
+  @ApiProperty({ description: '전체 매출 대비 비율 (%)', example: 8.89 })
+  revenuePercentage: number;
+}
+
+/**
+ * Inventory turnover rate
+ */
+export class InventoryTurnoverDto {
+  @ApiProperty({ description: '평균 재고 회전율', example: 5.2 })
+  averageTurnoverRate: number;
+
+  @ApiProperty({ description: '기간 (일)', example: 30 })
+  periodDays: number;
+}
+
+/**
+ * Product analytics response
+ */
+export class ProductAnalyticsResponse {
+  @ApiProperty({ description: '상위 판매 상품 (Top 10)', type: [TopProductDto] })
+  topProducts: TopProductDto[];
+
+  @ApiProperty({ description: '상품별 판매 현황', type: [SalesByProductDto] })
+  salesByProduct: SalesByProductDto[];
+
+  @ApiProperty({ description: '재고 회전율', type: InventoryTurnoverDto })
+  inventoryTurnover: InventoryTurnoverDto;
+}
+
+/**
+ * Order status distribution
+ */
+export class OrderStatusDistributionDto {
+  @ApiProperty({ description: '주문 상태', example: 'COMPLETED' })
+  status: string;
+
+  @ApiProperty({ description: '해당 상태의 주문 수', example: 85 })
+  count: number;
+
+  @ApiProperty({ description: '전체 주문 대비 비율 (%)', example: 56.67 })
+  percentage: number;
+}
+
+/**
+ * Orders by day data
+ */
+export class OrdersByDayDto {
+  @ApiProperty({ description: '날짜', example: '2026-01-15' })
+  date: string;
+
+  @ApiProperty({ description: '해당 날짜의 주문 수', example: 15 })
+  orderCount: number;
+
+  @ApiProperty({ description: '완료된 주문 수', example: 12 })
+  completedCount: number;
+
+  @ApiProperty({ description: '취소된 주문 수', example: 1 })
+  cancelledCount: number;
+}
+
+/**
+ * Peak hours data
+ */
+export class PeakHoursDto {
+  @ApiProperty({ description: '시간대 (0-23)', example: 14 })
+  hour: number;
+
+  @ApiProperty({ description: '해당 시간대의 주문 수', example: 25 })
+  orderCount: number;
+}
+
+/**
+ * Order analytics response
+ */
+export class OrderAnalyticsResponse {
+  @ApiProperty({ description: '주문 상태별 분포', type: [OrderStatusDistributionDto] })
+  statusDistribution: OrderStatusDistributionDto[];
+
+  @ApiProperty({ description: '일별 주문 추이', type: [OrdersByDayDto] })
+  ordersByDay: OrdersByDayDto[];
+
+  @ApiProperty({ description: '시간대별 주문 현황', type: [PeakHoursDto] })
+  peakHours: PeakHoursDto[];
+}
+
+/**
+ * Customer analytics response
+ */
+export class CustomerAnalyticsResponse {
+  @ApiProperty({ description: '총 고객 수', example: 450 })
+  totalCustomers: number;
+
+  @ApiProperty({ description: '신규 고객 수 (기간 내)', example: 45 })
+  newCustomers: number;
+
+  @ApiProperty({ description: '재구매 고객 수', example: 120 })
+  returningCustomers: number;
+
+  @ApiProperty({ description: '고객 생애 가치 (평균, 원)', example: 150000 })
+  clv: number;
+
+  @ApiProperty({ description: '재구매율 (%)', example: 26.67 })
+  repeatCustomerRate: number;
+
+  @ApiProperty({ description: '평균 고객당 주문 수', example: 2.8 })
+  avgOrdersPerCustomer: number;
+}

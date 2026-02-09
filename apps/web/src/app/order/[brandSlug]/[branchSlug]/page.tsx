@@ -1,37 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  ProductCard,
+  type ProductCardProduct,
+  type ProductOption,
+} from "@/components/ui/ProductCard";
 
 // ============================================================
 // Types
 // ============================================================
 
-type ProductOption = {
-  id: string;
-  name: string;
-  priceDelta: number;
-};
-
-type Product = {
-  id: string;
-  name: string;
-  description?: string | null;
-  price: number;
-  options: ProductOption[];
-};
-
 type Branch = {
   id: string;
   name: string;
   brandName?: string;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+};
+
+type Category = {
+  id: string;
+  name: string;
+  sortOrder?: number;
 };
 
 type CartItem = {
-  product: Product;
+  product: ProductCardProduct;
   qty: number;
   selectedOptions: ProductOption[];
-  itemPrice: number; // 옵션 포함 가격
+  itemPrice: number;
 };
 
 // ============================================================
@@ -48,8 +47,11 @@ function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
 }
 
-function calculateItemPrice(product: Product, selectedOptions: ProductOption[]) {
-  let price = product.price;
+function calculateItemPrice(
+  product: ProductCardProduct,
+  selectedOptions: ProductOption[],
+) {
+  let price = product.discountPrice ?? product.price;
   for (const opt of selectedOptions) {
     price += opt.priceDelta;
   }
@@ -68,15 +70,18 @@ export default function OrderPage() {
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductCardProduct[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // 장바구니
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   // 상품 선택 모달
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductCardProduct | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
 
@@ -90,9 +95,7 @@ export default function OrderPage() {
         setError(null);
 
         const branchRes = await fetch(
-          `${API_BASE}/public/brands/${encodeURIComponent(
-            brandSlug
-          )}/branches/${encodeURIComponent(branchSlug)}`
+          `${API_BASE}/public/brands/${encodeURIComponent(brandSlug)}/branches/${encodeURIComponent(branchSlug)}`,
         );
         if (!branchRes.ok) throw new Error("가게를 찾을 수 없습니다.");
         const branchData = await branchRes.json();
@@ -100,11 +103,33 @@ export default function OrderPage() {
         setBranchId(branchData.id);
 
         const productsRes = await fetch(
-          `${API_BASE}/public/branches/${encodeURIComponent(branchData.id)}/products`
+          `${API_BASE}/public/branches/${encodeURIComponent(branchData.id)}/products`,
         );
         if (!productsRes.ok) throw new Error("상품을 불러올 수 없습니다.");
         const productsData = await productsRes.json();
-        setProducts(productsData);
+
+        // Map to ProductCardProduct format
+        const mapped: ProductCardProduct[] = productsData.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          discountPrice: p.discountPrice,
+          imageUrl: p.imageUrl || p.image_url || null,
+          badges: p.badges,
+          stock: p.stock,
+          options: p.options,
+        }));
+        setProducts(mapped);
+
+        // Fetch categories from API (sorted by server-defined order)
+        const catsRes = await fetch(
+          `${API_BASE}/public/branches/${encodeURIComponent(branchData.id)}/categories`,
+        );
+        if (catsRes.ok) {
+          const catsData = await catsRes.json();
+          setCategories(catsData);
+        }
       } catch (e: unknown) {
         setError((e as Error)?.message ?? "오류가 발생했습니다.");
       } finally {
@@ -115,28 +140,61 @@ export default function OrderPage() {
     fetchData();
   }, [brandSlug, branchSlug]);
 
-  // 상품 선택
-  const handleSelectProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setSelectedOptions([]);
-    setQty(1);
+  // 카테고리 필터링
+  const filteredProducts = useMemo(() => {
+    if (!selectedCategory) return products;
+    return products.filter((p: any) => {
+      const catId = p.categoryId || p.category_id;
+      return catId === selectedCategory;
+    });
+  }, [products, selectedCategory]);
+
+  // 수량 변경
+  const handleQuantityChange = (productId: string, quantity: number) => {
+    setQuantities((prev) => ({ ...prev, [productId]: quantity }));
+
+    if (quantity === 0) {
+      setCart((prev) => prev.filter((item) => item.product.id !== productId));
+    } else {
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+
+      setCart((prev) => {
+        const existing = prev.findIndex((item) => item.product.id === productId);
+        const itemPrice = product.discountPrice ?? product.price;
+
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = { ...updated[existing], qty: quantity, itemPrice };
+          return updated;
+        }
+
+        return [...prev, { product, qty: quantity, selectedOptions: [], itemPrice }];
+      });
+    }
+  };
+
+  // 상품 클릭 (옵션 있으면 모달)
+  const handleProductClick = (product: ProductCardProduct) => {
+    if (product.options && product.options.length > 0) {
+      setSelectedProduct(product);
+      setSelectedOptions([]);
+      setQty(1);
+    }
   };
 
   // 옵션 토글
   const toggleOption = (option: ProductOption) => {
     setSelectedOptions((prev) => {
       const exists = prev.find((o) => o.id === option.id);
-      if (exists) {
-        return prev.filter((o) => o.id !== option.id);
-      }
+      if (exists) return prev.filter((o) => o.id !== option.id);
       return [...prev, option];
     });
   };
 
-  // 장바구니 추가
+  // 장바구니 추가 (모달에서)
   const addToCart = () => {
     if (!selectedProduct) return;
-
     const itemPrice = calculateItemPrice(selectedProduct, selectedOptions);
 
     setCart((prev) => [
@@ -149,6 +207,11 @@ export default function OrderPage() {
       },
     ]);
 
+    setQuantities((prev) => ({
+      ...prev,
+      [selectedProduct.id]: (prev[selectedProduct.id] || 0) + qty,
+    }));
+
     setSelectedProduct(null);
     setSelectedOptions([]);
     setQty(1);
@@ -156,11 +219,19 @@ export default function OrderPage() {
 
   // 장바구니에서 제거
   const removeFromCart = (index: number) => {
+    const item = cart[index];
     setCart((prev) => prev.filter((_, i) => i !== index));
+    if (item) {
+      setQuantities((prev) => ({
+        ...prev,
+        [item.product.id]: Math.max(0, (prev[item.product.id] || 0) - item.qty),
+      }));
+    }
   };
 
-  // 총액 계산
+  // 총액
   const totalAmount = cart.reduce((sum, item) => sum + item.itemPrice * item.qty, 0);
+  const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
 
   // 주문하기
   const goToCheckout = () => {
@@ -168,9 +239,8 @@ export default function OrderPage() {
       alert("장바구니에 상품을 추가해 주세요.");
       return;
     }
-
     if (!branchId) {
-      alert("가게 정보를 불러오는 중입니다. 잠시만 기다려주세요.");
+      alert("가게 정보를 불러오는 중입니다.");
       return;
     }
 
@@ -187,273 +257,231 @@ export default function OrderPage() {
 
   if (loading) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>로딩 중...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="max-w-lg mx-auto">
+          <div className="p-4 border-b border-border">
+            <div className="h-4 w-20 bg-bg-tertiary rounded animate-pulse mb-2" />
+            <div className="h-6 w-40 bg-bg-tertiary rounded animate-pulse" />
+          </div>
+          <div className="p-4 space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-[140px] bg-bg-secondary rounded-md border border-border animate-pulse" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#ff8a8a", textAlign: "center", padding: 40 }}>{error}</p>
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="text-4xl mb-4">😕</div>
+          <p className="text-danger-500 text-lg font-semibold">{error}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={pageContainer}>
-      <header style={header}>
-        <div>
-          <div style={{ fontSize: 12, color: "#888" }}>{branch?.brandName}</div>
-          <h1 style={{ margin: "4px 0 0 0", fontSize: 20, fontWeight: 700 }}>{branch?.name}</h1>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-lg mx-auto">
+        {/* Header */}
+        <header className="sticky top-0 z-30 bg-background border-b border-border">
+          {branch?.coverImageUrl && (
+            <div className="h-32 -mb-4 relative">
+              <img src={branch.coverImageUrl} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+            </div>
+          )}
 
-      <main style={{ padding: "16px 16px 120px 16px" }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>메뉴</h2>
-
-        {products.length === 0 ? (
-          <p style={{ color: "#666" }}>등록된 상품이 없습니다.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {products.map((product) => (
-              <div
-                key={product.id}
-                style={productCard}
-                onClick={() => handleSelectProduct(product)}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{product.name}</div>
-                  {product.description && (
-                    <div style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
-                      {product.description}
-                    </div>
-                  )}
-                </div>
-                <div style={{ fontWeight: 700, color: "#fff" }}>{formatWon(product.price)}</div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            {branch?.logoUrl ? (
+              <img
+                src={branch.logoUrl}
+                alt={branch?.name || ""}
+                className="w-10 h-10 rounded-full object-cover border border-border"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-bg-tertiary flex items-center justify-center text-lg">
+                🏪
               </div>
+            )}
+            <div>
+              {branch?.brandName && (
+                <div className="text-2xs text-text-tertiary font-medium">{branch.brandName}</div>
+              )}
+              <h1 className="text-lg font-bold text-foreground leading-tight">{branch?.name}</h1>
+            </div>
+          </div>
+        </header>
+
+        {/* Category Tabs */}
+        {categories.length > 0 && (
+          <div className="category-tabs sticky top-[56px] z-20 bg-background border-b border-border-light">
+            <button
+              className={`category-tab ${selectedCategory === null ? "category-tab-active" : ""}`}
+              onClick={() => setSelectedCategory(null)}
+            >
+              전체
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                className={`category-tab ${selectedCategory === cat.id ? "category-tab-active" : ""}`}
+                onClick={() => setSelectedCategory(cat.id)}
+              >
+                {cat.name}
+              </button>
             ))}
           </div>
         )}
-      </main>
 
-      {cart.length > 0 && (
-        <div style={cartBar}>
-          <div>
-            <div style={{ fontSize: 13, color: "#aaa" }}>장바구니 {cart.length}개</div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{formatWon(totalAmount)}</div>
-          </div>
-          <button style={orderBtn} onClick={goToCheckout}>
-            주문하기
-          </button>
-        </div>
-      )}
-
-      {selectedProduct && (
-        <div style={modalOverlay} onClick={() => setSelectedProduct(null)}>
-          <div style={modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: 18 }}>{selectedProduct.name}</h3>
-            <div style={{ color: "#888", marginBottom: 16 }}>{formatWon(selectedProduct.price)}</div>
-
-            {selectedProduct.options.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 선택</div>
-                {selectedProduct.options.map((opt) => (
-                  <label
-                    key={opt.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "8px 0",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedOptions.some((o) => o.id === opt.id)}
-                      onChange={() => toggleOption(opt)}
-                    />
-                    <span style={{ flex: 1 }}>{opt.name}</span>
-                    <span style={{ color: "#888" }}>
-                      {opt.priceDelta > 0 ? `+${formatWon(opt.priceDelta)}` : ""}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>수량</span>
-              <button
-                style={qtyBtn}
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-              >
-                -
-              </button>
-              <span style={{ width: 40, textAlign: "center" }}>{qty}</span>
-              <button style={qtyBtn} onClick={() => setQty((q) => q + 1)}>
-                +
-              </button>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <span>합계</span>
-              <span style={{ fontWeight: 700, fontSize: 18 }}>
-                {formatWon(calculateItemPrice(selectedProduct, selectedOptions) * qty)}
+        {/* Products */}
+        <main className="p-4 pb-36">
+          <h2 className="text-base font-bold text-foreground mb-3">
+            메뉴
+            {filteredProducts.length > 0 && (
+              <span className="text-text-tertiary text-sm font-normal ml-2">
+                {filteredProducts.length}개
               </span>
+            )}
+          </h2>
+
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12 text-text-tertiary">
+              <div className="text-3xl mb-3">🍽</div>
+              <p>등록된 상품이 없습니다.</p>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  quantity={quantities[product.id] || 0}
+                  onQuantityChange={(q) => handleQuantityChange(product.id, q)}
+                  onCardClick={() => handleProductClick(product)}
+                />
+              ))}
+            </div>
+          )}
+        </main>
 
-            <button style={addBtn} onClick={addToCart}>
-              장바구니에 담기
-            </button>
-          </div>
-        </div>
-      )}
-
-      {cart.length > 0 && (
-        <div style={{ padding: "0 16px 16px 16px" }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>장바구니</h3>
-          {cart.map((item, idx) => (
-            <div key={idx} style={cartItem}>
-              <div style={{ flex: 1 }}>
-                <div>{item.product.name}</div>
-                {item.selectedOptions.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#888" }}>
-                    옵션: {item.selectedOptions.map((o) => o.name).join(", ")}
+        {/* Cart Summary */}
+        {cart.length > 0 && (
+          <div className="px-4 pb-4">
+            <h3 className="text-sm font-bold text-foreground mb-2">장바구니</h3>
+            <div className="space-y-2">
+              {cart.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-3 rounded-md bg-bg-secondary border border-border animate-fade-in">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{item.product.name}</div>
+                    {item.selectedOptions.length > 0 && (
+                      <div className="text-2xs text-text-tertiary">
+                        옵션: {item.selectedOptions.map((o) => o.name).join(", ")}
+                      </div>
+                    )}
+                    <div className="text-xs text-text-secondary mt-0.5">
+                      {formatWon(item.itemPrice)} x {item.qty}
+                    </div>
                   </div>
-                )}
-                <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
-                  {formatWon(item.itemPrice)} x {item.qty}
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-sm font-bold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
+                    <button className="text-2xs text-danger-500 font-medium mt-0.5" onClick={() => removeFromCart(idx)}>
+                      삭제
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: 600 }}>{formatWon(item.itemPrice * item.qty)}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Floating Cart Bar */}
+        {cart.length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)]">
+            <div className="max-w-lg mx-auto">
+              <div className="flex items-center justify-between px-4 py-3 bg-foreground text-background rounded-t-lg shadow-2xl">
+                <div>
+                  <div className="text-xs opacity-70">{totalItems}개 상품</div>
+                  <div className="text-lg font-extrabold">{formatWon(totalAmount)}</div>
+                </div>
                 <button
-                  style={{
-                    fontSize: 12,
-                    color: "#ef4444",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => removeFromCart(idx)}
+                  onClick={goToCheckout}
+                  className="px-6 py-3 rounded-md bg-primary-500 text-white font-bold text-sm hover:bg-primary-600 active:scale-95 transition-all duration-150 touch-feedback"
                 >
-                  삭제
+                  주문하기
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* Product Detail Modal */}
+        {selectedProduct && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-end justify-center" onClick={() => setSelectedProduct(null)}>
+            <div className="w-full max-w-lg bg-background rounded-t-xl p-5 animate-slide-up max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-foreground mb-1">{selectedProduct.name}</h3>
+              <div className="text-text-secondary mb-4">{formatWon(selectedProduct.discountPrice ?? selectedProduct.price)}</div>
+
+              {selectedProduct.options && selectedProduct.options.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-sm font-bold text-foreground mb-2">옵션 선택</div>
+                  {selectedProduct.options.map((opt) => (
+                    <label key={opt.id} className="flex items-center gap-3 py-3 border-b border-border-light cursor-pointer touch-feedback">
+                      <input
+                        type="checkbox"
+                        checked={selectedOptions.some((o) => o.id === opt.id)}
+                        onChange={() => toggleOption(opt)}
+                        className="w-5 h-5 rounded accent-primary"
+                      />
+                      <span className="flex-1 text-sm text-foreground">{opt.name}</span>
+                      <span className="text-sm text-text-secondary">
+                        {opt.priceDelta > 0 ? `+${formatWon(opt.priceDelta)}` : ""}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-sm font-bold text-foreground">수량</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground flex items-center justify-center text-lg hover:bg-bg-tertiary active:scale-90 transition-all touch-feedback"
+                    onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  >
+                    -
+                  </button>
+                  <span className="w-10 text-center font-bold text-foreground tabular-nums">{qty}</span>
+                  <button
+                    className="w-9 h-9 rounded-full bg-primary-500 text-white flex items-center justify-center text-lg font-bold hover:bg-primary-600 active:scale-90 transition-all touch-feedback"
+                    onClick={() => setQty((q) => q + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mb-4 pt-3 border-t border-border">
+                <span className="text-sm text-text-secondary">합계</span>
+                <span className="text-xl font-extrabold text-foreground">
+                  {formatWon(calculateItemPrice(selectedProduct, selectedOptions) * qty)}
+                </span>
+              </div>
+
+              <button
+                className="w-full py-4 rounded-md bg-primary-500 text-white font-bold text-base hover:bg-primary-600 active:scale-95 transition-all touch-feedback"
+                onClick={addToCart}
+              >
+                장바구니에 담기
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const pageContainer: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#000",
-  color: "#fff",
-};
-
-const header: React.CSSProperties = {
-  padding: "20px 16px",
-  borderBottom: "1px solid #222",
-};
-
-const productCard: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: 16,
-  borderRadius: 12,
-  border: "1px solid #222",
-  background: "#0a0a0a",
-  cursor: "pointer",
-};
-
-const cartBar: React.CSSProperties = {
-  position: "fixed",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "12px 16px",
-  background: "#111",
-  borderTop: "1px solid #333",
-};
-
-const orderBtn: React.CSSProperties = {
-  padding: "12px 24px",
-  borderRadius: 10,
-  border: "none",
-  background: "#fff",
-  color: "#000",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const modalOverlay: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "rgba(0,0,0,0.8)",
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "center",
-  zIndex: 100,
-};
-
-const modalContent: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 480,
-  maxHeight: "80vh",
-  padding: 20,
-  borderRadius: "16px 16px 0 0",
-  background: "#111",
-  overflowY: "auto",
-};
-
-const qtyBtn: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#fff",
-  fontSize: 18,
-  cursor: "pointer",
-};
-
-const addBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "14px",
-  borderRadius: 10,
-  border: "none",
-  background: "#fff",
-  color: "#000",
-  fontWeight: 700,
-  fontSize: 15,
-  cursor: "pointer",
-};
-
-const cartItem: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: 12,
-  marginBottom: 8,
-  borderRadius: 10,
-  background: "#0a0a0a",
-  border: "1px solid #222",
-};

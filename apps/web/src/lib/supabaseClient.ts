@@ -1,4 +1,4 @@
-import { supabaseBrowser } from "./supabase/client";
+import { supabaseBrowser } from './supabase/client';
 
 /**
  * Legacy export (keep temporarily to avoid breaking existing imports)

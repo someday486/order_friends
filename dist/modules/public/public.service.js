@@ -131,7 +131,7 @@ let PublicService = class PublicService {
             if (!product) {
                 throw new common_1.BadRequestException(`상품을 찾을 수 없습니다: ${item.productId}`);
             }
-            let itemPrice = this.getPriceFromRow(product);
+            const itemPrice = this.getPriceFromRow(product);
             const optionSnapshots = [];
             subtotalAmount += itemPrice * item.qty;
             orderItemsData.push({

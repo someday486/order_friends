@@ -16,6 +16,8 @@ exports.PublicOrderController = void 0;
 const common_1 = require("@nestjs/common");
 const public_order_service_1 = require("./public-order.service");
 const public_order_dto_1 = require("./dto/public-order.dto");
+const user_rate_limit_decorator_1 = require("../../common/decorators/user-rate-limit.decorator");
+const user_rate_limit_guard_1 = require("../../common/guards/user-rate-limit.guard");
 let PublicOrderController = class PublicOrderController {
     publicOrderService;
     constructor(publicOrderService) {
@@ -23,6 +25,15 @@ let PublicOrderController = class PublicOrderController {
     }
     async getBranch(branchId) {
         return this.publicOrderService.getBranch(branchId);
+    }
+    async getBranchBySlug(slug) {
+        return this.publicOrderService.getBranchBySlug(slug);
+    }
+    async getBranchByBrandSlug(brandSlug, branchSlug) {
+        return this.publicOrderService.getBranchByBrandSlug(brandSlug, branchSlug);
+    }
+    async getCategories(branchId) {
+        return this.publicOrderService.getCategories(branchId);
     }
     async getProducts(branchId) {
         return this.publicOrderService.getProducts(branchId);
@@ -43,6 +54,28 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PublicOrderController.prototype, "getBranch", null);
 __decorate([
+    (0, common_1.Get)('branches/slug/:slug'),
+    __param(0, (0, common_1.Param)('slug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getBranchBySlug", null);
+__decorate([
+    (0, common_1.Get)('brands/:brandSlug/branches/:branchSlug'),
+    __param(0, (0, common_1.Param)('brandSlug')),
+    __param(1, (0, common_1.Param)('branchSlug')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getBranchByBrandSlug", null);
+__decorate([
+    (0, common_1.Get)('branches/:branchId/categories'),
+    __param(0, (0, common_1.Param)('branchId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PublicOrderController.prototype, "getCategories", null);
+__decorate([
     (0, common_1.Get)('branches/:branchId/products'),
     __param(0, (0, common_1.Param)('branchId')),
     __metadata("design:type", Function),
@@ -51,6 +84,8 @@ __decorate([
 ], PublicOrderController.prototype, "getProducts", null);
 __decorate([
     (0, common_1.Post)('orders'),
+    (0, common_1.UseGuards)(user_rate_limit_guard_1.UserRateLimitGuard),
+    (0, user_rate_limit_decorator_1.UserRateLimit)({ points: 10, duration: 60, blockDuration: 300 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [public_order_dto_1.CreatePublicOrderRequest]),

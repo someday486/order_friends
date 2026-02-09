@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
@@ -83,7 +83,7 @@ async function getAccessToken() {
 // Component
 // ============================================================
 
-export default function MembersPage() {
+function MembersPageContent() {
   const searchParams = useSearchParams();
   const initialTab = useMemo(() => searchParams?.get("tab") ?? "", [searchParams]);
   const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
@@ -334,30 +334,30 @@ export default function MembersPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 8px 0" }}>권한 관리</h1>
-      <p style={{ color: "#aaa", margin: "0 0 24px 0", fontSize: 13 }}>
+      <h1 className="text-[22px] font-extrabold mb-2 text-foreground">권한 관리</h1>
+      <p className="text-text-secondary mb-6 text-[13px]">
         브랜드 및 가게 멤버를 관리합니다.
       </p>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+      <div className="flex gap-2 mb-6">
         <button
           onClick={() => setTab("brand")}
-          style={{
-            ...tabBtn,
-            background: tab === "brand" ? "#222" : "transparent",
-            borderColor: tab === "brand" ? "#444" : "#333",
-          }}
+          className={`py-2 px-4 rounded-lg border font-semibold cursor-pointer text-[13px] transition-colors ${
+            tab === "brand"
+              ? "bg-bg-tertiary border-border text-foreground"
+              : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
+          }`}
         >
           브랜드 멤버
         </button>
         <button
           onClick={() => setTab("branch")}
-          style={{
-            ...tabBtn,
-            background: tab === "branch" ? "#222" : "transparent",
-            borderColor: tab === "branch" ? "#444" : "#333",
-          }}
+          className={`py-2 px-4 rounded-lg border font-semibold cursor-pointer text-[13px] transition-colors ${
+            tab === "branch"
+              ? "bg-bg-tertiary border-border text-foreground"
+              : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
+          }`}
         >
           가게 멤버
         </button>
@@ -367,39 +367,39 @@ export default function MembersPage() {
       {tab === "brand" && (
         <div>
           {!brandReady || !brandId ? (
-            <div style={infoBox}>
-              <div style={{ fontSize: 12, color: "#aaa" }}>브랜드가 선택되어 있지 않습니다.</div>
-              <Link href="/admin/brand" style={{ color: "white", fontSize: 13 }}>
+            <div className="card p-2.5 flex items-center gap-3 mb-4">
+              <div className="text-xs text-text-secondary">브랜드가 선택되어 있지 않습니다.</div>
+              <Link href="/admin/brand" className="text-foreground text-[13px]">
                 브랜드 선택하러 가기
               </Link>
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <div className="flex gap-2 mb-4">
                 <button
                   onClick={fetchBrandMembers}
                   disabled={!brandId || brandLoading}
-                  style={btnPrimary}
+                  className="btn-primary h-9 px-4 text-[13px]"
                 >
                   {brandLoading ? "로딩..." : "조회"}
                 </button>
               </div>
 
               {/* 멤버 추가 */}
-              <div style={{ ...card, marginBottom: 16 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12 }}>멤버 추가</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div className="card p-4 mb-4">
+                <div className="font-semibold mb-3 text-foreground">멤버 추가</div>
+                <div className="flex gap-2 flex-wrap">
                   <input
                     type="text"
                     value={newUserId}
                     onChange={(e) => setNewUserId(e.target.value)}
                     placeholder="User UUID"
-                    style={{ ...input, width: 280 }}
+                    className="input-field w-[280px]"
                   />
                   <select
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
-                    style={select}
+                    className="h-9 px-3 rounded-lg border border-border bg-bg-secondary text-foreground text-[13px]"
                   >
                     <option value="">역할 선택</option>
                     {BRAND_ROLES.map((r) => (
@@ -408,47 +408,47 @@ export default function MembersPage() {
                       </option>
                     ))}
                   </select>
-                  <button onClick={addBrandMember} disabled={adding || !newUserId} style={btnPrimary}>
+                  <button onClick={addBrandMember} disabled={adding || !newUserId} className="btn-primary h-9 px-4 text-[13px]">
                     {adding ? "추가 중..." : "추가"}
                   </button>
                 </div>
               </div>
 
               {/* 에러 */}
-              {brandError && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{brandError}</p>}
+              {brandError && <p className="text-danger-500 mb-4">{brandError}</p>}
 
               {/* 멤버 목록 */}
-              <div style={tableWrapper}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead style={{ background: "#0f0f0f" }}>
+              <div className="border border-border rounded-xl overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead className="bg-bg-tertiary">
                     <tr>
-                      <th style={th}>사용자</th>
-                      <th style={th}>역할</th>
-                      <th style={th}>상태</th>
-                      <th style={{ ...th, textAlign: "center" }}>관리</th>
+                      <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">사용자</th>
+                      <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">역할</th>
+                      <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+                      <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">관리</th>
                     </tr>
                   </thead>
                   <tbody>
                     {brandMembers.length === 0 && (
                       <tr>
-                        <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
+                        <td colSpan={4} className="py-3 px-3.5 text-[13px] text-center text-text-tertiary">
                           멤버가 없습니다.
                         </td>
                       </tr>
                     )}
                     {brandMembers.map((m) => (
-                      <tr key={m.id} style={{ borderTop: "1px solid #222" }}>
-                        <td style={td}>
+                      <tr key={m.id} className="border-t border-border">
+                        <td className="py-3 px-3.5 text-[13px] text-foreground">
                           <div>{m.displayName || "-"}</div>
-                          <div style={{ fontSize: 11, color: "#666", fontFamily: "monospace" }}>
+                          <div className="text-[11px] text-text-tertiary font-mono">
                             {m.userId.slice(0, 8)}...
                           </div>
                         </td>
-                        <td style={td}>
+                        <td className="py-3 px-3.5 text-[13px] text-foreground">
                           <select
                             value={m.role}
                             onChange={(e) => updateBrandMemberRole(m.userId, e.target.value as BrandRole)}
-                            style={selectSmall}
+                            className="h-7 px-2 rounded-md border border-border bg-bg-secondary text-foreground text-xs"
                             disabled={m.role === "OWNER"}
                           >
                             {BRAND_ROLES.map((r) => (
@@ -458,13 +458,15 @@ export default function MembersPage() {
                             ))}
                           </select>
                         </td>
-                        <td style={td}>
-                          <span style={statusBadge}>{STATUS_LABELS[m.status]}</span>
+                        <td className="py-3 px-3.5 text-[13px]">
+                          <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-success/20 text-success text-[11px] font-semibold">
+                            {STATUS_LABELS[m.status]}
+                          </span>
                         </td>
-                        <td style={{ ...td, textAlign: "center" }}>
+                        <td className="py-3 px-3.5 text-[13px] text-center">
                           <button
                             onClick={() => removeBrandMember(m.userId)}
-                            style={{ ...btnSmall, color: "#ef4444" }}
+                            className="py-1 px-2.5 rounded-md border border-border bg-transparent text-danger-500 font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors"
                             disabled={m.role === "OWNER"}
                           >
                             삭제
@@ -484,13 +486,13 @@ export default function MembersPage() {
       {tab === "branch" && (
         <div>
           {/* Branch 선택 */}
-          <div style={{ marginBottom: 16 }}>
+          <div className="mb-4">
             <BranchSelector />
-            <div style={{ marginTop: 8 }}>
+            <div className="mt-2">
               <button
                 onClick={fetchBranchMembers}
                 disabled={!branchId || branchLoading}
-                style={btnPrimary}
+                className="btn-primary h-9 px-4 text-[13px]"
               >
                 {branchLoading ? "로딩..." : "조회"}
               </button>
@@ -499,20 +501,20 @@ export default function MembersPage() {
 
           {/* 멤버 추가 */}
           {branchId && (
-            <div style={{ ...card, marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>멤버 추가</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="card p-4 mb-4">
+              <div className="font-semibold mb-3 text-foreground">멤버 추가</div>
+              <div className="flex gap-2 flex-wrap">
                 <input
                   type="text"
                   value={newUserId}
                   onChange={(e) => setNewUserId(e.target.value)}
                   placeholder="User UUID"
-                  style={{ ...input, width: 280 }}
+                  className="input-field w-[280px]"
                 />
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  style={select}
+                  className="h-9 px-3 rounded-lg border border-border bg-bg-secondary text-foreground text-[13px]"
                 >
                   <option value="">역할 선택</option>
                   {BRANCH_ROLES.map((r) => (
@@ -521,7 +523,7 @@ export default function MembersPage() {
                     </option>
                   ))}
                 </select>
-                <button onClick={addBranchMember} disabled={adding || !newUserId} style={btnPrimary}>
+                <button onClick={addBranchMember} disabled={adding || !newUserId} className="btn-primary h-9 px-4 text-[13px]">
                   {adding ? "추가 중..." : "추가"}
                 </button>
               </div>
@@ -529,40 +531,40 @@ export default function MembersPage() {
           )}
 
           {/* 에러 */}
-          {branchError && <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{branchError}</p>}
+          {branchError && <p className="text-danger-500 mb-4">{branchError}</p>}
 
           {/* 멤버 목록 */}
-          <div style={tableWrapper}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="bg-bg-tertiary">
                 <tr>
-                  <th style={th}>사용자</th>
-                  <th style={th}>역할</th>
-                  <th style={th}>상태</th>
-                  <th style={{ ...th, textAlign: "center" }}>관리</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">사용자</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">역할</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+                  <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">관리</th>
                 </tr>
               </thead>
               <tbody>
                 {branchMembers.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ ...td, textAlign: "center", color: "#666" }}>
+                    <td colSpan={4} className="py-3 px-3.5 text-[13px] text-center text-text-tertiary">
                       {branchId ? "멤버가 없습니다." : "가게를 선택하세요."}
                     </td>
                   </tr>
                 )}
                 {branchMembers.map((m) => (
-                  <tr key={m.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>
+                  <tr key={m.id} className="border-t border-border">
+                    <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <div>{m.displayName || "-"}</div>
-                      <div style={{ fontSize: 11, color: "#666", fontFamily: "monospace" }}>
+                      <div className="text-[11px] text-text-tertiary font-mono">
                         {m.userId.slice(0, 8)}...
                       </div>
                     </td>
-                    <td style={td}>
+                    <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <select
                         value={m.role}
                         onChange={(e) => updateBranchMemberRole(m.userId, e.target.value as BranchRole)}
-                        style={selectSmall}
+                        className="h-7 px-2 rounded-md border border-border bg-bg-secondary text-foreground text-xs"
                       >
                         {BRANCH_ROLES.map((r) => (
                           <option key={r.value} value={r.value}>
@@ -571,13 +573,15 @@ export default function MembersPage() {
                         ))}
                       </select>
                     </td>
-                    <td style={td}>
-                      <span style={statusBadge}>{STATUS_LABELS[m.status]}</span>
+                    <td className="py-3 px-3.5 text-[13px]">
+                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-success/20 text-success text-[11px] font-semibold">
+                        {STATUS_LABELS[m.status]}
+                      </span>
                     </td>
-                    <td style={{ ...td, textAlign: "center" }}>
+                    <td className="py-3 px-3.5 text-[13px] text-center">
                       <button
                         onClick={() => removeBranchMember(m.userId)}
-                        style={{ ...btnSmall, color: "#ef4444" }}
+                        className="py-1 px-2.5 rounded-md border border-border bg-transparent text-danger-500 font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors"
                       >
                         삭제
                       </button>
@@ -593,121 +597,10 @@ export default function MembersPage() {
   );
 }
 
-// ============================================================
-// Styles
-// ============================================================
-
-const tabBtn: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 600,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const card: React.CSSProperties = {
-  padding: 16,
-  border: "1px solid #222",
-  borderRadius: 12,
-  background: "#0a0a0a",
-};
-
-const tableWrapper: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  overflow: "hidden",
-};
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 14px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: 13,
-  color: "white",
-};
-
-const input: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 13,
-  width: 200,
-};
-
-const select: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 13,
-};
-
-const selectSmall: React.CSSProperties = {
-  height: 28,
-  padding: "0 8px",
-  borderRadius: 6,
-  border: "1px solid #333",
-  background: "#0a0a0a",
-  color: "white",
-  fontSize: 12,
-};
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 700,
-  cursor: "pointer",
-  fontSize: 13,
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: 6,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 500,
-  cursor: "pointer",
-  fontSize: 12,
-};
-
-const statusBadge: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  height: 22,
-  padding: "0 8px",
-  borderRadius: 999,
-  background: "#10b98120",
-  color: "#10b981",
-  fontSize: 11,
-  fontWeight: 600,
-};
-
-const infoBox: React.CSSProperties = {
-  padding: 10,
-  border: "1px solid #222",
-  borderRadius: 8,
-  background: "#0a0a0a",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  marginBottom: 16,
-};
+export default function MembersPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <MembersPageContent />
+    </Suspense>
+  );
+}

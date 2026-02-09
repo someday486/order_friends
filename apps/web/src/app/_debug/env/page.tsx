@@ -1,6 +1,6 @@
 export default function EnvDebugPage() {
   return (
-    <pre style={{ padding: 16 }}>
+    <pre className="p-4 text-foreground">
       {JSON.stringify(
         {
           NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,

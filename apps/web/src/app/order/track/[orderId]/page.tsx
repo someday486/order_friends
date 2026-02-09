@@ -37,14 +37,14 @@ const statusLabel: Record<string, string> = {
   REFUNDED: "환불됨",
 };
 
-const statusColor: Record<string, string> = {
-  CREATED: "#3b82f6",
-  CONFIRMED: "#8b5cf6",
-  PREPARING: "#f59e0b",
-  READY: "#10b981",
-  COMPLETED: "#6b7280",
-  CANCELLED: "#ef4444",
-  REFUNDED: "#ec4899",
+const statusBadgeClasses: Record<string, string> = {
+  CREATED: "bg-primary-500/30 text-primary-500",
+  CONFIRMED: "bg-purple-500/30 text-purple-400",
+  PREPARING: "bg-warning-500/30 text-warning-500",
+  READY: "bg-success/30 text-success",
+  COMPLETED: "bg-neutral-500/30 text-neutral-500",
+  CANCELLED: "bg-danger-500/30 text-danger-500",
+  REFUNDED: "bg-pink-500/30 text-pink-400",
 };
 
 const STATUS_STEPS = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
@@ -131,18 +131,18 @@ export default function TrackOrderPage() {
 
   if (loading && !order) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>주문 조회 중...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <p className="text-text-secondary text-center p-10">주문 조회 중...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={pageContainer}>
-        <div style={{ padding: 40, textAlign: "center" }}>
-          <p style={{ color: "#ff8a8a", marginBottom: 16 }}>{error}</p>
-          <button onClick={fetchOrder} style={refreshBtn}>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="p-10 text-center">
+          <p className="text-danger-500 mb-4">{error}</p>
+          <button onClick={fetchOrder} className="py-2 px-4 rounded-lg border border-border bg-transparent text-foreground text-[13px] cursor-pointer hover:bg-bg-tertiary transition-colors">
             다시 시도
           </button>
         </div>
@@ -152,8 +152,8 @@ export default function TrackOrderPage() {
 
   if (!order) {
     return (
-      <div style={pageContainer}>
-        <p style={{ color: "#aaa", textAlign: "center", padding: 40 }}>주문을 찾을 수 없습니다.</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <p className="text-text-secondary text-center p-10">주문을 찾을 수 없습니다.</p>
       </div>
     );
   }
@@ -161,73 +161,53 @@ export default function TrackOrderPage() {
   const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
 
   return (
-    <div style={pageContainer}>
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header style={header}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>주문 상태</h1>
-        <button onClick={fetchOrder} style={refreshBtn}>
+      <header className="flex items-center justify-between p-4 border-b border-border">
+        <h1 className="m-0 text-xl font-bold text-foreground">주문 상태</h1>
+        <button onClick={fetchOrder} className="py-2 px-4 rounded-lg border border-border bg-transparent text-foreground text-[13px] cursor-pointer hover:bg-bg-tertiary transition-colors">
           새로고침
         </button>
       </header>
 
       {/* Order Number */}
-      <div style={{ padding: "16px", textAlign: "center" }}>
-        <div style={{ fontSize: 13, color: "#888" }}>주문번호</div>
-        <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "monospace", marginTop: 4 }}>
+      <div className="p-4 text-center">
+        <div className="text-[13px] text-text-tertiary">주문번호</div>
+        <div className="text-2xl font-extrabold font-mono mt-1 text-foreground">
           {order.orderNo}
         </div>
       </div>
 
       {/* Status */}
-      <div style={{ padding: "0 16px 24px 16px" }}>
+      <div className="px-4 pb-6">
         {isCancelled ? (
-          <div
-            style={{
-              padding: 20,
-              borderRadius: 12,
-              background: "#ef444420",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 32 }}>❌</div>
-            <div style={{ marginTop: 8, fontSize: 18, fontWeight: 700, color: "#ef4444" }}>
+          <div className="p-5 rounded-xl bg-danger-500/20 text-center">
+            <div className="text-[32px]">❌</div>
+            <div className="mt-2 text-lg font-bold text-danger-500">
               {statusLabel[order.status]}
             </div>
           </div>
         ) : (
           <div>
             {/* Progress Steps */}
-            <div style={{ display: "flex", justifyContent: "space-between", position: "relative" }}>
+            <div className="flex justify-between relative">
               {STATUS_STEPS.map((step, idx) => {
                 const isActive = idx <= currentStepIndex;
                 const isCurrent = idx === currentStepIndex;
 
                 return (
-                  <div key={step} style={{ textAlign: "center", flex: 1 }}>
+                  <div key={step} className="text-center flex-1">
                     <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: isActive ? "#10b981" : "#333",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        margin: "0 auto",
-                        fontSize: 14,
-                        fontWeight: 700,
-                        border: isCurrent ? "2px solid #fff" : "none",
-                      }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm font-bold ${
+                        isActive ? "bg-success text-white" : "bg-bg-tertiary text-text-secondary"
+                      } ${isCurrent ? "ring-2 ring-foreground" : ""}`}
                     >
                       {isActive ? "✓" : idx + 1}
                     </div>
                     <div
-                      style={{
-                        marginTop: 8,
-                        fontSize: 11,
-                        color: isActive ? "#fff" : "#666",
-                        fontWeight: isCurrent ? 700 : 400,
-                      }}
+                      className={`mt-2 text-[11px] ${
+                        isActive ? "text-foreground" : "text-text-tertiary"
+                      } ${isCurrent ? "font-bold" : "font-normal"}`}
                     >
                       {statusLabel[step]}
                     </div>
@@ -235,55 +215,21 @@ export default function TrackOrderPage() {
                 );
               })}
 
-              {/* Progress Line */}
+              {/* Progress Line (background) */}
+              <div className="absolute top-4 left-[10%] right-[10%] h-0.5 bg-bg-tertiary -z-10" />
+              {/* Progress Line (active) */}
               <div
-                style={{
-                  position: "absolute",
-                  top: 16,
-                  left: "10%",
-                  right: "10%",
-                  height: 2,
-                  background: "#333",
-                  zIndex: -1,
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: 16,
-                  left: "10%",
-                  width: `${Math.max(0, currentStepIndex) * 20}%`,
-                  height: 2,
-                  background: "#10b981",
-                  zIndex: -1,
-                  transition: "width 0.3s",
-                }}
+                className="absolute top-4 left-[10%] h-0.5 bg-success -z-10 transition-all duration-300"
+                style={{ width: `${Math.max(0, currentStepIndex) * 20}%` }}
               />
             </div>
 
             {/* Current Status Message */}
-            <div
-              style={{
-                marginTop: 24,
-                padding: 16,
-                borderRadius: 12,
-                background: "#0a0a0a",
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-block",
-                  padding: "6px 16px",
-                  borderRadius: 999,
-                  background: (statusColor[order.status] ?? "#333") + "30",
-                  color: statusColor[order.status] ?? "#fff",
-                  fontWeight: 700,
-                }}
-              >
+            <div className="mt-6 p-4 rounded-xl bg-bg-secondary text-center">
+              <span className={`inline-block py-1.5 px-4 rounded-full font-bold ${statusBadgeClasses[order.status] || "bg-bg-tertiary text-foreground"}`}>
                 {statusLabel[order.status]}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 13, color: "#888" }}>
+              </span>
+              <div className="mt-3 text-[13px] text-text-tertiary">
                 {order.status === "CREATED" && "주문이 접수되었습니다. 곧 확인해드릴게요!"}
                 {order.status === "CONFIRMED" && "주문이 확인되었습니다. 준비를 시작합니다."}
                 {order.status === "PREPARING" && "주문을 준비하고 있습니다. 잠시만 기다려주세요."}
@@ -296,69 +242,27 @@ export default function TrackOrderPage() {
       </div>
 
       {/* Order Details */}
-      <div style={orderCard}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: "#888", marginBottom: 12 }}>주문 내역</h3>
+      <div className="m-4 p-4 rounded-[14px] border border-border bg-bg-secondary">
+        <h3 className="text-sm font-semibold text-text-tertiary mb-3">주문 내역</h3>
 
         {order.items.map((item, idx) => (
-          <div key={idx} style={itemRow}>
-            <span>
+          <div key={idx} className="flex justify-between py-2">
+            <span className="text-foreground">
               {item.name} × {item.qty}
             </span>
-            <span style={{ color: "#aaa" }}>{formatWon(item.unitPrice * item.qty)}</span>
+            <span className="text-text-secondary">{formatWon(item.unitPrice * item.qty)}</span>
           </div>
         ))}
 
-        <div style={{ ...itemRow, borderTop: "1px solid #333", paddingTop: 12, marginTop: 8 }}>
-          <span style={{ fontWeight: 600 }}>총 결제금액</span>
-          <span style={{ fontSize: 18, fontWeight: 800 }}>{formatWon(order.totalAmount)}</span>
+        <div className="flex justify-between py-2 border-t border-border pt-3 mt-2">
+          <span className="font-semibold text-foreground">총 결제금액</span>
+          <span className="text-lg font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
         </div>
 
-        <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
+        <div className="mt-3 text-xs text-text-tertiary">
           주문일시: {formatDateTime(order.createdAt)}
         </div>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const pageContainer: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#000",
-  color: "#fff",
-};
-
-const header: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: 16,
-  borderBottom: "1px solid #222",
-};
-
-const refreshBtn: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: 8,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "#fff",
-  fontSize: 13,
-  cursor: "pointer",
-};
-
-const orderCard: React.CSSProperties = {
-  margin: 16,
-  padding: 16,
-  borderRadius: 14,
-  border: "1px solid #222",
-  background: "#0a0a0a",
-};
-
-const itemRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "8px 0",
-};

@@ -14,6 +14,8 @@ const class_validator_1 = require("class-validator");
 class UpdateProductRequest {
     name;
     description;
+    categoryId;
+    imageUrl;
     price;
     isActive;
     sortOrder;
@@ -29,6 +31,16 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateProductRequest.prototype, "description", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateProductRequest.prototype, "categoryId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateProductRequest.prototype, "imageUrl", void 0);
 __decorate([
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.IsOptional)(),

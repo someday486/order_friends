@@ -34,9 +34,16 @@ export class MembersController {
    * GET /admin/members/brand/:brandId
    */
   @Get('brand/:brandId')
-  async getBrandMembers(@Req() req: AuthRequest, @Param('brandId') brandId: string) {
+  async getBrandMembers(
+    @Req() req: AuthRequest,
+    @Param('brandId') brandId: string,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.membersService.getBrandMembers(req.accessToken, brandId, req.isAdmin);
+    return this.membersService.getBrandMembers(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -91,7 +98,12 @@ export class MembersController {
     @Param('userId') userId: string,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.membersService.removeBrandMember(req.accessToken, brandId, userId, req.isAdmin);
+    return this.membersService.removeBrandMember(
+      req.accessToken,
+      brandId,
+      userId,
+      req.isAdmin,
+    );
   }
 
   // ============================================================
@@ -103,9 +115,16 @@ export class MembersController {
    * GET /admin/members/branch/:branchId
    */
   @Get('branch/:branchId')
-  async getBranchMembers(@Req() req: AuthRequest, @Param('branchId') branchId: string) {
+  async getBranchMembers(
+    @Req() req: AuthRequest,
+    @Param('branchId') branchId: string,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.membersService.getBranchMembers(req.accessToken, branchId, req.isAdmin);
+    return this.membersService.getBranchMembers(
+      req.accessToken,
+      branchId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -113,9 +132,16 @@ export class MembersController {
    * POST /admin/members/branch
    */
   @Post('branch')
-  async addBranchMember(@Req() req: AuthRequest, @Body() dto: AddBranchMemberRequest) {
+  async addBranchMember(
+    @Req() req: AuthRequest,
+    @Body() dto: AddBranchMemberRequest,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.membersService.addBranchMember(req.accessToken, dto, req.isAdmin);
+    return this.membersService.addBranchMember(
+      req.accessToken,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -150,6 +176,11 @@ export class MembersController {
     @Param('userId') userId: string,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.membersService.removeBranchMember(req.accessToken, branchId, userId, req.isAdmin);
+    return this.membersService.removeBranchMember(
+      req.accessToken,
+      branchId,
+      userId,
+      req.isAdmin,
+    );
   }
 }

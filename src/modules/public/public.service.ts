@@ -1,4 +1,8 @@
-﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   PublicBranchResponse,
@@ -13,12 +17,13 @@ export class PublicService {
 
   private getPriceFromRow(row: any): number {
     if (!row) return 0;
-    if (row.base_price !== undefined && row.base_price !== null) return row.base_price;
+    if (row.base_price !== undefined && row.base_price !== null)
+      return row.base_price;
     if (row.price !== undefined && row.price !== null) return row.price;
-    if (row.price_amount !== undefined && row.price_amount !== null) return row.price_amount;
+    if (row.price_amount !== undefined && row.price_amount !== null)
+      return row.price_amount;
     return 0;
   }
-
 
   /**
    * Get branch info (public)
@@ -28,13 +33,15 @@ export class PublicService {
 
     const { data, error } = await sb
       .from('branches')
-      .select(`
+      .select(
+        `
         id,
         name,
         brands (
           name
         )
-      `)
+      `,
+      )
       .eq('id', branchId)
       .single();
 
@@ -57,7 +64,10 @@ export class PublicService {
 
     const selectFields = '*';
 
-    const buildBaseQuery = (includeIsHidden: boolean, includeIsSoldOut: boolean) => {
+    const buildBaseQuery = (
+      includeIsHidden: boolean,
+      includeIsSoldOut: boolean,
+    ) => {
       let query = (sb as any)
         .from('products')
         .select(selectFields)
@@ -120,7 +130,9 @@ export class PublicService {
   /**
    * Create order (public)
    */
-  async createOrder(dto: CreatePublicOrderRequest): Promise<PublicOrderResponse> {
+  async createOrder(
+    dto: CreatePublicOrderRequest,
+  ): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
 
     // 1. Load products for validation
@@ -156,10 +168,12 @@ export class PublicService {
     for (const item of dto.items) {
       const product = productMap.get(item.productId) as any;
       if (!product) {
-        throw new BadRequestException(`상품을 찾을 수 없습니다: ${item.productId}`);
+        throw new BadRequestException(
+          `상품을 찾을 수 없습니다: ${item.productId}`,
+        );
       }
 
-      let itemPrice = this.getPriceFromRow(product);
+      const itemPrice = this.getPriceFromRow(product);
       const optionSnapshots: any[] = [];
 
       subtotalAmount += itemPrice * item.qty;
@@ -253,7 +267,8 @@ export class PublicService {
 
     const { data: byId } = await sb
       .from('orders')
-      .select(`
+      .select(
+        `
         id,
         order_no,
         status,
@@ -264,7 +279,8 @@ export class PublicService {
           qty,
           unit_price
         )
-      `)
+      `,
+      )
       .eq('id', orderId)
       .maybeSingle();
 
@@ -273,7 +289,8 @@ export class PublicService {
     } else {
       const { data: byOrderNo } = await sb
         .from('orders')
-        .select(`
+        .select(
+          `
           id,
           order_no,
           status,
@@ -284,7 +301,8 @@ export class PublicService {
             qty,
             unit_price
           )
-        `)
+        `,
+        )
         .eq('order_no', orderId)
         .maybeSingle();
 

@@ -61,7 +61,12 @@ export class BrandsController {
     @Body() dto: UpdateBrandRequest,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.brandsService.updateBrand(req.accessToken, brandId, dto, req.isAdmin);
+    return this.brandsService.updateBrand(
+      req.accessToken,
+      brandId,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -69,8 +74,15 @@ export class BrandsController {
    * DELETE /admin/brands/:brandId
    */
   @Delete(':brandId')
-  async deleteBrand(@Req() req: AuthRequest, @Param('brandId') brandId: string) {
+  async deleteBrand(
+    @Req() req: AuthRequest,
+    @Param('brandId') brandId: string,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.brandsService.deleteBrand(req.accessToken, brandId, req.isAdmin);
+    return this.brandsService.deleteBrand(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 }

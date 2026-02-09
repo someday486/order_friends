@@ -20,13 +20,19 @@ export class AuthGuard implements CanActivate {
     private readonly config: ConfigService,
   ) {
     const rawEmails = this.parseList(this.config.get<string>('ADMIN_EMAILS'));
-    const rawUserIds = this.parseList(this.config.get<string>('ADMIN_USER_IDS'));
-    const rawDomains = this.parseList(this.config.get<string>('ADMIN_EMAIL_DOMAINS'));
+    const rawUserIds = this.parseList(
+      this.config.get<string>('ADMIN_USER_IDS'),
+    );
+    const rawDomains = this.parseList(
+      this.config.get<string>('ADMIN_EMAIL_DOMAINS'),
+    );
 
     this.adminEmails = new Set(rawEmails.map((value) => value.toLowerCase()));
     this.adminUserIds = new Set(rawUserIds);
     this.adminEmailDomains = this.normalizeDomains(rawDomains);
-    this.adminBypassAll = this.parseBoolean(this.config.get<string>('ADMIN_BYPASS'));
+    this.adminBypassAll = this.parseBoolean(
+      this.config.get<string>('ADMIN_BYPASS'),
+    );
   }
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -103,8 +109,10 @@ export class AuthGuard implements CanActivate {
     const userRole = userMetadata?.role;
 
     if (appFlag === true || userFlag === true) return true;
-    if (typeof appRole === 'string' && appRole.toLowerCase() === 'admin') return true;
-    if (typeof userRole === 'string' && userRole.toLowerCase() === 'admin') return true;
+    if (typeof appRole === 'string' && appRole.toLowerCase() === 'admin')
+      return true;
+    if (typeof userRole === 'string' && userRole.toLowerCase() === 'admin')
+      return true;
 
     return false;
   }

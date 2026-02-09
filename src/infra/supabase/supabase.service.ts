@@ -19,7 +19,9 @@ export class SupabaseService {
 
     // ✅ dev 초기에는 env 없어도 서버 뜨게
     if (!url) {
-      this.logger.warn('Supabase env missing: SUPABASE_URL. Supabase is disabled.');
+      this.logger.warn(
+        'Supabase env missing: SUPABASE_URL. Supabase is disabled.',
+      );
       return;
     }
 
@@ -31,12 +33,16 @@ export class SupabaseService {
     if (this.serviceRoleKey) {
       this.admin = createClient(this.supabaseUrl, this.serviceRoleKey);
     } else {
-      this.logger.warn('Supabase env missing: SUPABASE_SERVICE_ROLE_KEY. admin client disabled.');
+      this.logger.warn(
+        'Supabase env missing: SUPABASE_SERVICE_ROLE_KEY. admin client disabled.',
+      );
     }
 
     // anonKey 없어도 서버는 뜨게 두되(가드/유저클라 호출 시에만 필요)
     if (!this.anonKey) {
-      this.logger.warn('Supabase env missing: SUPABASE_ANON_KEY. user client may be limited.');
+      this.logger.warn(
+        'Supabase env missing: SUPABASE_ANON_KEY. user client may be limited.',
+      );
     }
   }
 
@@ -45,7 +51,9 @@ export class SupabaseService {
    */
   adminClient(): SupabaseClient {
     if (!this.admin) {
-      throw new Error('Supabase admin client is not initialized. Check SUPABASE_SERVICE_ROLE_KEY.');
+      throw new Error(
+        'Supabase admin client is not initialized. Check SUPABASE_SERVICE_ROLE_KEY.',
+      );
     }
     return this.admin;
   }
@@ -57,7 +65,9 @@ export class SupabaseService {
    */
   userClient(userAccessToken: string): SupabaseClient {
     if (!this.supabaseUrl || !this.anonKey) {
-      throw new Error('Supabase user client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
+      throw new Error(
+        'Supabase user client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.',
+      );
     }
 
     return createClient(this.supabaseUrl, this.anonKey, {
@@ -75,7 +85,9 @@ export class SupabaseService {
    */
   anonClient(): SupabaseClient {
     if (!this.supabaseUrl || !this.anonKey) {
-      throw new Error('Supabase anon client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
+      throw new Error(
+        'Supabase anon client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.',
+      );
     }
 
     return createClient(this.supabaseUrl, this.anonKey);

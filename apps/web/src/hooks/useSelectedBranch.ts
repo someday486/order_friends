@@ -1,11 +1,11 @@
-﻿"use client";
+﻿'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   getSelectedBranchId,
   setSelectedBranchId,
   clearSelectedBranchId,
-} from "@/lib/branchSelection";
+} from '@/lib/branchSelection';
 
 export function useSelectedBranch() {
   const [branchId, setBranchIdState] = useState<string | null>(null);
@@ -16,10 +16,10 @@ export function useSelectedBranch() {
     setReady(true);
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "of:selectedBranchId") setBranchIdState(e.newValue);
+      if (e.key === 'of:selectedBranchId') setBranchIdState(e.newValue);
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   return {

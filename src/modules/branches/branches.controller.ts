@@ -27,9 +27,16 @@ export class BranchesController {
    * GET /admin/branches?brandId=xxx
    */
   @Get()
-  async getBranches(@Req() req: AuthRequest, @Query('brandId') brandId: string) {
+  async getBranches(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.branchesService.getBranches(req.accessToken, brandId, req.isAdmin);
+    return this.branchesService.getBranches(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -37,9 +44,16 @@ export class BranchesController {
    * GET /admin/branches/:branchId
    */
   @Get(':branchId')
-  async getBranch(@Req() req: AuthRequest, @Param('branchId') branchId: string) {
+  async getBranch(
+    @Req() req: AuthRequest,
+    @Param('branchId') branchId: string,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.branchesService.getBranch(req.accessToken, branchId, req.isAdmin);
+    return this.branchesService.getBranch(
+      req.accessToken,
+      branchId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -47,7 +61,10 @@ export class BranchesController {
    * POST /admin/branches
    */
   @Post()
-  async createBranch(@Body() dto: CreateBranchRequest, @Req() req: AuthRequest) {
+  async createBranch(
+    @Body() dto: CreateBranchRequest,
+    @Req() req: AuthRequest,
+  ) {
     const brandId =
       dto.brandId ?? req.brandId ?? (req.query?.brandId as string | undefined);
 
@@ -59,7 +76,11 @@ export class BranchesController {
     }
 
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.branchesService.createBranch(req.accessToken, { ...dto, brandId }, req.isAdmin);
+    return this.branchesService.createBranch(
+      req.accessToken,
+      { ...dto, brandId },
+      req.isAdmin,
+    );
   }
 
   /**
@@ -73,7 +94,12 @@ export class BranchesController {
     @Body() dto: UpdateBranchRequest,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.branchesService.updateBranch(req.accessToken, branchId, dto, req.isAdmin);
+    return this.branchesService.updateBranch(
+      req.accessToken,
+      branchId,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -81,8 +107,15 @@ export class BranchesController {
    * DELETE /admin/branches/:branchId
    */
   @Delete(':branchId')
-  async deleteBranch(@Req() req: AuthRequest, @Param('branchId') branchId: string) {
+  async deleteBranch(
+    @Req() req: AuthRequest,
+    @Param('branchId') branchId: string,
+  ) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.branchesService.deleteBranch(req.accessToken, branchId, req.isAdmin);
+    return this.branchesService.deleteBranch(
+      req.accessToken,
+      branchId,
+      req.isAdmin,
+    );
   }
 }

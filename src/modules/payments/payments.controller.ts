@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -55,7 +55,7 @@ export class PaymentsPublicController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '결제 준비',
-    description: '주문 검증 및 결제 정보 반환 (인증 불필요)',
+    description: '주문 검증 및 결제 정보를 반환합니다. (인증 불필요)',
   })
   @ApiBody({ type: PreparePaymentRequest })
   @ApiResponse({
@@ -86,7 +86,7 @@ export class PaymentsPublicController {
   })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 404, description: '주문을 찾을 수 없음' })
-  @ApiResponse({ status: 502, description: '결제 제공자 오류' })
+  @ApiResponse({ status: 502, description: '결제 승인 실패' })
   async confirmPayment(
     @Body() dto: ConfirmPaymentRequest,
   ): Promise<ConfirmPaymentResponse> {
@@ -96,7 +96,7 @@ export class PaymentsPublicController {
   @Get(':orderId/status')
   @ApiOperation({
     summary: '결제 상태 조회',
-    description: '주문의 결제 상태 조회 (인증 불필요)',
+    description: '주문 결제 상태를 조회합니다. (인증 불필요)',
   })
   @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
   @ApiResponse({
@@ -115,7 +115,7 @@ export class PaymentsPublicController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Toss Payments 웹훅',
-    description: 'Toss Payments에서 전송하는 웹훅 이벤트 처리',
+    description: 'Toss Payments 웹훅 이벤트를 처리합니다.',
   })
   @ApiBody({ type: TossWebhookRequest })
   @ApiResponse({ status: 200, description: '웹훅 처리 성공' })
@@ -123,8 +123,13 @@ export class PaymentsPublicController {
   async handleTossWebhook(
     @Body() webhookData: TossWebhookRequest,
     @Headers() headers: Record<string, string>,
+    @Req() req: any,
   ): Promise<{ success: boolean }> {
-    await this.paymentsService.handleTossWebhook(webhookData, headers);
+    await this.paymentsService.handleTossWebhook(
+      webhookData,
+      headers,
+      req?.rawBody,
+    );
     return { success: true };
   }
 }
@@ -143,11 +148,11 @@ export class PaymentsCustomerController {
   @Get()
   @ApiOperation({
     summary: '결제 목록 조회',
-    description: '지점의 결제 목록 조회 (인증 필요)',
+    description: '지점의 결제 목록을 조회합니다. (인증 필요)',
   })
   @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
   @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
-  @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
+  @ApiQuery({ name: 'limit', description: '페이지 크기', required: false })
   @ApiResponse({
     status: 200,
     description: '결제 목록 조회 성공',
@@ -166,7 +171,7 @@ export class PaymentsCustomerController {
   @Get(':paymentId')
   @ApiOperation({
     summary: '결제 상세 조회',
-    description: '특정 결제의 상세 정보 조회 (인증 필요)',
+    description: '특정 결제의 상세 정보를 조회합니다. (인증 필요)',
   })
   @ApiParam({ name: 'paymentId', description: '결제 ID' })
   @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
@@ -213,3 +218,6 @@ export class PaymentsCustomerController {
     return this.paymentsService.refundPayment(paymentId, branchId, dto);
   }
 }
+
+
+

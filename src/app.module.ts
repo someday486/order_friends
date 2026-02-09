@@ -12,7 +12,6 @@ import { BranchesModule } from './modules/branches/branches.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { MembersModule } from './modules/members/members.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { PublicModule } from './modules/public/public.module';
 import { PublicOrderModule } from './modules/public-order/public-order.module';
 import { HealthModule } from './modules/health/health.module';
 import { CustomerDashboardModule } from './modules/customer-dashboard/customer-dashboard.module';
@@ -55,7 +54,6 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     BrandsModule,
     MembersModule,
     DashboardModule,
-    PublicModule,
     PublicOrderModule,
     HealthModule,
     CustomerDashboardModule,

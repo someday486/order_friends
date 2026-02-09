@@ -18,6 +18,15 @@ export class PublicOrderController {
   }
 
   /**
+   * Backward-compatible route
+   * GET /public/branch/:branchId
+   */
+  @Get('branch/:branchId')
+  async getBranchLegacy(@Param('branchId') branchId: string) {
+    return this.publicOrderService.getBranch(branchId);
+  }
+
+  /**
    * 媛寃??뺣낫 議고쉶 (slug)
    * GET /public/branches/slug/:slug
    */
@@ -52,6 +61,15 @@ export class PublicOrderController {
 
   @Get('branches/:branchId/products')
   async getProducts(@Param('branchId') branchId: string) {
+    return this.publicOrderService.getProducts(branchId);
+  }
+
+  /**
+   * Backward-compatible route
+   * GET /public/branch/:branchId/products
+   */
+  @Get('branch/:branchId/products')
+  async getProductsLegacy(@Param('branchId') branchId: string) {
     return this.publicOrderService.getProducts(branchId);
   }
 

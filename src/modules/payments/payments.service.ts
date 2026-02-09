@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   PreparePaymentRequest,
@@ -23,6 +24,7 @@ import {
   PaymentProviderException,
   RefundNotAllowedException,
   RefundAmountExceededException,
+  WebhookSignatureVerificationException,
 } from '../../common/exceptions/payment.exception';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
@@ -36,12 +38,31 @@ import { PaginationUtil } from '../../common/utils/pagination.util';
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
-  // TODO: Replace with actual Toss Payments credentials from environment
   private readonly tossSecretKey = process.env.TOSS_SECRET_KEY || '';
   private readonly tossClientKey = process.env.TOSS_CLIENT_KEY || '';
-  private readonly tossApiBaseUrl = 'https://api.tosspayments.com/v1';
+  private readonly tossApiBaseUrl =
+    process.env.TOSS_API_BASE_URL || 'https://api.tosspayments.com/v1';
+  private readonly tossTimeoutMs: number;
+  private readonly tossMockMode: boolean;
+  private readonly tossWebhookSecret = process.env.TOSS_WEBHOOK_SECRET || '';
+  private readonly tossWebhookSignatureHeader = (
+    process.env.TOSS_WEBHOOK_SIGNATURE_HEADER || 'toss-signature'
+  ).toLowerCase();
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(private readonly supabase: SupabaseService) {
+    const rawTimeout = Number(process.env.TOSS_TIMEOUT_MS);
+    this.tossTimeoutMs =
+      Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 15000;
+
+    const rawMock = process.env.TOSS_MOCK_MODE;
+    const envMock =
+      rawMock !== undefined
+        ? ['true', '1', 'yes'].includes(rawMock.trim().toLowerCase())
+        : false;
+
+    this.tossMockMode =
+      envMock || (!this.tossSecretKey && process.env.NODE_ENV !== 'production');
+  }
 
   /**
    * UUID 체크 헬퍼
@@ -229,22 +250,28 @@ export class PaymentsService {
       throw new OrderAlreadyPaidException(resolvedId);
     }
 
-    // 5. Toss Payments API 호출 (실제 환경에서 활성화)
-    // TODO: Implement actual Toss Payments API call
+    // 5. Toss Payments API call
     let providerPaymentId: string | null = null;
-    const providerResponse: any = null;
+    let providerResponse: any = null;
 
-    if (this.tossSecretKey) {
+    if (this.tossMockMode) {
+      this.logger.warn(
+        'Toss Payments running in mock mode (TOSS_MOCK_MODE or missing key)',
+      );
+      providerPaymentId = `mock_${Date.now()}`;
+    } else if (!this.tossSecretKey) {
+      throw new PaymentProviderException(
+        PaymentProvider.TOSS,
+        'Toss Payments secret key is not configured',
+      );
+    } else {
       try {
-        // Toss Payments API 승인 요청
-        // const response = await this.callTossPaymentsConfirmApi(dto.paymentKey, dto.orderId, dto.amount);
-        // providerPaymentId = response.paymentId;
-        // providerResponse = response;
-
-        this.logger.warn(
-          'Toss Payments API integration not implemented - using mock mode',
+        providerResponse = await this.callTossPaymentsConfirmApi(
+          dto.paymentKey,
+          dto.orderId,
+          dto.amount,
         );
-        providerPaymentId = `mock_${Date.now()}`;
+        providerPaymentId = providerResponse?.paymentKey || dto.paymentKey;
       } catch (error: any) {
         this.logger.error('Toss Payments API call failed', error);
 
@@ -258,23 +285,19 @@ export class PaymentsService {
           status: PaymentStatus.FAILED,
           payment_method: PaymentMethod.CARD,
           failed_at: new Date().toISOString(),
-          failure_reason: error.message || 'Payment confirmation failed',
+          failure_reason: error?.message || 'Payment confirmation failed',
         });
 
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
-          error.message || 'Payment confirmation failed',
-          error.response?.data,
+          error?.message || 'Payment confirmation failed',
+          error?.response,
         );
       }
-    } else {
-      // Mock mode for development
-      this.logger.warn('TOSS_SECRET_KEY not configured - running in mock mode');
-      providerPaymentId = `mock_${Date.now()}`;
     }
 
     // 6. 결제 성공 레코드 생성 또는 업데이트
-    const paidAt = new Date().toISOString();
+    const paidAt = providerResponse?.approvedAt || new Date().toISOString();
 
     let payment;
     if (existingPayment) {
@@ -287,6 +310,7 @@ export class PaymentsService {
           provider_payment_key: dto.paymentKey,
           paid_at: paidAt,
           failure_reason: null,
+          metadata: providerResponse || {},
         })
         .eq('id', existingPayment.id)
         .select()
@@ -585,22 +609,37 @@ export class PaymentsService {
       throw new RefundAmountExceededException(refundAmount, availableAmount);
     }
 
-    // 4. Toss Payments API 호출 (실제 환경에서 활성화)
-    // TODO: Implement actual Toss Payments refund API call
-    if (this.tossSecretKey && payment.provider_payment_key) {
+    // 4. Toss Payments refund call
+    if (this.tossMockMode) {
+      this.logger.warn('Toss Payments refund running in mock mode');
+    } else if (!this.tossSecretKey) {
+      throw new PaymentProviderException(
+        PaymentProvider.TOSS,
+        'Toss Payments secret key is not configured',
+      );
+    } else if (payment.provider_payment_key) {
       try {
-        // await this.callTossPaymentsRefundApi(payment.provider_payment_key, refundAmount, dto.reason);
-        this.logger.warn(
-          'Toss Payments refund API not implemented - using mock mode',
+        await this.callTossPaymentsRefundApi(
+          payment.provider_payment_key,
+          refundAmount,
+          dto.reason,
         );
       } catch (error: any) {
+        if (error instanceof PaymentProviderException) {
+          throw error;
+        }
         this.logger.error('Toss Payments refund API call failed', error);
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
-          error.message || 'Refund failed',
-          error.response?.data,
+          error?.message || 'Refund failed',
+          error?.response,
         );
       }
+    } else {
+      throw new PaymentProviderException(
+        PaymentProvider.TOSS,
+        'Missing provider payment key for refund',
+      );
     }
 
     // 5. 환불 상태 업데이트
@@ -649,19 +688,23 @@ export class PaymentsService {
    */
   async handleTossWebhook(
     webhookData: TossWebhookRequest,
-    headers: any,
+    headers: Record<string, string | string[]>,
+    rawBody?: Buffer,
   ): Promise<void> {
     this.logger.log(`Received Toss webhook: ${webhookData.eventType}`);
 
     const sb = this.supabase.adminClient();
 
-    // TODO: Verify webhook signature
-    // if (this.tossSecretKey) {
-    //   const isValid = this.verifyTossWebhookSignature(webhookData, headers);
-    //   if (!isValid) {
-    //     throw new WebhookSignatureVerificationException();
-    //   }
-    // }
+    if (this.tossWebhookSecret) {
+      if (!rawBody) {
+        throw new WebhookSignatureVerificationException();
+      }
+
+      const isValid = this.verifyTossWebhookSignature(rawBody, headers);
+      if (!isValid) {
+        throw new WebhookSignatureVerificationException();
+      }
+    }
 
     // 1. 웹훅 로그 저장
     const { orderId, paymentKey, status, amount } = webhookData.data;
@@ -812,44 +855,117 @@ export class PaymentsService {
     this.logger.log(`Payment cancelled via webhook: ${orderId}`);
   }
 
-  // TODO: Implement actual Toss Payments API calls
-  // private async callTossPaymentsConfirmApi(paymentKey: string, orderId: string, amount: number) {
-  //   const response = await axios.post(
-  //     `${this.tossApiBaseUrl}/payments/confirm`,
-  //     {
-  //       paymentKey,
-  //       orderId,
-  //       amount,
-  //     },
-  //     {
-  //       headers: {
-  //         Authorization: `Basic ${Buffer.from(this.tossSecretKey + ':').toString('base64')}`,
-  //         'Content-Type': 'application/json',
-  //       },
-  //     },
-  //   );
-  //   return response.data;
-  // }
+  private async callTossPaymentsConfirmApi(
+    paymentKey: string,
+    orderId: string,
+    amount: number,
+  ): Promise<any> {
+    return this.callTossApi('/payments/confirm', {
+      paymentKey,
+      orderId,
+      amount,
+    });
+  }
 
-  // private async callTossPaymentsRefundApi(paymentKey: string, amount: number, reason: string) {
-  //   const response = await axios.post(
-  //     `${this.tossApiBaseUrl}/payments/${paymentKey}/cancel`,
-  //     {
-  //       cancelReason: reason,
-  //       cancelAmount: amount,
-  //     },
-  //     {
-  //       headers: {
-  //         Authorization: `Basic ${Buffer.from(this.tossSecretKey + ':').toString('base64')}`,
-  //         'Content-Type': 'application/json',
-  //       },
-  //     },
-  //   );
-  //   return response.data;
-  // }
+  private async callTossPaymentsRefundApi(
+    paymentKey: string,
+    amount: number,
+    reason: string,
+  ): Promise<any> {
+    return this.callTossApi(`/payments/${paymentKey}/cancel`, {
+      cancelReason: reason,
+      cancelAmount: amount,
+    });
+  }
 
-  // private verifyTossWebhookSignature(webhookData: any, headers: any): boolean {
-  //   // TODO: Implement signature verification
-  //   return true;
-  // }
+  private async callTossApi(path: string, body: any): Promise<any> {
+    if (!this.tossSecretKey) {
+      throw new PaymentProviderException(
+        PaymentProvider.TOSS,
+        'Toss Payments secret key is not configured',
+      );
+    }
+
+    const url = `${this.tossApiBaseUrl}${path}`;
+    const auth = Buffer.from(`${this.tossSecretKey}:`).toString('base64');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.tossTimeoutMs);
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text ? { raw: text } : null;
+      }
+
+      if (!res.ok) {
+        throw new PaymentProviderException(
+          PaymentProvider.TOSS,
+          data?.message || `HTTP ${res.status}`,
+          data,
+        );
+      }
+
+      return data;
+    } catch (error: any) {
+      if (error instanceof PaymentProviderException) {
+        throw error;
+      }
+      if (error?.name === 'AbortError') {
+        throw new PaymentProviderException(
+          PaymentProvider.TOSS,
+          'Toss Payments request timed out',
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private verifyTossWebhookSignature(
+    rawBody: Buffer,
+    headers: Record<string, string | string[]>,
+  ): boolean {
+    if (!this.tossWebhookSecret) return true;
+
+    const headerName = this.tossWebhookSignatureHeader;
+    const headerValue =
+      headers[headerName] ||
+      headers[headerName.toLowerCase()] ||
+      headers[headerName.toUpperCase()];
+
+    const signature = Array.isArray(headerValue)
+      ? headerValue[0]
+      : headerValue;
+
+    if (!signature) return false;
+
+    const normalized = signature.startsWith('v1=')
+      ? signature.slice(3)
+      : signature;
+
+    const hmac = createHmac('sha256', this.tossWebhookSecret)
+      .update(rawBody)
+      .digest('hex');
+
+    if (normalized.length !== hmac.length) return false;
+
+    return timingSafeEqual(
+      Buffer.from(normalized, 'utf8'),
+      Buffer.from(hmac, 'utf8'),
+    );
+  }
 }

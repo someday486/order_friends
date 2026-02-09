@@ -82,4 +82,32 @@ describe('CustomerDashboardService', () => {
     expect(result.totalOrders).toBe(3);
     expect(result.brands.length).toBe(1);
   });
+
+  it('should handle brand memberships when no branches are returned', async () => {
+    mockSb.in
+      .mockResolvedValueOnce({ data: null }) // branches by brandId
+      .mockResolvedValueOnce({ count: 0 }) // totalOrders
+      .mockReturnValueOnce(mockSb) // todayOrders branch filter
+      .mockReturnValueOnce(mockSb) // pendingOrders branch filter
+      .mockResolvedValueOnce({ count: 0 }) // pendingOrders status filter
+      .mockReturnValueOnce(mockSb) // totalProducts branch filter
+      .mockReturnValueOnce(mockSb) // brands in
+      .mockReturnValueOnce(mockSb); // recentOrders branch filter
+
+    mockSb.gte.mockResolvedValueOnce({ count: 0 }); // todayOrders result
+    mockSb.eq.mockResolvedValueOnce({ count: 0 }); // totalProducts result
+    mockSb.order
+      .mockResolvedValueOnce({ data: [] }) // brands
+      .mockReturnValueOnce(mockSb); // recentOrders
+    mockSb.limit.mockResolvedValueOnce({ data: [] }); // recentOrders
+
+    const result = await service.getDashboardStats(
+      'user-1',
+      [{ brand_id: 'brand-1' } as any],
+      [{ branch_id: 'b1' } as any],
+    );
+
+    expect(result.myBranchesCount).toBe(1);
+    expect(result.totalOrders).toBe(0);
+  });
 });

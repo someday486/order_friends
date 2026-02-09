@@ -130,7 +130,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             orderNo: order.order_no || null,
             amount: order.total_amount,
             orderName,
-            customerName: order.customer_name || '고객',
+            customerName: order.customer_name || '怨좉컼',
             customerPhone: order.customer_phone || '',
         };
     }
@@ -449,7 +449,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         let paymentId = null;
         const { data: payment } = await sb
             .from('payments')
-            .select('id, order_id')
+            .select('id, order_id, status, amount')
             .eq('provider_payment_key', paymentKey)
             .maybeSingle();
         paymentId = payment?.id || null;
@@ -464,10 +464,10 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         try {
             switch (webhookData.eventType) {
                 case 'PAYMENT_CONFIRMED':
-                    await this.handlePaymentConfirmedWebhook(webhookData);
+                    await this.handlePaymentConfirmedWebhook(webhookData, payment || null);
                     break;
                 case 'PAYMENT_CANCELLED':
-                    await this.handlePaymentCancelledWebhook(webhookData);
+                    await this.handlePaymentCancelledWebhook(webhookData, payment || null);
                     break;
                 default:
                     this.logger.warn(`Unhandled webhook event type: ${webhookData.eventType}`);
@@ -492,7 +492,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             throw error;
         }
     }
-    async handlePaymentConfirmedWebhook(webhookData) {
+    async handlePaymentConfirmedWebhook(webhookData, payment) {
         const { orderId, paymentKey, status, amount } = webhookData.data;
         const sb = this.supabase.adminClient();
         const resolvedId = await this.resolveOrderId(sb, orderId);
@@ -500,22 +500,73 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             this.logger.error(`Order not found in webhook: ${orderId}`);
             return;
         }
-        const { error } = await sb
-            .from('payments')
-            .update({
-            status: payment_dto_1.PaymentStatus.SUCCESS,
-            paid_at: new Date().toISOString(),
-            metadata: webhookData.data,
-        })
-            .eq('order_id', resolvedId)
-            .eq('provider_payment_key', paymentKey);
-        if (error) {
-            this.logger.error('Failed to update payment from webhook', error);
-            throw new business_exception_1.BusinessException('Failed to update payment', 'WEBHOOK_PAYMENT_UPDATE_FAILED', 500, { error: error.message });
+        const { data: order, error: orderError } = await sb
+            .from('orders')
+            .select('id, total_amount')
+            .eq('id', resolvedId)
+            .maybeSingle();
+        if (orderError) {
+            this.logger.error('Failed to fetch order for webhook', orderError);
+            throw new business_exception_1.BusinessException('Failed to fetch order', 'WEBHOOK_ORDER_FETCH_FAILED', 500, { error: orderError.message });
+        }
+        if (!order) {
+            this.logger.error(`Order not found in webhook: ${orderId}`);
+            return;
+        }
+        if (amount !== undefined && amount !== null && order.total_amount !== amount) {
+            throw new business_exception_1.BusinessException('Payment amount mismatch', 'WEBHOOK_PAYMENT_AMOUNT_MISMATCH', 400, { expected: order.total_amount, actual: amount });
+        }
+        if (payment) {
+            if (amount !== undefined &&
+                amount !== null &&
+                payment.amount !== undefined &&
+                payment.amount !== null &&
+                payment.amount !== amount) {
+                throw new business_exception_1.BusinessException('Payment amount mismatch', 'WEBHOOK_PAYMENT_AMOUNT_MISMATCH', 400, { expected: payment.amount, actual: amount });
+            }
+            if (payment.status === payment_dto_1.PaymentStatus.SUCCESS) {
+                this.logger.log(`Payment already confirmed via webhook: ${orderId}`);
+                return;
+            }
+            if (payment.status === payment_dto_1.PaymentStatus.CANCELLED ||
+                payment.status === payment_dto_1.PaymentStatus.REFUNDED ||
+                payment.status === payment_dto_1.PaymentStatus.PARTIAL_REFUNDED) {
+                this.logger.warn(`Ignoring confirmed webhook for cancelled/refunded payment: ${orderId}`);
+                return;
+            }
+            const { error } = await sb
+                .from('payments')
+                .update({
+                status: payment_dto_1.PaymentStatus.SUCCESS,
+                paid_at: new Date().toISOString(),
+                metadata: webhookData.data,
+            })
+                .eq('order_id', resolvedId)
+                .eq('provider_payment_key', paymentKey);
+            if (error) {
+                this.logger.error('Failed to update payment from webhook', error);
+                throw new business_exception_1.BusinessException('Failed to update payment', 'WEBHOOK_PAYMENT_UPDATE_FAILED', 500, { error: error.message });
+            }
+        }
+        else {
+            const { error } = await sb.from('payments').insert({
+                order_id: resolvedId,
+                amount: amount ?? order.total_amount,
+                currency: 'KRW',
+                provider: payment_dto_1.PaymentProvider.TOSS,
+                provider_payment_key: paymentKey,
+                status: payment_dto_1.PaymentStatus.SUCCESS,
+                paid_at: new Date().toISOString(),
+                metadata: webhookData.data,
+            });
+            if (error) {
+                this.logger.error('Failed to create payment from webhook', error);
+                throw new business_exception_1.BusinessException('Failed to create payment', 'WEBHOOK_PAYMENT_CREATE_FAILED', 500, { error: error.message });
+            }
         }
         this.logger.log(`Payment confirmed via webhook: ${orderId}`);
     }
-    async handlePaymentCancelledWebhook(webhookData) {
+    async handlePaymentCancelledWebhook(webhookData, payment) {
         const { orderId, paymentKey } = webhookData.data;
         const sb = this.supabase.adminClient();
         const resolvedId = await this.resolveOrderId(sb, orderId);
@@ -523,18 +574,57 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             this.logger.error(`Order not found in webhook: ${orderId}`);
             return;
         }
-        const { error } = await sb
-            .from('payments')
-            .update({
-            status: payment_dto_1.PaymentStatus.CANCELLED,
-            cancelled_at: new Date().toISOString(),
-            cancellation_reason: webhookData.data.cancellationReason || 'Cancelled by customer',
-        })
-            .eq('order_id', resolvedId)
-            .eq('provider_payment_key', paymentKey);
-        if (error) {
-            this.logger.error('Failed to update payment cancellation from webhook', error);
-            throw new business_exception_1.BusinessException('Failed to update payment cancellation', 'WEBHOOK_CANCELLATION_UPDATE_FAILED', 500, { error: error.message });
+        if (payment &&
+            (payment.status === payment_dto_1.PaymentStatus.CANCELLED ||
+                payment.status === payment_dto_1.PaymentStatus.REFUNDED ||
+                payment.status === payment_dto_1.PaymentStatus.PARTIAL_REFUNDED)) {
+            this.logger.log(`Payment already cancelled/refunded: ${orderId}`);
+            return;
+        }
+        if (payment) {
+            const { error } = await sb
+                .from('payments')
+                .update({
+                status: payment_dto_1.PaymentStatus.CANCELLED,
+                cancelled_at: new Date().toISOString(),
+                cancellation_reason: webhookData.data.cancellationReason || 'Cancelled by customer',
+            })
+                .eq('order_id', resolvedId)
+                .eq('provider_payment_key', paymentKey);
+            if (error) {
+                this.logger.error('Failed to update payment cancellation from webhook', error);
+                throw new business_exception_1.BusinessException('Failed to update payment cancellation', 'WEBHOOK_CANCELLATION_UPDATE_FAILED', 500, { error: error.message });
+            }
+        }
+        else {
+            const { data: order, error: orderError } = await sb
+                .from('orders')
+                .select('id, total_amount')
+                .eq('id', resolvedId)
+                .maybeSingle();
+            if (orderError) {
+                this.logger.error('Failed to fetch order for webhook', orderError);
+                throw new business_exception_1.BusinessException('Failed to fetch order', 'WEBHOOK_ORDER_FETCH_FAILED', 500, { error: orderError.message });
+            }
+            if (!order) {
+                this.logger.error(`Order not found in webhook: ${orderId}`);
+                return;
+            }
+            const { error } = await sb.from('payments').insert({
+                order_id: resolvedId,
+                amount: webhookData.data.amount ?? order.total_amount,
+                currency: 'KRW',
+                provider: payment_dto_1.PaymentProvider.TOSS,
+                provider_payment_key: paymentKey,
+                status: payment_dto_1.PaymentStatus.CANCELLED,
+                cancelled_at: new Date().toISOString(),
+                cancellation_reason: webhookData.data.cancellationReason || 'Cancelled by customer',
+                metadata: webhookData.data,
+            });
+            if (error) {
+                this.logger.error('Failed to create payment cancellation from webhook', error);
+                throw new business_exception_1.BusinessException('Failed to create payment cancellation', 'WEBHOOK_CANCELLATION_CREATE_FAILED', 500, { error: error.message });
+            }
         }
         this.logger.log(`Payment cancelled via webhook: ${orderId}`);
     }

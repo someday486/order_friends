@@ -4,6 +4,7 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 describe('DashboardService', () => {
   let service: DashboardService;
   let mockSb: any;
+  let supabaseService: any;
 
   const makeSupabase = () => {
     mockSb = {
@@ -22,8 +23,8 @@ describe('DashboardService', () => {
   };
 
   beforeEach(() => {
-    const supabase = makeSupabase();
-    service = new DashboardService(supabase as SupabaseService);
+    supabaseService = makeSupabase();
+    service = new DashboardService(supabaseService as SupabaseService);
     jest.clearAllMocks();
   });
 
@@ -35,6 +36,14 @@ describe('DashboardService', () => {
     expect(result.totalOrders).toBe(0);
     expect(result.totalBranches).toBe(0);
     expect(result.recentOrders).toEqual([]);
+  });
+
+  it('should use userClient when isAdmin is false', async () => {
+    mockSb.eq.mockResolvedValueOnce({ data: [], error: null });
+
+    await service.getStats('token', 'brand-1', false);
+
+    expect(supabaseService.userClient).toHaveBeenCalledWith('token');
   });
 
   it('should throw when branch lookup fails', async () => {

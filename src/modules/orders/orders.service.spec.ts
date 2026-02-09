@@ -92,6 +92,39 @@ describe('OrdersService', () => {
       expect(result.pagination.total).toBe(1);
     });
 
+    it('should map default values when fields are null', async () => {
+      const mockOrders = [
+        {
+          id: '123',
+          order_no: null,
+          status: OrderStatus.PENDING,
+          created_at: null,
+          total_amount: null,
+          customer_name: null,
+        },
+      ];
+
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        count: 1,
+        error: null,
+      });
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: mockOrders,
+        error: null,
+      });
+
+      const result = await service.getOrders('token', 'branch-123');
+
+      expect(result.data[0]).toEqual({
+        id: '123',
+        orderNo: null,
+        orderedAt: '',
+        customerName: '',
+        totalAmount: 0,
+        status: OrderStatus.PENDING,
+      });
+    });
+
     it('should throw BusinessException on database error', async () => {
       // Mock count query returning an error
       mockSupabaseClient.eq.mockResolvedValueOnce({
@@ -160,6 +193,62 @@ describe('OrdersService', () => {
       expect(result.id).toBe('123');
       expect(result.orderNo).toBe('ORD-001');
       expect(result.items).toHaveLength(1);
+    });
+
+    it('should map defaults and option names when fields are null', async () => {
+      const mockOrder = {
+        id: '123',
+        order_no: null,
+        status: OrderStatus.PENDING,
+        created_at: null,
+        customer_name: null,
+        customer_phone: null,
+        delivery_address: null,
+        delivery_memo: null,
+        subtotal: null,
+        delivery_fee: null,
+        discount_total: null,
+        total_amount: null,
+        items: [
+          {
+            id: 'item-1',
+            product_name_snapshot: null,
+            qty: null,
+            unit_price_snapshot: null,
+            options: [
+              { option_name_snapshot: null },
+              { option_name_snapshot: 'Option-A' },
+            ],
+          },
+        ],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.orderNo).toBeNull();
+      expect(result.orderedAt).toBe('');
+      expect(result.customer.name).toBe('');
+      expect(result.customer.phone).toBe('');
+      expect(result.customer.address1).toBe('');
+      expect(result.customer.memo).toBeUndefined();
+      expect(result.payment.subtotal).toBe(0);
+      expect(result.payment.shippingFee).toBe(0);
+      expect(result.payment.discount).toBe(0);
+      expect(result.payment.total).toBe(0);
+      expect(result.items[0].name).toBe('');
+      expect(result.items[0].qty).toBe(0);
+      expect(result.items[0].unitPrice).toBe(0);
+      expect(result.items[0].option).toBe('Option-A');
     });
 
     it('should resolve uuid directly when id exists', async () => {
@@ -263,6 +352,23 @@ describe('OrdersService', () => {
       expect(resolved).toBe('order-1');
       expect(mockSupabaseClient.eq).toHaveBeenCalledWith('order_no', 'ORD-001');
     });
+
+    it('should resolve by uuid with branch filter', async () => {
+      const uuid = '123e4567-e89b-12d3-a456-426614174000';
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: uuid },
+        error: null,
+      });
+
+      const resolved = await (service as any).resolveOrderId(
+        mockSupabaseClient,
+        uuid,
+        'branch-123',
+      );
+
+      expect(resolved).toBe(uuid);
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('branch_id', 'branch-123');
+    });
   });
 
   describe('updateStatus', () => {
@@ -359,6 +465,44 @@ describe('OrdersService', () => {
           table === 'orders' ? ordersChain : orderItemsChain,
         ),
       };
+      mockSupabaseService.adminClient.mockReturnValueOnce(client as any);
+
+      const result = await service.updateStatus(
+        'token',
+        'ORD-1',
+        OrderStatus.CANCELLED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.CANCELLED);
+    });
+
+    it('should skip inventory release when cancelled order has no items', async () => {
+      const ordersChain = {
+        from: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn(),
+      };
+      const orderItemsChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+      };
+
+      const client = {
+        from: jest.fn((table: string) =>
+          table === 'orders' ? ordersChain : orderItemsChain,
+        ),
+      };
+
+      ordersChain.maybeSingle
+        .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+        .mockResolvedValueOnce({
+          data: { id: 'o1', order_no: 'ORD-1', status: OrderStatus.CANCELLED },
+          error: null,
+        });
+
       mockSupabaseService.adminClient.mockReturnValueOnce(client as any);
 
       const result = await service.updateStatus(

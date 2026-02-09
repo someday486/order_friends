@@ -33,6 +33,37 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             return row.price_amount;
         return 0;
     }
+    async rollbackOrder(adminClient, orderId) {
+        try {
+            await adminClient.from('order_items').delete().eq('order_id', orderId);
+        }
+        catch (error) {
+            this.logger.error(`Failed to rollback order items for ${orderId}`, error);
+        }
+        try {
+            await adminClient.from('orders').delete().eq('id', orderId);
+        }
+        catch (error) {
+            this.logger.error(`Failed to rollback order ${orderId}`, error);
+        }
+    }
+    async rollbackInventory(adminClient, branchId, reservedItems) {
+        for (const item of reservedItems) {
+            try {
+                await adminClient
+                    .from('product_inventory')
+                    .update({
+                    qty_available: item.inventory.qty_available + item.qty,
+                    qty_reserved: Math.max(0, item.inventory.qty_reserved - item.qty),
+                })
+                    .eq('product_id', item.productId)
+                    .eq('branch_id', branchId);
+            }
+            catch (error) {
+                this.logger.error(`Failed to rollback inventory for product ${item.productId}`, error);
+            }
+        }
+    }
     async getBranch(branchId) {
         const sb = this.supabase.anonClient();
         const { data, error } = await sb
@@ -300,45 +331,52 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             throw new common_1.BadRequestException(`주문 생성 실패: ${orderError.message}`);
         }
         const orderItemResults = [];
-        for (const itemData of orderItemsData) {
-            const { data: orderItem, error: itemError } = await sb
-                .from('order_items')
-                .insert({
-                order_id: order.id,
-                product_id: itemData.product_id,
-                product_name_snapshot: itemData.product_name_snapshot,
-                qty: itemData.qty,
-                unit_price: itemData.unit_price,
-            })
-                .select('id')
-                .single();
-            if (itemError) {
-                console.error('order_item insert error:', itemError);
-                continue;
-            }
-            const optionNames = [];
-            if (itemData.options && itemData.options.length > 0) {
-                for (const opt of itemData.options) {
-                    const { error: optError } = await sb
-                        .from('order_item_options')
-                        .insert({
-                        order_item_id: orderItem.id,
-                        product_option_id: opt.product_option_id,
-                        option_name_snapshot: opt.option_name_snapshot,
-                        price_delta_snapshot: opt.price_delta_snapshot,
-                    });
-                    if (!optError) {
-                        optionNames.push(opt.option_name_snapshot);
+        try {
+            for (const itemData of orderItemsData) {
+                const { data: orderItem, error: itemError } = await sb
+                    .from('order_items')
+                    .insert({
+                    order_id: order.id,
+                    product_id: itemData.product_id,
+                    product_name_snapshot: itemData.product_name_snapshot,
+                    qty: itemData.qty,
+                    unit_price: itemData.unit_price,
+                })
+                    .select('id')
+                    .single();
+                if (itemError || !orderItem) {
+                    this.logger.error('order_item insert error:', itemError);
+                    throw new common_1.BadRequestException('주문 항목 생성에 실패했습니다.');
+                }
+                const optionNames = [];
+                if (itemData.options && itemData.options.length > 0) {
+                    for (const opt of itemData.options) {
+                        const { error: optError } = await sb
+                            .from('order_item_options')
+                            .insert({
+                            order_item_id: orderItem.id,
+                            product_option_id: opt.product_option_id,
+                            option_name_snapshot: opt.option_name_snapshot,
+                            price_delta_snapshot: opt.price_delta_snapshot,
+                        });
+                        if (!optError) {
+                            optionNames.push(opt.option_name_snapshot);
+                        }
                     }
                 }
+                orderItemResults.push({
+                    productName: itemData.product_name_snapshot,
+                    qty: itemData.qty,
+                    unitPrice: itemData.unit_price,
+                    options: optionNames,
+                });
             }
-            orderItemResults.push({
-                productName: itemData.product_name_snapshot,
-                qty: itemData.qty,
-                unitPrice: itemData.unit_price,
-                options: optionNames,
-            });
         }
+        catch (error) {
+            await this.rollbackOrder(adminClient, order.id);
+            throw error;
+        }
+        const reservedItems = [];
         try {
             for (const item of dto.items) {
                 const inventory = inventoryMap.get(item.productId);
@@ -356,6 +394,11 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
                     this.logger.error(`Failed to reserve inventory for product ${item.productId}`, updateError);
                     throw new common_1.BadRequestException(`재고 예약 실패: ${productMap.get(item.productId)?.name}`);
                 }
+                reservedItems.push({
+                    productId: item.productId,
+                    qty: item.qty,
+                    inventory,
+                });
                 await adminClient.from('inventory_logs').insert({
                     product_id: item.productId,
                     branch_id: dto.branchId,
@@ -370,6 +413,8 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             }
         }
         catch (error) {
+            await this.rollbackInventory(adminClient, dto.branchId, reservedItems);
+            await this.rollbackOrder(adminClient, order.id);
             this.logger.error('Inventory reservation failed for order ' + order.id, error);
             throw new common_1.BadRequestException('재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.');
         }

@@ -68,6 +68,21 @@ describe('PaymentsService', () => {
     expect((service as any).isUuid('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
   });
 
+  it('resolveOrderId should resolve uuid with branch filter', async () => {
+    const service = setupService();
+    const uuid = '123e4567-e89b-12d3-a456-426614174000';
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: uuid }, error: null });
+
+    const resolved = await (service as any).resolveOrderId(
+      mockSb,
+      uuid,
+      'branch-1',
+    );
+
+    expect(resolved).toBe(uuid);
+    expect(ordersChain.eq).toHaveBeenCalledWith('branch_id', 'branch-1');
+  });
+
   it('preparePayment should throw when order not found', async () => {
     const service = setupService();
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
@@ -99,6 +114,32 @@ describe('PaymentsService', () => {
     const result = await service.preparePayment({ orderId: 'o1', amount: 10 } as any);
     expect(result.orderId).toBe('o1');
     expect(result.amount).toBe(10);
+  });
+
+  it('preparePayment should build order name for multiple items', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          total_amount: 10,
+          customer_name: 'A',
+          customer_phone: '010',
+          status: 'CREATED',
+          payment_status: 'PENDING',
+          items: [
+            { product_name_snapshot: 'Coffee' },
+            { product_name_snapshot: 'Tea' },
+          ],
+        },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.preparePayment({ orderId: 'o1', amount: 10 } as any);
+    expect(result.orderName).toBe('Coffee 외 1건');
   });
 
   it('preparePayment should throw on order fetch error', async () => {
@@ -472,6 +513,27 @@ describe('PaymentsService', () => {
     await expect(service.getPaymentStatus('o1')).rejects.toBeInstanceOf(BusinessException);
   });
 
+  it('getPaymentStatus should return status when payment exists', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.SUCCESS,
+        amount: 10,
+        paid_at: 't',
+        failure_reason: 'none',
+      },
+      error: null,
+    });
+
+    const result = await service.getPaymentStatus('o1');
+    expect(result.status).toBe(PaymentStatus.SUCCESS);
+    expect(result.paidAt).toBe('t');
+    expect(result.failureReason).toBe('none');
+  });
+
   it('getPaymentStatus should throw when order id cannot be resolved', async () => {
     const service = setupService();
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
@@ -479,6 +541,26 @@ describe('PaymentsService', () => {
     await expect(service.getPaymentStatus('ORD-1')).rejects.toBeInstanceOf(
       OrderNotFoundException,
     );
+  });
+
+  it('getPaymentStatus should map defaults when nullable fields are missing', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.SUCCESS,
+        amount: 10,
+        paid_at: null,
+        failure_reason: null,
+      },
+      error: null,
+    });
+
+    const result = await service.getPaymentStatus('o1');
+    expect(result.paidAt).toBeUndefined();
+    expect(result.failureReason).toBeUndefined();
   });
 
   it('getPayments should return paginated list', async () => {
@@ -504,6 +586,32 @@ describe('PaymentsService', () => {
     const result = await service.getPayments('b1', { page: 1, limit: 10 });
     expect(result.data).toHaveLength(1);
     expect(result.pagination.total).toBe(1);
+  });
+
+  it('getPayments should map defaults when join data is missing', async () => {
+    const service = setupService();
+    paymentsChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'p1',
+          order_id: 'o1',
+          amount: 10,
+          status: PaymentStatus.SUCCESS,
+          provider: 'TOSS',
+          payment_method: null,
+          paid_at: null,
+          created_at: 't',
+          orders: null,
+        },
+      ],
+      error: null,
+      count: 1,
+    });
+
+    const result = await service.getPayments('b1', { page: 1, limit: 10 });
+    expect(result.data[0].orderNo).toBeNull();
+    expect(result.data[0].paymentMethod).toBeNull();
+    expect(result.data[0].paidAt).toBeUndefined();
   });
 
   it('getPayments should throw on error', async () => {
@@ -543,6 +651,51 @@ describe('PaymentsService', () => {
     expect(result.id).toBe('p1');
 
     await expect(service.getPaymentDetail('missing', 'b1')).rejects.toBeInstanceOf(PaymentNotFoundException);
+  });
+
+  it('getPaymentDetail should map defaults when nullable fields missing', async () => {
+    const service = setupService();
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        amount: 10,
+        currency: 'KRW',
+        provider: 'TOSS',
+        status: PaymentStatus.SUCCESS,
+        payment_method: null,
+        payment_method_detail: null,
+        provider_payment_id: null,
+        provider_payment_key: null,
+        paid_at: null,
+        failed_at: null,
+        cancelled_at: null,
+        refunded_at: null,
+        failure_reason: null,
+        cancellation_reason: null,
+        refund_amount: null,
+        refund_reason: null,
+        metadata: null,
+        created_at: 't',
+        updated_at: 't',
+        orders: { order_no: null, branch_id: 'b1' },
+      },
+      error: null,
+    });
+
+    const result = await service.getPaymentDetail('p1', 'b1');
+    expect(result.paymentMethod).toBeNull();
+    expect(result.providerPaymentId).toBeUndefined();
+    expect(result.providerPaymentKey).toBeUndefined();
+    expect(result.paidAt).toBeUndefined();
+    expect(result.failedAt).toBeUndefined();
+    expect(result.cancelledAt).toBeUndefined();
+    expect(result.refundedAt).toBeUndefined();
+    expect(result.failureReason).toBeUndefined();
+    expect(result.cancellationReason).toBeUndefined();
+    expect(result.refundAmount).toBe(0);
+    expect(result.refundReason).toBeUndefined();
+    expect(result.metadata).toBeUndefined();
   });
 
   it('getPaymentDetail should throw on fetch error', async () => {
@@ -654,6 +807,15 @@ describe('PaymentsService', () => {
     ).rejects.toBeInstanceOf(PaymentProviderException);
   });
 
+  it('callTossApi should rethrow unexpected error', async () => {
+    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    (global as any).fetch = jest.fn().mockRejectedValue(new Error('boom'));
+
+    await expect(
+      (service as any).callTossApi('/payments/confirm', { a: 1 }),
+    ).rejects.toThrow('boom');
+  });
+
   it('callTossApi should return raw body when response is not JSON', async () => {
     const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
     (global as any).fetch = jest.fn().mockResolvedValue({
@@ -694,8 +856,13 @@ describe('PaymentsService', () => {
       .mockReturnValueOnce(paymentsChain) // payment lookup
       .mockReturnValueOnce(paymentsChain) // update eq order_id
       .mockResolvedValueOnce({ error: null }); // update eq payment_key terminal
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'p1', order_id: 'o1' }, error: null });
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'p1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+      error: null,
+    });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
     webhookChain.insert.mockResolvedValueOnce({ error: null });
     webhookChain.eq.mockReturnValue(webhookChain);
 
@@ -714,11 +881,102 @@ describe('PaymentsService', () => {
     );
   });
 
+  it('handlePaymentConfirmedWebhook should return when already success', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+
+    await (service as any).handlePaymentConfirmedWebhook(
+      {
+        eventType: 'PAYMENT_CONFIRMED',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+      } as any,
+      { id: 'p1', status: PaymentStatus.SUCCESS, amount: 10 },
+    );
+
+    expect(paymentsChain.update).not.toHaveBeenCalled();
+  });
+
+  it('handlePaymentConfirmedWebhook should ignore cancelled payment', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+
+    await (service as any).handlePaymentConfirmedWebhook(
+      {
+        eventType: 'PAYMENT_CONFIRMED',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+      } as any,
+      { id: 'p1', status: PaymentStatus.CANCELLED, amount: 10 },
+    );
+
+    expect(paymentsChain.update).not.toHaveBeenCalled();
+  });
+
+  it('handlePaymentConfirmedWebhook should throw when payment amount mismatches', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 9 }, error: null });
+
+    await expect(
+      (service as any).handlePaymentConfirmedWebhook(
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 9 },
+        } as any,
+        { id: 'p1', status: PaymentStatus.PENDING, amount: 10 },
+      ),
+    ).rejects.toBeInstanceOf(BusinessException);
+  });
+
+  it('handlePaymentConfirmedWebhook should create payment when missing', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+    paymentsChain.insert.mockResolvedValueOnce({ error: null });
+
+    await (service as any).handlePaymentConfirmedWebhook(
+      {
+        eventType: 'PAYMENT_CONFIRMED',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+      } as any,
+      null,
+    );
+
+    expect(paymentsChain.insert).toHaveBeenCalled();
+  });
+
+  it('handlePaymentConfirmedWebhook should throw on amount mismatch', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+
+    await expect(
+      (service as any).handlePaymentConfirmedWebhook(
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 9 },
+        } as any,
+        null,
+      ),
+    ).rejects.toBeInstanceOf(BusinessException);
+  });
+
   it('handleTossWebhook should log error when handler fails', async () => {
     const service = setupService();
 
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'p1', order_id: 'o1' }, error: null });
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'p1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+      error: null,
+    });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
 
     webhookChain.insert.mockResolvedValueOnce({ error: null });
     webhookChain.update.mockReturnValue(webhookChain);
@@ -772,7 +1030,10 @@ describe('PaymentsService', () => {
       return paymentsChain;
     });
     paymentsChain.update.mockReturnValue(paymentsChain);
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'p1', order_id: 'o1' }, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'p1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+      error: null,
+    });
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
 
     webhookChain.insert.mockResolvedValueOnce({ error: null });
@@ -789,6 +1050,63 @@ describe('PaymentsService', () => {
       {},
       Buffer.from('body'),
     );
+  });
+
+  it('handlePaymentCancelledWebhook should return when already cancelled', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+
+    await (service as any).handlePaymentCancelledWebhook(
+      {
+        eventType: 'PAYMENT_CANCELLED',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+      } as any,
+      { id: 'p1', status: PaymentStatus.CANCELLED },
+    );
+
+    expect(paymentsChain.update).not.toHaveBeenCalled();
+  });
+
+  it('handlePaymentCancelledWebhook should create payment when missing', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+    paymentsChain.insert.mockResolvedValueOnce({ error: null });
+
+    await (service as any).handlePaymentCancelledWebhook(
+      {
+        eventType: 'PAYMENT_CANCELLED',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+      } as any,
+      null,
+    );
+
+    expect(paymentsChain.insert).toHaveBeenCalled();
+  });
+
+  it('handlePaymentCancelledWebhook should throw on update error', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+
+    let eqCount = 0;
+    paymentsChain.eq.mockImplementation(() => {
+      eqCount += 1;
+      if (eqCount === 1) return paymentsChain;
+      if (eqCount === 2) return { error: { message: 'fail' } };
+      return paymentsChain;
+    });
+    paymentsChain.update.mockReturnValue(paymentsChain);
+
+    await expect(
+      (service as any).handlePaymentCancelledWebhook(
+        {
+          eventType: 'PAYMENT_CANCELLED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+        } as any,
+        { id: 'p1', status: PaymentStatus.PENDING, amount: 10 },
+      ),
+    ).rejects.toBeInstanceOf(BusinessException);
   });
 
   it('refundPayment should validate status and amount', async () => {
@@ -838,6 +1156,19 @@ describe('PaymentsService', () => {
 
     expect(ok).toBe(true);
     expect(bad).toBe(false);
+  });
+
+  it('verifyTossWebhookSignature should accept array header', () => {
+    const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret', TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature' });
+    const body = Buffer.from('test');
+    const crypto = require('crypto');
+    const sig = crypto.createHmac('sha256', 'secret').update(body).digest('hex');
+
+    const ok = (service as any).verifyTossWebhookSignature(body, {
+      'toss-signature': [`v1=${sig}`],
+    });
+
+    expect(ok).toBe(true);
   });
 
   it('verifyTossWebhookSignature should return true when secret is missing', () => {

@@ -7,6 +7,8 @@ export declare class PublicOrderService {
     private readonly logger;
     constructor(supabase: SupabaseService, inventoryService: InventoryService);
     private getPriceFromRow;
+    private rollbackOrder;
+    private rollbackInventory;
     getBranch(branchId: string): Promise<PublicBranchResponse>;
     getBranchBySlug(slug: string): Promise<PublicBranchResponse>;
     getBranchByBrandSlug(brandSlug: string, branchSlug: string): Promise<PublicBranchResponse>;

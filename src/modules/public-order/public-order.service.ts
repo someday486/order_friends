@@ -33,6 +33,47 @@ export class PublicOrderService {
     return 0;
   }
 
+  private async rollbackOrder(adminClient: any, orderId: string) {
+    try {
+      await adminClient.from('order_items').delete().eq('order_id', orderId);
+    } catch (error) {
+      this.logger.error(`Failed to rollback order items for ${orderId}`, error);
+    }
+
+    try {
+      await adminClient.from('orders').delete().eq('id', orderId);
+    } catch (error) {
+      this.logger.error(`Failed to rollback order ${orderId}`, error);
+    }
+  }
+
+  private async rollbackInventory(
+    adminClient: any,
+    branchId: string,
+    reservedItems: { productId: string; qty: number; inventory: any }[],
+  ) {
+    for (const item of reservedItems) {
+      try {
+        await adminClient
+          .from('product_inventory')
+          .update({
+            qty_available: item.inventory.qty_available + item.qty,
+            qty_reserved: Math.max(
+              0,
+              item.inventory.qty_reserved - item.qty,
+            ),
+          })
+          .eq('product_id', item.productId)
+          .eq('branch_id', branchId);
+      } catch (error) {
+        this.logger.error(
+          `Failed to rollback inventory for product ${item.productId}`,
+          error,
+        );
+      }
+    }
+  }
+
   /**
    * Get branch info (public)
    */
@@ -416,53 +457,64 @@ export class PublicOrderService {
       options: string[];
     }[] = [];
 
-    for (const itemData of orderItemsData) {
-      const { data: orderItem, error: itemError } = await sb
-        .from('order_items')
-        .insert({
-          order_id: order.id,
-          product_id: itemData.product_id,
-          product_name_snapshot: itemData.product_name_snapshot,
-          qty: itemData.qty,
-          unit_price: itemData.unit_price,
-        })
-        .select('id')
-        .single();
+    try {
+      for (const itemData of orderItemsData) {
+        const { data: orderItem, error: itemError } = await sb
+          .from('order_items')
+          .insert({
+            order_id: order.id,
+            product_id: itemData.product_id,
+            product_name_snapshot: itemData.product_name_snapshot,
+            qty: itemData.qty,
+            unit_price: itemData.unit_price,
+          })
+          .select('id')
+          .single();
 
-      if (itemError) {
-        console.error('order_item insert error:', itemError);
-        continue;
-      }
+        if (itemError || !orderItem) {
+          this.logger.error('order_item insert error:', itemError);
+          throw new BadRequestException('주문 항목 생성에 실패했습니다.');
+        }
 
-      const optionNames: string[] = [];
-      if (itemData.options && itemData.options.length > 0) {
-        for (const opt of itemData.options) {
-          const { error: optError } = await sb
-            .from('order_item_options')
-            .insert({
-              order_item_id: orderItem.id,
-              product_option_id: opt.product_option_id,
-              option_name_snapshot: opt.option_name_snapshot,
-              price_delta_snapshot: opt.price_delta_snapshot,
-            });
+        const optionNames: string[] = [];
+        if (itemData.options && itemData.options.length > 0) {
+          for (const opt of itemData.options) {
+            const { error: optError } = await sb
+              .from('order_item_options')
+              .insert({
+                order_item_id: orderItem.id,
+                product_option_id: opt.product_option_id,
+                option_name_snapshot: opt.option_name_snapshot,
+                price_delta_snapshot: opt.price_delta_snapshot,
+              });
 
-          if (!optError) {
-            optionNames.push(opt.option_name_snapshot);
+            if (!optError) {
+              optionNames.push(opt.option_name_snapshot);
+            }
           }
         }
-      }
 
-      orderItemResults.push({
-        productName: itemData.product_name_snapshot,
-        qty: itemData.qty,
-        unitPrice: itemData.unit_price,
-        options: optionNames,
-      });
+        orderItemResults.push({
+          productName: itemData.product_name_snapshot,
+          qty: itemData.qty,
+          unitPrice: itemData.unit_price,
+          options: optionNames,
+        });
+      }
+    } catch (error) {
+      await this.rollbackOrder(adminClient, order.id);
+      throw error;
     }
 
     // ============================================================
     // STEP 2: Reserve inventory and create logs
     // ============================================================
+    const reservedItems: {
+      productId: string;
+      qty: number;
+      inventory: any;
+    }[] = [];
+
     try {
       for (const item of dto.items) {
         const inventory = inventoryMap.get(item.productId);
@@ -488,6 +540,12 @@ export class PublicOrderService {
           );
         }
 
+        reservedItems.push({
+          productId: item.productId,
+          qty: item.qty,
+          inventory,
+        });
+
         // Create inventory log
         await adminClient.from('inventory_logs').insert({
           product_id: item.productId,
@@ -502,9 +560,17 @@ export class PublicOrderService {
         });
       }
     } catch (error) {
-      // If inventory reservation fails, we should ideally rollback the order
-      // For now, just log the error and throw
-      this.logger.error('Inventory reservation failed for order ' + order.id, error);
+      // Rollback inventory and order when reservation fails
+      await this.rollbackInventory(
+        adminClient,
+        dto.branchId,
+        reservedItems,
+      );
+      await this.rollbackOrder(adminClient, order.id);
+      this.logger.error(
+        'Inventory reservation failed for order ' + order.id,
+        error,
+      );
       throw new BadRequestException(
         '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
       );

@@ -13,6 +13,7 @@ describe('PublicOrderService - Create Order Branches', () => {
     select: jest.fn().mockReturnThis(),
     insert: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
+    delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
     single: jest.fn(),
@@ -28,6 +29,8 @@ describe('PublicOrderService - Create Order Branches', () => {
     adminChains = {
       product_inventory: makeChain(),
       inventory_logs: makeChain(),
+      orders: makeChain(),
+      order_items: makeChain(),
     };
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };
@@ -109,7 +112,7 @@ describe('PublicOrderService - Create Order Branches', () => {
     await expect(service.createOrder(dto)).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('should skip order items when item insert fails', async () => {
+  it('should rollback when order item insert fails', async () => {
     const dto = {
       branchId: 'b1',
       customerName: 'Customer',
@@ -155,7 +158,8 @@ describe('PublicOrderService - Create Order Branches', () => {
     adminChains.product_inventory.update.mockReturnValue(adminChains.product_inventory);
     adminChains.inventory_logs.insert.mockResolvedValue({ data: {}, error: null });
 
-    const result = await service.createOrder(dto);
-    expect(result.items).toHaveLength(1);
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

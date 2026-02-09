@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
@@ -65,7 +65,7 @@ export class PaymentsService {
   }
 
   /**
-   * UUID 체크 헬퍼
+   * UUID 泥댄겕 ?ы띁
    */
   private isUuid(v: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -74,14 +74,14 @@ export class PaymentsService {
   }
 
   /**
-   * orderId 또는 orderNo를 실제 UUID로 변환
+   * orderId ?먮뒗 orderNo瑜??ㅼ젣 UUID濡?蹂??
    */
   private async resolveOrderId(
     sb: any,
     orderIdOrNo: string,
     branchId?: string,
   ): Promise<string | null> {
-    // UUID면 id로 조회
+    // UUID硫?id濡?議고쉶
     if (this.isUuid(orderIdOrNo)) {
       let query = sb.from('orders').select('id').eq('id', orderIdOrNo);
       if (branchId) query = query.eq('branch_id', branchId);
@@ -89,7 +89,7 @@ export class PaymentsService {
       if (!byId.error && byId.data?.id) return byId.data.id;
     }
 
-    // order_no 조회
+    // order_no 議고쉶
     let noQuery = sb.from('orders').select('id').eq('order_no', orderIdOrNo);
     if (branchId) noQuery = noQuery.eq('branch_id', branchId);
     const byNo = await noQuery.maybeSingle();
@@ -99,7 +99,7 @@ export class PaymentsService {
   }
 
   /**
-   * 주문 정보 조회 (결제 준비용)
+   * 二쇰Ц ?뺣낫 議고쉶 (寃곗젣 以鍮꾩슜)
    */
   private async getOrderForPayment(orderId: string): Promise<any> {
     const sb = this.supabase.adminClient();
@@ -147,8 +147,8 @@ export class PaymentsService {
   }
 
   /**
-   * 결제 준비 - 주문 검증 및 결제 정보 반환
-   * PUBLIC (인증 불필요)
+   * 寃곗젣 以鍮?- 二쇰Ц 寃利?諛?寃곗젣 ?뺣낫 諛섑솚
+   * PUBLIC (?몄쬆 遺덊븘??
    */
   async preparePayment(
     dto: PreparePaymentRequest,
@@ -157,31 +157,31 @@ export class PaymentsService {
 
     const sb = this.supabase.adminClient();
 
-    // 1. orderId 해석
+    // 1. orderId ?댁꽍
     const resolvedId = await this.resolveOrderId(sb, dto.orderId);
     if (!resolvedId) {
       throw new OrderNotFoundException(dto.orderId);
     }
 
-    // 2. 주문 정보 조회
+    // 2. 二쇰Ц ?뺣낫 議고쉶
     const order = await this.getOrderForPayment(resolvedId);
 
-    // 3. 주문 상태 검증
+    // 3. 二쇰Ц ?곹깭 寃利?
     if (order.status === 'CANCELLED') {
       throw new PaymentNotAllowedException('Order is cancelled');
     }
 
-    // 4. 이미 결제된 주문인지 확인
+    // 4. ?대? 寃곗젣??二쇰Ц?몄? ?뺤씤
     if (order.payment_status === 'PAID') {
       throw new OrderAlreadyPaidException(resolvedId);
     }
 
-    // 5. 금액 검증
+    // 5. 湲덉븸 寃利?
     if (order.total_amount !== dto.amount) {
       throw new PaymentAmountMismatchException(order.total_amount, dto.amount);
     }
 
-    // 6. 이미 결제 레코드가 있는지 확인
+    // 6. ?대? 寃곗젣 ?덉퐫?쒓? ?덈뒗吏 ?뺤씤
     const { data: existingPayment } = await sb
       .from('payments')
       .select('id, status')
@@ -192,7 +192,7 @@ export class PaymentsService {
       throw new OrderAlreadyPaidException(resolvedId);
     }
 
-    // 7. 주문명 생성 (첫 번째 상품명 + 외 N건)
+    // 7. 二쇰Ц紐??앹꽦 (泥?踰덉㎏ ?곹뭹紐?+ ??N嫄?
     let orderName = '주문';
     if (order.items && order.items.length > 0) {
       const firstName = order.items[0].product_name_snapshot || '상품';
@@ -209,14 +209,14 @@ export class PaymentsService {
       orderNo: order.order_no || null,
       amount: order.total_amount,
       orderName,
-      customerName: order.customer_name || '고객',
+      customerName: order.customer_name || '怨좉컼',
       customerPhone: order.customer_phone || '',
     };
   }
 
   /**
-   * 결제 확정 - Toss Payments 승인 처리
-   * PUBLIC (인증 불필요)
+   * 寃곗젣 ?뺤젙 - Toss Payments ?뱀씤 泥섎━
+   * PUBLIC (?몄쬆 遺덊븘??
    */
   async confirmPayment(
     dto: ConfirmPaymentRequest,
@@ -225,21 +225,21 @@ export class PaymentsService {
 
     const sb = this.supabase.adminClient();
 
-    // 1. orderId 해석
+    // 1. orderId ?댁꽍
     const resolvedId = await this.resolveOrderId(sb, dto.orderId);
     if (!resolvedId) {
       throw new OrderNotFoundException(dto.orderId);
     }
 
-    // 2. 주문 정보 조회
+    // 2. 二쇰Ц ?뺣낫 議고쉶
     const order = await this.getOrderForPayment(resolvedId);
 
-    // 3. 금액 재검증
+    // 3. 湲덉븸 ?ш?利?
     if (order.total_amount !== dto.amount) {
       throw new PaymentAmountMismatchException(order.total_amount, dto.amount);
     }
 
-    // 4. 이미 결제된 주문인지 확인
+    // 4. ?대? 寃곗젣??二쇰Ц?몄? ?뺤씤
     const { data: existingPayment } = await sb
       .from('payments')
       .select('id, status')
@@ -275,7 +275,7 @@ export class PaymentsService {
       } catch (error: any) {
         this.logger.error('Toss Payments API call failed', error);
 
-        // 결제 실패 레코드 생성
+        // 寃곗젣 ?ㅽ뙣 ?덉퐫???앹꽦
         await sb.from('payments').insert({
           order_id: resolvedId,
           amount: dto.amount,
@@ -296,12 +296,12 @@ export class PaymentsService {
       }
     }
 
-    // 6. 결제 성공 레코드 생성 또는 업데이트
+    // 6. 寃곗젣 ?깃났 ?덉퐫???앹꽦 ?먮뒗 ?낅뜲?댄듃
     const paidAt = providerResponse?.approvedAt || new Date().toISOString();
 
     let payment;
     if (existingPayment) {
-      // 기존 레코드 업데이트
+      // 湲곗〈 ?덉퐫???낅뜲?댄듃
       const { data: updated, error: updateError } = await sb
         .from('payments')
         .update({
@@ -328,7 +328,7 @@ export class PaymentsService {
 
       payment = updated;
     } else {
-      // 새 레코드 생성
+      // ???덉퐫???앹꽦
       const { data: created, error: insertError } = await sb
         .from('payments')
         .insert({
@@ -371,21 +371,21 @@ export class PaymentsService {
   }
 
   /**
-   * 결제 상태 조회
-   * PUBLIC (인증 불필요)
+   * 寃곗젣 ?곹깭 議고쉶
+   * PUBLIC (?몄쬆 遺덊븘??
    */
   async getPaymentStatus(orderIdOrNo: string): Promise<PaymentStatusResponse> {
     this.logger.log(`Fetching payment status for order: ${orderIdOrNo}`);
 
     const sb = this.supabase.adminClient();
 
-    // orderId 해석
+    // orderId ?댁꽍
     const resolvedId = await this.resolveOrderId(sb, orderIdOrNo);
     if (!resolvedId) {
       throw new OrderNotFoundException(orderIdOrNo);
     }
 
-    // 결제 정보 조회
+    // 寃곗젣 ?뺣낫 議고쉶
     const { data, error } = await sb
       .from('payments')
       .select('id, order_id, status, amount, paid_at, failure_reason')
@@ -417,7 +417,7 @@ export class PaymentsService {
   }
 
   /**
-   * 결제 목록 조회 (고객 영역 - branchId 필수)
+   * 寃곗젣 紐⑸줉 議고쉶 (怨좉컼 ?곸뿭 - branchId ?꾩닔)
    */
   async getPayments(
     branchId: string,
@@ -429,7 +429,7 @@ export class PaymentsService {
     const { page = 1, limit = 20 } = paginationDto;
     const { from, to } = PaginationUtil.getRange(page, limit);
 
-    // Join으로 주문 정보 함께 조회
+    // Join?쇰줈 二쇰Ц ?뺣낫 ?④퍡 議고쉶
     const { data, error, count } = await sb
       .from('payments')
       .select(
@@ -483,7 +483,7 @@ export class PaymentsService {
   }
 
   /**
-   * 결제 상세 조회 (고객 영역)
+   * 寃곗젣 ?곸꽭 議고쉶 (怨좉컼 ?곸뿭)
    */
   async getPaymentDetail(
     paymentId: string,
@@ -551,7 +551,7 @@ export class PaymentsService {
   }
 
   /**
-   * 환불 처리 (OWNER/ADMIN만 가능)
+   * ?섎텋 泥섎━ (OWNER/ADMIN留?媛??
    */
   async refundPayment(
     paymentId: string,
@@ -562,7 +562,7 @@ export class PaymentsService {
 
     const sb = this.supabase.adminClient();
 
-    // 1. 결제 정보 조회
+    // 1. 寃곗젣 ?뺣낫 議고쉶
     const { data: payment, error: fetchError } = await sb
       .from('payments')
       .select(
@@ -591,7 +591,7 @@ export class PaymentsService {
       throw new PaymentNotFoundException(paymentId);
     }
 
-    // 2. 환불 가능 상태 확인
+    // 2. ?섎텋 媛???곹깭 ?뺤씤
     if (
       payment.status !== PaymentStatus.SUCCESS &&
       payment.status !== PaymentStatus.PARTIAL_REFUNDED
@@ -601,7 +601,7 @@ export class PaymentsService {
       );
     }
 
-    // 3. 환불 금액 계산
+    // 3. ?섎텋 湲덉븸 怨꾩궛
     const refundAmount = dto.amount || payment.amount;
     const availableAmount = payment.amount - payment.refund_amount;
 
@@ -642,7 +642,7 @@ export class PaymentsService {
       );
     }
 
-    // 5. 환불 상태 업데이트
+    // 5. ?섎텋 ?곹깭 ?낅뜲?댄듃
     const newRefundAmount = payment.refund_amount + refundAmount;
     const newStatus =
       newRefundAmount >= payment.amount
@@ -684,7 +684,7 @@ export class PaymentsService {
   }
 
   /**
-   * Toss Payments 웹훅 처리
+   * Toss Payments ?뱁썒 泥섎━
    */
   async handleTossWebhook(
     webhookData: TossWebhookRequest,
@@ -706,15 +706,15 @@ export class PaymentsService {
       }
     }
 
-    // 1. 웹훅 로그 저장
+    // 1. ?뱁썒 濡쒓렇 ???
     const { orderId, paymentKey, status, amount } = webhookData.data;
 
     let paymentId: string | null = null;
 
-    // 결제 정보 조회
+    // 寃곗젣 ?뺣낫 議고쉶
     const { data: payment } = await sb
       .from('payments')
-      .select('id, order_id')
+      .select('id, order_id, status, amount')
       .eq('provider_payment_key', paymentKey)
       .maybeSingle();
 
@@ -729,14 +729,14 @@ export class PaymentsService {
       processed: false,
     });
 
-    // 2. 이벤트 타입에 따라 처리
+    // 2. ?대깽????낆뿉 ?곕씪 泥섎━
     try {
       switch (webhookData.eventType) {
         case 'PAYMENT_CONFIRMED':
-          await this.handlePaymentConfirmedWebhook(webhookData);
+          await this.handlePaymentConfirmedWebhook(webhookData, payment || null);
           break;
         case 'PAYMENT_CANCELLED':
-          await this.handlePaymentCancelledWebhook(webhookData);
+          await this.handlePaymentCancelledWebhook(webhookData, payment || null);
           break;
         // TODO: Add more event types as needed
         default:
@@ -745,7 +745,7 @@ export class PaymentsService {
           );
       }
 
-      // 웹훅 처리 완료 업데이트
+      // ?뱁썒 泥섎━ ?꾨즺 ?낅뜲?댄듃
       if (paymentId) {
         await sb
           .from('payment_webhook_logs')
@@ -756,7 +756,7 @@ export class PaymentsService {
     } catch (error: any) {
       this.logger.error('Webhook processing failed', error);
 
-      // 에러 로그 저장
+      // ?먮윭 濡쒓렇 ???
       if (paymentId) {
         await sb
           .from('payment_webhook_logs')
@@ -770,86 +770,229 @@ export class PaymentsService {
   }
 
   /**
-   * PAYMENT_CONFIRMED 웹훅 처리
+   * PAYMENT_CONFIRMED ?뱁썒 泥섎━
    */
   private async handlePaymentConfirmedWebhook(
     webhookData: TossWebhookRequest,
+    payment: any | null,
   ): Promise<void> {
     const { orderId, paymentKey, status, amount } = webhookData.data;
 
     const sb = this.supabase.adminClient();
 
-    // orderId 해석
+    // orderId ?댁꽍
     const resolvedId = await this.resolveOrderId(sb, orderId);
     if (!resolvedId) {
       this.logger.error(`Order not found in webhook: ${orderId}`);
       return;
     }
 
-    // 결제 정보 업데이트
-    const { error } = await sb
-      .from('payments')
-      .update({
+    const { data: order, error: orderError } = await sb
+      .from('orders')
+      .select('id, total_amount')
+      .eq('id', resolvedId)
+      .maybeSingle();
+
+    if (orderError) {
+      this.logger.error('Failed to fetch order for webhook', orderError);
+      throw new BusinessException(
+        'Failed to fetch order',
+        'WEBHOOK_ORDER_FETCH_FAILED',
+        500,
+        { error: orderError.message },
+      );
+    }
+
+    if (!order) {
+      this.logger.error(`Order not found in webhook: ${orderId}`);
+      return;
+    }
+
+    if (amount !== undefined && amount !== null && order.total_amount !== amount) {
+      throw new BusinessException(
+        'Payment amount mismatch',
+        'WEBHOOK_PAYMENT_AMOUNT_MISMATCH',
+        400,
+        { expected: order.total_amount, actual: amount },
+      );
+    }
+
+    if (payment) {
+      if (
+        amount !== undefined &&
+        amount !== null &&
+        payment.amount !== undefined &&
+        payment.amount !== null &&
+        payment.amount !== amount
+      ) {
+        throw new BusinessException(
+          'Payment amount mismatch',
+          'WEBHOOK_PAYMENT_AMOUNT_MISMATCH',
+          400,
+          { expected: payment.amount, actual: amount },
+        );
+      }
+
+      if (payment.status === PaymentStatus.SUCCESS) {
+        this.logger.log(`Payment already confirmed via webhook: ${orderId}`);
+        return;
+      }
+
+      if (
+        payment.status === PaymentStatus.CANCELLED ||
+        payment.status === PaymentStatus.REFUNDED ||
+        payment.status === PaymentStatus.PARTIAL_REFUNDED
+      ) {
+        this.logger.warn(
+          `Ignoring confirmed webhook for cancelled/refunded payment: ${orderId}`,
+        );
+        return;
+      }
+
+      const { error } = await sb
+        .from('payments')
+        .update({
+          status: PaymentStatus.SUCCESS,
+          paid_at: new Date().toISOString(),
+          metadata: webhookData.data,
+        })
+        .eq('order_id', resolvedId)
+        .eq('provider_payment_key', paymentKey);
+
+      if (error) {
+        this.logger.error('Failed to update payment from webhook', error);
+        throw new BusinessException(
+          'Failed to update payment',
+          'WEBHOOK_PAYMENT_UPDATE_FAILED',
+          500,
+          { error: error.message },
+        );
+      }
+    } else {
+      const { error } = await sb.from('payments').insert({
+        order_id: resolvedId,
+        amount: amount ?? order.total_amount,
+        currency: 'KRW',
+        provider: PaymentProvider.TOSS,
+        provider_payment_key: paymentKey,
         status: PaymentStatus.SUCCESS,
         paid_at: new Date().toISOString(),
         metadata: webhookData.data,
-      })
-      .eq('order_id', resolvedId)
-      .eq('provider_payment_key', paymentKey);
+      });
 
-    if (error) {
-      this.logger.error('Failed to update payment from webhook', error);
-      throw new BusinessException(
-        'Failed to update payment',
-        'WEBHOOK_PAYMENT_UPDATE_FAILED',
-        500,
-        { error: error.message },
-      );
+      if (error) {
+        this.logger.error('Failed to create payment from webhook', error);
+        throw new BusinessException(
+          'Failed to create payment',
+          'WEBHOOK_PAYMENT_CREATE_FAILED',
+          500,
+          { error: error.message },
+        );
+      }
     }
 
     this.logger.log(`Payment confirmed via webhook: ${orderId}`);
   }
 
   /**
-   * PAYMENT_CANCELLED 웹훅 처리
+   * PAYMENT_CANCELLED ?뱁썒 泥섎━
    */
   private async handlePaymentCancelledWebhook(
     webhookData: TossWebhookRequest,
+    payment: any | null,
   ): Promise<void> {
     const { orderId, paymentKey } = webhookData.data;
 
     const sb = this.supabase.adminClient();
 
-    // orderId 해석
+    // orderId ?댁꽍
     const resolvedId = await this.resolveOrderId(sb, orderId);
     if (!resolvedId) {
       this.logger.error(`Order not found in webhook: ${orderId}`);
       return;
     }
 
-    // 결제 정보 업데이트
-    const { error } = await sb
-      .from('payments')
-      .update({
+    if (
+      payment &&
+      (payment.status === PaymentStatus.CANCELLED ||
+        payment.status === PaymentStatus.REFUNDED ||
+        payment.status === PaymentStatus.PARTIAL_REFUNDED)
+    ) {
+      this.logger.log(`Payment already cancelled/refunded: ${orderId}`);
+      return;
+    }
+
+    if (payment) {
+      const { error } = await sb
+        .from('payments')
+        .update({
+          status: PaymentStatus.CANCELLED,
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason:
+            webhookData.data.cancellationReason || 'Cancelled by customer',
+        })
+        .eq('order_id', resolvedId)
+        .eq('provider_payment_key', paymentKey);
+
+      if (error) {
+        this.logger.error(
+          'Failed to update payment cancellation from webhook',
+          error,
+        );
+        throw new BusinessException(
+          'Failed to update payment cancellation',
+          'WEBHOOK_CANCELLATION_UPDATE_FAILED',
+          500,
+          { error: error.message },
+        );
+      }
+    } else {
+      const { data: order, error: orderError } = await sb
+        .from('orders')
+        .select('id, total_amount')
+        .eq('id', resolvedId)
+        .maybeSingle();
+
+      if (orderError) {
+        this.logger.error('Failed to fetch order for webhook', orderError);
+        throw new BusinessException(
+          'Failed to fetch order',
+          'WEBHOOK_ORDER_FETCH_FAILED',
+          500,
+          { error: orderError.message },
+        );
+      }
+
+      if (!order) {
+        this.logger.error(`Order not found in webhook: ${orderId}`);
+        return;
+      }
+
+      const { error } = await sb.from('payments').insert({
+        order_id: resolvedId,
+        amount: webhookData.data.amount ?? order.total_amount,
+        currency: 'KRW',
+        provider: PaymentProvider.TOSS,
+        provider_payment_key: paymentKey,
         status: PaymentStatus.CANCELLED,
         cancelled_at: new Date().toISOString(),
         cancellation_reason:
           webhookData.data.cancellationReason || 'Cancelled by customer',
-      })
-      .eq('order_id', resolvedId)
-      .eq('provider_payment_key', paymentKey);
+        metadata: webhookData.data,
+      });
 
-    if (error) {
-      this.logger.error(
-        'Failed to update payment cancellation from webhook',
-        error,
-      );
-      throw new BusinessException(
-        'Failed to update payment cancellation',
-        'WEBHOOK_CANCELLATION_UPDATE_FAILED',
-        500,
-        { error: error.message },
-      );
+      if (error) {
+        this.logger.error(
+          'Failed to create payment cancellation from webhook',
+          error,
+        );
+        throw new BusinessException(
+          'Failed to create payment cancellation',
+          'WEBHOOK_CANCELLATION_CREATE_FAILED',
+          500,
+          { error: error.message },
+        );
+      }
     }
 
     this.logger.log(`Payment cancelled via webhook: ${orderId}`);
@@ -969,3 +1112,5 @@ export class PaymentsService {
     );
   }
 }
+
+

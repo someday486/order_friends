@@ -37,7 +37,7 @@ const menuItems: MenuItem[] = [
     href: "/customer/products",
     label: "상품 관리",
     icon: "📦",
-    allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+    allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
   },
   {
     href: "/customer/categories",
@@ -49,7 +49,7 @@ const menuItems: MenuItem[] = [
     href: "/customer/inventory",
     label: "재고 관리",
     icon: "📊",
-    allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+    allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
   },
   {
     href: "/customer/orders",

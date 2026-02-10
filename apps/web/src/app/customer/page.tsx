@@ -232,7 +232,7 @@ export default function CustomerDashboardPage() {
                 title: "상품 관리",
                 description: "상품 등록 및 관리",
                 icon: "📦",
-                allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+                allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
               },
               {
                 href: "/customer/orders",

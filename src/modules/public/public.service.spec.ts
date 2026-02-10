@@ -65,7 +65,10 @@ describe('PublicService', () => {
   });
 
   it('getBranch should throw when missing', async () => {
-    chains.branches.single.mockResolvedValueOnce({ data: null, error: { message: 'missing' } });
+    chains.branches.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'missing' },
+    });
 
     await expect(service.getBranch('b1')).rejects.toThrow(NotFoundException);
   });
@@ -85,9 +88,18 @@ describe('PublicService', () => {
 
   it('getProducts should retry for missing columns', async () => {
     chains.products.order
-      .mockResolvedValueOnce({ data: null, error: { message: 'column \"is_hidden\" does not exist' } })
-      .mockResolvedValueOnce({ data: null, error: { message: 'column \"is_sold_out\" does not exist' } })
-      .mockResolvedValueOnce({ data: [{ id: 'p1', name: 'P', price: 5 }], error: null });
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'column \"is_hidden\" does not exist' },
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'column \"is_sold_out\" does not exist' },
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'p1', name: 'P', price: 5 }],
+        error: null,
+      });
 
     const result = await service.getProducts('b1');
 
@@ -111,7 +123,9 @@ describe('PublicService', () => {
       error: { message: 'other' },
     });
 
-    await expect(service.getProducts('b1')).rejects.toThrow('[public.getProducts]');
+    await expect(service.getProducts('b1')).rejects.toThrow(
+      '[public.getProducts]',
+    );
   });
 
   it('getProducts should throw when error message is missing', async () => {
@@ -120,7 +134,9 @@ describe('PublicService', () => {
       error: {},
     });
 
-    await expect(service.getProducts('b1')).rejects.toThrow('[public.getProducts]');
+    await expect(service.getProducts('b1')).rejects.toThrow(
+      '[public.getProducts]',
+    );
   });
 
   it('getPriceFromRow should handle price fallbacks', () => {
@@ -132,7 +148,10 @@ describe('PublicService', () => {
   });
 
   it('createOrder should throw on products error', async () => {
-    chains.products.in.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    chains.products.in.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.createOrder({
@@ -146,7 +165,13 @@ describe('PublicService', () => {
   it('createOrder should validate product branch and status', async () => {
     chains.products.in.mockResolvedValueOnce({
       data: [
-        { id: 'p1', name: 'P', branch_id: 'b2', is_hidden: false, is_sold_out: false },
+        {
+          id: 'p1',
+          name: 'P',
+          branch_id: 'b2',
+          is_hidden: false,
+          is_sold_out: false,
+        },
       ],
       error: null,
     });
@@ -161,7 +186,13 @@ describe('PublicService', () => {
 
     chains.products.in.mockResolvedValueOnce({
       data: [
-        { id: 'p1', name: 'P', branch_id: 'b1', is_hidden: true, is_sold_out: false },
+        {
+          id: 'p1',
+          name: 'P',
+          branch_id: 'b1',
+          is_hidden: true,
+          is_sold_out: false,
+        },
       ],
       error: null,
     });
@@ -178,7 +209,13 @@ describe('PublicService', () => {
   it('createOrder should reject unsupported options', async () => {
     chains.products.in.mockResolvedValueOnce({
       data: [
-        { id: 'p1', name: 'P', branch_id: 'b1', is_hidden: false, is_sold_out: false },
+        {
+          id: 'p1',
+          name: 'P',
+          branch_id: 'b1',
+          is_hidden: false,
+          is_sold_out: false,
+        },
       ],
       error: null,
     });
@@ -225,11 +262,21 @@ describe('PublicService', () => {
   it('createOrder should throw when order insert fails', async () => {
     chains.products.in.mockResolvedValueOnce({
       data: [
-        { id: 'p1', name: 'P', branch_id: 'b1', is_hidden: false, is_sold_out: false, price: 10 },
+        {
+          id: 'p1',
+          name: 'P',
+          branch_id: 'b1',
+          is_hidden: false,
+          is_sold_out: false,
+          price: 10,
+        },
       ],
       error: null,
     });
-    chains.orders.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    chains.orders.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.createOrder({
@@ -243,13 +290,33 @@ describe('PublicService', () => {
   it('createOrder should return order even if item insert fails', async () => {
     chains.products.in.mockResolvedValueOnce({
       data: [
-        { id: 'p1', name: 'P', branch_id: 'b1', is_hidden: false, is_sold_out: false, base_price: 10 },
-        { id: 'p2', name: 'Q', branch_id: 'b1', is_hidden: false, is_sold_out: false, base_price: 5 },
+        {
+          id: 'p1',
+          name: 'P',
+          branch_id: 'b1',
+          is_hidden: false,
+          is_sold_out: false,
+          base_price: 10,
+        },
+        {
+          id: 'p2',
+          name: 'Q',
+          branch_id: 'b1',
+          is_hidden: false,
+          is_sold_out: false,
+          base_price: 5,
+        },
       ],
       error: null,
     });
     chains.orders.single.mockResolvedValueOnce({
-      data: { id: 'o1', order_no: 'O-1', status: 'CREATED', total_amount: 15, created_at: 't' },
+      data: {
+        id: 'o1',
+        order_no: 'O-1',
+        status: 'CREATED',
+        total_amount: 15,
+        created_at: 't',
+      },
       error: null,
     });
     chains.order_items.single
@@ -272,16 +339,35 @@ describe('PublicService', () => {
   it('createOrder should insert option snapshots when present', async () => {
     chains.products.in.mockResolvedValueOnce({
       data: [
-        { id: 'p1', name: 'P', branch_id: 'b1', is_hidden: false, is_sold_out: false, price: 10 },
+        {
+          id: 'p1',
+          name: 'P',
+          branch_id: 'b1',
+          is_hidden: false,
+          is_sold_out: false,
+          price: 10,
+        },
       ],
       error: null,
     });
     chains.orders.single.mockResolvedValueOnce({
-      data: { id: 'o1', order_no: 'O-1', status: 'CREATED', total_amount: 10, created_at: 't' },
+      data: {
+        id: 'o1',
+        order_no: 'O-1',
+        status: 'CREATED',
+        total_amount: 10,
+        created_at: 't',
+      },
       error: null,
     });
-    chains.order_items.single.mockResolvedValueOnce({ data: { id: 'i1' }, error: null });
-    chains.order_item_options.insert.mockResolvedValueOnce({ data: {}, error: null });
+    chains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'i1' },
+      error: null,
+    });
+    chains.order_item_options.insert.mockResolvedValueOnce({
+      data: {},
+      error: null,
+    });
 
     const originalPush = Array.prototype.push;
     Array.prototype.push = function (...args: any[]) {
@@ -367,6 +453,8 @@ describe('PublicService', () => {
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null });
 
-    await expect(service.getOrder('missing')).rejects.toThrow(NotFoundException);
+    await expect(service.getOrder('missing')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

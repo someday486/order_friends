@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
@@ -42,8 +42,6 @@ type BranchMember = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 const BRAND_ROLES: { value: BrandRole; label: string }[] = [
   { value: "OWNER", label: "오너" },
   { value: "ADMIN", label: "관리자" },
@@ -68,16 +66,6 @@ const STATUS_LABELS: Record<MemberStatus, string> = {
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -128,18 +116,10 @@ function MembersPageContent() {
       setBrandLoading(true);
       setBrandError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/brand/${brandId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error(`조회 실패: ${res.status}`);
-
-      const data = (await res.json()) as BrandMember[];
+      const data = await apiClient.get<BrandMember[]>("/admin/members/brand/" + brandId);
       setBrandMembers(data);
     } catch (e: unknown) {
-      setBrandError((e as Error)?.message ?? "조회 실패");
+      setBrandError((e as Error)?.message ?? "?? ??");
     } finally {
       setBrandLoading(false);
     }
@@ -151,30 +131,16 @@ function MembersPageContent() {
     try {
       setAdding(true);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/brand/${brandId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: newUserId,
-          role: newRole || "MEMBER",
-        }),
+      await apiClient.post("/admin/members/brand/" + brandId, {
+        userId: newUserId,
+        role: newRole || "MEMBER",
       });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`추가 실패: ${res.status} ${text}`);
-      }
 
       await fetchBrandMembers();
       setNewUserId("");
       setNewRole("");
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "추가 실패");
+      alert((e as Error)?.message ?? "?? ??");
     } finally {
       setAdding(false);
     }
@@ -182,47 +148,30 @@ function MembersPageContent() {
 
   const updateBrandMemberRole = async (userId: string, role: BrandRole) => {
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/brand/${brandId}/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role }),
-      });
-
-      if (!res.ok) throw new Error("수정 실패");
+      await apiClient.patch("/admin/members/brand/" + brandId + "/" + userId, { role });
 
       setBrandMembers((prev) =>
         prev.map((m) => (m.userId === userId ? { ...m, role } : m))
       );
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "수정 실패");
+      alert((e as Error)?.message ?? "?? ??");
     }
   };
 
   const removeBrandMember = async (userId: string) => {
-    if (!confirm("정말 이 멤버를 삭제하시겠습니까?")) return;
+    if (!confirm("?? ? ??? ?????????")) return;
 
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/brand/${brandId}/${userId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("삭제 실패");
-
+      await apiClient.delete("/admin/members/brand/" + brandId + "/" + userId);
       setBrandMembers((prev) => prev.filter((m) => m.userId !== userId));
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "삭제 실패");
+      alert((e as Error)?.message ?? "?? ??");
     }
   };
 
   // ============================================================
+  // Branch Members
+// ============================================================
   // Branch Members
   // ============================================================
 
@@ -233,18 +182,10 @@ function MembersPageContent() {
       setBranchLoading(true);
       setBranchError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/branch/${branchId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error(`조회 실패: ${res.status}`);
-
-      const data = (await res.json()) as BranchMember[];
+      const data = await apiClient.get<BranchMember[]>("/admin/members/branch/" + branchId);
       setBranchMembers(data);
     } catch (e: unknown) {
-      setBranchError((e as Error)?.message ?? "조회 실패");
+      setBranchError((e as Error)?.message ?? "?? ??");
     } finally {
       setBranchLoading(false);
     }
@@ -256,31 +197,17 @@ function MembersPageContent() {
     try {
       setAdding(true);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/branch`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          branchId,
-          userId: newUserId,
-          role: newRole || "STAFF",
-        }),
+      await apiClient.post("/admin/members/branch", {
+        branchId,
+        userId: newUserId,
+        role: newRole || "STAFF",
       });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`추가 실패: ${res.status} ${text}`);
-      }
 
       await fetchBranchMembers();
       setNewUserId("");
       setNewRole("");
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "추가 실패");
+      alert((e as Error)?.message ?? "?? ??");
     } finally {
       setAdding(false);
     }
@@ -288,47 +215,30 @@ function MembersPageContent() {
 
   const updateBranchMemberRole = async (userId: string, role: BranchRole) => {
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/branch/${branchId}/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role }),
-      });
-
-      if (!res.ok) throw new Error("수정 실패");
+      await apiClient.patch("/admin/members/branch/" + branchId + "/" + userId, { role });
 
       setBranchMembers((prev) =>
         prev.map((m) => (m.userId === userId ? { ...m, role } : m))
       );
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "수정 실패");
+      alert((e as Error)?.message ?? "?? ??");
     }
   };
 
   const removeBranchMember = async (userId: string) => {
-    if (!confirm("정말 이 멤버를 삭제하시겠습니까?")) return;
+    if (!confirm("?? ? ??? ?????????")) return;
 
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/members/branch/${branchId}/${userId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("삭제 실패");
-
+      await apiClient.delete("/admin/members/branch/" + branchId + "/" + userId);
       setBranchMembers((prev) => prev.filter((m) => m.userId !== userId));
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "삭제 실패");
+      alert((e as Error)?.message ?? "?? ??");
     }
   };
 
   // ============================================================
+  // Render
+// ============================================================
   // Render
   // ============================================================
 

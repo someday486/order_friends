@@ -9,12 +9,18 @@ export class AnalyticsQueryDto {
   @IsUUID()
   branchId: string;
 
-  @ApiPropertyOptional({ description: '시작 날짜 (ISO 8601)', example: '2026-01-01' })
+  @ApiPropertyOptional({
+    description: '시작 날짜 (ISO 8601)',
+    example: '2026-01-01',
+  })
   @IsOptional()
   @IsDateString()
   startDate?: string;
 
-  @ApiPropertyOptional({ description: '종료 날짜 (ISO 8601)', example: '2026-01-31' })
+  @ApiPropertyOptional({
+    description: '종료 날짜 (ISO 8601)',
+    example: '2026-01-31',
+  })
   @IsOptional()
   @IsDateString()
   endDate?: string;
@@ -55,7 +61,10 @@ export class SalesAnalyticsResponse {
  * Top product data
  */
 export class TopProductDto {
-  @ApiProperty({ description: '상품 ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiProperty({
+    description: '상품 ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   productId: string;
 
   @ApiProperty({ description: '상품명', example: '아메리카노' })
@@ -72,7 +81,10 @@ export class TopProductDto {
  * Sales by product data
  */
 export class SalesByProductDto {
-  @ApiProperty({ description: '상품 ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiProperty({
+    description: '상품 ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   productId: string;
 
   @ApiProperty({ description: '상품명', example: '카페라떼' })
@@ -103,7 +115,10 @@ export class InventoryTurnoverDto {
  * Product analytics response
  */
 export class ProductAnalyticsResponse {
-  @ApiProperty({ description: '상위 판매 상품 (Top 10)', type: [TopProductDto] })
+  @ApiProperty({
+    description: '상위 판매 상품 (Top 10)',
+    type: [TopProductDto],
+  })
   topProducts: TopProductDto[];
 
   @ApiProperty({ description: '상품별 판매 현황', type: [SalesByProductDto] })
@@ -159,7 +174,10 @@ export class PeakHoursDto {
  * Order analytics response
  */
 export class OrderAnalyticsResponse {
-  @ApiProperty({ description: '주문 상태별 분포', type: [OrderStatusDistributionDto] })
+  @ApiProperty({
+    description: '주문 상태별 분포',
+    type: [OrderStatusDistributionDto],
+  })
   statusDistribution: OrderStatusDistributionDto[];
 
   @ApiProperty({ description: '일별 주문 추이', type: [OrdersByDayDto] })

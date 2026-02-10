@@ -56,7 +56,10 @@ describe('MeController', () => {
       error: null,
     });
 
-    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
 
     expect(result).toEqual({
       user: { id: 'user-1', email: 'user@test.com', role: 'system_admin' },
@@ -83,9 +86,16 @@ describe('MeController', () => {
       error: null,
     });
 
-    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
 
-    expect(result.user).toEqual({ id: 'user-1', email: 'user@test.com', role: 'brand_owner' });
+    expect(result.user).toEqual({
+      id: 'user-1',
+      email: 'user@test.com',
+      role: 'brand_owner',
+    });
     expect(result.memberships).toEqual([{ id: 'm1', role: 'staff' }]);
     expect(result.ownedBrands).toEqual([{ id: 'b1', name: 'Brand' }]);
     expect(result.isSystemAdmin).toBe(false);
@@ -107,7 +117,10 @@ describe('MeController', () => {
       error: null,
     });
 
-    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
 
     expect(result.user.role).toBe('branch_manager');
     expect(result.ownedBrands).toEqual([]);
@@ -129,7 +142,10 @@ describe('MeController', () => {
       error: null,
     });
 
-    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
 
     expect(result.user.role).toBe('staff');
   });
@@ -150,7 +166,10 @@ describe('MeController', () => {
       error: { message: 'brands error' },
     });
 
-    const result = await controller.me({ id: 'user-1', email: 'user@test.com' } as any);
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
 
     expect(result.user.role).toBe('customer');
     expect(result.isSystemAdmin).toBe(false);
@@ -176,6 +195,8 @@ describe('MeController', () => {
 
     const errorController = module.get<MeController>(MeController);
 
-    await expect(errorController.me({ id: 'user-1', email: 'user@test.com' } as any)).rejects.toThrow('boom');
+    await expect(
+      errorController.me({ id: 'user-1', email: 'user@test.com' } as any),
+    ).rejects.toThrow('boom');
   });
 });

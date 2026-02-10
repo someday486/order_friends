@@ -89,7 +89,13 @@ describe('ProductsService', () => {
     it('should map price fallback fields', async () => {
       const mockProducts = [
         { id: '1', name: 'A', price: 5, is_hidden: false, created_at: 't' },
-        { id: '2', name: 'B', price_amount: 7, is_hidden: true, created_at: 't' },
+        {
+          id: '2',
+          name: 'B',
+          price_amount: 7,
+          is_hidden: true,
+          created_at: 't',
+        },
       ];
 
       mockSupabaseClient.order.mockResolvedValueOnce({
@@ -225,7 +231,15 @@ describe('ProductsService', () => {
   describe('searchProducts', () => {
     it('should return paginated response', async () => {
       mockSupabaseClient.range.mockResolvedValueOnce({
-        data: [{ id: '1', name: 'P', base_price: 10, is_hidden: false, created_at: 't' }],
+        data: [
+          {
+            id: '1',
+            name: 'P',
+            base_price: 10,
+            is_hidden: false,
+            created_at: 't',
+          },
+        ],
         error: null,
         count: 1,
       });
@@ -254,12 +268,25 @@ describe('ProductsService', () => {
 
     it('should handle missing count and defaults', async () => {
       mockSupabaseClient.range.mockResolvedValueOnce({
-        data: [{ id: '1', name: 'P', base_price: 10, is_hidden: null, created_at: null }],
+        data: [
+          {
+            id: '1',
+            name: 'P',
+            base_price: 10,
+            is_hidden: null,
+            created_at: null,
+          },
+        ],
         error: null,
         count: null,
       });
 
-      const result = await service.searchProducts('token', 'branch-123', {} as any, true);
+      const result = await service.searchProducts(
+        'token',
+        'branch-123',
+        {} as any,
+        true,
+      );
       expect(result.pagination.total).toBe(0);
       expect(result.pagination.totalPages).toBe(0);
       expect(result.pagination.hasNext).toBe(false);
@@ -291,7 +318,16 @@ describe('ProductsService', () => {
       mockSupabaseClient.order
         .mockReturnValueOnce(mockSupabaseClient)
         .mockResolvedValueOnce({
-          data: [{ id: 'c1', branch_id: 'b1', name: 'Cat', sort_order: 1, is_active: true, created_at: 't' }],
+          data: [
+            {
+              id: 'c1',
+              branch_id: 'b1',
+              name: 'Cat',
+              sort_order: 1,
+              is_active: true,
+              created_at: 't',
+            },
+          ],
           error: null,
         });
 
@@ -418,7 +454,9 @@ describe('ProductsService', () => {
         options: [{ name: 'Opt' }],
       };
 
-      const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      const warnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
 
       mockSupabaseClient.single
         .mockResolvedValueOnce({
@@ -461,7 +499,11 @@ describe('ProductsService', () => {
           error: null,
         });
 
-      const result = await service.createProduct('token', createDto as any, true);
+      const result = await service.createProduct(
+        'token',
+        createDto as any,
+        true,
+      );
       expect(result.id).toBe('new-123');
     });
   });

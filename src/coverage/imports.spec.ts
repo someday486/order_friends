@@ -20,13 +20,19 @@ import { ProductsModule } from '../modules/products/products.module';
 import { PublicModule } from '../modules/public/public.module';
 import { PublicOrderModule } from '../modules/public-order/public-order.module';
 import { UploadModule } from '../modules/upload/upload.module';
-import { BranchDetailResponse, BranchListItemResponse } from '../modules/branches/dto/branch.response';
+import {
+  BranchDetailResponse,
+  BranchListItemResponse,
+} from '../modules/branches/dto/branch.response';
 import { OrderDetailResponse } from '../modules/orders/dto/order-detail.response';
 import { OrderListItemResponse } from '../modules/orders/dto/order-list.response';
 import { ProductCategoryResponse } from '../modules/products/dto/product-category.response';
 import { ProductDetailResponse } from '../modules/products/dto/product-detail.response';
 import { ProductListItemResponse } from '../modules/products/dto/product-list.response';
-import { NotificationStatus, NotificationType } from '../modules/notifications/dto/notification.dto';
+import {
+  NotificationStatus,
+  NotificationType,
+} from '../modules/notifications/dto/notification.dto';
 import * as paymentsIndex from '../modules/payments';
 import * as notificationsIndex from '../modules/notifications';
 
@@ -61,9 +67,13 @@ describe('Coverage Imports', () => {
     expect(new BranchListItemResponse()).toBeInstanceOf(BranchListItemResponse);
     expect(new OrderDetailResponse()).toBeInstanceOf(OrderDetailResponse);
     expect(new OrderListItemResponse()).toBeInstanceOf(OrderListItemResponse);
-    expect(new ProductCategoryResponse()).toBeInstanceOf(ProductCategoryResponse);
+    expect(new ProductCategoryResponse()).toBeInstanceOf(
+      ProductCategoryResponse,
+    );
     expect(new ProductDetailResponse()).toBeInstanceOf(ProductDetailResponse);
-    expect(new ProductListItemResponse()).toBeInstanceOf(ProductListItemResponse);
+    expect(new ProductListItemResponse()).toBeInstanceOf(
+      ProductListItemResponse,
+    );
     expect(NotificationType.EMAIL).toBe('EMAIL');
     expect(NotificationStatus.SENT).toBe('SENT');
   });

@@ -15,6 +15,8 @@ export declare class PaymentsService {
     private isUuid;
     private resolveOrderId;
     private getOrderForPayment;
+    private updateOrderPaymentStatus;
+    private logMetric;
     preparePayment(dto: PreparePaymentRequest): Promise<PreparePaymentResponse>;
     confirmPayment(dto: ConfirmPaymentRequest): Promise<ConfirmPaymentResponse>;
     getPaymentStatus(orderIdOrNo: string): Promise<PaymentStatusResponse>;

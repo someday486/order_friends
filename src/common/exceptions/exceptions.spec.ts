@@ -29,7 +29,9 @@ import {
 
 describe('Business Exceptions', () => {
   it('BusinessException should format response payload', () => {
-    const ex = new BusinessException('msg', 'CODE', HttpStatus.CONFLICT, { a: 1 });
+    const ex = new BusinessException('msg', 'CODE', HttpStatus.CONFLICT, {
+      a: 1,
+    });
     expect(ex.getStatus()).toBe(HttpStatus.CONFLICT);
     expect(ex.getResponse()).toMatchObject({
       statusCode: HttpStatus.CONFLICT,

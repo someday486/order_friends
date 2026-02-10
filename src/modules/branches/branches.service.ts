@@ -32,7 +32,9 @@ export class BranchesService {
 
     const { data, error } = await sb
       .from('branches')
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
 
@@ -63,7 +65,9 @@ export class BranchesService {
 
     const { data, error } = await sb
       .from('branches')
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .eq('id', branchId)
       .single();
 
@@ -109,7 +113,9 @@ export class BranchesService {
       const { data, error } = await sb
         .from('branches')
         .insert(insertPayload)
-        .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+        .select(
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
         .single();
 
       if (error) {
@@ -133,7 +139,9 @@ export class BranchesService {
       return sb
         .from('branches')
         .insert(insertPayload)
-        .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+        .select(
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
         .single();
     };
 
@@ -142,7 +150,9 @@ export class BranchesService {
       return sb
         .from('branches')
         .insert(insertPayload)
-        .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+        .select(
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
         .single();
     };
 
@@ -190,8 +200,10 @@ export class BranchesService {
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.slug !== undefined) updateData.slug = dto.slug;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
-    if (dto.coverImageUrl !== undefined) updateData.cover_image_url = dto.coverImageUrl;
-    if (dto.thumbnailUrl !== undefined) updateData.thumbnail_url = dto.thumbnailUrl;
+    if (dto.coverImageUrl !== undefined)
+      updateData.cover_image_url = dto.coverImageUrl;
+    if (dto.thumbnailUrl !== undefined)
+      updateData.thumbnail_url = dto.thumbnailUrl;
 
     if (Object.keys(updateData).length === 0) {
       return this.getBranch(accessToken, branchId, isAdmin);
@@ -201,7 +213,9 @@ export class BranchesService {
       .from('branches')
       .update(updateData)
       .eq('id', branchId)
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .maybeSingle();
 
     if (error) {

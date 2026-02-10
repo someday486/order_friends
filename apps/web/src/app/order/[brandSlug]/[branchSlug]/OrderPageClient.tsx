@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ProductCard,
@@ -197,9 +198,11 @@ export default function OrderPageClient({
 
           <div className="px-4 py-3 flex items-center gap-3">
             {branch?.logoUrl ? (
-              <img
+              <Image
                 src={branch.logoUrl}
                 alt={branch?.name || ""}
+                width={40}
+                height={40}
                 className="w-10 h-10 rounded-full object-cover border border-border"
               />
             ) : (

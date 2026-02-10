@@ -78,13 +78,18 @@ describe('PublicOrderController', () => {
     const result = await controller.getBranchByBrandSlug('brand', 'branch');
 
     expect(result).toEqual({ id: 'branch-1' });
-    expect(mockService.getBranchByBrandSlug).toHaveBeenCalledWith('brand', 'branch');
+    expect(mockService.getBranchByBrandSlug).toHaveBeenCalledWith(
+      'brand',
+      'branch',
+    );
   });
 
   it('getBranchByBrandSlug should propagate service error', async () => {
     mockService.getBranchByBrandSlug.mockRejectedValue(new Error('boom'));
 
-    await expect(controller.getBranchByBrandSlug('brand', 'branch')).rejects.toThrow('boom');
+    await expect(
+      controller.getBranchByBrandSlug('brand', 'branch'),
+    ).rejects.toThrow('boom');
   });
 
   it('getCategories should call service and return result', async () => {

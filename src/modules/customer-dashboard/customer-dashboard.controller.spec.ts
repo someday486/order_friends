@@ -36,7 +36,9 @@ describe('CustomerDashboardController', () => {
       .useValue(mockGuard)
       .compile();
 
-    controller = module.get<CustomerDashboardController>(CustomerDashboardController);
+    controller = module.get<CustomerDashboardController>(
+      CustomerDashboardController,
+    );
     jest.clearAllMocks();
   });
 
@@ -46,7 +48,11 @@ describe('CustomerDashboardController', () => {
     const result = await controller.getDashboardStats(makeReq());
 
     expect(result).toEqual({ totalSales: 1000 });
-    expect(mockService.getDashboardStats).toHaveBeenCalledWith('user-1', [], []);
+    expect(mockService.getDashboardStats).toHaveBeenCalledWith(
+      'user-1',
+      [],
+      [],
+    );
   });
 
   it('getDashboardStats should throw when access token is missing', async () => {

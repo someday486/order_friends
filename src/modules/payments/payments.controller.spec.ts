@@ -31,37 +31,51 @@ describe('PaymentsController', () => {
         providers: [{ provide: PaymentsService, useValue: mockService }],
       }).compile();
 
-      controller = module.get<PaymentsPublicController>(PaymentsPublicController);
+      controller = module.get<PaymentsPublicController>(
+        PaymentsPublicController,
+      );
     });
 
     it('preparePayment should call service and return result', async () => {
       mockService.preparePayment.mockResolvedValue({ orderId: 'order-1' });
 
-      const result = await controller.preparePayment({ orderId: 'order-1' } as any);
+      const result = await controller.preparePayment({
+        orderId: 'order-1',
+      } as any);
 
       expect(result).toEqual({ orderId: 'order-1' });
-      expect(mockService.preparePayment).toHaveBeenCalledWith({ orderId: 'order-1' });
+      expect(mockService.preparePayment).toHaveBeenCalledWith({
+        orderId: 'order-1',
+      });
     });
 
     it('preparePayment should propagate service error', async () => {
       mockService.preparePayment.mockRejectedValue(new Error('boom'));
 
-      await expect(controller.preparePayment({} as any)).rejects.toThrow('boom');
+      await expect(controller.preparePayment({} as any)).rejects.toThrow(
+        'boom',
+      );
     });
 
     it('confirmPayment should call service and return result', async () => {
       mockService.confirmPayment.mockResolvedValue({ paymentKey: 'pk' });
 
-      const result = await controller.confirmPayment({ paymentKey: 'pk' } as any);
+      const result = await controller.confirmPayment({
+        paymentKey: 'pk',
+      } as any);
 
       expect(result).toEqual({ paymentKey: 'pk' });
-      expect(mockService.confirmPayment).toHaveBeenCalledWith({ paymentKey: 'pk' });
+      expect(mockService.confirmPayment).toHaveBeenCalledWith({
+        paymentKey: 'pk',
+      });
     });
 
     it('confirmPayment should propagate service error', async () => {
       mockService.confirmPayment.mockRejectedValue(new Error('boom'));
 
-      await expect(controller.confirmPayment({} as any)).rejects.toThrow('boom');
+      await expect(controller.confirmPayment({} as any)).rejects.toThrow(
+        'boom',
+      );
     });
 
     it('getPaymentStatus should call service and return result', async () => {
@@ -76,7 +90,9 @@ describe('PaymentsController', () => {
     it('getPaymentStatus should propagate service error', async () => {
       mockService.getPaymentStatus.mockRejectedValue(new Error('boom'));
 
-      await expect(controller.getPaymentStatus('order-1')).rejects.toThrow('boom');
+      await expect(controller.getPaymentStatus('order-1')).rejects.toThrow(
+        'boom',
+      );
     });
 
     it('handleTossWebhook should call service and return success', async () => {
@@ -138,7 +154,9 @@ describe('PaymentsController', () => {
         .useValue(mockGuard)
         .compile();
 
-      controller = module.get<PaymentsCustomerController>(PaymentsCustomerController);
+      controller = module.get<PaymentsCustomerController>(
+        PaymentsCustomerController,
+      );
     });
 
     it('getPayments should call service and return result', async () => {
@@ -148,7 +166,10 @@ describe('PaymentsController', () => {
       const result = await controller.getPayments('branch-1', pagination);
 
       expect(result).toEqual({ items: [] });
-      expect(mockService.getPayments).toHaveBeenCalledWith('branch-1', pagination);
+      expect(mockService.getPayments).toHaveBeenCalledWith(
+        'branch-1',
+        pagination,
+      );
     });
 
     it('getPayments should propagate service error', async () => {
@@ -165,7 +186,10 @@ describe('PaymentsController', () => {
       const result = await controller.getPaymentDetail('payment-1', 'branch-1');
 
       expect(result).toEqual({ id: 'payment-1' });
-      expect(mockService.getPaymentDetail).toHaveBeenCalledWith('payment-1', 'branch-1');
+      expect(mockService.getPaymentDetail).toHaveBeenCalledWith(
+        'payment-1',
+        'branch-1',
+      );
     });
 
     it('getPaymentDetail should propagate service error', async () => {
@@ -188,7 +212,11 @@ describe('PaymentsController', () => {
       );
 
       expect(result).toEqual({ status: 'REFUNDED' });
-      expect(mockService.refundPayment).toHaveBeenCalledWith('payment-1', 'branch-1', dto);
+      expect(mockService.refundPayment).toHaveBeenCalledWith(
+        'payment-1',
+        'branch-1',
+        dto,
+      );
     });
 
     it('refundPayment should propagate service error', async () => {

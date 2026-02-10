@@ -28,11 +28,15 @@ describe('HealthController', () => {
   });
 
   it('check should call health service and return result', async () => {
-    mockSupabaseHealth.isHealthy.mockResolvedValue({ supabase: { status: 'up' } });
-    mockHealthCheck.check.mockImplementation(async (checks: Array<() => any>) => {
-      await Promise.all(checks.map((fn) => fn()));
-      return { status: 'ok' };
+    mockSupabaseHealth.isHealthy.mockResolvedValue({
+      supabase: { status: 'up' },
     });
+    mockHealthCheck.check.mockImplementation(
+      async (checks: Array<() => any>) => {
+        await Promise.all(checks.map((fn) => fn()));
+        return { status: 'ok' };
+      },
+    );
 
     const result = await controller.check();
 

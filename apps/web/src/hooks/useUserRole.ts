@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { apiClient } from '@/lib/api-client';
 
-export type UserRole = 'system_admin' | 'brand_owner' | 'branch_manager' | 'staff' | 'customer';
+export type UserRole =
+  | 'system_admin'
+  | 'brand_owner'
+  | 'branch_manager'
+  | 'staff'
+  | 'customer';
 
 export interface UserData {
   user: {

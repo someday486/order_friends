@@ -34,7 +34,9 @@ export class UploadService {
     file: Express.Multer.File,
     folder: string = 'general',
   ): Promise<UploadResult> {
-    this.logger.log(`Uploading image: ${file.originalname} to folder: ${folder}`);
+    this.logger.log(
+      `Uploading image: ${file.originalname} to folder: ${folder}`,
+    );
 
     // Validate file type
     if (!this.allowedMimeTypes.includes(file.mimetype)) {
@@ -58,7 +60,7 @@ export class UploadService {
       const client = this.supabase.adminClient();
 
       // Upload file to Supabase Storage
-      const { data, error } = await client.storage
+      const { error } = await client.storage
         .from(this.bucketName)
         .upload(fileName, file.buffer, {
           contentType: file.mimetype,
@@ -67,7 +69,9 @@ export class UploadService {
 
       if (error) {
         this.logger.error(`Failed to upload file: ${error.message}`, error);
-        throw new BadRequestException(`Failed to upload file: ${error.message}`);
+        throw new BadRequestException(
+          `Failed to upload file: ${error.message}`,
+        );
       }
 
       // Get public URL
@@ -95,9 +99,7 @@ export class UploadService {
     files: Express.Multer.File[],
     folder: string = 'general',
   ): Promise<UploadResult[]> {
-    const uploadPromises = files.map((file) =>
-      this.uploadImage(file, folder),
-    );
+    const uploadPromises = files.map((file) => this.uploadImage(file, folder));
     return Promise.all(uploadPromises);
   }
 
@@ -116,7 +118,9 @@ export class UploadService {
 
       if (error) {
         this.logger.error(`Failed to delete file: ${error.message}`, error);
-        throw new BadRequestException(`Failed to delete file: ${error.message}`);
+        throw new BadRequestException(
+          `Failed to delete file: ${error.message}`,
+        );
       }
 
       this.logger.log(`Successfully deleted image: ${filePath}`);

@@ -32,7 +32,9 @@ export class BrandsService {
       const sb = this.supabase.adminClient();
       const { data, error } = await sb
         .from('brands')
-        .select('id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
+        .select(
+          'id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -95,7 +97,9 @@ export class BrandsService {
 
     const { data, error } = await sb
       .from('brands')
-      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .eq('id', brandId)
       .single();
 
@@ -166,7 +170,9 @@ export class BrandsService {
         cover_image_url: dto.coverImageUrl ?? null,
         thumbnail_url: dto.thumbnailUrl ?? null,
       })
-      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .single();
 
     if (brandError || !brand) {
@@ -217,8 +223,10 @@ export class BrandsService {
     if (dto.bizName !== undefined) updateData.biz_name = dto.bizName;
     if (dto.bizRegNo !== undefined) updateData.biz_reg_no = dto.bizRegNo;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
-    if (dto.coverImageUrl !== undefined) updateData.cover_image_url = dto.coverImageUrl;
-    if (dto.thumbnailUrl !== undefined) updateData.thumbnail_url = dto.thumbnailUrl;
+    if (dto.coverImageUrl !== undefined)
+      updateData.cover_image_url = dto.coverImageUrl;
+    if (dto.thumbnailUrl !== undefined)
+      updateData.thumbnail_url = dto.thumbnailUrl;
 
     if (Object.keys(updateData).length === 0) {
       return this.getBrand(accessToken, brandId, isAdmin);
@@ -254,7 +262,9 @@ export class BrandsService {
       .from('brands')
       .update(updateData)
       .eq('id', brandId)
-      .select('id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .maybeSingle();
 
     if (error) {

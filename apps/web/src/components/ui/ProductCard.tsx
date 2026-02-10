@@ -1,6 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
+import Image from "next/image";
 import { QuantityControl } from "./QuantityControl";
 
 export interface ProductBadge {
@@ -133,11 +134,12 @@ export const ProductCard: FC<ProductCardProps> = ({
           onClick={onCardClick}
         >
           {product.imageUrl && !imgError ? (
-            <img
+            <Image
               src={product.imageUrl}
               alt={product.name}
+              width={100}
+              height={100}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              loading="lazy"
               onError={() => setImgError(true)}
             />
           ) : (

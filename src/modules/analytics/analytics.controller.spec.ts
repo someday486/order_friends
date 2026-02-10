@@ -67,9 +67,9 @@ describe('AnalyticsController', () => {
   });
 
   it('getSalesAnalytics should throw when branchId is missing', async () => {
-    await expect(
-      controller.getSalesAnalytics(makeReq(), ''),
-    ).rejects.toThrow('branchId is required');
+    await expect(controller.getSalesAnalytics(makeReq(), '')).rejects.toThrow(
+      'branchId is required',
+    );
   });
 
   it('getProductAnalytics should call service and return result', async () => {
@@ -101,9 +101,9 @@ describe('AnalyticsController', () => {
   });
 
   it('getProductAnalytics should throw when branchId is missing', async () => {
-    await expect(
-      controller.getProductAnalytics(makeReq(), ''),
-    ).rejects.toThrow('branchId is required');
+    await expect(controller.getProductAnalytics(makeReq(), '')).rejects.toThrow(
+      'branchId is required',
+    );
   });
 
   it('getOrderAnalytics should call service and return result', async () => {
@@ -135,9 +135,9 @@ describe('AnalyticsController', () => {
   });
 
   it('getOrderAnalytics should throw when branchId is missing', async () => {
-    await expect(
-      controller.getOrderAnalytics(makeReq(), ''),
-    ).rejects.toThrow('branchId is required');
+    await expect(controller.getOrderAnalytics(makeReq(), '')).rejects.toThrow(
+      'branchId is required',
+    );
   });
 
   it('getCustomerAnalytics should call service and return result', async () => {

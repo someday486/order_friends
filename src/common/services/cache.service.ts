@@ -105,9 +105,7 @@ export class CacheService {
       // If store has keys() method (memory cache, Redis)
       if (typeof store.keys === 'function') {
         const keys = await store.keys();
-        const matchedKeys = keys.filter((key: string) =>
-          key.includes(pattern),
-        );
+        const matchedKeys = keys.filter((key: string) => key.includes(pattern));
 
         await Promise.all(matchedKeys.map((key: string) => this.del(key)));
         this.logger.debug(
@@ -195,9 +193,7 @@ export class CacheService {
     await this.delPattern(`inventory:${branchId}`);
 
     if (productId) {
-      await this.del(
-        CacheService.keys.productInventory(branchId, productId),
-      );
+      await this.del(CacheService.keys.productInventory(branchId, productId));
     }
   }
 

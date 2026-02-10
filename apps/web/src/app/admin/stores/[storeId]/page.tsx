@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
@@ -34,21 +34,9 @@ type BranchMember = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatDate(iso: string) {
   if (!iso) return "-";
@@ -92,23 +80,11 @@ export default function StoreDetailPage() {
       setMembersLoading(true);
       setMembersError(null);
 
-      const token = await getAccessToken();
-      const res = await fetch(`${API_BASE}/admin/members/branch/${branchId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`가게 멤버 조회 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as BranchMember[];
+      const data = await apiClient.get<BranchMember[]>(`/admin/members/branch/${branchId}`);
       setMembers(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setMembersError(err?.message ?? "조회 실패");
+      setMembersError(err?.message ?? "?? ??");
     } finally {
       setMembersLoading(false);
     }
@@ -126,20 +102,7 @@ export default function StoreDetailPage() {
         setLoading(true);
         setError(null);
 
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/admin/branches/${storeId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`가게 정보 조회 실패: ${res.status} ${text}`);
-        }
-
-        const data = (await res.json()) as Branch;
+        const data = await apiClient.get<Branch>(`/admin/branches/${storeId}`);
         setBranch(data);
         setName(data.name ?? "");
         setSlug(data.slug ?? "");
@@ -147,14 +110,14 @@ export default function StoreDetailPage() {
         fetchMembers(data.id);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "조회 실패");
+        setError(err?.message ?? "?? ??");
       } finally {
         setLoading(false);
       }
     };
 
-    if (storeId) fetchBranch();
-  }, [ready, brandId, storeId, router, selectBranch]);
+    fetchBranch();
+  }, [storeId, brandId, ready, router, selectBranch]);
 
   const handleSave = async () => {
     if (!branch) return;
@@ -171,67 +134,58 @@ export default function StoreDetailPage() {
       return;
     }
 
+const handleSave = async () => {
+    if (!branch) return;
+
+    if (!name.trim()) {
+      alert("???? ??????");
+      return;
+    }
+    if (!slug.trim()) {
+      alert("?? URL? ??????");
+      return;
+    }
+    if (!isValidSlug(slug.trim())) {
+      alert("?? URL? ??/??/???(-)? ?????.");
+      return;
+    }
+
     try {
       setSaving(true);
-      const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/admin/branches/${branch.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: name.trim(), slug: slug.trim() }),
+      const data = await apiClient.patch<Branch>("/admin/branches/" + branch.id, {
+        name: name.trim(),
+        slug: slug.trim(),
       });
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`가게 수정 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as Branch;
       setBranch(data);
       setName(data.name ?? "");
       setSlug(data.slug ?? "");
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "수정 실패");
+      alert(err?.message ?? "?? ??");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    iconst handleDelete = async () => {
     if (!branch) return;
 
     if (
-      !confirm(
-        `"${branch.name}" 가게를 삭제하시겠습니까?\n관련 상품과 주문 데이터가 모두 삭제됩니다.`
-      )
+      !confirm(`"${branch.name}" ??? ?????????\n?? ??? ?? ???? ?? ?????.`)
     ) {
       return;
     }
 
     try {
       setDeleting(true);
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/branches/${branch.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`가게 삭제 실패: ${res.status} ${text}`);
-      }
-
+      await apiClient.delete("/admin/branches/" + branch.id);
       router.replace("/admin/stores");
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "삭제 실패");
+      alert(err?.message ?? "?? ??");
     } finally {
       setDeleting(false);
     }

@@ -11,7 +11,10 @@ describe('SupabaseHealthIndicator', () => {
     const supabase = {
       adminClient: jest.fn(() => mockClient),
     };
-    return { indicator: new SupabaseHealthIndicator(supabase as any), mockClient };
+    return {
+      indicator: new SupabaseHealthIndicator(supabase as any),
+      mockClient,
+    };
   };
 
   it('should report healthy when query succeeds', async () => {
@@ -27,6 +30,8 @@ describe('SupabaseHealthIndicator', () => {
     const { indicator, mockClient } = makeIndicator();
     mockClient.limit.mockResolvedValueOnce({ error: { message: 'fail' } });
 
-    await expect(indicator.isHealthy('supabase')).rejects.toThrow(HealthCheckError);
+    await expect(indicator.isHealthy('supabase')).rejects.toThrow(
+      HealthCheckError,
+    );
   });
 });

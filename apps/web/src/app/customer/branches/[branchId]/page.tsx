@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
 // ============================================================
@@ -25,21 +26,9 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -69,19 +58,8 @@ export default function BranchDetailPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/branches/${branchId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`지점 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Branch>(`/customer/branches/${branchId}`);
         setBranch(data);
         setFormData({
           name: data.name || "",
@@ -92,7 +70,7 @@ export default function BranchDetailPage() {
         });
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -106,29 +84,14 @@ export default function BranchDetailPage() {
   const handleSave = async () => {
     try {
       setSaveLoading(true);
-      const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/customer/branches/${branchId}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `지점 수정 실패: ${res.status}`);
-      }
-
-      const updated = await res.json();
-      setBranch(updated);
+      const updatedBranch = await apiClient.patch<Branch>(`/customer/branches/${branchId}`, formData);
+      setBranch(updatedBranch);
       setIsEditing(false);
-      alert("지점 정보가 수정되었습니다");
+      alert("?? ??? ???????.");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "지점 수정 중 오류 발생");
+      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     } finally {
       setSaveLoading(false);
     }
@@ -136,25 +99,12 @@ export default function BranchDetailPage() {
 
   const handleDelete = async () => {
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/customer/branches/${branchId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `지점 삭제 실패: ${res.status}`);
-      }
-
-      alert("지점이 삭제되었습니다");
-      router.push("/customer/branches");
+      await apiClient.delete(`/customer/branches/${branchId}`);
+      setShowDeleteConfirm(false);
+      router.replace("/customer/branches");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "지점 삭제 중 오류 발생");
+      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     }
   };
 
@@ -283,9 +233,11 @@ export default function BranchDetailPage() {
             {/* Cover image banner */}
             {branch.coverImageUrl && (
               <div className="mb-6">
-                <img
+                <Image
                   src={branch.coverImageUrl}
-                  alt="커버 이미지"
+                  alt="?? ???"
+                  width={1200}
+                  height={675}
                   className="w-full rounded-lg object-cover"
                   style={{ aspectRatio: "16/9" }}
                 />
@@ -294,9 +246,11 @@ export default function BranchDetailPage() {
 
             <div className="flex items-center gap-4 mb-6">
               {branch.logoUrl ? (
-                <img
+                <Image
                   src={branch.logoUrl}
                   alt={branch.name}
+                  width={80}
+                  height={80}
                   className="w-20 h-20 rounded-xl object-cover"
                 />
               ) : (
@@ -325,9 +279,11 @@ export default function BranchDetailPage() {
             {branch.thumbnailUrl && (
               <div className="mb-5">
                 <div className="text-[13px] text-text-secondary mb-2">썸네일</div>
-                <img
+                <Image
                   src={branch.thumbnailUrl}
-                  alt="썸네일"
+                  alt="???"
+                  width={120}
+                  height={120}
                   className="w-[120px] h-[120px] object-cover rounded-lg border border-border"
                 />
               </div>

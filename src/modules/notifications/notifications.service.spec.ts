@@ -157,7 +157,9 @@ describe('NotificationsService', () => {
       updatedAt: '2024-01-01T00:00:00Z',
     });
 
-    const paymentTemplate = (service as any).getPaymentConfirmationEmailTemplate({
+    const paymentTemplate = (
+      service as any
+    ).getPaymentConfirmationEmailTemplate({
       orderNo: 'O-2',
       customerName: 'B',
       paymentMethod: 'CARD',
@@ -261,7 +263,9 @@ describe('NotificationsService', () => {
       statusMessage: 'ok',
     });
 
-    const paymentTemplate = (service as any).getPaymentConfirmationEmailTemplate({
+    const paymentTemplate = (
+      service as any
+    ).getPaymentConfirmationEmailTemplate({
       orderNo: 'O-1',
       customerName: 'A',
       paymentMethod: 'CARD',

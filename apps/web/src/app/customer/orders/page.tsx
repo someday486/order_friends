@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -34,8 +34,6 @@ type Branch = {
 // ============================================================
 // Constants
 // ============================================================
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
@@ -70,16 +68,6 @@ const statusClass: Record<OrderStatus, string> = {
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
@@ -116,31 +104,15 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const token = await getAccessToken();
-        const res = await fetch(`${API_BASE}/customer/brands`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`브랜드 목록 조회 실패: ${res.status}`);
-        }
-
-        const brands = await res.json();
+        const brands = await apiClient.get<any[]>("/customer/brands");
         const branchList: Branch[] = [];
 
-        // Get branches from each brand
         for (const brand of brands) {
-          const branchRes = await fetch(`${API_BASE}/customer/brands/${brand.id}/branches`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-
-          if (branchRes.ok) {
-            const branchData = await branchRes.json();
+          try {
+            const branchData = await apiClient.get<Branch[]>(`/customer/brands/${brand.id}/branches`);
             branchList.push(...branchData);
+          } catch (e) {
+            console.error(e);
           }
         }
 
@@ -159,7 +131,6 @@ export default function CustomerOrdersPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
         const params = new URLSearchParams({
           page: page.toString(),
@@ -174,22 +145,12 @@ export default function CustomerOrdersPage() {
           params.append("status", statusFilter);
         }
 
-        const res = await fetch(`${API_BASE}/customer/orders?${params}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`주문 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<any>(`/customer/orders?${params.toString()}`);
         setOrders(data.data || data.items || data);
         setTotal(data.pagination?.total || data.total || 0);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "주문 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ??");
       } finally {
         setLoading(false);
       }

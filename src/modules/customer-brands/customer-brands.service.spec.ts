@@ -70,21 +70,28 @@ describe('CustomerBrandsService', () => {
     });
 
     await expect(
-      service.getMyBrands('user-1', [{ brand_id: 'brand-1', role: 'OWNER' } as any]),
+      service.getMyBrands('user-1', [
+        { brand_id: 'brand-1', role: 'OWNER' } as any,
+      ]),
     ).rejects.toThrow('Failed to fetch brands');
   });
 
   it('getMyBrand should throw when membership missing', async () => {
-    await expect(
-      service.getMyBrand('brand-1', 'user-1', []),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(service.getMyBrand('brand-1', 'user-1', [])).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('getMyBrand should throw when brand not found', async () => {
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'missing' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'missing' },
+    });
 
     await expect(
-      service.getMyBrand('brand-1', 'user-1', [{ brand_id: 'brand-1', role: 'OWNER' } as any]),
+      service.getMyBrand('brand-1', 'user-1', [
+        { brand_id: 'brand-1', role: 'OWNER' } as any,
+      ]),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -110,25 +117,22 @@ describe('CustomerBrandsService', () => {
 
   it('updateMyBrand should throw when role not allowed', async () => {
     await expect(
-      service.updateMyBrand(
-        'brand-1',
-        { name: 'Brand' },
-        'user-1',
-        [{ brand_id: 'brand-1', role: 'STAFF' } as any],
-      ),
+      service.updateMyBrand('brand-1', { name: 'Brand' }, 'user-1', [
+        { brand_id: 'brand-1', role: 'STAFF' } as any,
+      ]),
     ).rejects.toThrow(ForbiddenException);
   });
 
   it('updateMyBrand should throw when update fails', async () => {
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
-      service.updateMyBrand(
-        'brand-1',
-        { name: 'Brand' },
-        'user-1',
-        [{ brand_id: 'brand-1', role: 'OWNER' } as any],
-      ),
+      service.updateMyBrand('brand-1', { name: 'Brand' }, 'user-1', [
+        { brand_id: 'brand-1', role: 'OWNER' } as any,
+      ]),
     ).rejects.toThrow('Failed to update brand');
   });
 
@@ -187,12 +191,9 @@ describe('CustomerBrandsService', () => {
       error: null,
     });
 
-    await service.updateMyBrand(
-      'brand-1',
-      { logo_url: 'logo.png' },
-      'user-1',
-      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
-    );
+    await service.updateMyBrand('brand-1', { logo_url: 'logo.png' }, 'user-1', [
+      { brand_id: 'brand-1', role: 'OWNER' } as any,
+    ]);
 
     const updatePayload = mockSb.update.mock.calls[0][0];
     expect(updatePayload.name).toBeUndefined();

@@ -49,7 +49,9 @@ export class AnalyticsService {
     return {
       start: start.toISOString(),
       end: end.toISOString(),
-      days: Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)),
+      days: Math.ceil(
+        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+      ),
     };
   }
 
@@ -74,10 +76,19 @@ export class AnalyticsService {
         .eq('branch_id', branchId)
         .gte('created_at', dateRange.start)
         .lte('created_at', dateRange.end)
-        .in('status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED', 'CREATED']);
+        .in('status', [
+          'COMPLETED',
+          'READY',
+          'PREPARING',
+          'CONFIRMED',
+          'CREATED',
+        ]);
 
       if (error) {
-        this.logger.error(`Failed to fetch sales analytics: ${error.message}`, error);
+        this.logger.error(
+          `Failed to fetch sales analytics: ${error.message}`,
+          error,
+        );
         throw new BusinessException(
           'Failed to fetch sales analytics',
           'SALES_ANALYTICS_FAILED',
@@ -88,11 +99,18 @@ export class AnalyticsService {
 
       const orderList = orders || [];
       const orderCount = orderList.length;
-      const totalRevenue = orderList.reduce((sum, order) => sum + (order.total_amount || 0), 0);
-      const avgOrderValue = orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0;
+      const totalRevenue = orderList.reduce(
+        (sum, order) => sum + (order.total_amount || 0),
+        0,
+      );
+      const avgOrderValue =
+        orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0;
 
       // Group by day
-      const revenueByDayMap = new Map<string, { revenue: number; count: number }>();
+      const revenueByDayMap = new Map<
+        string,
+        { revenue: number; count: number }
+      >();
       orderList.forEach((order) => {
         const date = new Date(order.created_at).toISOString().split('T')[0];
         const current = revenueByDayMap.get(date) || { revenue: 0, count: 0 };
@@ -101,7 +119,9 @@ export class AnalyticsService {
         revenueByDayMap.set(date, current);
       });
 
-      const revenueByDay: RevenueByDayDto[] = Array.from(revenueByDayMap.entries())
+      const revenueByDay: RevenueByDayDto[] = Array.from(
+        revenueByDayMap.entries(),
+      )
         .map(([date, data]) => ({
           date,
           revenue: data.revenue,
@@ -143,21 +163,26 @@ export class AnalyticsService {
       // Get order items with product info
       const { data: orderItems, error } = await sb
         .from('order_items')
-        .select(`
+        .select(
+          `
           id,
           product_id,
           product_name_snapshot,
           qty,
           unit_price,
           order:orders!inner(id, status, created_at, branch_id)
-        `)
+        `,
+        )
         .eq('order.branch_id', branchId)
         .gte('order.created_at', dateRange.start)
         .lte('order.created_at', dateRange.end)
         .in('order.status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED']);
 
       if (error) {
-        this.logger.error(`Failed to fetch product analytics: ${error.message}`, error);
+        this.logger.error(
+          `Failed to fetch product analytics: ${error.message}`,
+          error,
+        );
         throw new BusinessException(
           'Failed to fetch product analytics',
           'PRODUCT_ANALYTICS_FAILED',
@@ -169,14 +194,21 @@ export class AnalyticsService {
       const items = orderItems || [];
 
       // Aggregate by product
-      const productMap = new Map<string, { name: string; qty: number; revenue: number }>();
+      const productMap = new Map<
+        string,
+        { name: string; qty: number; revenue: number }
+      >();
       items.forEach((item: any) => {
         const productId = item.product_id || 'unknown';
         const productName = item.product_name_snapshot || 'Unknown Product';
         const qty = item.qty || 0;
         const revenue = (item.qty || 0) * (item.unit_price || 0);
 
-        const current = productMap.get(productId) || { name: productName, qty: 0, revenue: 0 };
+        const current = productMap.get(productId) || {
+          name: productName,
+          qty: 0,
+          revenue: 0,
+        };
         current.qty += qty;
         current.revenue += revenue;
         productMap.set(productId, current);
@@ -199,13 +231,18 @@ export class AnalyticsService {
         .slice(0, 10);
 
       // Sales by product with percentage
-      const salesByProduct: SalesByProductDto[] = Array.from(productMap.entries())
+      const salesByProduct: SalesByProductDto[] = Array.from(
+        productMap.entries(),
+      )
         .map(([productId, data]) => ({
           productId,
           productName: data.name,
           quantity: data.qty,
           revenue: data.revenue,
-          revenuePercentage: totalRevenue > 0 ? parseFloat(((data.revenue / totalRevenue) * 100).toFixed(2)) : 0,
+          revenuePercentage:
+            totalRevenue > 0
+              ? parseFloat(((data.revenue / totalRevenue) * 100).toFixed(2))
+              : 0,
         }))
         .sort((a, b) => b.revenue - a.revenue);
 
@@ -215,7 +252,9 @@ export class AnalyticsService {
         0,
       );
       const averageTurnoverRate =
-        dateRange.days > 0 ? parseFloat((totalQuantitySold / dateRange.days).toFixed(2)) : 0;
+        dateRange.days > 0
+          ? parseFloat((totalQuantitySold / dateRange.days).toFixed(2))
+          : 0;
 
       const inventoryTurnover: InventoryTurnoverDto = {
         averageTurnoverRate,
@@ -261,7 +300,10 @@ export class AnalyticsService {
         .lte('created_at', dateRange.end);
 
       if (error) {
-        this.logger.error(`Failed to fetch order analytics: ${error.message}`, error);
+        this.logger.error(
+          `Failed to fetch order analytics: ${error.message}`,
+          error,
+        );
         throw new BusinessException(
           'Failed to fetch order analytics',
           'ORDER_ANALYTICS_FAILED',
@@ -280,7 +322,9 @@ export class AnalyticsService {
         statusMap.set(status, (statusMap.get(status) || 0) + 1);
       });
 
-      const statusDistribution: OrderStatusDistributionDto[] = Array.from(statusMap.entries())
+      const statusDistribution: OrderStatusDistributionDto[] = Array.from(
+        statusMap.entries(),
+      )
         .map(([status, count]) => ({
           status,
           count,
@@ -295,7 +339,11 @@ export class AnalyticsService {
       >();
       orderList.forEach((order) => {
         const date = new Date(order.created_at).toISOString().split('T')[0];
-        const current = ordersByDayMap.get(date) || { total: 0, completed: 0, cancelled: 0 };
+        const current = ordersByDayMap.get(date) || {
+          total: 0,
+          completed: 0,
+          cancelled: 0,
+        };
         current.total += 1;
         if (order.status === 'COMPLETED') current.completed += 1;
         if (order.status === 'CANCELLED') current.cancelled += 1;
@@ -360,7 +408,13 @@ export class AnalyticsService {
         .from('orders')
         .select('id, customer_phone, total_amount, created_at, status')
         .eq('branch_id', branchId)
-        .in('status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED', 'CREATED']);
+        .in('status', [
+          'COMPLETED',
+          'READY',
+          'PREPARING',
+          'CONFIRMED',
+          'CREATED',
+        ]);
 
       if (allOrdersError) {
         this.logger.error(
@@ -384,7 +438,13 @@ export class AnalyticsService {
         .eq('branch_id', branchId)
         .gte('created_at', dateRange.start)
         .lte('created_at', dateRange.end)
-        .in('status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED', 'CREATED']);
+        .in('status', [
+          'COMPLETED',
+          'READY',
+          'PREPARING',
+          'CONFIRMED',
+          'CREATED',
+        ]);
 
       if (periodError) {
         this.logger.error(
@@ -402,10 +462,16 @@ export class AnalyticsService {
       const periodOrdersList = periodOrders || [];
 
       // Aggregate by customer (using phone as unique identifier)
-      const customerMap = new Map<string, { orderCount: number; totalSpent: number }>();
+      const customerMap = new Map<
+        string,
+        { orderCount: number; totalSpent: number }
+      >();
       allOrdersList.forEach((order) => {
         const phone = order.customer_phone || 'anonymous';
-        const current = customerMap.get(phone) || { orderCount: 0, totalSpent: 0 };
+        const current = customerMap.get(phone) || {
+          orderCount: 0,
+          totalSpent: 0,
+        };
         current.orderCount += 1;
         current.totalSpent += order.total_amount || 0;
         customerMap.set(phone, current);
@@ -418,7 +484,11 @@ export class AnalyticsService {
         // Check if this is their first order
         const firstOrder = allOrdersList
           .filter((o) => o.customer_phone === phone)
-          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+          .sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime(),
+          )[0];
 
         if (
           firstOrder &&
@@ -440,16 +510,21 @@ export class AnalyticsService {
         (sum, c) => sum + c.totalSpent,
         0,
       );
-      const clv = totalCustomers > 0 ? Math.round(totalRevenue / totalCustomers) : 0;
+      const clv =
+        totalCustomers > 0 ? Math.round(totalRevenue / totalCustomers) : 0;
 
       // Repeat customer rate
       const repeatCustomerRate =
-        totalCustomers > 0 ? parseFloat(((returningCustomers / totalCustomers) * 100).toFixed(2)) : 0;
+        totalCustomers > 0
+          ? parseFloat(((returningCustomers / totalCustomers) * 100).toFixed(2))
+          : 0;
 
       // Average orders per customer
       const totalOrders = allOrdersList.length;
       const avgOrdersPerCustomer =
-        totalCustomers > 0 ? parseFloat((totalOrders / totalCustomers).toFixed(2)) : 0;
+        totalCustomers > 0
+          ? parseFloat((totalOrders / totalCustomers).toFixed(2))
+          : 0;
 
       return {
         totalCustomers,

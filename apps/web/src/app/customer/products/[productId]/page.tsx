@@ -2,6 +2,8 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
+import { apiClient } from "@/lib/api-client";
 import { createClient } from "@/lib/supabaseClient";
 
 // ============================================================
@@ -44,21 +46,9 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
@@ -105,29 +95,16 @@ function ProductDetailPageContent() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/customer/branches`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`매장 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(data);
 
-        // If new product, set first branch as default
         if (isNew && data.length > 0 && !initialBranchId) {
           setFormData((prev) => ({ ...prev, branchId: data[0].id }));
           setUserRole(data[0].myRole);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "매장 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       }
     };
 
@@ -142,19 +119,8 @@ function ProductDetailPageContent() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/products/${productId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`상품 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Product>(`/customer/products/${productId}`);
         setProduct(data);
         setFormData({
           branchId: data.branch_id || "",
@@ -167,23 +133,18 @@ function ProductDetailPageContent() {
         });
         setImagePreviewUrl(data.image_url || null);
 
-        // Get branch role
-        const token2 = await getAccessToken();
-        const branchRes = await fetch(`${API_BASE}/customer/branches`, {
-          headers: {
-            Authorization: `Bearer ${token2}`,
-          },
-        });
-        if (branchRes.ok) {
-          const branchesData = await branchRes.json();
-          const branch = branchesData.find((b: Branch) => b.id === data.branch_id);
+        try {
+          const branchesData = await apiClient.get<Branch[]>("/customer/branches");
+          const branch = branchesData.find((b) => b.id === data.branch_id);
           if (branch) {
             setUserRole(branch.myRole);
           }
+        } catch (e) {
+          console.error(e);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "상품 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -200,22 +161,14 @@ function ProductDetailPageContent() {
     }
 
     const loadCategories = async () => {
+      if (!formData.branchId) {
+        setCategories([]);
+        return;
+      }
+
       try {
-        const token = await getAccessToken();
-
-        const res = await fetch(
-          `${API_BASE}/customer/products/categories?branchId=${encodeURIComponent(formData.branchId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          setCategories(data.filter((c: ProductCategory) => c.isActive));
-        }
+        const data = await apiClient.get<ProductCategory[]>(`/customer/products/categories?branchId=${encodeURIComponent(formData.branchId)}`);
+        setCategories(data.filter((c: ProductCategory) => c.isActive));
       } catch (e) {
         console.error(e);
       }
@@ -264,104 +217,66 @@ function ProductDetailPageContent() {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert("상품명을 입력하세요");
+      alert("???? ??????");
       return;
     }
 
     if (!formData.branchId) {
-      alert("매장을 선택하세요");
+      alert("??? ??????");
       return;
     }
 
     if (!formData.categoryId) {
-      alert("카테고리를 선택하세요");
+      alert("????? ??????");
       return;
     }
 
     if (formData.price < 0) {
-      alert("가격을 0 이상으로 입력하세요");
+      alert("??? 0 ???? ??????");
       return;
     }
 
     try {
       setSaveLoading(true);
       setError(null);
-      const token = await getAccessToken();
 
       if (isNew) {
-        // Create product
-        const res = await fetch(`${API_BASE}/customer/products`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            branchId: formData.branchId,
-            name: formData.name,
-            categoryId: formData.categoryId,
-            description: formData.description || null,
-            price: formData.price,
-            imageUrl: formData.imageUrl || null,
-            isActive: formData.isActive,
-          }),
+        const data = await apiClient.post<Product>("/customer/products", {
+          branchId: formData.branchId,
+          name: formData.name,
+          categoryId: formData.categoryId,
+          description: formData.description || null,
+          price: formData.price,
+          imageUrl: formData.imageUrl || null,
+          isActive: formData.isActive,
         });
 
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`상품 등록 실패: ${res.status} ${text}`);
-        }
-
-        const data = await res.json();
-
-        // Upload image if provided
         if (imageFile) {
           const uploadedUrl = await uploadImage(data.id);
           if (uploadedUrl) {
-            await fetch(`${API_BASE}/customer/products/${data.id}`, {
-              method: "PATCH",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                imageUrl: uploadedUrl,
-              }),
+            await apiClient.patch("/customer/products/" + data.id, {
+              imageUrl: uploadedUrl,
             });
           }
         }
 
-        alert("상품이 등록되었습니다");
-        router.push(`/customer/products/${data.id}`);
+        alert("??? ???????.");
+        router.push("/customer/products/" + data.id);
       } else {
-        // Update product
         let uploadedUrl = formData.imageUrl;
         if (imageFile) {
           uploadedUrl = await uploadImage(productId);
         }
 
-        const res = await fetch(`${API_BASE}/customer/products/${productId}`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: formData.name,
-            categoryId: formData.categoryId,
-            description: formData.description || null,
-            price: formData.price,
-            imageUrl: uploadedUrl,
-            isActive: formData.isActive,
-          }),
+        const updated = await apiClient.patch<Product>("/customer/products/" + productId, {
+          name: formData.name,
+          categoryId: formData.categoryId,
+          description: formData.description || null,
+          price: formData.price,
+          imageUrl: uploadedUrl,
+          isActive: formData.isActive,
         });
 
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`상품 수정 실패: ${res.status} ${text}`);
-        }
-
-        const updated = await res.json();
         setProduct(updated);
         setFormData({
           branchId: updated.branch_id || "",
@@ -374,40 +289,28 @@ function ProductDetailPageContent() {
         });
         setImagePreviewUrl(updated.image_url || null);
         setIsEditing(false);
-        alert("상품 정보가 수정되었습니다");
+        alert("?? ??? ???????.");
       }
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "저장 중 오류 발생");
+      alert(e instanceof Error ? e.message : "?? ? ?? ??");
     } finally {
       setSaveLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`"${product?.name}" 상품을 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${product?.name}" ??? ?????????`)) return;
 
     try {
       setDeleteLoading(true);
-      const token = await getAccessToken();
+      await apiClient.delete("/customer/products/" + productId);
 
-      const res = await fetch(`${API_BASE}/customer/products/${productId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`상품 삭제 실패: ${res.status} ${text}`);
-      }
-
-      alert("상품이 삭제되었습니다");
+      alert("??? ???????.");
       router.push("/customer/products");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "삭제 중 오류 발생");
+      alert(e instanceof Error ? e.message : "?? ? ?? ??");
     } finally {
       setDeleteLoading(false);
     }
@@ -548,11 +451,14 @@ function ProductDetailPageContent() {
                 <p className="text-text-tertiary text-xs mt-2">이미지 업로드 중...</p>
               )}
               {imagePreviewUrl && (
-                <img
-                  src={imagePreviewUrl}
-                  alt="상품 미리보기"
-                  className="mt-3 w-full max-w-[240px] rounded-xl"
-                />
+                <Image
+                src={imagePreviewUrl}
+                alt="?? ????"
+                width={240}
+                height={240}
+                className="mt-3 w-full max-w-[240px] rounded-xl h-auto"
+                unoptimized
+              />
               )}
             </div>
 
@@ -600,11 +506,13 @@ function ProductDetailPageContent() {
           product && (
             <div>
               {product.image_url && (
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  className="w-full max-w-[400px] rounded-xl object-cover mb-6"
-                />
+                <Image
+                src={product.image_url}
+                alt={product.name}
+                width={400}
+                height={300}
+                className="w-full max-w-[400px] rounded-xl object-cover mb-6 h-auto"
+              />
               )}
 
               <h2 className="text-xl font-bold mb-4 text-foreground">{product.name}</h2>

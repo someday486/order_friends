@@ -24,16 +24,22 @@ export class NotificationsService {
   private readonly mockMode: boolean;
 
   constructor(private readonly configService: ConfigService) {
-    this.sendGridApiKey = this.configService.get<string>('SENDGRID_API_KEY') || '';
+    this.sendGridApiKey =
+      this.configService.get<string>('SENDGRID_API_KEY') || '';
     this.smsApiKey = this.configService.get<string>('SMS_API_KEY') || '';
-    this.fromEmail = this.configService.get<string>('FROM_EMAIL') || 'noreply@orderfriends.com';
-    this.fromName = this.configService.get<string>('FROM_NAME') || 'OrderFriends';
+    this.fromEmail =
+      this.configService.get<string>('FROM_EMAIL') ||
+      'noreply@orderfriends.com';
+    this.fromName =
+      this.configService.get<string>('FROM_NAME') || 'OrderFriends';
 
     // Mock mode if no API keys configured
     this.mockMode = !this.sendGridApiKey || !this.smsApiKey;
 
     if (this.mockMode) {
-      this.logger.warn('Notification service running in MOCK MODE - API keys not configured');
+      this.logger.warn(
+        'Notification service running in MOCK MODE - API keys not configured',
+      );
     } else {
       this.logger.log('Notification service initialized with external APIs');
     }
@@ -73,7 +79,9 @@ export class NotificationsService {
     orderData: OrderStatusUpdateEmailData,
     recipientEmail: string,
   ): Promise<NotificationResult> {
-    this.logger.log(`Sending order status update email for order: ${orderId} (${orderData.oldStatus} ??${orderData.newStatus})`);
+    this.logger.log(
+      `Sending order status update email for order: ${orderId} (${orderData.oldStatus} ??${orderData.newStatus})`,
+    );
 
     const template = this.getOrderStatusUpdateEmailTemplate(orderData);
 
@@ -134,7 +142,9 @@ export class NotificationsService {
     stockData: LowStockAlertEmailData,
     recipientEmail: string,
   ): Promise<NotificationResult> {
-    this.logger.log(`Sending low stock alert for product: ${productId} at branch: ${branchId}`);
+    this.logger.log(
+      `Sending low stock alert for product: ${productId} at branch: ${branchId}`,
+    );
 
     const template = this.getLowStockAlertEmailTemplate(stockData);
 
@@ -245,12 +255,17 @@ export class NotificationsService {
         //
         // await sgMail.send(msg);
 
-        this.logger.warn('SendGrid integration not implemented yet - using mock mode');
+        this.logger.warn(
+          'SendGrid integration not implemented yet - using mock mode',
+        );
         result.success = true;
         result.sentAt = new Date().toISOString();
       }
     } catch (error) {
-      this.logger.error(`Failed to send email to ${to}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to send email to ${to}: ${error.message}`,
+        error.stack,
+      );
       result.success = false;
       result.errorMessage = error.message;
 
@@ -299,12 +314,17 @@ export class NotificationsService {
         //   to,
         // });
 
-        this.logger.warn('SMS API integration not implemented yet - using mock mode');
+        this.logger.warn(
+          'SMS API integration not implemented yet - using mock mode',
+        );
         result.success = true;
         result.sentAt = new Date().toISOString();
       }
     } catch (error) {
-      this.logger.error(`Failed to send SMS to ${to}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to send SMS to ${to}: ${error.message}`,
+        error.stack,
+      );
       result.success = false;
       result.errorMessage = error.message;
 
@@ -698,7 +718,9 @@ Alerted At: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
    * TODO: Implement with queue system
    */
   async retryNotification(notificationId: string): Promise<NotificationResult> {
-    this.logger.warn(`Retry notification not implemented yet: ${notificationId}`);
+    this.logger.warn(
+      `Retry notification not implemented yet: ${notificationId}`,
+    );
     return {
       success: false,
       type: NotificationType.EMAIL,
@@ -712,8 +734,9 @@ Alerted At: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
    * TODO: Implement with database
    */
   async getNotificationStatus(notificationId: string): Promise<any> {
-    this.logger.warn(`Get notification status not implemented yet: ${notificationId}`);
+    this.logger.warn(
+      `Get notification status not implemented yet: ${notificationId}`,
+    );
     return null;
   }
 }
-

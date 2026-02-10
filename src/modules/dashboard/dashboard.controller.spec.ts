@@ -41,7 +41,11 @@ describe('DashboardController', () => {
     const result = await controller.getStats(makeReq(), 'brand-1');
 
     expect(result).toEqual({ totalOrders: 10 });
-    expect(mockService.getStats).toHaveBeenCalledWith('token', 'brand-1', false);
+    expect(mockService.getStats).toHaveBeenCalledWith(
+      'token',
+      'brand-1',
+      false,
+    );
   });
 
   it('getStats should throw when access token is missing', async () => {
@@ -51,8 +55,8 @@ describe('DashboardController', () => {
   });
 
   it('getStats should throw when brandId is missing', async () => {
-    await expect(
-      controller.getStats(makeReq(), ''),
-    ).rejects.toThrow(BadRequestException);
+    await expect(controller.getStats(makeReq(), '')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });

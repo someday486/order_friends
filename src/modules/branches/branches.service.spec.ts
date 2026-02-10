@@ -94,7 +94,10 @@ describe('BranchesService', () => {
   });
 
   it('getBranch should throw when not found', async () => {
-    adminSb.single.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
+    adminSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'x' },
+    });
 
     await expect(service.getBranch('token', 'b1', true)).rejects.toThrow(
       NotFoundException,
@@ -245,10 +248,11 @@ describe('BranchesService', () => {
       error: null,
     });
 
-    const result = await service.createBranch(
-      'token',
-      { brandId: 'brand', name: 'Branch', slug: 's' } as any,
-    );
+    const result = await service.createBranch('token', {
+      brandId: 'brand',
+      name: 'Branch',
+      slug: 's',
+    } as any);
 
     expect(result.id).toBe('b2');
   });
@@ -260,7 +264,11 @@ describe('BranchesService', () => {
     });
 
     await expect(
-      service.createBranch('token', { brandId: 'b', name: 'n', slug: 's' } as any, true),
+      service.createBranch(
+        'token',
+        { brandId: 'b', name: 'n', slug: 's' } as any,
+        true,
+      ),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -271,7 +279,11 @@ describe('BranchesService', () => {
     });
 
     await expect(
-      service.createBranch('token', { brandId: 'b', name: 'n', slug: 's' } as any),
+      service.createBranch('token', {
+        brandId: 'b',
+        name: 'n',
+        slug: 's',
+      } as any),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -282,7 +294,11 @@ describe('BranchesService', () => {
     });
 
     await expect(
-      service.createBranch('token', { brandId: 'b', name: 'n', slug: 's' } as any, true),
+      service.createBranch(
+        'token',
+        { brandId: 'b', name: 'n', slug: 's' } as any,
+        true,
+      ),
     ).rejects.toThrow('[branches.createBranch]');
   });
 
@@ -293,7 +309,11 @@ describe('BranchesService', () => {
     });
 
     await expect(
-      service.createBranch('token', { brandId: 'b', name: 'n', slug: 's' } as any),
+      service.createBranch('token', {
+        brandId: 'b',
+        name: 'n',
+        slug: 's',
+      } as any),
     ).rejects.toThrow('[branches.createBranch]');
   });
 
@@ -312,10 +332,11 @@ describe('BranchesService', () => {
       error: null,
     });
 
-    const result = await service.createBranch(
-      'token',
-      { brandId: 'brand', name: 'Branch', slug: 's' } as any,
-    );
+    const result = await service.createBranch('token', {
+      brandId: 'brand',
+      name: 'Branch',
+      slug: 's',
+    } as any);
 
     expect(result.slug).toBe('');
     expect(result.logoUrl).toBeNull();

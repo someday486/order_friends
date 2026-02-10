@@ -29,7 +29,9 @@ export class CustomerBrandsService {
 
     const { data, error } = await sb
       .from('brands')
-      .select('id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .in('id', brandIds)
       .order('created_at', { ascending: false });
 
@@ -77,7 +79,9 @@ export class CustomerBrandsService {
 
     const { data, error } = await sb
       .from('brands')
-      .select('id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .eq('id', brandId)
       .single();
 
@@ -122,13 +126,21 @@ export class CustomerBrandsService {
     const sb = this.supabase.adminClient();
 
     // 수정 가능한 필드만 허용
-    const { name, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url } = updateData;
+    const {
+      name,
+      biz_name,
+      biz_reg_no,
+      logo_url,
+      cover_image_url,
+      thumbnail_url,
+    } = updateData;
     const updateFields: any = {};
     if (name !== undefined) updateFields.name = name;
     if (biz_name !== undefined) updateFields.biz_name = biz_name;
     if (biz_reg_no !== undefined) updateFields.biz_reg_no = biz_reg_no;
     if (logo_url !== undefined) updateFields.logo_url = logo_url;
-    if (cover_image_url !== undefined) updateFields.cover_image_url = cover_image_url;
+    if (cover_image_url !== undefined)
+      updateFields.cover_image_url = cover_image_url;
     if (thumbnail_url !== undefined) updateFields.thumbnail_url = thumbnail_url;
 
     const { data, error } = await sb

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -39,21 +39,9 @@ type DashboardStats = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function getStatusVariant(status: string): "info" | "success" | "warning" | "danger" | "default" {
   switch (status) {
@@ -88,23 +76,12 @@ export default function CustomerDashboardPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/dashboard`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`통계 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<DashboardStats>("/customer/dashboard");
         setStats(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "통계 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }

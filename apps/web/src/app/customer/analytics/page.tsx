@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { apiClient } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface RevenueByDay {
@@ -128,25 +129,11 @@ function AnalyticsContent() {
           endDate,
         });
 
-        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-        const headers = {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        };
-
-        const [sales, products, orders, customers] = await Promise.all([
-          fetch(`${baseUrl}/customer/analytics/sales?${params}`, {
-            headers,
-          }).then((r) => r.json()),
-          fetch(`${baseUrl}/customer/analytics/products?${params}`, {
-            headers,
-          }).then((r) => r.json()),
-          fetch(`${baseUrl}/customer/analytics/orders?${params}`, {
-            headers,
-          }).then((r) => r.json()),
-          fetch(`${baseUrl}/customer/analytics/customers?${params}`, {
-            headers,
-          }).then((r) => r.json()),
+                const [sales, products, orders, customers] = await Promise.all([
+          apiClient.get(`/customer/analytics/sales?${params}`),
+          apiClient.get(`/customer/analytics/products?${params}`),
+          apiClient.get(`/customer/analytics/orders?${params}`),
+          apiClient.get(`/customer/analytics/customers?${params}`),
         ]);
 
         setSalesData(sales);

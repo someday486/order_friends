@@ -56,7 +56,11 @@ describe('CacheService', () => {
 
     await service.set('key', { ok: true });
 
-    expect(cacheManager.set).toHaveBeenCalledWith('key', { ok: true }, undefined);
+    expect(cacheManager.set).toHaveBeenCalledWith(
+      'key',
+      { ok: true },
+      undefined,
+    );
   });
 
   it('set should handle errors', async () => {

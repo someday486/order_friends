@@ -104,7 +104,8 @@ export class CustomerProductsController {
   @Post('categories')
   @ApiOperation({
     summary: '카테고리 생성',
-    description: '내가 OWNER 또는 ADMIN 권한을 가진 지점에 카테고리를 생성합니다.',
+    description:
+      '내가 OWNER 또는 ADMIN 권한을 가진 지점에 카테고리를 생성합니다.',
   })
   @ApiResponse({ status: 201, description: '카테고리 생성 성공' })
   @ApiResponse({ status: 403, description: '권한 없음' })
@@ -185,7 +186,8 @@ export class CustomerProductsController {
   @Delete('categories/:categoryId')
   @ApiOperation({
     summary: '카테고리 삭제',
-    description: '카테고리를 삭제합니다. 해당 카테고리의 상품은 카테고리 없음 상태가 됩니다.',
+    description:
+      '카테고리를 삭제합니다. 해당 카테고리의 상품은 카테고리 없음 상태가 됩니다.',
   })
   @ApiParam({ name: 'categoryId', description: '카테고리 ID' })
   @ApiResponse({ status: 200, description: '카테고리 삭제 성공' })

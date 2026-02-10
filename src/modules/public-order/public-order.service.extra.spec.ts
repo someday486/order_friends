@@ -30,19 +30,30 @@ describe('PublicOrderService - Public Queries', () => {
     };
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };
-    const adminClient = { from: jest.fn((table: string) => adminChains[table]) };
+    const adminClient = {
+      from: jest.fn((table: string) => adminChains[table]),
+    };
 
     const supabase = {
       anonClient: jest.fn(() => anonClient),
       adminClient: jest.fn(() => adminClient),
     };
 
-    service = new PublicOrderService(supabase as SupabaseService, {} as InventoryService);
+    service = new PublicOrderService(
+      supabase as SupabaseService,
+      {} as InventoryService,
+    );
   });
 
   it('getBranch should return branch info', async () => {
     anonChains.branches.single.mockResolvedValueOnce({
-      data: { id: 'b1', name: 'Branch', logo_url: null, cover_image_url: null, brands: { name: 'Brand' } },
+      data: {
+        id: 'b1',
+        name: 'Branch',
+        logo_url: null,
+        cover_image_url: null,
+        brands: { name: 'Brand' },
+      },
       error: null,
     });
 
@@ -52,16 +63,26 @@ describe('PublicOrderService - Public Queries', () => {
   });
 
   it('getBranch should throw when missing', async () => {
-    anonChains.branches.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    anonChains.branches.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
     await expect(service.getBranch('b1')).rejects.toThrow(NotFoundException);
   });
 
   it('getBranchBySlug should handle not found and duplicates', async () => {
     anonChains.branches.limit.mockResolvedValueOnce({ data: [], error: null });
-    await expect(service.getBranchBySlug('slug')).rejects.toThrow(NotFoundException);
+    await expect(service.getBranchBySlug('slug')).rejects.toThrow(
+      NotFoundException,
+    );
 
-    anonChains.branches.limit.mockResolvedValueOnce({ data: [{ id: 'b1' }, { id: 'b2' }], error: null });
-    await expect(service.getBranchBySlug('slug')).rejects.toThrow(ConflictException);
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [{ id: 'b1' }, { id: 'b2' }],
+      error: null,
+    });
+    await expect(service.getBranchBySlug('slug')).rejects.toThrow(
+      ConflictException,
+    );
   });
 
   it('getBranchBySlug should prefer branch images when present', async () => {
@@ -73,7 +94,11 @@ describe('PublicOrderService - Public Queries', () => {
           slug: 'slug',
           logo_url: 'logo.png',
           cover_image_url: 'cover.png',
-          brands: { name: undefined, logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+          brands: {
+            name: undefined,
+            logo_url: 'brand-logo',
+            cover_image_url: 'brand-cover',
+          },
         },
       ],
       error: null,
@@ -87,8 +112,13 @@ describe('PublicOrderService - Public Queries', () => {
   });
 
   it('getBranchBySlug should throw on error', async () => {
-    anonChains.branches.limit.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
-    await expect(service.getBranchBySlug('slug')).rejects.toThrow(NotFoundException);
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+    await expect(service.getBranchBySlug('slug')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('getBranchByBrandSlug should return branch', async () => {
@@ -102,10 +132,13 @@ describe('PublicOrderService - Public Queries', () => {
   });
 
   it('getBranchByBrandSlug should throw on error', async () => {
-    anonChains.branches.limit.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
-    await expect(service.getBranchByBrandSlug('brand', 'branch')).rejects.toThrow(
-      NotFoundException,
-    );
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+    await expect(
+      service.getBranchByBrandSlug('brand', 'branch'),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('getPriceFromRow should handle fallbacks', () => {
@@ -155,7 +188,10 @@ describe('PublicOrderService - Public Queries', () => {
   it('getProducts should retry when flags are missing', async () => {
     const responses = [
       { data: null, error: { message: 'column \"is_hidden\" does not exist' } },
-      { data: null, error: { message: 'column \"is_sold_out\" does not exist' } },
+      {
+        data: null,
+        error: { message: 'column \"is_sold_out\" does not exist' },
+      },
       { data: [{ id: 'p1', name: 'P', price_amount: 8 }], error: null },
     ];
 
@@ -174,7 +210,9 @@ describe('PublicOrderService - Public Queries', () => {
       .mockReturnValueOnce(anonChains.products)
       .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
-    await expect(service.getProducts('b1')).rejects.toThrow('상품 목록 조회 실패');
+    await expect(service.getProducts('b1')).rejects.toThrow(
+      '상품 목록 조회 실패',
+    );
   });
 
   it('getOrder should resolve by id or orderNo', async () => {
@@ -204,7 +242,14 @@ describe('PublicOrderService - Public Queries', () => {
           status: 'CREATED',
           total_amount: 10,
           created_at: 't',
-          order_items: [{ product_name_snapshot: 'P', qty: 1, unit_price: 10, order_item_options: [] }],
+          order_items: [
+            {
+              product_name_snapshot: 'P',
+              qty: 1,
+              unit_price: 10,
+              order_item_options: [],
+            },
+          ],
         },
         error: null,
       });
@@ -221,7 +266,9 @@ describe('PublicOrderService - Public Queries', () => {
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null });
 
-    await expect(service.getOrder('missing')).rejects.toThrow(NotFoundException);
+    await expect(service.getOrder('missing')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('getCategories should return sorted categories', async () => {

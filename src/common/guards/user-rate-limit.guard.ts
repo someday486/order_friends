@@ -79,17 +79,16 @@ export class UserRateLimitGuard implements CanActivate {
     }
 
     // Increment request count
-    await this.cacheManager.set(
-      key,
-      current + 1,
-      options.duration * 1000,
-    );
+    await this.cacheManager.set(key, current + 1, options.duration * 1000);
 
     // Add rate limit headers
     const response = context.switchToHttp().getResponse();
     response.setHeader('X-RateLimit-Limit', options.points);
     response.setHeader('X-RateLimit-Remaining', options.points - current - 1);
-    response.setHeader('X-RateLimit-Reset', Date.now() + options.duration * 1000);
+    response.setHeader(
+      'X-RateLimit-Reset',
+      Date.now() + options.duration * 1000,
+    );
 
     return true;
   }

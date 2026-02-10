@@ -65,6 +65,7 @@ __decorate([
 ], PreparePaymentRequest.prototype, "paymentMethod", void 0);
 class ConfirmPaymentRequest {
     orderId;
+    idempotencyKey;
     paymentKey;
     amount;
 }
@@ -77,6 +78,15 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ConfirmPaymentRequest.prototype, "orderId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '결제 idempotency 키 (재시도 방지용)',
+        example: 'payment-idem-20260210-001',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ConfirmPaymentRequest.prototype, "idempotencyKey", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Toss Payments 결제 키',

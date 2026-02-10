@@ -22,15 +22,19 @@ describe('AuthGuard', () => {
   it('should throw when missing bearer token', async () => {
     const { guard } = makeGuard({});
 
-    await expect(guard.canActivate(makeContext({ headers: {} }))).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(
+      guard.canActivate(makeContext({ headers: {} })),
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('should throw on invalid token', async () => {
     const { guard, supabase } = makeGuard({});
     supabase.userClient.mockReturnValue({
-      auth: { getUser: jest.fn().mockResolvedValue({ data: null, error: { message: 'bad' } }) },
+      auth: {
+        getUser: jest
+          .fn()
+          .mockResolvedValue({ data: null, error: { message: 'bad' } }),
+      },
     });
 
     await expect(
@@ -162,18 +166,18 @@ describe('AuthGuard', () => {
 
   it('should detect admin from metadata flags', () => {
     const { guard } = makeGuard({});
-    expect((guard as any).isAdminFromMetadata({ app_metadata: { is_admin: true } })).toBe(
-      true,
-    );
-    expect((guard as any).isAdminFromMetadata({ user_metadata: { is_admin: true } })).toBe(
-      true,
-    );
-    expect((guard as any).isAdminFromMetadata({ app_metadata: { role: 'admin' } })).toBe(
-      true,
-    );
-    expect((guard as any).isAdminFromMetadata({ user_metadata: { role: 'admin' } })).toBe(
-      true,
-    );
+    expect(
+      (guard as any).isAdminFromMetadata({ app_metadata: { is_admin: true } }),
+    ).toBe(true);
+    expect(
+      (guard as any).isAdminFromMetadata({ user_metadata: { is_admin: true } }),
+    ).toBe(true);
+    expect(
+      (guard as any).isAdminFromMetadata({ app_metadata: { role: 'admin' } }),
+    ).toBe(true);
+    expect(
+      (guard as any).isAdminFromMetadata({ user_metadata: { role: 'admin' } }),
+    ).toBe(true);
     expect((guard as any).isAdminFromMetadata({})).toBe(false);
   });
 });

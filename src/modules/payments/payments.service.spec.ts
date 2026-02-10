@@ -65,11 +65,16 @@ describe('PaymentsService', () => {
   it('isUuid should validate', () => {
     const service = setupService();
     expect((service as any).isUuid('bad')).toBe(false);
-    expect((service as any).isUuid('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
+    expect(
+      (service as any).isUuid('123e4567-e89b-12d3-a456-426614174000'),
+    ).toBe(true);
   });
 
   it('constructor should honor timeout and mock mode env', () => {
-    const service = setupService({ TOSS_TIMEOUT_MS: '12000', TOSS_MOCK_MODE: 'yes' });
+    const service = setupService({
+      TOSS_TIMEOUT_MS: '12000',
+      TOSS_MOCK_MODE: 'yes',
+    });
     expect((service as any).tossTimeoutMs).toBe(12000);
     expect((service as any).tossMockMode).toBe(true);
 
@@ -105,7 +110,10 @@ describe('PaymentsService', () => {
   it('resolveOrderId should resolve uuid with branch filter', async () => {
     const service = setupService();
     const uuid = '123e4567-e89b-12d3-a456-426614174000';
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: uuid }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: uuid },
+      error: null,
+    });
 
     const resolved = await (service as any).resolveOrderId(
       mockSb,
@@ -130,9 +138,9 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
-    await expect((service as any).getOrderForPayment('missing')).rejects.toBeInstanceOf(
-      OrderNotFoundException,
-    );
+    await expect(
+      (service as any).getOrderForPayment('missing'),
+    ).rejects.toBeInstanceOf(OrderNotFoundException);
   });
 
   it('preparePayment should throw when order not found', async () => {
@@ -165,7 +173,10 @@ describe('PaymentsService', () => {
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null });
 
-    const result = await service.preparePayment({ orderId: 'o1', amount: 10 } as any);
+    const result = await service.preparePayment({
+      orderId: 'o1',
+      amount: 10,
+    } as any);
     expect(result.orderId).toBe('o1');
     expect(result.amount).toBe(10);
   });
@@ -190,9 +201,15 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
-    const result = await service.preparePayment({ orderId: 'o1', amount: 10 } as any);
+    const result = await service.preparePayment({
+      orderId: 'o1',
+      amount: 10,
+    } as any);
     expect(result.orderName).toBe('Coffee 외 1건');
   });
 
@@ -213,9 +230,15 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
-    const result = await service.preparePayment({ orderId: 'o1', amount: 10 } as any);
+    const result = await service.preparePayment({
+      orderId: 'o1',
+      amount: 10,
+    } as any);
     expect(result.orderName).toBe('상품');
     expect(result.orderNo).toBeNull();
     expect(result.customerName).toBe('怨좉컼');
@@ -330,7 +353,11 @@ describe('PaymentsService', () => {
       .mockResolvedValueOnce({ data: null, error: null });
 
     await expect(
-      service.confirmPayment({ orderId: 'missing', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'missing',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(OrderNotFoundException);
   });
 
@@ -351,13 +378,20 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     paymentsChain.single.mockResolvedValueOnce({
       data: { id: 'pay1', amount: 10 },
       error: null,
     });
 
-    const result = await service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any);
+    const result = await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
     expect(result.status).toBe(PaymentStatus.SUCCESS);
   });
 
@@ -379,7 +413,12 @@ describe('PaymentsService', () => {
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'pay1', status: PaymentStatus.SUCCESS, amount: 10, paid_at: 't' },
+      data: {
+        id: 'pay1',
+        status: PaymentStatus.SUCCESS,
+        amount: 10,
+        paid_at: 't',
+      },
       error: null,
     });
     const result = await service.confirmPayment({
@@ -613,7 +652,11 @@ describe('PaymentsService', () => {
       });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 9, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 9,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(PaymentAmountMismatchException);
   });
 
@@ -635,12 +678,21 @@ describe('PaymentsService', () => {
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'pay1', status: PaymentStatus.SUCCESS, amount: 5, paid_at: 't' },
+      data: {
+        id: 'pay1',
+        status: PaymentStatus.SUCCESS,
+        amount: 5,
+        paid_at: 't',
+      },
       error: null,
     });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(PaymentAmountMismatchException);
   });
 
@@ -670,12 +722,19 @@ describe('PaymentsService', () => {
       error: null,
     });
 
-    const result = await service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any);
+    const result = await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
     expect(result.paymentId).toBe('pay1');
   });
 
   it('confirmPayment should throw provider exception when api fails', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+    });
     (global as any).fetch = jest.fn().mockRejectedValue(new Error('fail'));
 
     ordersChain.maybeSingle
@@ -693,16 +752,26 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     paymentsChain.insert.mockResolvedValueOnce({ data: null, error: null });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(PaymentProviderException);
   });
 
   it('confirmPayment should mark existing payment as failed on provider error', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+    });
     (service as any).callTossPaymentsConfirmApi = jest
       .fn()
       .mockRejectedValue(new Error('provider down'));
@@ -723,7 +792,12 @@ describe('PaymentsService', () => {
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'pay1', order_id: 'o1', status: PaymentStatus.PENDING, idempotency_key: 'idem-1' },
+      data: {
+        id: 'pay1',
+        order_id: 'o1',
+        status: PaymentStatus.PENDING,
+        idempotency_key: 'idem-1',
+      },
       error: null,
     });
 
@@ -767,12 +841,21 @@ describe('PaymentsService', () => {
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'pay1', order_id: 'o1', status: PaymentStatus.PENDING, idempotency_key: null },
+      data: {
+        id: 'pay1',
+        order_id: 'o1',
+        status: PaymentStatus.PENDING,
+        idempotency_key: null,
+      },
       error: null,
     });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(PaymentProviderException);
 
     expect(paymentsChain.update).toHaveBeenCalledWith(
@@ -807,12 +890,19 @@ describe('PaymentsService', () => {
     });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(BusinessException);
   });
 
   it('confirmPayment should throw when secret key missing in production', async () => {
-    const service = setupService({ NODE_ENV: 'production', TOSS_MOCK_MODE: 'false' });
+    const service = setupService({
+      NODE_ENV: 'production',
+      TOSS_MOCK_MODE: 'false',
+    });
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
@@ -828,15 +918,26 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(PaymentProviderException);
   });
 
   it('confirmPayment should succeed with real API response', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: async () => JSON.stringify({ paymentKey: 'pk', approvedAt: 't' }),
@@ -857,18 +958,29 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     paymentsChain.single.mockResolvedValueOnce({
       data: { id: 'pay1', amount: 10 },
       error: null,
     });
 
-    const result = await service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any);
+    const result = await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
     expect(result.paymentId).toBe('pay1');
   });
 
   it('confirmPayment should use dto paymentKey when provider response lacks key', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: async () => JSON.stringify({ approvedAt: 't' }),
@@ -889,13 +1001,20 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     paymentsChain.single.mockResolvedValueOnce({
       data: { id: 'pay1', amount: 10 },
       error: null,
     });
 
-    await service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any);
+    await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
 
     expect(paymentsChain.insert).toHaveBeenCalledWith(
       expect.objectContaining({ provider_payment_id: 'pk' }),
@@ -903,7 +1022,11 @@ describe('PaymentsService', () => {
   });
 
   it('confirmPayment should throw when insert fails', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: async () => JSON.stringify({ paymentKey: 'pk', approvedAt: 't' }),
@@ -924,14 +1047,21 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     paymentsChain.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'fail' },
     });
 
     await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
+      service.confirmPayment({
+        orderId: 'o1',
+        amount: 10,
+        paymentKey: 'pk',
+      } as any),
     ).rejects.toBeInstanceOf(BusinessException);
   });
 
@@ -952,7 +1082,10 @@ describe('PaymentsService', () => {
         },
         error: null,
       });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     paymentsChain.single.mockResolvedValueOnce({
       data: null,
       error: { code: '23505', message: 'dup' },
@@ -981,23 +1114,42 @@ describe('PaymentsService', () => {
 
   it('getPaymentStatus should throw when payment missing', async () => {
     const service = setupService();
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
-    await expect(service.getPaymentStatus('o1')).rejects.toBeInstanceOf(PaymentNotFoundException);
+    await expect(service.getPaymentStatus('o1')).rejects.toBeInstanceOf(
+      PaymentNotFoundException,
+    );
   });
 
   it('getPaymentStatus should throw on fetch error', async () => {
     const service = setupService();
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
-    await expect(service.getPaymentStatus('o1')).rejects.toBeInstanceOf(BusinessException);
+    await expect(service.getPaymentStatus('o1')).rejects.toBeInstanceOf(
+      BusinessException,
+    );
   });
 
   it('getPaymentStatus should return status when payment exists', async () => {
     const service = setupService();
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -1027,7 +1179,10 @@ describe('PaymentsService', () => {
 
   it('getPaymentStatus should map defaults when nullable fields are missing', async () => {
     const service = setupService();
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -1128,7 +1283,9 @@ describe('PaymentsService', () => {
       count: null,
     });
 
-    await expect(service.getPayments('b1', { page: 1, limit: 10 })).rejects.toBeInstanceOf(BusinessException);
+    await expect(
+      service.getPayments('b1', { page: 1, limit: 10 }),
+    ).rejects.toBeInstanceOf(BusinessException);
   });
 
   it('getPaymentDetail should return detail and throw on not found', async () => {
@@ -1156,7 +1313,9 @@ describe('PaymentsService', () => {
     const result = await service.getPaymentDetail('p1', 'b1');
     expect(result.id).toBe('p1');
 
-    await expect(service.getPaymentDetail('missing', 'b1')).rejects.toBeInstanceOf(PaymentNotFoundException);
+    await expect(
+      service.getPaymentDetail('missing', 'b1'),
+    ).rejects.toBeInstanceOf(PaymentNotFoundException);
   });
 
   it('getPaymentDetail should map defaults when nullable fields missing', async () => {
@@ -1206,9 +1365,14 @@ describe('PaymentsService', () => {
 
   it('getPaymentDetail should throw on fetch error', async () => {
     const service = setupService();
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
-    await expect(service.getPaymentDetail('p1', 'b1')).rejects.toBeInstanceOf(BusinessException);
+    await expect(service.getPaymentDetail('p1', 'b1')).rejects.toBeInstanceOf(
+      BusinessException,
+    );
   });
 
   it('refundPayment should throw on fetch error and not found', async () => {
@@ -1227,7 +1391,11 @@ describe('PaymentsService', () => {
   });
 
   it('refundPayment should throw when provider payment key missing in non-mock mode', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -1246,7 +1414,10 @@ describe('PaymentsService', () => {
   });
 
   it('refundPayment should throw when secret key is missing in non-mock mode', async () => {
-    const service = setupService({ TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -1265,7 +1436,11 @@ describe('PaymentsService', () => {
   });
 
   it('refundPayment should update in non-mock mode', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: async () => JSON.stringify({ ok: true }),
@@ -1287,13 +1462,22 @@ describe('PaymentsService', () => {
       error: null,
     });
 
-    const result = await service.refundPayment('p1', 'b1', { amount: 10, reason: 'x' } as any);
+    const result = await service.refundPayment('p1', 'b1', {
+      amount: 10,
+      reason: 'x',
+    } as any);
     expect(result.status).toBe(PaymentStatus.REFUNDED);
   });
 
   it('refundPayment should throw when refund api fails with non-provider error', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
-    (service as any).callTossPaymentsRefundApi = jest.fn().mockRejectedValue(new Error('boom'));
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
+    (service as any).callTossPaymentsRefundApi = jest
+      .fn()
+      .mockRejectedValue(new Error('boom'));
 
     paymentsChain.maybeSingle.mockResolvedValueOnce({
       data: {
@@ -1335,7 +1519,11 @@ describe('PaymentsService', () => {
   });
 
   it('callTossApi should throw on non-ok response and abort', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -1354,7 +1542,11 @@ describe('PaymentsService', () => {
   });
 
   it('callTossApi should rethrow unexpected error', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockRejectedValue(new Error('boom'));
 
     await expect(
@@ -1363,29 +1555,45 @@ describe('PaymentsService', () => {
   });
 
   it('callTossApi should return raw body when response is not JSON', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: async () => 'not-json',
     });
 
-    const result = await (service as any).callTossApi('/payments/confirm', { a: 1 });
+    const result = await (service as any).callTossApi('/payments/confirm', {
+      a: 1,
+    });
     expect(result).toEqual({ raw: 'not-json' });
   });
 
   it('callTossApi should return null on empty response body', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: async () => '',
     });
 
-    const result = await (service as any).callTossApi('/payments/confirm', { a: 1 });
+    const result = await (service as any).callTossApi('/payments/confirm', {
+      a: 1,
+    });
     expect(result).toBeNull();
   });
 
   it('callTossApi should use HTTP status when error body is empty', async () => {
-    const service = setupService({ TOSS_SECRET_KEY: 'secret', TOSS_MOCK_MODE: 'false', NODE_ENV: 'production' });
+    const service = setupService({
+      TOSS_SECRET_KEY: 'secret',
+      TOSS_MOCK_MODE: 'false',
+      NODE_ENV: 'production',
+    });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 500,
@@ -1407,10 +1615,16 @@ describe('PaymentsService', () => {
 
   it('handleTossWebhook should log unhandled events and update log', async () => {
     const service = setupService();
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'p1', order_id: 'o1' }, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'p1', order_id: 'o1' },
+      error: null,
+    });
 
     await service.handleTossWebhook(
-      { eventType: 'UNKNOWN', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+      {
+        eventType: 'UNKNOWN',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+      } as any,
       { 'toss-signature': 'x' },
       Buffer.from('test'),
     );
@@ -1418,12 +1632,18 @@ describe('PaymentsService', () => {
 
   it('handleTossWebhook should skip processed update when payment is missing', async () => {
     const service = setupService();
-    paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     webhookChain.insert.mockResolvedValueOnce({ error: null });
     webhookChain.update.mockReturnValue(webhookChain);
 
     await service.handleTossWebhook(
-      { eventType: 'UNKNOWN', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+      {
+        eventType: 'UNKNOWN',
+        data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+      } as any,
       {},
       Buffer.from('test'),
     );
@@ -1432,22 +1652,36 @@ describe('PaymentsService', () => {
   });
 
   it('handleTossWebhook should process PAYMENT_CONFIRMED with signature', async () => {
-    const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret', TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature' });
+    const service = setupService({
+      TOSS_WEBHOOK_SECRET: 'secret',
+      TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
+    });
     const body = Buffer.from('payload');
     const crypto = require('crypto');
-    const sig = crypto.createHmac('sha256', 'secret').update(body).digest('hex');
+    const sig = crypto
+      .createHmac('sha256', 'secret')
+      .update(body)
+      .digest('hex');
 
     paymentsChain.eq
       .mockReturnValueOnce(paymentsChain) // payment lookup
       .mockReturnValueOnce(paymentsChain) // update eq order_id
       .mockResolvedValueOnce({ error: null }); // update eq payment_key terminal
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.PENDING,
+        amount: 10,
+      },
       error: null,
     });
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
     webhookChain.insert.mockResolvedValueOnce({ error: null });
     webhookChain.eq.mockReturnValue(webhookChain);
 
@@ -1470,7 +1704,10 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
 
     await (service as any).handlePaymentConfirmedWebhook(
       {
@@ -1487,7 +1724,10 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
 
     await (service as any).handlePaymentConfirmedWebhook(
       {
@@ -1504,7 +1744,10 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 9 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 9 },
+        error: null,
+      });
 
     await expect(
       (service as any).handlePaymentConfirmedWebhook(
@@ -1521,7 +1764,10 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
     paymentsChain.insert.mockResolvedValueOnce({ error: null });
 
     await (service as any).handlePaymentConfirmedWebhook(
@@ -1542,7 +1788,12 @@ describe('PaymentsService', () => {
     await (service as any).handlePaymentConfirmedWebhook(
       {
         eventType: 'PAYMENT_CONFIRMED',
-        data: { orderId: 'missing', paymentKey: 'pk', status: 'DONE', amount: 10 },
+        data: {
+          orderId: 'missing',
+          paymentKey: 'pk',
+          status: 'DONE',
+          amount: 10,
+        },
       } as any,
       null,
     );
@@ -1571,7 +1822,10 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
     paymentsChain.insert.mockResolvedValueOnce({ error: { message: 'fail' } });
 
     await expect(
@@ -1589,7 +1843,10 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
 
     await expect(
       (service as any).handlePaymentConfirmedWebhook(
@@ -1606,12 +1863,20 @@ describe('PaymentsService', () => {
     const service = setupService();
 
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.PENDING,
+        amount: 10,
+      },
       error: null,
     });
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
 
     webhookChain.insert.mockResolvedValueOnce({ error: null });
     webhookChain.update.mockReturnValue(webhookChain);
@@ -1647,7 +1912,10 @@ describe('PaymentsService', () => {
 
     await expect(
       service.handleTossWebhook(
-        { eventType: 'PAYMENT_CONFIRMED', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+        } as any,
         { 'toss-signature': 'bad' },
         body,
       ),
@@ -1666,10 +1934,18 @@ describe('PaymentsService', () => {
     });
     paymentsChain.update.mockReturnValue(paymentsChain);
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.PENDING,
+        amount: 10,
+      },
       error: null,
     });
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
 
     webhookChain.insert.mockResolvedValueOnce({ error: null });
     webhookChain.update.mockReturnValue(webhookChain);
@@ -1680,7 +1956,12 @@ describe('PaymentsService', () => {
     await service.handleTossWebhook(
       {
         eventType: 'PAYMENT_CANCELLED',
-        data: { orderId: '123e4567-e89b-12d3-a456-426614174000', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+        data: {
+          orderId: '123e4567-e89b-12d3-a456-426614174000',
+          paymentKey: 'pk',
+          status: 'CANCELLED',
+          amount: 10,
+        },
       } as any,
       {},
       Buffer.from('body'),
@@ -1689,12 +1970,20 @@ describe('PaymentsService', () => {
 
   it('handlePaymentCancelledWebhook should return when already cancelled', async () => {
     const service = setupService();
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
 
     await (service as any).handlePaymentCancelledWebhook(
       {
         eventType: 'PAYMENT_CANCELLED',
-        data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+        data: {
+          orderId: 'o1',
+          paymentKey: 'pk',
+          status: 'CANCELLED',
+          amount: 10,
+        },
       } as any,
       { id: 'p1', status: PaymentStatus.CANCELLED },
     );
@@ -1706,13 +1995,21 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
     paymentsChain.insert.mockResolvedValueOnce({ error: null });
 
     await (service as any).handlePaymentCancelledWebhook(
       {
         eventType: 'PAYMENT_CANCELLED',
-        data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+        data: {
+          orderId: 'o1',
+          paymentKey: 'pk',
+          status: 'CANCELLED',
+          amount: 10,
+        },
       } as any,
       null,
     );
@@ -1729,7 +2026,12 @@ describe('PaymentsService', () => {
     await (service as any).handlePaymentCancelledWebhook(
       {
         eventType: 'PAYMENT_CANCELLED',
-        data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+        data: {
+          orderId: 'o1',
+          paymentKey: 'pk',
+          status: 'CANCELLED',
+          amount: 10,
+        },
       } as any,
       null,
     );
@@ -1747,7 +2049,12 @@ describe('PaymentsService', () => {
       (service as any).handlePaymentCancelledWebhook(
         {
           eventType: 'PAYMENT_CANCELLED',
-          data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+          data: {
+            orderId: 'o1',
+            paymentKey: 'pk',
+            status: 'CANCELLED',
+            amount: 10,
+          },
         } as any,
         null,
       ),
@@ -1758,13 +2065,21 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 20 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 20 },
+        error: null,
+      });
     paymentsChain.insert.mockResolvedValueOnce({ error: null });
 
     await (service as any).handlePaymentCancelledWebhook(
       {
         eventType: 'PAYMENT_CANCELLED',
-        data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: undefined },
+        data: {
+          orderId: 'o1',
+          paymentKey: 'pk',
+          status: 'CANCELLED',
+          amount: undefined,
+        },
       } as any,
       null,
     );
@@ -1778,14 +2093,22 @@ describe('PaymentsService', () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 10 }, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'o1', total_amount: 10 },
+        error: null,
+      });
     paymentsChain.insert.mockResolvedValueOnce({ error: { message: 'fail' } });
 
     await expect(
       (service as any).handlePaymentCancelledWebhook(
         {
           eventType: 'PAYMENT_CANCELLED',
-          data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+          data: {
+            orderId: 'o1',
+            paymentKey: 'pk',
+            status: 'CANCELLED',
+            amount: 10,
+          },
         } as any,
         null,
       ),
@@ -1794,7 +2117,10 @@ describe('PaymentsService', () => {
 
   it('handlePaymentCancelledWebhook should throw on update error', async () => {
     const service = setupService();
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
 
     let eqCount = 0;
     paymentsChain.eq.mockImplementation(() => {
@@ -1809,7 +2135,12 @@ describe('PaymentsService', () => {
       (service as any).handlePaymentCancelledWebhook(
         {
           eventType: 'PAYMENT_CANCELLED',
-          data: { orderId: 'o1', paymentKey: 'pk', status: 'CANCELLED', amount: 10 },
+          data: {
+            orderId: 'o1',
+            paymentKey: 'pk',
+            status: 'CANCELLED',
+            amount: 10,
+          },
         } as any,
         { id: 'p1', status: PaymentStatus.PENDING, amount: 10 },
       ),
@@ -1819,7 +2150,13 @@ describe('PaymentsService', () => {
   it('refundPayment should validate status and amount', async () => {
     const service = setupService({ TOSS_MOCK_MODE: 'true' });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', amount: 10, refund_amount: 0, status: PaymentStatus.FAILED, orders: { branch_id: 'b1' } },
+      data: {
+        id: 'p1',
+        amount: 10,
+        refund_amount: 0,
+        status: PaymentStatus.FAILED,
+        orders: { branch_id: 'b1' },
+      },
       error: null,
     });
 
@@ -1828,7 +2165,13 @@ describe('PaymentsService', () => {
     ).rejects.toBeInstanceOf(RefundNotAllowedException);
 
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', amount: 10, refund_amount: 8, status: PaymentStatus.SUCCESS, orders: { branch_id: 'b1' } },
+      data: {
+        id: 'p1',
+        amount: 10,
+        refund_amount: 8,
+        status: PaymentStatus.SUCCESS,
+        orders: { branch_id: 'b1' },
+      },
       error: null,
     });
 
@@ -1840,7 +2183,13 @@ describe('PaymentsService', () => {
   it('refundPayment should update payment in mock mode', async () => {
     const service = setupService({ TOSS_MOCK_MODE: 'true' });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', amount: 10, refund_amount: 0, status: PaymentStatus.SUCCESS, orders: { branch_id: 'b1' } },
+      data: {
+        id: 'p1',
+        amount: 10,
+        refund_amount: 0,
+        status: PaymentStatus.SUCCESS,
+        orders: { branch_id: 'b1' },
+      },
       error: null,
     });
     paymentsChain.single.mockResolvedValueOnce({
@@ -1848,14 +2197,23 @@ describe('PaymentsService', () => {
       error: null,
     });
 
-    const result = await service.refundPayment('p1', 'b1', { amount: 10, reason: 'x' } as any);
+    const result = await service.refundPayment('p1', 'b1', {
+      amount: 10,
+      reason: 'x',
+    } as any);
     expect(result.status).toBe(PaymentStatus.REFUNDED);
   });
 
   it('refundPayment should return partial refunded when amount is smaller', async () => {
     const service = setupService({ TOSS_MOCK_MODE: 'true' });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', amount: 10, refund_amount: 0, status: PaymentStatus.SUCCESS, orders: { branch_id: 'b1' } },
+      data: {
+        id: 'p1',
+        amount: 10,
+        refund_amount: 0,
+        status: PaymentStatus.SUCCESS,
+        orders: { branch_id: 'b1' },
+      },
       error: null,
     });
     paymentsChain.single.mockResolvedValueOnce({
@@ -1863,7 +2221,10 @@ describe('PaymentsService', () => {
       error: null,
     });
 
-    const result = await service.refundPayment('p1', 'b1', { amount: 5, reason: 'x' } as any);
+    const result = await service.refundPayment('p1', 'b1', {
+      amount: 5,
+      reason: 'x',
+    } as any);
     expect(result.status).toBe(PaymentStatus.PARTIAL_REFUNDED);
     expect(result.refundAmount).toBe(5);
   });
@@ -1871,7 +2232,13 @@ describe('PaymentsService', () => {
   it('refundPayment should use full amount when dto amount is missing', async () => {
     const service = setupService({ TOSS_MOCK_MODE: 'true' });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p1', amount: 10, refund_amount: 0, status: PaymentStatus.SUCCESS, orders: { branch_id: 'b1' } },
+      data: {
+        id: 'p1',
+        amount: 10,
+        refund_amount: 0,
+        status: PaymentStatus.SUCCESS,
+        orders: { branch_id: 'b1' },
+      },
       error: null,
     });
     paymentsChain.single.mockResolvedValueOnce({
@@ -1879,28 +2246,46 @@ describe('PaymentsService', () => {
       error: null,
     });
 
-    const result = await service.refundPayment('p1', 'b1', { reason: 'x' } as any);
+    const result = await service.refundPayment('p1', 'b1', {
+      reason: 'x',
+    } as any);
     expect(result.refundAmount).toBe(10);
   });
 
   it('verifyTossWebhookSignature should validate signature', () => {
-    const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret', TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature' });
+    const service = setupService({
+      TOSS_WEBHOOK_SECRET: 'secret',
+      TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
+    });
     const body = Buffer.from('test');
     const crypto = require('crypto');
-    const sig = crypto.createHmac('sha256', 'secret').update(body).digest('hex');
+    const sig = crypto
+      .createHmac('sha256', 'secret')
+      .update(body)
+      .digest('hex');
 
-    const ok = (service as any).verifyTossWebhookSignature(body, { 'toss-signature': `v1=${sig}` });
-    const bad = (service as any).verifyTossWebhookSignature(body, { 'toss-signature': 'bad' });
+    const ok = (service as any).verifyTossWebhookSignature(body, {
+      'toss-signature': `v1=${sig}`,
+    });
+    const bad = (service as any).verifyTossWebhookSignature(body, {
+      'toss-signature': 'bad',
+    });
 
     expect(ok).toBe(true);
     expect(bad).toBe(false);
   });
 
   it('verifyTossWebhookSignature should accept array header', () => {
-    const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret', TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature' });
+    const service = setupService({
+      TOSS_WEBHOOK_SECRET: 'secret',
+      TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
+    });
     const body = Buffer.from('test');
     const crypto = require('crypto');
-    const sig = crypto.createHmac('sha256', 'secret').update(body).digest('hex');
+    const sig = crypto
+      .createHmac('sha256', 'secret')
+      .update(body)
+      .digest('hex');
 
     const ok = (service as any).verifyTossWebhookSignature(body, {
       'toss-signature': [`v1=${sig}`],
@@ -1911,12 +2296,18 @@ describe('PaymentsService', () => {
 
   it('verifyTossWebhookSignature should return true when secret is missing', () => {
     const service = setupService({ TOSS_WEBHOOK_SECRET: '' });
-    const ok = (service as any).verifyTossWebhookSignature(Buffer.from('x'), {});
+    const ok = (service as any).verifyTossWebhookSignature(
+      Buffer.from('x'),
+      {},
+    );
     expect(ok).toBe(true);
   });
 
   it('verifyTossWebhookSignature should return false when header missing', () => {
-    const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret', TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature' });
+    const service = setupService({
+      TOSS_WEBHOOK_SECRET: 'secret',
+      TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
+    });
     const body = Buffer.from('test');
     const ok = (service as any).verifyTossWebhookSignature(body, {});
     expect(ok).toBe(false);
@@ -1925,7 +2316,14 @@ describe('PaymentsService', () => {
   it('handleTossWebhook should require signature when secret set', async () => {
     const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret' });
     await expect(
-      service.handleTossWebhook({ eventType: 'PAYMENT_CONFIRMED', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any, {}, undefined),
+      service.handleTossWebhook(
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+        } as any,
+        {},
+        undefined,
+      ),
     ).rejects.toBeInstanceOf(WebhookSignatureVerificationException);
   });
 
@@ -1939,7 +2337,12 @@ describe('PaymentsService', () => {
     };
 
     await expect(
-      (service as any).updateOrderPaymentStatus(failingSb, 'o1', 'PAID', 'test'),
+      (service as any).updateOrderPaymentStatus(
+        failingSb,
+        'o1',
+        'PAID',
+        'test',
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -1952,7 +2355,12 @@ describe('PaymentsService', () => {
     };
 
     await expect(
-      (service as any).updateOrderPaymentStatus(failingSb, 'o1', 'PAID', 'test'),
+      (service as any).updateOrderPaymentStatus(
+        failingSb,
+        'o1',
+        'PAID',
+        'test',
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -1974,7 +2382,11 @@ describe('PaymentsService', () => {
         .mockResolvedValueOnce({ data: null, error: null })
         .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
 
-      const resolved = await (service as any).resolveOrderId(mockSb, uuid, 'branch-1');
+      const resolved = await (service as any).resolveOrderId(
+        mockSb,
+        uuid,
+        'branch-1',
+      );
 
       expect(resolved).toBe('o2');
       expect(ordersChain.eq).toHaveBeenCalledWith('branch_id', 'branch-1');
@@ -1997,9 +2409,15 @@ describe('PaymentsService', () => {
           },
           error: null,
         });
-      paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+      paymentsChain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
 
-      const result = await service.preparePayment({ orderId: 'o1', amount: 10 } as any);
+      const result = await service.preparePayment({
+        orderId: 'o1',
+        amount: 10,
+      } as any);
       expect(result.orderName).toBe('주문');
     });
 
@@ -2021,7 +2439,12 @@ describe('PaymentsService', () => {
           error: null,
         });
       paymentsChain.maybeSingle.mockResolvedValueOnce({
-        data: { id: 'pay1', status: PaymentStatus.SUCCESS, amount: null, paid_at: null },
+        data: {
+          id: 'pay1',
+          status: PaymentStatus.SUCCESS,
+          amount: null,
+          paid_at: null,
+        },
         error: null,
       });
 
@@ -2057,7 +2480,11 @@ describe('PaymentsService', () => {
           error: null,
         });
       paymentsChain.maybeSingle.mockResolvedValueOnce({
-        data: { id: 'pay1', status: PaymentStatus.PENDING, idempotency_key: 'existing-key' },
+        data: {
+          id: 'pay1',
+          status: PaymentStatus.PENDING,
+          idempotency_key: 'existing-key',
+        },
         error: null,
       });
 
@@ -2102,7 +2529,10 @@ describe('PaymentsService', () => {
           },
           error: null,
         });
-      paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+      paymentsChain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
 
       jest
         .spyOn(service as any, 'callTossPaymentsConfirmApi')
@@ -2141,7 +2571,10 @@ describe('PaymentsService', () => {
           },
           error: null,
         });
-      paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+      paymentsChain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
       paymentsChain.single.mockResolvedValueOnce({
         data: null,
         error: { code: '23505', message: 'dup' },
@@ -2249,7 +2682,10 @@ describe('PaymentsService', () => {
         count: 0,
       });
 
-      const result = await service.getPayments('branch-1', { page: 1, limit: 10 });
+      const result = await service.getPayments('branch-1', {
+        page: 1,
+        limit: 10,
+      });
 
       expect(result.data).toEqual([]);
       expect(result.pagination.total).toBe(0);
@@ -2280,7 +2716,10 @@ describe('PaymentsService', () => {
         );
 
       await expect(
-        service.refundPayment('pay1', 'branch-1', { amount: 10, reason: 'r' } as any),
+        service.refundPayment('pay1', 'branch-1', {
+          amount: 10,
+          reason: 'r',
+        } as any),
       ).rejects.toBeInstanceOf(PaymentProviderException);
     });
 
@@ -2307,7 +2746,10 @@ describe('PaymentsService', () => {
         .mockRejectedValueOnce({});
 
       await expect(
-        service.refundPayment('pay1', 'branch-1', { amount: 10, reason: 'r' } as any),
+        service.refundPayment('pay1', 'branch-1', {
+          amount: 10,
+          reason: 'r',
+        } as any),
       ).rejects.toThrow('Refund failed');
     });
 
@@ -2322,21 +2764,37 @@ describe('PaymentsService', () => {
 
       paymentsChain.maybeSingle
         .mockResolvedValueOnce({
-          data: { id: 'pay1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+          data: {
+            id: 'pay1',
+            order_id: 'o1',
+            status: PaymentStatus.PENDING,
+            amount: 10,
+          },
           error: null,
         })
         .mockResolvedValueOnce({
-          data: { id: 'pay2', order_id: 'o2', status: PaymentStatus.PENDING, amount: 10 },
+          data: {
+            id: 'pay2',
+            order_id: 'o2',
+            status: PaymentStatus.PENDING,
+            amount: 10,
+          },
           error: null,
         });
 
       await service.handleTossWebhook(
-        { eventType: 'PAYMENT_CONFIRMED', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+        } as any,
         {},
         undefined,
       );
       await service.handleTossWebhook(
-        { eventType: 'PAYMENT_CANCELLED', data: { orderId: 'o2', paymentKey: 'pk2', status: 'CANCELLED' } } as any,
+        {
+          eventType: 'PAYMENT_CANCELLED',
+          data: { orderId: 'o2', paymentKey: 'pk2', status: 'CANCELLED' },
+        } as any,
         {},
         undefined,
       );
@@ -2361,12 +2819,18 @@ describe('PaymentsService', () => {
       webhookChain.insert.mockResolvedValueOnce({ error: null });
 
       await service.handleTossWebhook(
-        { eventType: 'PAYMENT_CONFIRMED', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+        } as any,
         {},
         undefined,
       );
       await service.handleTossWebhook(
-        { eventType: 'PAYMENT_CANCELLED', data: { orderId: 'o2', paymentKey: 'pk2', status: 'CANCELLED' } } as any,
+        {
+          eventType: 'PAYMENT_CANCELLED',
+          data: { orderId: 'o2', paymentKey: 'pk2', status: 'CANCELLED' },
+        } as any,
         {},
         undefined,
       );
@@ -2382,13 +2846,26 @@ describe('PaymentsService', () => {
         .mockRejectedValueOnce(new Error('boom'));
 
       paymentsChain.maybeSingle.mockResolvedValueOnce({
-        data: { id: 'pay1', order_id: 'o1', status: PaymentStatus.PENDING, amount: 10 },
+        data: {
+          id: 'pay1',
+          order_id: 'o1',
+          status: PaymentStatus.PENDING,
+          amount: 10,
+        },
         error: null,
       });
 
       await expect(
         service.handleTossWebhook(
-          { eventType: 'PAYMENT_CONFIRMED', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+          {
+            eventType: 'PAYMENT_CONFIRMED',
+            data: {
+              orderId: 'o1',
+              paymentKey: 'pk',
+              status: 'DONE',
+              amount: 10,
+            },
+          } as any,
           {},
           undefined,
         ),
@@ -2405,13 +2882,24 @@ describe('PaymentsService', () => {
         .spyOn(service as any, 'handlePaymentConfirmedWebhook')
         .mockRejectedValueOnce(new Error('boom'));
 
-      paymentsChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+      paymentsChain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
       webhookChain.insert.mockResolvedValueOnce({ error: null });
       webhookChain.update.mockReturnValue(webhookChain);
 
       await expect(
         service.handleTossWebhook(
-          { eventType: 'PAYMENT_CONFIRMED', data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 } } as any,
+          {
+            eventType: 'PAYMENT_CONFIRMED',
+            data: {
+              orderId: 'o1',
+              paymentKey: 'pk',
+              status: 'DONE',
+              amount: 10,
+            },
+          } as any,
           {},
           undefined,
         ),
@@ -2438,7 +2926,10 @@ describe('PaymentsService', () => {
       const service = setupService({ TOSS_WEBHOOK_SECRET: '' });
       ordersChain.maybeSingle
         .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
-        .mockResolvedValueOnce({ data: { id: 'o1', total_amount: 120 }, error: null });
+        .mockResolvedValueOnce({
+          data: { id: 'o1', total_amount: 120 },
+          error: null,
+        });
       paymentsChain.insert.mockResolvedValueOnce({ error: null });
 
       await (service as any).handlePaymentConfirmedWebhook(
@@ -2453,7 +2944,10 @@ describe('PaymentsService', () => {
 
     it('handlePaymentCancelledWebhook should return when order cannot be resolved', async () => {
       const service = setupService({ TOSS_WEBHOOK_SECRET: '' });
-      ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+      ordersChain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
 
       await expect(
         (service as any).handlePaymentCancelledWebhook(
@@ -2478,7 +2972,9 @@ describe('PaymentsService', () => {
         text: async () => 'not-json',
       } as any);
 
-      const result = await (service as any).callTossApi('/payments/confirm', { foo: 'bar' });
+      const result = await (service as any).callTossApi('/payments/confirm', {
+        foo: 'bar',
+      });
 
       expect(result).toEqual({ raw: 'not-json' });
       fetchSpy.mockRestore();

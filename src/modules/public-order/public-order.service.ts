@@ -278,11 +278,7 @@ export class PublicOrderService {
 
     // Fetch category names for mapping
     const categoryIds = [
-      ...new Set(
-        products
-          .map((p: any) => p.category_id)
-          .filter(Boolean),
-      ),
+      ...new Set(products.map((p: any) => p.category_id).filter(Boolean)),
     ];
     let categoryMap = new Map<string, string>();
     if (categoryIds.length > 0) {
@@ -507,7 +503,7 @@ export class PublicOrderService {
         metadata: payload.metadata ?? {},
       });
     } catch (error) {
-      this.logger.warn('Failed to log order dedup event', error as any);
+      this.logger.warn('Failed to log order dedup event', error);
     }
   }
 
@@ -661,7 +657,7 @@ export class PublicOrderService {
     }[] = [];
 
     for (const item of dto.items) {
-      const product = productMap.get(item.productId) as any;
+      const product = productMap.get(item.productId);
       if (!product) {
         throw new BadRequestException(
           `상품을 찾을 수 없습니다: ${item.productId}`,
@@ -696,7 +692,8 @@ export class PublicOrderService {
     const idempotencyKey = dto.idempotencyKey?.trim() || undefined;
     const customerName = this.normalizeOptional(dto.customerName) ?? null;
     const customerPhone = this.normalizeOptional(dto.customerPhone) ?? null;
-    const customerAddress1 = this.normalizeOptional(dto.customerAddress1) ?? null;
+    const customerAddress1 =
+      this.normalizeOptional(dto.customerAddress1) ?? null;
     const paymentMethod = dto.paymentMethod ?? 'CARD';
 
     this.logMetric('order.create.start', {
@@ -1128,10 +1125,3 @@ export class PublicOrderService {
     }));
   }
 }
-
-
-
-
-
-
-

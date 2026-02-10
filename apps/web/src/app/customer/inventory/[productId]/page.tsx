@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
 import { useParams, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -57,8 +58,6 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 const TRANSACTION_TYPES = [
   { value: "RESTOCK", label: "재입고" },
   { value: "ADJUSTMENT", label: "재고 조정" },
@@ -87,16 +86,6 @@ const TRANSACTION_BADGE_CLASSES: Record<string, string> = {
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
@@ -148,28 +137,15 @@ function InventoryDetailPageContent() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/customer/branches`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`매장 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(data);
 
-        // Set first branch as default if no branch selected
         if (!selectedBranchId && data.length > 0) {
           setSelectedBranchId(data[0].id);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "매장 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       }
     };
 
@@ -182,7 +158,7 @@ function InventoryDetailPageContent() {
       if (!productId || productId === "undefined" || !selectedBranchId) {
         setLoading(false);
         if (productId === "undefined") {
-          setError("잘못된 상품 ID입니다. 재고 목록에서 다시 선택해주세요.");
+          setError("??? ?? ID???. ?? ???? ?? ??????.");
         }
         return;
       }
@@ -190,50 +166,26 @@ function InventoryDetailPageContent() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        // Load inventory detail
-        const inventoryRes = await fetch(
-          `${API_BASE}/customer/inventory/${productId}?branchId=${encodeURIComponent(selectedBranchId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!inventoryRes.ok) {
-          throw new Error(`재고 정보 조회 실패: ${inventoryRes.status}`);
-        }
-
-        const inventoryData = await inventoryRes.json();
+        const inventoryData = await apiClient.get<InventoryDetail>(`/customer/inventory/${productId}?branchId=${encodeURIComponent(selectedBranchId)}`);
         setInventory(inventoryData);
         setEditQtyAvailable(inventoryData.qty_available);
         setEditLowStockThreshold(inventoryData.low_stock_threshold);
 
-        // Load inventory logs
-        const logsRes = await fetch(
-          `${API_BASE}/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (logsRes.ok) {
-          const logsData = await logsRes.json();
+        try {
+          const logsData = await apiClient.get<InventoryLog[]>(`/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`);
           setLogs(logsData);
+        } catch (e) {
+          console.warn("Failed to fetch inventory logs", e);
         }
 
-        // Set user role
         const branch = branches.find((b) => b.id === selectedBranchId);
         if (branch) {
           setUserRole(branch.myRole);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "재고 정보 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -248,49 +200,24 @@ function InventoryDetailPageContent() {
     try {
       setSaving(true);
       setError(null);
-      const token = await getAccessToken();
 
-      const res = await fetch(
-        `${API_BASE}/customer/inventory/${productId}?branchId=${encodeURIComponent(selectedBranchId)}`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            qty_available: editQtyAvailable,
-            low_stock_threshold: editLowStockThreshold,
-          }),
-        }
-      );
+      const updatedData = await apiClient.patch<InventoryDetail>(`/customer/inventory/${productId}?branchId=${encodeURIComponent(selectedBranchId)}`, {
+        qty_available: editQtyAvailable,
+        low_stock_threshold: editLowStockThreshold,
+      });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `재고 수정 실패: ${res.status}`);
-      }
-
-      const updatedData = await res.json();
       setInventory(updatedData);
       setEditMode(false);
 
-      // Reload logs
-      const logsRes = await fetch(
-        `${API_BASE}/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
+      try {
+        const logsData = await apiClient.get<InventoryLog[]>(`/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`);
         setLogs(logsData);
+      } catch (e) {
+        console.warn("Failed to fetch inventory logs", e);
       }
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "재고 수정 중 오류 발생");
+      setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     } finally {
       setSaving(false);
     }
@@ -301,61 +228,35 @@ function InventoryDetailPageContent() {
 
     const qtyChange = parseInt(adjustmentQty, 10);
     if (isNaN(qtyChange) || qtyChange === 0) {
-      setError("유효한 수량을 입력하세요");
+      setError("??? ??? ??????");
       return;
     }
 
     try {
       setAdjusting(true);
       setError(null);
-      const token = await getAccessToken();
 
-      const res = await fetch(
-        `${API_BASE}/customer/inventory/${productId}/adjust?branchId=${encodeURIComponent(selectedBranchId)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            transaction_type: adjustmentType,
-            qty_change: qtyChange,
-            notes: adjustmentNotes || undefined,
-          }),
-        }
-      );
+      const updatedData = await apiClient.post<InventoryDetail>(`/customer/inventory/${productId}/adjust?branchId=${encodeURIComponent(selectedBranchId)}`, {
+        transaction_type: adjustmentType,
+        qty_change: qtyChange,
+        notes: adjustmentNotes || undefined,
+      });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `재고 조정 실패: ${res.status}`);
-      }
-
-      const updatedData = await res.json();
       setInventory(updatedData);
       setEditQtyAvailable(updatedData.qty_available);
 
-      // Reset form
       setAdjustmentQty("");
       setAdjustmentNotes("");
 
-      // Reload logs
-      const logsRes = await fetch(
-        `${API_BASE}/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
+      try {
+        const logsData = await apiClient.get<InventoryLog[]>(`/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`);
         setLogs(logsData);
+      } catch (e) {
+        console.warn("Failed to fetch inventory logs", e);
       }
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "재고 조정 중 오류 발생");
+      setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     } finally {
       setAdjusting(false);
     }
@@ -425,9 +326,11 @@ function InventoryDetailPageContent() {
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-6 mb-6">
           {inventory.product?.image_url && (
-            <img
+            <Image
               src={inventory.product.image_url}
-              alt={inventory.product?.name || "상품 이미지"}
+              alt={inventory.product?.name || "?? ???"}
+              width={120}
+              height={120}
               className="w-[120px] h-[120px] rounded-xl object-cover border border-border"
             />
           )}

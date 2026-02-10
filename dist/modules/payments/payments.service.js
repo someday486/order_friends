@@ -91,6 +91,23 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
         return data;
     }
+    async updateOrderPaymentStatus(sb, orderId, paymentStatus, source) {
+        try {
+            const { error } = await sb
+                .from('orders')
+                .update({ payment_status: paymentStatus })
+                .eq('id', orderId);
+            if (error) {
+                this.logger.error(`Failed to update order payment_status (${paymentStatus}) from ${source}`, error);
+            }
+        }
+        catch (error) {
+            this.logger.error(`Order payment_status update failed (${paymentStatus}) from ${source}`, error);
+        }
+    }
+    logMetric(event, payload) {
+        this.logger.log(`[METRIC] ${event} ${JSON.stringify(payload)}`);
+    }
     async preparePayment(dto) {
         this.logger.log(`Preparing payment for order: ${dto.orderId}`);
         const sb = this.supabase.adminClient();
@@ -103,6 +120,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             throw new payment_exception_1.PaymentNotAllowedException('Order is cancelled');
         }
         if (order.payment_status === 'PAID') {
+            await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'prepare');
             throw new payment_exception_1.OrderAlreadyPaidException(resolvedId);
         }
         if (order.total_amount !== dto.amount) {
@@ -114,6 +132,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             .eq('order_id', resolvedId)
             .maybeSingle();
         if (existingPayment && existingPayment.status === payment_dto_1.PaymentStatus.SUCCESS) {
+            await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'prepare');
             throw new payment_exception_1.OrderAlreadyPaidException(resolvedId);
         }
         let orderName = '주문';
@@ -136,6 +155,12 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
     }
     async confirmPayment(dto) {
         this.logger.log(`Confirming payment for order: ${dto.orderId}`);
+        const idempotencyKey = dto.idempotencyKey?.trim() || undefined;
+        this.logMetric('payment.confirm.start', {
+            orderId: dto.orderId,
+            amount: dto.amount,
+            idempotencyKey,
+        });
         const sb = this.supabase.adminClient();
         const resolvedId = await this.resolveOrderId(sb, dto.orderId);
         if (!resolvedId) {
@@ -145,24 +170,67 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         if (order.total_amount !== dto.amount) {
             throw new payment_exception_1.PaymentAmountMismatchException(order.total_amount, dto.amount);
         }
-        const { data: existingPayment } = await sb
-            .from('payments')
-            .select('id, status, amount, paid_at')
-            .eq('order_id', resolvedId)
-            .maybeSingle();
-        if (existingPayment && existingPayment.status === payment_dto_1.PaymentStatus.SUCCESS) {
-            if (existingPayment.amount !== undefined &&
-                existingPayment.amount !== null &&
-                existingPayment.amount !== dto.amount) {
-                throw new payment_exception_1.PaymentAmountMismatchException(existingPayment.amount, dto.amount);
+        let existingPayment = null;
+        if (idempotencyKey) {
+            const { data: idempotentPayment } = await sb
+                .from('payments')
+                .select('id, order_id, status, amount, paid_at, idempotency_key')
+                .eq('idempotency_key', idempotencyKey)
+                .maybeSingle();
+            if (idempotentPayment) {
+                if (idempotentPayment.order_id !== resolvedId) {
+                    throw new payment_exception_1.PaymentNotAllowedException('Idempotency key already used for another order');
+                }
+                if (idempotentPayment.amount !== undefined &&
+                    idempotentPayment.amount !== null &&
+                    idempotentPayment.amount !== dto.amount) {
+                    throw new payment_exception_1.PaymentAmountMismatchException(idempotentPayment.amount, dto.amount);
+                }
+                if (idempotentPayment.status === payment_dto_1.PaymentStatus.SUCCESS) {
+                    await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'confirm-idempotency');
+                    this.logMetric('payment.confirm.idempotent_hit', {
+                        orderId: resolvedId,
+                        paymentId: idempotentPayment.id,
+                        idempotencyKey,
+                    });
+                    return {
+                        paymentId: idempotentPayment.id,
+                        orderId: resolvedId,
+                        status: payment_dto_1.PaymentStatus.SUCCESS,
+                        amount: idempotentPayment.amount ?? dto.amount,
+                        paidAt: idempotentPayment.paid_at || new Date().toISOString(),
+                    };
+                }
+                existingPayment = idempotentPayment;
             }
-            return {
-                paymentId: existingPayment.id,
-                orderId: resolvedId,
-                status: payment_dto_1.PaymentStatus.SUCCESS,
-                amount: existingPayment.amount ?? dto.amount,
-                paidAt: existingPayment.paid_at || new Date().toISOString(),
-            };
+        }
+        if (!existingPayment) {
+            const { data: paymentByOrder } = await sb
+                .from('payments')
+                .select('id, status, amount, paid_at, idempotency_key')
+                .eq('order_id', resolvedId)
+                .maybeSingle();
+            if (paymentByOrder && paymentByOrder.status === payment_dto_1.PaymentStatus.SUCCESS) {
+                if (paymentByOrder.amount !== undefined &&
+                    paymentByOrder.amount !== null &&
+                    paymentByOrder.amount !== dto.amount) {
+                    throw new payment_exception_1.PaymentAmountMismatchException(paymentByOrder.amount, dto.amount);
+                }
+                await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'confirm-existing');
+                this.logMetric('payment.confirm.existing_hit', {
+                    orderId: resolvedId,
+                    paymentId: paymentByOrder.id,
+                    idempotencyKey,
+                });
+                return {
+                    paymentId: paymentByOrder.id,
+                    orderId: resolvedId,
+                    status: payment_dto_1.PaymentStatus.SUCCESS,
+                    amount: paymentByOrder.amount ?? dto.amount,
+                    paidAt: paymentByOrder.paid_at || new Date().toISOString(),
+                };
+            }
+            existingPayment = paymentByOrder;
         }
         let providerPaymentId = null;
         let providerResponse = null;
@@ -180,16 +248,38 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             }
             catch (error) {
                 this.logger.error('Toss Payments API call failed', error);
-                await sb.from('payments').insert({
-                    order_id: resolvedId,
-                    amount: dto.amount,
-                    currency: 'KRW',
-                    provider: payment_dto_1.PaymentProvider.TOSS,
-                    provider_payment_key: dto.paymentKey,
-                    status: payment_dto_1.PaymentStatus.FAILED,
-                    payment_method: payment_dto_1.PaymentMethod.CARD,
-                    failed_at: new Date().toISOString(),
-                    failure_reason: error?.message || 'Payment confirmation failed',
+                if (existingPayment) {
+                    await sb
+                        .from('payments')
+                        .update({
+                        status: payment_dto_1.PaymentStatus.FAILED,
+                        provider_payment_key: dto.paymentKey,
+                        payment_method: payment_dto_1.PaymentMethod.CARD,
+                        failed_at: new Date().toISOString(),
+                        failure_reason: error?.message || 'Payment confirmation failed',
+                        idempotency_key: idempotencyKey ?? existingPayment.idempotency_key ?? null,
+                    })
+                        .eq('id', existingPayment.id);
+                }
+                else {
+                    await sb.from('payments').insert({
+                        order_id: resolvedId,
+                        amount: dto.amount,
+                        currency: 'KRW',
+                        provider: payment_dto_1.PaymentProvider.TOSS,
+                        provider_payment_key: dto.paymentKey,
+                        status: payment_dto_1.PaymentStatus.FAILED,
+                        payment_method: payment_dto_1.PaymentMethod.CARD,
+                        failed_at: new Date().toISOString(),
+                        failure_reason: error?.message || 'Payment confirmation failed',
+                        idempotency_key: idempotencyKey ?? null,
+                    });
+                }
+                await this.updateOrderPaymentStatus(sb, resolvedId, 'FAILED', 'confirm-provider-error');
+                this.logMetric('payment.confirm.provider_error', {
+                    orderId: resolvedId,
+                    idempotencyKey,
+                    error: error?.message || 'Payment confirmation failed',
                 });
                 throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, error?.message || 'Payment confirmation failed', error?.response);
             }
@@ -206,6 +296,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 paid_at: paidAt,
                 failure_reason: null,
                 metadata: providerResponse || {},
+                idempotency_key: idempotencyKey ?? existingPayment.idempotency_key ?? null,
             })
                 .eq('id', existingPayment.id)
                 .select()
@@ -230,16 +321,47 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 payment_method: payment_dto_1.PaymentMethod.CARD,
                 paid_at: paidAt,
                 metadata: providerResponse || {},
+                idempotency_key: idempotencyKey ?? null,
             })
                 .select()
                 .single();
             if (insertError) {
+                if (insertError.code === '23505' && idempotencyKey) {
+                    const { data: idempotentPayment } = await sb
+                        .from('payments')
+                        .select('id, status, amount, paid_at, order_id')
+                        .eq('idempotency_key', idempotencyKey)
+                        .maybeSingle();
+                    if (idempotentPayment &&
+                        idempotentPayment.status === payment_dto_1.PaymentStatus.SUCCESS) {
+                        await this.updateOrderPaymentStatus(sb, idempotentPayment.order_id, 'PAID', 'confirm-idempotency-race');
+                        this.logMetric('payment.confirm.idempotency_race', {
+                            orderId: idempotentPayment.order_id,
+                            paymentId: idempotentPayment.id,
+                            idempotencyKey,
+                        });
+                        return {
+                            paymentId: idempotentPayment.id,
+                            orderId: idempotentPayment.order_id,
+                            status: payment_dto_1.PaymentStatus.SUCCESS,
+                            amount: idempotentPayment.amount ?? dto.amount,
+                            paidAt: idempotentPayment.paid_at || new Date().toISOString(),
+                        };
+                    }
+                }
                 this.logger.error('Failed to create payment record', insertError);
                 throw new business_exception_1.BusinessException('Failed to create payment', 'PAYMENT_CREATE_FAILED', 500, { error: insertError.message });
             }
             payment = created;
         }
+        await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'confirm-success');
         this.logger.log(`Payment confirmed successfully: ${payment.id}`);
+        this.logMetric('payment.confirm.success', {
+            orderId: resolvedId,
+            paymentId: payment.id,
+            amount: payment.amount,
+            idempotencyKey,
+        });
         return {
             paymentId: payment.id,
             orderId: resolvedId,
@@ -436,6 +558,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             this.logger.error('Failed to update payment refund', updateError);
             throw new business_exception_1.BusinessException('Failed to update refund', 'REFUND_UPDATE_FAILED', 500, { error: updateError.message });
         }
+        await this.updateOrderPaymentStatus(sb, payment.order_id, newStatus, 'refund');
         this.logger.log(`Payment refunded successfully: ${paymentId}`);
         return {
             paymentId: updated.id,
@@ -524,7 +647,9 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             this.logger.error(`Order not found in webhook: ${orderId}`);
             return;
         }
-        if (amount !== undefined && amount !== null && order.total_amount !== amount) {
+        if (amount !== undefined &&
+            amount !== null &&
+            order.total_amount !== amount) {
             throw new business_exception_1.BusinessException('Payment amount mismatch', 'WEBHOOK_PAYMENT_AMOUNT_MISMATCH', 400, { expected: order.total_amount, actual: amount });
         }
         if (payment) {
@@ -575,6 +700,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 throw new business_exception_1.BusinessException('Failed to create payment', 'WEBHOOK_PAYMENT_CREATE_FAILED', 500, { error: error.message });
             }
         }
+        await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'webhook-confirmed');
         this.logger.log(`Payment confirmed via webhook: ${orderId}`);
     }
     async handlePaymentCancelledWebhook(webhookData, payment) {
@@ -637,6 +763,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 throw new business_exception_1.BusinessException('Failed to create payment cancellation', 'WEBHOOK_CANCELLATION_CREATE_FAILED', 500, { error: error.message });
             }
         }
+        await this.updateOrderPaymentStatus(sb, resolvedId, 'CANCELLED', 'webhook-cancelled');
         this.logger.log(`Payment cancelled via webhook: ${orderId}`);
     }
     async callTossPaymentsConfirmApi(paymentKey, orderId, amount) {
@@ -676,7 +803,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 data = text ? JSON.parse(text) : null;
             }
             catch {
-                data = text ? { raw: text } : null;
+                data = { raw: text };
             }
             if (!res.ok) {
                 throw new payment_exception_1.PaymentProviderException(payment_dto_1.PaymentProvider.TOSS, data?.message || `HTTP ${res.status}`, data);
@@ -703,9 +830,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         const headerValue = headers[headerName] ||
             headers[headerName.toLowerCase()] ||
             headers[headerName.toUpperCase()];
-        const signature = Array.isArray(headerValue)
-            ? headerValue[0]
-            : headerValue;
+        const signature = Array.isArray(headerValue) ? headerValue[0] : headerValue;
         if (!signature)
             return false;
         const normalized = signature.startsWith('v1=')

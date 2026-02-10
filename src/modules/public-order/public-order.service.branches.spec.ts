@@ -54,7 +54,10 @@ describe('PublicOrderService - Branch Coverage', () => {
         PublicOrderService,
         {
           provide: SupabaseService,
-          useValue: { anonClient: () => anonClient, adminClient: () => adminClient },
+          useValue: {
+            anonClient: () => anonClient,
+            adminClient: () => adminClient,
+          },
         },
         { provide: InventoryService, useValue: {} },
       ],
@@ -125,7 +128,11 @@ describe('PublicOrderService - Branch Coverage', () => {
         name: 'Branch',
         logo_url: 'logo',
         cover_image_url: null,
-        brands: { name: 'Brand', logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+        brands: {
+          name: 'Brand',
+          logo_url: 'brand-logo',
+          cover_image_url: 'brand-cover',
+        },
       },
       error: null,
     });
@@ -143,7 +150,11 @@ describe('PublicOrderService - Branch Coverage', () => {
         name: 'Branch',
         logo_url: null,
         cover_image_url: null,
-        brands: { name: 'Brand', logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+        brands: {
+          name: 'Brand',
+          logo_url: 'brand-logo',
+          cover_image_url: 'brand-cover',
+        },
       },
       error: null,
     });
@@ -155,7 +166,13 @@ describe('PublicOrderService - Branch Coverage', () => {
 
   it('getBranch should handle missing brand and logos', async () => {
     anonChains.branches.single.mockResolvedValueOnce({
-      data: { id: 'b1', name: 'Branch', logo_url: null, cover_image_url: null, brands: null },
+      data: {
+        id: 'b1',
+        name: 'Branch',
+        logo_url: null,
+        cover_image_url: null,
+        brands: null,
+      },
       error: null,
     });
 
@@ -195,7 +212,11 @@ describe('PublicOrderService - Branch Coverage', () => {
           name: 'Branch',
           logo_url: null,
           cover_image_url: null,
-          brands: { name: 'Brand', logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+          brands: {
+            name: 'Brand',
+            logo_url: 'brand-logo',
+            cover_image_url: 'brand-cover',
+          },
         },
       ],
       error: null,
@@ -235,7 +256,11 @@ describe('PublicOrderService - Branch Coverage', () => {
           name: 'Branch',
           logo_url: null,
           cover_image_url: null,
-          brands: { name: 'Brand', logo_url: 'brand-logo', cover_image_url: null },
+          brands: {
+            name: 'Brand',
+            logo_url: 'brand-logo',
+            cover_image_url: null,
+          },
         },
       ],
       error: null,
@@ -292,8 +317,14 @@ describe('PublicOrderService - Branch Coverage', () => {
   it('getProducts should retry on missing columns and map categories', async () => {
     anonChains.products._results = [
       { data: null, error: { message: 'column \"is_hidden\" does not exist' } },
-      { data: null, error: { message: 'column \"is_sold_out\" does not exist' } },
-      { data: null, error: { message: 'column \"sort_order\" does not exist' } },
+      {
+        data: null,
+        error: { message: 'column \"is_sold_out\" does not exist' },
+      },
+      {
+        data: null,
+        error: { message: 'column \"sort_order\" does not exist' },
+      },
       {
         data: [
           { id: 'p1', name: 'Product', base_price: 1000, category_id: 'c1' },
@@ -328,9 +359,7 @@ describe('PublicOrderService - Branch Coverage', () => {
       },
     ];
 
-    anonChains.product_categories._results = [
-      { data: null, error: null },
-    ];
+    anonChains.product_categories._results = [{ data: null, error: null }];
 
     const result = await service.getProducts('b1');
     expect(result[0].imageUrl).toBe('img');
@@ -427,7 +456,9 @@ describe('PublicOrderService - Branch Coverage', () => {
       metadata: { source: 'test' },
     });
 
-    adminChains.order_dedup_logs.insert.mockRejectedValueOnce(new Error('fail'));
+    adminChains.order_dedup_logs.insert.mockRejectedValueOnce(
+      new Error('fail'),
+    );
     await (service as any).logDedupEvent(adminClient, {
       branchId: 'b1',
       strategy: 'ANON',
@@ -472,7 +503,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p2', product_name_snapshot: 'P2', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p2',
+              product_name_snapshot: 'P2',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
         {
@@ -482,7 +518,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
       ],
@@ -559,7 +600,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
       ],
@@ -573,7 +619,10 @@ describe('PublicOrderService - Branch Coverage', () => {
       signature,
     );
 
-    expect(adminChains.orders.eq).toHaveBeenCalledWith('payment_method', 'CARD');
+    expect(adminChains.orders.eq).toHaveBeenCalledWith(
+      'payment_method',
+      'CARD',
+    );
     expect(result?.strategy).toBe('ANON');
     expect(result?.metadata.paymentMethod).toBe('CARD');
   });
@@ -585,17 +634,19 @@ describe('PublicOrderService - Branch Coverage', () => {
     } as any;
     const signature = (service as any).buildOrderSignature(dto.items);
 
-    const policySpy = jest.spyOn(service as any, 'getDuplicatePolicy').mockReturnValue({
-      strategy: 'ANON',
-      windowMs: 1000,
-      lookbackLimit: 1,
-      filters: {},
-      paymentMethod: undefined,
-      customerName: undefined,
-      customerPhone: undefined,
-      customerAddress1: undefined,
-      dedupKey: 'anon',
-    });
+    const policySpy = jest
+      .spyOn(service as any, 'getDuplicatePolicy')
+      .mockReturnValue({
+        strategy: 'ANON',
+        windowMs: 1000,
+        lookbackLimit: 1,
+        filters: {},
+        paymentMethod: undefined,
+        customerName: undefined,
+        customerPhone: undefined,
+        customerAddress1: undefined,
+        dedupKey: 'anon',
+      });
 
     adminChains.orders.limit.mockResolvedValueOnce({
       data: [
@@ -606,7 +657,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
       ],
@@ -625,7 +681,10 @@ describe('PublicOrderService - Branch Coverage', () => {
       policySpy.mockRestore();
     }
 
-    expect(adminChains.orders.eq).toHaveBeenCalledWith('payment_method', 'CARD');
+    expect(adminChains.orders.eq).toHaveBeenCalledWith(
+      'payment_method',
+      'CARD',
+    );
     expect(result?.metadata.paymentMethod).toBeNull();
   });
 
@@ -647,7 +706,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
       ],
@@ -684,7 +748,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
       ],
@@ -719,7 +788,12 @@ describe('PublicOrderService - Branch Coverage', () => {
           total_amount: 1000,
           created_at: 't',
           order_items: [
-            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
           ],
         },
       ],
@@ -809,9 +883,7 @@ describe('PublicOrderService - Branch Coverage', () => {
   });
 
   it('getCategories should return empty when data is null', async () => {
-    adminChains.product_categories._results = [
-      { data: null, error: null },
-    ];
+    adminChains.product_categories._results = [{ data: null, error: null }];
 
     const result = await service.getCategories('b1');
     expect(result).toEqual([]);

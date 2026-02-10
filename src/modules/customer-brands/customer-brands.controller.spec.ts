@@ -57,7 +57,11 @@ describe('CustomerBrandsController', () => {
     const result = await controller.getMyBrand('brand-1', makeReq());
 
     expect(result).toEqual({ id: 'brand-1' });
-    expect(mockService.getMyBrand).toHaveBeenCalledWith('brand-1', 'user-1', []);
+    expect(mockService.getMyBrand).toHaveBeenCalledWith(
+      'brand-1',
+      'user-1',
+      [],
+    );
   });
 
   it('getMyBrand should throw when user is missing', async () => {
@@ -70,15 +74,28 @@ describe('CustomerBrandsController', () => {
     mockService.updateMyBrand.mockResolvedValue({ id: 'brand-1' });
 
     const updateData = { name: 'New' } as any;
-    const result = await controller.updateMyBrand('brand-1', updateData, makeReq());
+    const result = await controller.updateMyBrand(
+      'brand-1',
+      updateData,
+      makeReq(),
+    );
 
     expect(result).toEqual({ id: 'brand-1' });
-    expect(mockService.updateMyBrand).toHaveBeenCalledWith('brand-1', updateData, 'user-1', []);
+    expect(mockService.updateMyBrand).toHaveBeenCalledWith(
+      'brand-1',
+      updateData,
+      'user-1',
+      [],
+    );
   });
 
   it('updateMyBrand should throw when user is missing', async () => {
     await expect(
-      controller.updateMyBrand('brand-1', {} as any, makeReq({ user: undefined })),
+      controller.updateMyBrand(
+        'brand-1',
+        {} as any,
+        makeReq({ user: undefined }),
+      ),
     ).rejects.toThrow('Missing user');
   });
 });

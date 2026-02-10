@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -36,21 +37,9 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function isLowStock(item: InventoryItem): boolean {
   return item.is_low_stock;
@@ -71,28 +60,14 @@ export default function CustomerInventoryPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/customer/branches`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`매장 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(data);
-
-        // Set first branch as default if available
         if (data.length > 0) {
           setSelectedBranchId(data[0].id);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "매장 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       }
     };
 
@@ -102,35 +77,17 @@ export default function CustomerInventoryPage() {
   // Load inventory when branch changes
   useEffect(() => {
     const loadInventory = async () => {
-      if (!selectedBranchId) {
-        setInventory([]);
-        setLoading(false);
-        return;
-      }
+      if (!selectedBranchId) return;
 
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(
-          `${API_BASE}/customer/inventory?branchId=${encodeURIComponent(selectedBranchId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!res.ok) {
-          throw new Error(`재고 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<InventoryItem[]>(`/customer/inventory?branchId=${encodeURIComponent(selectedBranchId)}`);
         setInventory(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "재고 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -226,9 +183,11 @@ export default function CustomerInventoryPage() {
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <div className="flex items-center gap-3">
                         {item.image_url && (
-                          <img
+                          <Image
                             src={item.image_url}
-                            alt={item.product_name || "상품 이미지"}
+                            alt={item.product_name || "?? ???"}
+                            width={48}
+                            height={48}
                             className="w-12 h-12 rounded-lg object-cover border border-border"
                           />
                         )}

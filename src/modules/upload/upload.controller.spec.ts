@@ -42,21 +42,30 @@ describe('UploadController', () => {
   });
 
   it('uploadImage should throw when file is missing', async () => {
-    await expect(controller.uploadImage(undefined as any, 'avatars')).rejects.toThrow(BadRequestException);
+    await expect(
+      controller.uploadImage(undefined as any, 'avatars'),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('uploadMultipleImages should call service and return result', async () => {
-    mockService.uploadMultipleImages.mockResolvedValue([{ url: 'http://file' }]);
+    mockService.uploadMultipleImages.mockResolvedValue([
+      { url: 'http://file' },
+    ]);
 
     const files = [{ originalname: 'file.png' }] as any;
     const result = await controller.uploadMultipleImages(files, 'avatars');
 
     expect(result).toEqual([{ url: 'http://file' }]);
-    expect(mockService.uploadMultipleImages).toHaveBeenCalledWith(files, 'avatars');
+    expect(mockService.uploadMultipleImages).toHaveBeenCalledWith(
+      files,
+      'avatars',
+    );
   });
 
   it('uploadMultipleImages should throw when files are missing', async () => {
-    await expect(controller.uploadMultipleImages([], 'avatars')).rejects.toThrow(BadRequestException);
+    await expect(
+      controller.uploadMultipleImages([], 'avatars'),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('deleteImage should call service and return result', async () => {
@@ -69,7 +78,9 @@ describe('UploadController', () => {
   });
 
   it('deleteImage should throw when path is missing', async () => {
-    await expect(controller.deleteImage('')).rejects.toThrow(BadRequestException);
+    await expect(controller.deleteImage('')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('deleteMultipleImages should call service and return result', async () => {
@@ -78,10 +89,15 @@ describe('UploadController', () => {
     const result = await controller.deleteMultipleImages(['a.png', 'b.png']);
 
     expect(result).toEqual({ message: '2 images deleted successfully' });
-    expect(mockService.deleteMultipleImages).toHaveBeenCalledWith(['a.png', 'b.png']);
+    expect(mockService.deleteMultipleImages).toHaveBeenCalledWith([
+      'a.png',
+      'b.png',
+    ]);
   });
 
   it('deleteMultipleImages should throw when paths are missing', async () => {
-    await expect(controller.deleteMultipleImages([])).rejects.toThrow(BadRequestException);
+    await expect(controller.deleteMultipleImages([])).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });

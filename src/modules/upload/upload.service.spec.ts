@@ -5,7 +5,6 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 
 describe('UploadService', () => {
   let service: UploadService;
-  let supabaseService: SupabaseService;
 
   const mockStorageClient = {
     upload: jest.fn(),
@@ -19,6 +18,8 @@ describe('UploadService', () => {
     },
   };
 
+  const adminClientMock = jest.fn().mockReturnValue(mockSupabaseClient);
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -26,14 +27,13 @@ describe('UploadService', () => {
         {
           provide: SupabaseService,
           useValue: {
-            adminClient: jest.fn().mockReturnValue(mockSupabaseClient),
+            adminClient: adminClientMock,
           },
         },
       ],
     }).compile();
 
     service = module.get<UploadService>(UploadService);
-    supabaseService = module.get<SupabaseService>(SupabaseService);
 
     // Reset mocks before each test
     jest.clearAllMocks();
@@ -78,8 +78,10 @@ describe('UploadService', () => {
         bucket: 'product-images',
       });
 
-      expect(supabaseService.adminClient).toHaveBeenCalled();
-      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith('product-images');
+      expect(adminClientMock).toHaveBeenCalled();
+      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith(
+        'product-images',
+      );
       expect(mockStorageClient.upload).toHaveBeenCalledWith(
         expect.stringMatching(/^folder\/[a-f0-9-]+\.jpg$/),
         mockFile.buffer,
@@ -91,11 +93,7 @@ describe('UploadService', () => {
     });
 
     it('should throw BadRequestException for invalid file type', async () => {
-      const mockFile = createMockFile(
-        'application/pdf',
-        1024,
-        'document.pdf',
-      );
+      const mockFile = createMockFile('application/pdf', 1024, 'document.pdf');
 
       await expect(service.uploadImage(mockFile)).rejects.toThrow(
         BadRequestException,
@@ -278,9 +276,11 @@ describe('UploadService', () => {
         } as Express.Multer.File,
       ];
 
-      const spy = jest
-        .spyOn(service, 'uploadImage')
-        .mockResolvedValue({ url: 'u', path: 'general/x.jpg', bucket: 'product-images' });
+      const spy = jest.spyOn(service, 'uploadImage').mockResolvedValue({
+        url: 'u',
+        path: 'general/x.jpg',
+        bucket: 'product-images',
+      });
 
       const results = await service.uploadMultipleImages(mockFiles);
 
@@ -325,8 +325,10 @@ describe('UploadService', () => {
 
       await expect(service.deleteImage(filePath)).resolves.toBeUndefined();
 
-      expect(supabaseService.adminClient).toHaveBeenCalled();
-      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith('product-images');
+      expect(adminClientMock).toHaveBeenCalled();
+      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith(
+        'product-images',
+      );
       expect(mockStorageClient.remove).toHaveBeenCalledWith([filePath]);
     });
 

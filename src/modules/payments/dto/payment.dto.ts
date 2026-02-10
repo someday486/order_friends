@@ -410,5 +410,3 @@ export class TossWebhookRequest {
     [key: string]: any;
   };
 }
-
-

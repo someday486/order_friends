@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useMemo } from "react";
+import Image from "next/image";
+import { apiClient } from "@/lib/api-client";
 
 interface ImageUploadProps {
   value: string | null;
@@ -10,16 +12,17 @@ interface ImageUploadProps {
   aspectRatio?: string; // e.g. "1/1", "16/9", "3/1"
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+const PREVIEW_WIDTH = 240;
 
-async function getAccessToken() {
-  const { createClient } = await import("@/lib/supabaseClient");
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token");
-  return token;
+function getPreviewSize(aspectRatio: string) {
+  const [w, h] = aspectRatio.split("/").map((value) => Number(value));
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+    return { width: PREVIEW_WIDTH, height: PREVIEW_WIDTH };
+  }
+  return {
+    width: PREVIEW_WIDTH,
+    height: Math.max(1, Math.round(PREVIEW_WIDTH * (h / w))),
+  };
 }
 
 export function ImageUpload({
@@ -33,15 +36,16 @@ export function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previewSize = useMemo(() => getPreviewSize(aspectRatio), [aspectRatio]);
 
   const handleUpload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
-        setError("이미지 파일만 업로드 가능합니다");
+        setError("?��?지 ?�일�??�로??가?�합?�다");
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setError("파일 크기는 5MB 이하만 가능합니다");
+        setError("?�일 ?�기??5MB ?�하�?가?�합?�다");
         return;
       }
 
@@ -49,26 +53,17 @@ export function ImageUpload({
       setUploading(true);
 
       try {
-        const token = await getAccessToken();
         const formData = new FormData();
         formData.append("file", file);
         formData.append("folder", folder);
 
-        const res = await fetch(`${API_BASE}/upload/image`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || `업로드 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.post<{ url: string }>(
+          "/upload/image",
+          formData,
+        );
         onChange(data.url);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "업로드 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?�로??�??�류 발생");
       } finally {
         setUploading(false);
       }
@@ -103,9 +98,11 @@ export function ImageUpload({
 
       {value ? (
         <div className="relative inline-block">
-          <img
+          <Image
             src={value}
             alt={label}
+            width={previewSize.width}
+            height={previewSize.height}
             className="w-full max-w-[240px] object-cover rounded border border-border"
             style={{ aspectRatio }}
           />
@@ -113,7 +110,7 @@ export function ImageUpload({
             type="button"
             onClick={handleRemove}
             className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 text-white text-xs font-bold flex items-center justify-center cursor-pointer border-none hover:bg-black/90 transition-colors"
-            title="이미지 삭제"
+            title="?��?지 ??��"
           >
             X
           </button>
@@ -138,15 +135,15 @@ export function ImageUpload({
           `}
         >
           {uploading ? (
-            <span className="text-sm text-text-secondary">업로드 중...</span>
+            <span className="text-sm text-text-secondary">?�로??�?..</span>
           ) : (
             <>
               <span className="text-[28px] mb-2">+</span>
               <span className="text-sm text-text-secondary">
-                클릭 또는 드래그하여 이미지 업로드
+                ?�릭 ?�는 ?�래그하???��?지 ?�로??
               </span>
               <span className="text-2xs text-text-tertiary mt-1">
-                JPG, PNG, WebP, GIF (최대 5MB)
+                JPG, PNG, WebP, GIF (최�? 5MB)
               </span>
             </>
           )}

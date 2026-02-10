@@ -3,7 +3,11 @@ import { ForbiddenException } from '@nestjs/common';
 import { MembershipGuard } from './membership.guard';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { Role } from '../../modules/auth/authorization/roles.enum';
-import { BrandRole, BranchRole, MemberStatus } from '../../modules/members/dto/member.dto';
+import {
+  BrandRole,
+  BranchRole,
+  MemberStatus,
+} from '../../modules/members/dto/member.dto';
 
 describe('MembershipGuard', () => {
   let guard: MembershipGuard;
@@ -55,7 +59,10 @@ describe('MembershipGuard', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MembershipGuard,
-        { provide: SupabaseService, useValue: { userClient: jest.fn(() => mockSb) } },
+        {
+          provide: SupabaseService,
+          useValue: { userClient: jest.fn(() => mockSb) },
+        },
       ],
     }).compile();
 
@@ -102,7 +109,10 @@ describe('MembershipGuard', () => {
   it('should infer role when no scope is provided', async () => {
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: [{ role: BrandRole.OWNER }], error: null });
+      .mockResolvedValueOnce({
+        data: [{ role: BrandRole.OWNER }],
+        error: null,
+      });
 
     const ctx = createContext();
 
@@ -115,7 +125,10 @@ describe('MembershipGuard', () => {
   it('should infer STAFF role when no owner is present', async () => {
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: [{ role: BrandRole.ADMIN }], error: null });
+      .mockResolvedValueOnce({
+        data: [{ role: BrandRole.ADMIN }],
+        error: null,
+      });
 
     const ctx = createContext();
 
@@ -243,7 +256,10 @@ describe('MembershipGuard', () => {
     });
 
     branchesChain.eq.mockReturnValueOnce(branchesChain);
-    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'branch-1', brand_id: 'brand-1' },
+      error: null,
+    });
 
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
@@ -264,10 +280,16 @@ describe('MembershipGuard', () => {
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
-    branchMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     branchesChain.eq.mockReturnValueOnce(branchesChain);
-    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'branch-1', brand_id: 'brand-1' },
+      error: null,
+    });
 
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
@@ -291,10 +313,16 @@ describe('MembershipGuard', () => {
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
-    branchMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     branchesChain.eq.mockReturnValueOnce(branchesChain);
-    branchesChain.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'not found' } });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'not found' },
+    });
 
     const ctx = createContext({ params: { branchId: 'branch-1' } });
 
@@ -305,15 +333,24 @@ describe('MembershipGuard', () => {
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
-    branchMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     branchesChain.eq.mockReturnValueOnce(branchesChain);
-    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'branch-1', brand_id: 'brand-1' },
+      error: null,
+    });
 
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
       .mockReturnValueOnce(brandMembersChain);
-    brandMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    brandMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     const ctx = createContext({ params: { branchId: 'branch-1' } });
 
@@ -324,10 +361,16 @@ describe('MembershipGuard', () => {
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
-    branchMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     branchesChain.eq.mockReturnValueOnce(branchesChain);
-    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'branch-1', brand_id: 'brand-1' },
+      error: null,
+    });
 
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)

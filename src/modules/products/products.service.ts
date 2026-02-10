@@ -91,7 +91,9 @@ export class ProductsService {
     searchDto: ProductSearchDto,
     isAdmin?: boolean,
   ): Promise<PaginatedResponse<ProductListItemResponse>> {
-    this.logger.log(`Searching products for branch: ${branchId} with filters: ${JSON.stringify(searchDto)}`);
+    this.logger.log(
+      `Searching products for branch: ${branchId} with filters: ${JSON.stringify(searchDto)}`,
+    );
     const sb = this.getClient(accessToken, isAdmin);
 
     const query = QueryBuilder.buildProductSearchQuery(sb, branchId, searchDto);

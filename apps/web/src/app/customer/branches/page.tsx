@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -26,21 +26,9 @@ type Brand = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -57,28 +45,15 @@ export default function CustomerBranchesPage() {
   useEffect(() => {
     const loadBrands = async () => {
       try {
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/customer/brands`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`브랜드 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Brand[]>("/customer/brands");
         setBrands(data);
 
-        // Auto-select first brand
         if (data.length > 0) {
           setSelectedBrandId(data[0].id);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "브랜드 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "??? ?? ?? ? ?? ??");
       }
     };
 
@@ -95,23 +70,12 @@ export default function CustomerBranchesPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/branches?brandId=${selectedBrandId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`지점 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Branch[]>(`/customer/branches?brandId=${selectedBrandId}`);
         setBranches(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -240,37 +204,23 @@ function AddBranchModal({
     e.preventDefault();
 
     if (!formData.name || !formData.slug) {
-      alert("모든 필드를 입력해주세요");
+      alert("?? ??? ??????");
       return;
     }
 
     try {
       setSaving(true);
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/customer/branches`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          brandId,
-          name: formData.name,
-          slug: formData.slug,
-        }),
+      await apiClient.post("/customer/branches", {
+        brandId,
+        name: formData.name,
+        slug: formData.slug,
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `지점 추가 실패: ${res.status}`);
-      }
-
-      alert("지점이 추가되었습니다");
+      alert("??? ???????.");
       onSuccess();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "지점 추가 중 오류 발생");
+      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     } finally {
       setSaving(false);
     }

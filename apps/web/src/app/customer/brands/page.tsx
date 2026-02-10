@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -21,21 +22,9 @@ type Brand = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -51,23 +40,12 @@ export default function CustomerBrandsPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/brands`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`브랜드 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Brand[]>("/customer/brands");
         setBrands(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "브랜드 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "??? ?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -128,9 +106,11 @@ function BrandCard({ brand }: { brand: Brand }) {
     >
       <div className="flex items-center gap-3 mb-3">
         {brand.logo_url ? (
-          <img
+          <Image
             src={brand.logo_url}
             alt={brand.name}
+            width={48}
+            height={48}
             className="w-12 h-12 rounded object-cover"
           />
         ) : (

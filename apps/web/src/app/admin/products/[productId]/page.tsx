@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
 
@@ -36,21 +38,9 @@ type ProductCategory = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -101,20 +91,7 @@ function ProductDetailPageContent() {
         setLoading(true);
         setError(null);
 
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/admin/products/${productId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`상품 조회 실패: ${res.status} ${text}`);
-        }
-
-        const data = (await res.json()) as ProductDetail;
+        const data = await apiClient.get<ProductDetail>(`/admin/products/${productId}`);
         setBranchId(data.branchId);
         setName(data.name);
         setCategoryId(data.categoryId ?? "");
@@ -125,7 +102,7 @@ function ProductDetailPageContent() {
         setIsActive(data.isActive);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "조회 실패");
+        setError(err?.message ?? "?? ??");
       } finally {
         setLoading(false);
       }
@@ -134,7 +111,7 @@ function ProductDetailPageContent() {
     fetchProduct();
   }, [productId, isNew]);
 
-  // 카테고리 조회
+  // ???? ??
   useEffect(() => {
     if (!branchId) {
       setCategories([]);
@@ -144,26 +121,11 @@ function ProductDetailPageContent() {
 
     const fetchCategories = async () => {
       try {
-        const token = await getAccessToken();
-        const res = await fetch(
-          `${API_BASE}/admin/products/categories?branchId=${encodeURIComponent(branchId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`카테고리 조회 실패: ${res.status} ${text}`);
-        }
-
-        const data = (await res.json()) as ProductCategory[];
+        const data = await apiClient.get<ProductCategory[]>(`/admin/products/categories?branchId=${encodeURIComponent(branchId)}`);
         setCategories(data.filter((item) => item.isActive));
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "카테고리 조회 실패");
+        setError(err?.message ?? "???? ?? ??");
       }
     };
 
@@ -209,27 +171,27 @@ function ProductDetailPageContent() {
   // 저장
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("상품명을 입력하세요.");
+      alert("???? ??????");
       return;
     }
 
     if (isNew && !branchId.trim()) {
-      alert("가게를 선택하세요.");
+      alert("??? ??????");
       return;
     }
 
     if (!categoryId.trim()) {
-      alert("카테고리를 선택하세요.");
+      alert("????? ??????");
       return;
     }
 
     if (price < 0) {
-      alert("가격을 0 이상으로 입력하세요.");
+      alert("??? 0 ???? ??????");
       return;
     }
 
     if (!imageFile && !imageUrl) {
-      alert("상품 이미지를 업로드하세요.");
+      alert("?? ???? ???????.");
       return;
     }
 
@@ -237,81 +199,46 @@ function ProductDetailPageContent() {
       setSaving(true);
       setError(null);
 
-      const token = await getAccessToken();
-
       if (isNew) {
-        // 생성
-        const res = await fetch(`${API_BASE}/admin/products`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            branchId,
-            name,
-            categoryId,
-            description: description || null,
-            price,
-            imageUrl: imageUrl ?? null,
-            isActive,
-          }),
+        const data = await apiClient.post<ProductDetail>("/admin/products", {
+          branchId,
+          name,
+          categoryId,
+          description: description || null,
+          price,
+          imageUrl: imageUrl ?? null,
+          isActive,
         });
 
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`생성 실패: ${res.status} ${text}`);
-        }
-
-        const data = (await res.json()) as ProductDetail;
         const uploadedUrl = await uploadImage(data.id);
         if (uploadedUrl) {
-          await fetch(`${API_BASE}/admin/products/${data.id}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              imageUrl: uploadedUrl,
-            }),
+          await apiClient.patch("/admin/products/" + data.id, {
+            imageUrl: uploadedUrl,
           });
           setImageUrl(uploadedUrl);
         }
-        router.push(`/admin/products/${data.id}`);
+        router.push("/admin/products/" + data.id);
       } else {
         let uploadedUrl: string | null = imageUrl;
         if (imageFile) {
           uploadedUrl = await uploadImage(productId);
           setImageUrl(uploadedUrl);
         }
-        // 수정
-        const res = await fetch(`${API_BASE}/admin/products/${productId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name,
-            categoryId,
-            description: description || null,
-            price,
-            imageUrl: uploadedUrl,
-            isActive,
-          }),
+
+        await apiClient.patch("/admin/products/" + productId, {
+          name,
+          categoryId,
+          description: description || null,
+          price,
+          imageUrl: uploadedUrl,
+          isActive,
         });
 
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`수정 실패: ${res.status} ${text}`);
-        }
-
-        alert("저장되었습니다.");
+        alert("???????.");
       }
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "저장 실패");
+      setError(err?.message ?? "?? ??");
     } finally {
       setSaving(false);
     }
@@ -414,10 +341,13 @@ function ProductDetailPageContent() {
             <p className="text-text-tertiary text-xs mt-2">이미지 업로드 중...</p>
           )}
           {imagePreviewUrl && (
-            <img
+            <Image
               src={imagePreviewUrl}
-              alt="상품 미리보기"
-              className="mt-3 w-full max-w-[240px] rounded-xl"
+              alt="?? ????"
+              width={240}
+              height={240}
+              className="mt-3 w-full max-w-[240px] rounded-xl h-auto"
+              unoptimized
             />
           )}
         </div>

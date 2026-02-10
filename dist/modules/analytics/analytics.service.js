@@ -56,7 +56,13 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 .eq('branch_id', branchId)
                 .gte('created_at', dateRange.start)
                 .lte('created_at', dateRange.end)
-                .in('status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED', 'CREATED']);
+                .in('status', [
+                'COMPLETED',
+                'READY',
+                'PREPARING',
+                'CONFIRMED',
+                'CREATED',
+            ]);
             if (error) {
                 this.logger.error(`Failed to fetch sales analytics: ${error.message}`, error);
                 throw new business_exception_1.BusinessException('Failed to fetch sales analytics', 'SALES_ANALYTICS_FAILED', 500, { branchId, error: error.message });
@@ -124,7 +130,11 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 const productName = item.product_name_snapshot || 'Unknown Product';
                 const qty = item.qty || 0;
                 const revenue = (item.qty || 0) * (item.unit_price || 0);
-                const current = productMap.get(productId) || { name: productName, qty: 0, revenue: 0 };
+                const current = productMap.get(productId) || {
+                    name: productName,
+                    qty: 0,
+                    revenue: 0,
+                };
                 current.qty += qty;
                 current.revenue += revenue;
                 productMap.set(productId, current);
@@ -145,11 +155,15 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 productName: data.name,
                 quantity: data.qty,
                 revenue: data.revenue,
-                revenuePercentage: totalRevenue > 0 ? parseFloat(((data.revenue / totalRevenue) * 100).toFixed(2)) : 0,
+                revenuePercentage: totalRevenue > 0
+                    ? parseFloat(((data.revenue / totalRevenue) * 100).toFixed(2))
+                    : 0,
             }))
                 .sort((a, b) => b.revenue - a.revenue);
             const totalQuantitySold = Array.from(productMap.values()).reduce((sum, p) => sum + p.qty, 0);
-            const averageTurnoverRate = dateRange.days > 0 ? parseFloat((totalQuantitySold / dateRange.days).toFixed(2)) : 0;
+            const averageTurnoverRate = dateRange.days > 0
+                ? parseFloat((totalQuantitySold / dateRange.days).toFixed(2))
+                : 0;
             const inventoryTurnover = {
                 averageTurnoverRate,
                 periodDays: dateRange.days,
@@ -193,13 +207,17 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 .map(([status, count]) => ({
                 status,
                 count,
-                percentage: totalOrders > 0 ? parseFloat(((count / totalOrders) * 100).toFixed(2)) : 0,
+                percentage: parseFloat(((count / totalOrders) * 100).toFixed(2)),
             }))
                 .sort((a, b) => b.count - a.count);
             const ordersByDayMap = new Map();
             orderList.forEach((order) => {
                 const date = new Date(order.created_at).toISOString().split('T')[0];
-                const current = ordersByDayMap.get(date) || { total: 0, completed: 0, cancelled: 0 };
+                const current = ordersByDayMap.get(date) || {
+                    total: 0,
+                    completed: 0,
+                    cancelled: 0,
+                };
                 current.total += 1;
                 if (order.status === 'COMPLETED')
                     current.completed += 1;
@@ -248,7 +266,13 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 .from('orders')
                 .select('id, customer_phone, total_amount, created_at, status')
                 .eq('branch_id', branchId)
-                .in('status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED', 'CREATED']);
+                .in('status', [
+                'COMPLETED',
+                'READY',
+                'PREPARING',
+                'CONFIRMED',
+                'CREATED',
+            ]);
             if (allOrdersError) {
                 this.logger.error(`Failed to fetch customer analytics: ${allOrdersError.message}`, allOrdersError);
                 throw new business_exception_1.BusinessException('Failed to fetch customer analytics', 'CUSTOMER_ANALYTICS_FAILED', 500, { branchId, error: allOrdersError.message });
@@ -260,7 +284,13 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 .eq('branch_id', branchId)
                 .gte('created_at', dateRange.start)
                 .lte('created_at', dateRange.end)
-                .in('status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED', 'CREATED']);
+                .in('status', [
+                'COMPLETED',
+                'READY',
+                'PREPARING',
+                'CONFIRMED',
+                'CREATED',
+            ]);
             if (periodError) {
                 this.logger.error(`Failed to fetch period orders: ${periodError.message}`, periodError);
                 throw new business_exception_1.BusinessException('Failed to fetch customer analytics', 'CUSTOMER_ANALYTICS_FAILED', 500, { branchId, error: periodError.message });
@@ -269,7 +299,10 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
             const customerMap = new Map();
             allOrdersList.forEach((order) => {
                 const phone = order.customer_phone || 'anonymous';
-                const current = customerMap.get(phone) || { orderCount: 0, totalSpent: 0 };
+                const current = customerMap.get(phone) || {
+                    orderCount: 0,
+                    totalSpent: 0,
+                };
                 current.orderCount += 1;
                 current.totalSpent += order.total_amount || 0;
                 customerMap.set(phone, current);
@@ -279,7 +312,8 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
                 const phone = order.customer_phone || 'anonymous';
                 const firstOrder = allOrdersList
                     .filter((o) => o.customer_phone === phone)
-                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+                    .sort((a, b) => new Date(a.created_at).getTime() -
+                    new Date(b.created_at).getTime())[0];
                 if (firstOrder &&
                     new Date(firstOrder.created_at) >= new Date(dateRange.start) &&
                     new Date(firstOrder.created_at) <= new Date(dateRange.end)) {
@@ -290,9 +324,13 @@ let AnalyticsService = AnalyticsService_1 = class AnalyticsService {
             const totalCustomers = customerMap.size;
             const totalRevenue = Array.from(customerMap.values()).reduce((sum, c) => sum + c.totalSpent, 0);
             const clv = totalCustomers > 0 ? Math.round(totalRevenue / totalCustomers) : 0;
-            const repeatCustomerRate = totalCustomers > 0 ? parseFloat(((returningCustomers / totalCustomers) * 100).toFixed(2)) : 0;
+            const repeatCustomerRate = totalCustomers > 0
+                ? parseFloat(((returningCustomers / totalCustomers) * 100).toFixed(2))
+                : 0;
             const totalOrders = allOrdersList.length;
-            const avgOrdersPerCustomer = totalCustomers > 0 ? parseFloat((totalOrders / totalCustomers).toFixed(2)) : 0;
+            const avgOrdersPerCustomer = totalCustomers > 0
+                ? parseFloat((totalOrders / totalCustomers).toFixed(2))
+                : 0;
             return {
                 totalCustomers,
                 newCustomers: newCustomerPhones.size,

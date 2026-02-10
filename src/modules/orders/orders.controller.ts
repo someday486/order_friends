@@ -39,16 +39,9 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: '주문 목록 조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
-  async getOrders(
-    @Req() req: AuthRequest,
-    @Query() query: GetOrdersQueryDto,
-  ) {
+  async getOrders(@Req() req: AuthRequest, @Query() query: GetOrdersQueryDto) {
     if (!req.accessToken) throw new Error('Missing access token');
-    return this.ordersService.getOrders(
-      req.accessToken,
-      query.branchId,
-      query,
-    );
+    return this.ordersService.getOrders(req.accessToken, query.branchId, query);
   }
 
   @Get(':orderId')

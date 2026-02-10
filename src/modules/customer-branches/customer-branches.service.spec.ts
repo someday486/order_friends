@@ -36,7 +36,10 @@ describe('CustomerBranchesService', () => {
   });
 
   it('getMyBranches should throw on query error', async () => {
-    mockSb.order.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.order.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.getMyBranches(
@@ -296,11 +299,14 @@ describe('CustomerBranchesService', () => {
   });
 
   it('getMyBranch should throw when branch not found', async () => {
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'missing' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'missing' },
+    });
 
-    await expect(
-      service.getMyBranch('user-1', 'b1', [], []),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.getMyBranch('user-1', 'b1', [], [])).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('createMyBranch should enforce role', async () => {
@@ -314,7 +320,10 @@ describe('CustomerBranchesService', () => {
   });
 
   it('createMyBranch should throw on duplicate slug', async () => {
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { code: '23505' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '23505' },
+    });
 
     await expect(
       service.createMyBranch(
@@ -326,7 +335,10 @@ describe('CustomerBranchesService', () => {
   });
 
   it('createMyBranch should throw on insert error', async () => {
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.createMyBranch(

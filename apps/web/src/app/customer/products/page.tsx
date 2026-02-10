@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -34,21 +35,9 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
@@ -75,29 +64,14 @@ export default function CustomerProductsPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/customer/branches`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`매장 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(data);
-
-        // Set first branch as default if available
         if (data.length > 0) {
           setSelectedBranchId(data[0].id);
-          setUserRole(data[0].myRole);
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "매장 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       }
     };
 
@@ -107,38 +81,17 @@ export default function CustomerProductsPage() {
   // Load products when branch changes
   useEffect(() => {
     const loadProducts = async () => {
-      if (!selectedBranchId) {
-        setProducts([]);
-        setLoading(false);
-        return;
-      }
+      if (!selectedBranchId) return;
 
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/products?branchId=${encodeURIComponent(selectedBranchId)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`상품 목록 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Product[]>(`/customer/products?branchId=${encodeURIComponent(selectedBranchId)}`);
         setProducts(data);
-
-        // Update role based on selected branch
-        const branch = branches.find((b) => b.id === selectedBranchId);
-        if (branch) {
-          setUserRole(branch.myRole);
-        }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "상품 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -175,40 +128,28 @@ export default function CustomerProductsPage() {
   const saveReorder = async () => {
     try {
       setReorderSaving(true);
-      const token = await getAccessToken();
 
       const items = reorderList.map((p, idx) => ({
         id: p.id,
         sortOrder: idx,
       }));
 
-      const res = await fetch(`${API_BASE}/customer/products/reorder`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          branchId: selectedBranchId,
-          items,
-        }),
+      const data = await apiClient.patch<Product[]>("/customer/products/reorder", {
+        branchId: selectedBranchId,
+        items,
       });
 
-      if (!res.ok) {
-        throw new Error(`순서 저장 실패: ${res.status}`);
-      }
-
-      const data = await res.json();
       setProducts(data);
       setIsReorderMode(false);
       setReorderList([]);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "순서 저장 중 오류 발생");
+      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     } finally {
       setReorderSaving(false);
     }
   };
+
 
   if (loading && branches.length === 0) {
     return (
@@ -299,11 +240,13 @@ export default function CustomerProductsPage() {
 
                 {/* Product image */}
                 {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="w-12 h-12 rounded object-cover flex-shrink-0"
-                  />
+                  <Image
+                  src={product.image_url}
+                  alt={product.name}
+                  width={48}
+                  height={48}
+                  className="w-12 h-12 rounded object-cover flex-shrink-0"
+                />
                 ) : (
                   <div className="w-12 h-12 rounded bg-bg-tertiary flex items-center justify-center text-lg flex-shrink-0">
                     📦
@@ -386,11 +329,13 @@ function CustomerProductCard({ product }: { product: Product }) {
       className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
     >
       {product.image_url && (
-        <img
-          src={product.image_url}
-          alt={product.name}
-          className="w-full h-40 rounded object-cover mb-3"
-        />
+        <Image
+        src={product.image_url}
+        alt={product.name}
+        width={480}
+        height={160}
+        className="w-full h-40 rounded object-cover mb-3"
+      />
       )}
       <div className="font-bold text-base mb-2">{product.name}</div>
       <div className="text-lg font-extrabold text-foreground mb-2">{formatWon(product.base_price ?? product.price ?? 0)}</div>

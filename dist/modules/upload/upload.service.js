@@ -41,7 +41,7 @@ let UploadService = UploadService_1 = class UploadService {
         const fileName = `${folder}/${(0, uuid_1.v4)()}.${fileExt}`;
         try {
             const client = this.supabase.adminClient();
-            const { data, error } = await client.storage
+            const { error } = await client.storage
                 .from(this.bucketName)
                 .upload(fileName, file.buffer, {
                 contentType: file.mimetype,

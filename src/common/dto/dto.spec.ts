@@ -168,9 +168,7 @@ describe('DTO defaults and constructors', () => {
     const dto = plainToInstance(CreatePublicOrderDto, {
       branchId: 'b1',
       customerName: 'A',
-      items: [
-        { productId: 'p1', qty: 1, options: [{ optionId: 'o1' }] },
-      ],
+      items: [{ productId: 'p1', qty: 1, options: [{ optionId: 'o1' }] }],
     });
     expect(dto.items[0]).toBeInstanceOf(OrderItemDto);
     expect(dto.items[0].options?.[0]).toBeInstanceOf(OrderItemOptionDto);
@@ -185,9 +183,7 @@ describe('DTO defaults and constructors', () => {
     const dto = plainToInstance(CreatePublicOrderV2, {
       branchId: 'b1',
       customerName: 'A',
-      items: [
-        { productId: 'p1', qty: 1, options: [{ optionId: 'o1' }] },
-      ],
+      items: [{ productId: 'p1', qty: 1, options: [{ optionId: 'o1' }] }],
     });
     expect(dto.items[0].options?.[0]).toBeInstanceOf(PublicOrderItemOptionDto);
   });

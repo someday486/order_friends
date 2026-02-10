@@ -69,7 +69,10 @@ describe('CustomerProductsService', () => {
   });
 
   it('checkBranchAccess should throw when branch missing', async () => {
-    chains.branches.single.mockResolvedValueOnce({ data: null, error: { message: 'missing' } });
+    chains.branches.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'missing' },
+    });
 
     await expect(
       (service as any).checkBranchAccess('b1', 'u1', [], []),
@@ -168,9 +171,12 @@ describe('CustomerProductsService', () => {
       .mockReturnValueOnce(chains.products)
       .mockResolvedValueOnce({ data: [{ id: 'p1' }], error: null });
 
-    const result = await service.getMyProducts('u1', 'b1', [], [
-      { branch_id: 'b1', role: 'OWNER' },
-    ]);
+    const result = await service.getMyProducts(
+      'u1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
 
     expect(result[0].id).toBe('p1');
   });
@@ -184,9 +190,12 @@ describe('CustomerProductsService', () => {
       .mockReturnValueOnce(chains.products)
       .mockResolvedValueOnce({ data: null, error: null });
 
-    const result = await service.getMyProducts('u1', 'b1', [], [
-      { branch_id: 'b1', role: 'OWNER' },
-    ]);
+    const result = await service.getMyProducts(
+      'u1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
 
     expect(result).toHaveLength(0);
   });
@@ -201,9 +210,12 @@ describe('CustomerProductsService', () => {
       error: null,
     });
 
-    const result = await service.getMyProduct('u1', 'p1', [], [
-      { branch_id: 'b1', role: 'OWNER' },
-    ]);
+    const result = await service.getMyProduct(
+      'u1',
+      'p1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result.options).toHaveLength(1);
   });
 
@@ -215,11 +227,25 @@ describe('CustomerProductsService', () => {
     chains.product_categories.order
       .mockReturnValueOnce(chains.product_categories)
       .mockResolvedValueOnce({
-        data: [{ id: 'c1', branch_id: 'b1', name: 'C', sort_order: 1, is_active: true, created_at: 't' }],
+        data: [
+          {
+            id: 'c1',
+            branch_id: 'b1',
+            name: 'C',
+            sort_order: 1,
+            is_active: true,
+            created_at: 't',
+          },
+        ],
         error: null,
       });
 
-    const result = await service.getMyCategories('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    const result = await service.getMyCategories(
+      'u1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result[0].id).toBe('c1');
   });
 
@@ -231,11 +257,25 @@ describe('CustomerProductsService', () => {
     chains.product_categories.order
       .mockReturnValueOnce(chains.product_categories)
       .mockResolvedValueOnce({
-        data: [{ id: 'c1', branch_id: 'b1', name: 'C', sort_order: null, is_active: null, created_at: null }],
+        data: [
+          {
+            id: 'c1',
+            branch_id: 'b1',
+            name: 'C',
+            sort_order: null,
+            is_active: null,
+            created_at: null,
+          },
+        ],
         error: null,
       });
 
-    const result = await service.getMyCategories('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    const result = await service.getMyCategories(
+      'u1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result[0]).toEqual({
       id: 'c1',
       branchId: 'b1',
@@ -255,7 +295,12 @@ describe('CustomerProductsService', () => {
       .mockReturnValueOnce(chains.product_categories)
       .mockResolvedValueOnce({ data: null, error: null });
 
-    const result = await service.getMyCategories('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    const result = await service.getMyCategories(
+      'u1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result).toHaveLength(0);
   });
 
@@ -269,7 +314,12 @@ describe('CustomerProductsService', () => {
       .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
     await expect(
-      service.getMyCategories('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]),
+      service.getMyCategories(
+        'u1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+      ),
     ).rejects.toThrow('Failed to fetch categories');
   });
 
@@ -283,7 +333,12 @@ describe('CustomerProductsService', () => {
       .mockResolvedValueOnce({ data: null, error: { message: 'sort_order' } })
       .mockResolvedValueOnce({ data: [{ id: 'p1' }], error: null });
 
-    const result = await service.getMyProducts('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    const result = await service.getMyProducts(
+      'u1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result).toHaveLength(1);
   });
 
@@ -294,11 +349,19 @@ describe('CustomerProductsService', () => {
     });
     chains.products.order
       .mockReturnValueOnce(chains.products)
-      .mockResolvedValueOnce({ data: null, error: { message: 'sort_order missing' } })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'sort_order missing' },
+      })
       .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
     await expect(
-      service.getMyProducts('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]),
+      service.getMyProducts(
+        'u1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+      ),
     ).rejects.toThrow('Failed to fetch products');
   });
 
@@ -312,7 +375,12 @@ describe('CustomerProductsService', () => {
       .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
     await expect(
-      service.getMyProducts('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]),
+      service.getMyProducts(
+        'u1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+      ),
     ).rejects.toThrow('Failed to fetch products');
   });
 
@@ -321,9 +389,17 @@ describe('CustomerProductsService', () => {
       data: { id: 'p1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
       error: null,
     });
-    chains.product_options.order.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    chains.product_options.order.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
-    const result = await service.getMyProduct('u1', 'p1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    const result = await service.getMyProduct(
+      'u1',
+      'p1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result.options).toEqual([]);
   });
 
@@ -333,9 +409,9 @@ describe('CustomerProductsService', () => {
       error: { message: 'missing' },
     });
 
-    await expect(
-      service.getMyProduct('u1', 'p1', [], []),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.getMyProduct('u1', 'p1', [], [])).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('createMyProduct should throw when role missing', async () => {
@@ -363,7 +439,9 @@ describe('CustomerProductsService', () => {
       data: { id: 'p1' },
       error: null,
     });
-    chains.product_options.insert.mockResolvedValueOnce({ error: { message: 'fail' } });
+    chains.product_options.insert.mockResolvedValueOnce({
+      error: { message: 'fail' },
+    });
 
     const result = await service.createMyProduct(
       'u1',
@@ -421,7 +499,13 @@ describe('CustomerProductsService', () => {
 
     await service.createMyProduct(
       'u1',
-      { branchId: 'b1', name: 'P', categoryId: 'c1', price: 10, isActive: false } as any,
+      {
+        branchId: 'b1',
+        name: 'P',
+        categoryId: 'c1',
+        price: 10,
+        isActive: false,
+      } as any,
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -458,9 +542,17 @@ describe('CustomerProductsService', () => {
       error: null,
     });
 
-    const spy = jest.spyOn(service, 'getMyProduct').mockResolvedValueOnce({ id: 'p1' } as any);
+    const spy = jest
+      .spyOn(service, 'getMyProduct')
+      .mockResolvedValueOnce({ id: 'p1' } as any);
 
-    const result = await service.updateMyProduct('u1', 'p1', {}, [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    const result = await service.updateMyProduct(
+      'u1',
+      'p1',
+      {},
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result.id).toBe('p1');
     expect(spy).toHaveBeenCalled();
   });
@@ -510,14 +602,25 @@ describe('CustomerProductsService', () => {
         error: null,
       })
       .mockResolvedValueOnce({
-        data: { id: 'p1', description: 'Desc', category_id: 'c1', base_price: 20, image_url: 'img' },
+        data: {
+          id: 'p1',
+          description: 'Desc',
+          category_id: 'c1',
+          base_price: 20,
+          image_url: 'img',
+        },
         error: null,
       });
 
     const result = await service.updateMyProduct(
       'u1',
       'p1',
-      { description: 'Desc', categoryId: 'c1', price: 20, imageUrl: 'img' } as any,
+      {
+        description: 'Desc',
+        categoryId: 'c1',
+        price: 20,
+        imageUrl: 'img',
+      } as any,
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -588,9 +691,12 @@ describe('CustomerProductsService', () => {
       .mockReturnValueOnce(chains.products) // checkProductAccess
       .mockResolvedValueOnce({ error: null }); // delete
 
-    const result = await service.deleteMyProduct('u1', 'p1', [], [
-      { branch_id: 'b1', role: 'OWNER' },
-    ]);
+    const result = await service.deleteMyProduct(
+      'u1',
+      'p1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
     expect(result.deleted).toBe(true);
   });
 
@@ -601,7 +707,12 @@ describe('CustomerProductsService', () => {
     });
 
     await expect(
-      service.deleteMyProduct('u1', 'p1', [], [{ branch_id: 'b1', role: 'STAFF' }]),
+      service.deleteMyProduct(
+        'u1',
+        'p1',
+        [],
+        [{ branch_id: 'b1', role: 'STAFF' }],
+      ),
     ).rejects.toThrow(ForbiddenException);
   });
 
@@ -615,7 +726,12 @@ describe('CustomerProductsService', () => {
       .mockResolvedValueOnce({ error: { message: 'fail' } }); // delete
 
     await expect(
-      service.deleteMyProduct('u1', 'p1', [], [{ branch_id: 'b1', role: 'OWNER' }]),
+      service.deleteMyProduct(
+        'u1',
+        'p1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+      ),
     ).rejects.toThrow('Failed to delete product');
   });
 
@@ -711,7 +827,14 @@ describe('CustomerProductsService', () => {
       error: null,
     });
     chains.product_categories.single.mockResolvedValueOnce({
-      data: { id: 'c1', branch_id: 'b1', name: 'Cat', sort_order: 1, is_active: true, created_at: 't' },
+      data: {
+        id: 'c1',
+        branch_id: 'b1',
+        name: 'Cat',
+        sort_order: 1,
+        is_active: true,
+        created_at: 't',
+      },
       error: null,
     });
 
@@ -1012,9 +1135,9 @@ describe('CustomerProductsService', () => {
       error: null,
     });
 
-    await expect(
-      service.deleteCategory('u1', 'c1', [], []),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.deleteCategory('u1', 'c1', [], [])).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('deleteCategory should allow brand membership role', async () => {

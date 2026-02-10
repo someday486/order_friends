@@ -19,10 +19,23 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
     supabase;
     inventoryService;
     logger = new common_1.Logger(PublicOrderService_1.name);
-    duplicateWindowMs = 60 * 1000;
+    duplicateWindowMs;
+    weakDuplicateWindowMs;
+    duplicateLookbackLimit;
     constructor(supabase, inventoryService) {
         this.supabase = supabase;
         this.inventoryService = inventoryService;
+        const windowMs = Number(process.env.PUBLIC_ORDER_DUPLICATE_WINDOW_MS);
+        this.duplicateWindowMs =
+            Number.isFinite(windowMs) && windowMs > 0 ? windowMs : 60 * 1000;
+        const weakWindowMs = Number(process.env.PUBLIC_ORDER_ANON_DUPLICATE_WINDOW_MS);
+        this.weakDuplicateWindowMs =
+            Number.isFinite(weakWindowMs) && weakWindowMs > 0
+                ? weakWindowMs
+                : 20 * 1000;
+        const limit = Number(process.env.PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT);
+        this.duplicateLookbackLimit =
+            Number.isFinite(limit) && limit > 0 ? Math.min(limit, 20) : 5;
     }
     getPriceFromRow(row) {
         if (!row)
@@ -47,23 +60,6 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
         }
         catch (error) {
             this.logger.error(`Failed to rollback order ${orderId}`, error);
-        }
-    }
-    async rollbackInventory(adminClient, branchId, reservedItems) {
-        for (const item of reservedItems) {
-            try {
-                await adminClient
-                    .from('product_inventory')
-                    .update({
-                    qty_available: item.inventory.qty_available + item.qty,
-                    qty_reserved: Math.max(0, item.inventory.qty_reserved - item.qty),
-                })
-                    .eq('product_id', item.productId)
-                    .eq('branch_id', branchId);
-            }
-            catch (error) {
-                this.logger.error(`Failed to rollback inventory for product ${item.productId}`, error);
-            }
         }
     }
     async getBranch(branchId) {
@@ -223,9 +219,7 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
         }
         const products = data ?? [];
         const categoryIds = [
-            ...new Set(products
-                .map((p) => p.category_id)
-                .filter(Boolean)),
+            ...new Set(products.map((p) => p.category_id).filter(Boolean)),
         ];
         let categoryMap = new Map();
         if (categoryIds.length > 0) {
@@ -258,13 +252,120 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             .join('|');
         return (0, crypto_1.createHash)('sha256').update(payload).digest('hex');
     }
-    async findRecentDuplicateOrder(adminClient, dto, totalAmount, signature) {
-        const customerName = dto.customerName?.trim();
-        const customerPhone = dto.customerPhone?.trim();
-        if (!customerName || !customerPhone) {
-            return null;
+    normalizeOptional(value) {
+        const trimmed = value?.trim();
+        return trimmed ? trimmed : undefined;
+    }
+    getDuplicatePolicy(dto) {
+        const customerName = this.normalizeOptional(dto.customerName);
+        const customerPhone = this.normalizeOptional(dto.customerPhone);
+        const customerAddress1 = this.normalizeOptional(dto.customerAddress1);
+        const paymentMethod = dto.paymentMethod ?? 'CARD';
+        const strongLimit = this.duplicateLookbackLimit;
+        const weakLimit = Math.min(this.duplicateLookbackLimit, 3);
+        let strategy = 'ANON';
+        let windowMs = this.weakDuplicateWindowMs;
+        let lookbackLimit = weakLimit;
+        const filters = {};
+        if (customerName && customerPhone) {
+            strategy = 'NAME_PHONE';
+            windowMs = this.duplicateWindowMs;
+            lookbackLimit = strongLimit;
+            filters.name = customerName;
+            filters.phone = customerPhone;
         }
-        const cutoff = new Date(Date.now() - this.duplicateWindowMs).toISOString();
+        else if (customerPhone && customerAddress1) {
+            strategy = 'PHONE_ADDRESS';
+            windowMs = this.duplicateWindowMs;
+            lookbackLimit = strongLimit;
+            filters.phone = customerPhone;
+            filters.address1 = customerAddress1;
+        }
+        else if (customerPhone) {
+            strategy = 'PHONE_ONLY';
+            windowMs = this.duplicateWindowMs;
+            lookbackLimit = strongLimit;
+            filters.phone = customerPhone;
+        }
+        else if (customerName && customerAddress1) {
+            strategy = 'NAME_ADDRESS';
+            windowMs = this.duplicateWindowMs;
+            lookbackLimit = strongLimit;
+            filters.name = customerName;
+            filters.address1 = customerAddress1;
+        }
+        else if (customerName) {
+            strategy = 'NAME_ONLY';
+            windowMs = this.weakDuplicateWindowMs;
+            lookbackLimit = weakLimit;
+            filters.name = customerName;
+        }
+        else if (customerAddress1) {
+            strategy = 'ADDRESS_ONLY';
+            windowMs = this.weakDuplicateWindowMs;
+            lookbackLimit = weakLimit;
+            filters.address1 = customerAddress1;
+        }
+        let dedupKey = null;
+        if (strategy === 'NAME_PHONE') {
+            dedupKey = `name_phone:${customerName}:${customerPhone}`;
+        }
+        else if (strategy === 'PHONE_ADDRESS') {
+            dedupKey = `phone_address:${customerPhone}:${customerAddress1}`;
+        }
+        else if (strategy === 'PHONE_ONLY') {
+            dedupKey = `phone_only:${customerPhone}`;
+        }
+        else if (strategy === 'NAME_ADDRESS') {
+            dedupKey = `name_address:${customerName}:${customerAddress1}`;
+        }
+        else if (strategy === 'NAME_ONLY') {
+            dedupKey = `name_only:${customerName}`;
+        }
+        else if (strategy === 'ADDRESS_ONLY') {
+            dedupKey = `address_only:${customerAddress1}`;
+        }
+        else {
+            dedupKey = `anon:${paymentMethod}`;
+        }
+        return {
+            strategy,
+            windowMs,
+            lookbackLimit,
+            filters,
+            paymentMethod,
+            customerName,
+            customerPhone,
+            customerAddress1,
+            dedupKey,
+        };
+    }
+    buildSignatureFromOrder(order) {
+        const items = (order?.order_items ?? []).map((item) => ({
+            productId: item.product_id,
+            qty: item.qty,
+        }));
+        return this.buildOrderSignature(items);
+    }
+    buildOrderResponse(order) {
+        const items = (order?.order_items ?? []).map((item) => ({
+            productName: item.product_name_snapshot,
+            qty: item.qty,
+            unitPrice: item.unit_price,
+            options: (item.order_item_options ?? []).map((opt) => opt.option_name_snapshot),
+        }));
+        return {
+            id: order.id,
+            orderNo: order.order_no,
+            status: order.status,
+            totalAmount: order.total_amount,
+            createdAt: order.created_at,
+            items,
+        };
+    }
+    async fetchOrderByIdempotencyKey(adminClient, branchId, idempotencyKey) {
+        if (!idempotencyKey)
+            return null;
         const { data, error } = await adminClient
             .from('orders')
             .select(`
@@ -283,40 +384,102 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
           )
         )
       `)
+            .eq('branch_id', branchId)
+            .eq('idempotency_key', idempotencyKey)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+        return data[0];
+    }
+    async logDedupEvent(adminClient, payload) {
+        try {
+            await adminClient.from('order_dedup_logs').insert({
+                branch_id: payload.branchId,
+                order_id: payload.orderId ?? null,
+                matched_order_id: payload.matchedOrderId ?? null,
+                idempotency_key: payload.idempotencyKey ?? null,
+                signature: payload.signature ?? null,
+                total_amount: payload.totalAmount ?? null,
+                customer_name: payload.customerName ?? null,
+                customer_phone: payload.customerPhone ?? null,
+                customer_address1: payload.customerAddress1 ?? null,
+                payment_method: payload.paymentMethod ?? null,
+                strategy: payload.strategy,
+                reason: payload.reason,
+                metadata: payload.metadata ?? {},
+            });
+        }
+        catch (error) {
+            this.logger.warn('Failed to log order dedup event', error);
+        }
+    }
+    logMetric(event, payload) {
+        this.logger.log(`[METRIC] ${event} ${JSON.stringify(payload)}`);
+    }
+    async findRecentDuplicateOrder(adminClient, dto, totalAmount, signature) {
+        const policy = this.getDuplicatePolicy(dto);
+        const cutoff = new Date(Date.now() - policy.windowMs).toISOString();
+        let query = adminClient
+            .from('orders')
+            .select(`
+        id,
+        order_no,
+        status,
+        total_amount,
+        created_at,
+        order_items (
+          product_id,
+          product_name_snapshot,
+          qty,
+          unit_price,
+          order_item_options (
+            option_name_snapshot
+          )
+        )
+      `)
             .eq('branch_id', dto.branchId)
-            .eq('customer_name', customerName)
-            .eq('customer_phone', customerPhone)
             .eq('status', 'CREATED')
             .eq('payment_status', 'PENDING')
             .eq('total_amount', totalAmount)
             .gte('created_at', cutoff)
-            .order('created_at', { ascending: false })
-            .limit(5);
+            .order('created_at', { ascending: false });
+        if (policy.filters.name) {
+            query = query.eq('customer_name', policy.filters.name);
+        }
+        if (policy.filters.phone) {
+            query = query.eq('customer_phone', policy.filters.phone);
+        }
+        if (policy.filters.address1) {
+            query = query.eq('customer_address1', policy.filters.address1);
+        }
+        if (!policy.filters.name &&
+            !policy.filters.phone &&
+            !policy.filters.address1) {
+            query = query.eq('payment_method', policy.paymentMethod ?? 'CARD');
+        }
+        const { data, error } = await query.limit(policy.lookbackLimit);
         if (error || !data || data.length === 0) {
             return null;
         }
         for (const order of data) {
-            const items = order.order_items ?? [];
-            const candidateSignature = this.buildOrderSignature(items.map((item) => ({
-                productId: item.product_id,
-                qty: item.qty,
-            })));
+            const candidateSignature = this.buildSignatureFromOrder(order);
             if (candidateSignature !== signature) {
                 continue;
             }
             this.logger.warn(`Duplicate order detected for ${dto.branchId} within window: ${order.id}`);
             return {
-                id: order.id,
-                orderNo: order.order_no,
-                status: order.status,
-                totalAmount: order.total_amount,
-                createdAt: order.created_at,
-                items: items.map((item) => ({
-                    productName: item.product_name_snapshot,
-                    qty: item.qty,
-                    unitPrice: item.unit_price,
-                    options: (item.order_item_options ?? []).map((opt) => opt.option_name_snapshot),
-                })),
+                order: this.buildOrderResponse(order),
+                strategy: policy.strategy,
+                metadata: {
+                    windowMs: policy.windowMs,
+                    lookbackLimit: policy.lookbackLimit,
+                    cutoff,
+                    dedupKey: policy.dedupKey,
+                    paymentMethod: policy.paymentMethod ?? null,
+                    filters: policy.filters,
+                },
             };
         }
         return null;
@@ -368,27 +531,116 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             productId: item.productId,
             qty: item.qty,
         })));
+        const idempotencyKey = dto.idempotencyKey?.trim() || undefined;
+        const customerName = this.normalizeOptional(dto.customerName) ?? null;
+        const customerPhone = this.normalizeOptional(dto.customerPhone) ?? null;
+        const customerAddress1 = this.normalizeOptional(dto.customerAddress1) ?? null;
+        const paymentMethod = dto.paymentMethod ?? 'CARD';
+        this.logMetric('order.create.start', {
+            branchId: dto.branchId,
+            totalAmount,
+            idempotencyKey,
+            paymentMethod,
+        });
+        if (idempotencyKey) {
+            const existingOrder = await this.fetchOrderByIdempotencyKey(adminClient, dto.branchId, idempotencyKey);
+            if (existingOrder) {
+                const existingSignature = this.buildSignatureFromOrder(existingOrder);
+                if (existingOrder.total_amount !== totalAmount) {
+                    await this.logDedupEvent(adminClient, {
+                        branchId: dto.branchId,
+                        orderId: existingOrder.id,
+                        matchedOrderId: existingOrder.id,
+                        idempotencyKey,
+                        signature,
+                        totalAmount,
+                        customerName,
+                        customerPhone,
+                        customerAddress1,
+                        paymentMethod,
+                        strategy: 'IDEMPOTENCY_KEY',
+                        reason: 'AMOUNT_MISMATCH',
+                        metadata: {
+                            dedupKey: `idempotency:${idempotencyKey}`,
+                            windowMs: this.duplicateWindowMs,
+                            lookbackLimit: this.duplicateLookbackLimit,
+                        },
+                    });
+                    throw new common_1.ConflictException('이미 처리된 주문과 금액이 일치하지 않습니다.');
+                }
+                if (existingSignature !== signature) {
+                    await this.logDedupEvent(adminClient, {
+                        branchId: dto.branchId,
+                        orderId: existingOrder.id,
+                        matchedOrderId: existingOrder.id,
+                        idempotencyKey,
+                        signature,
+                        totalAmount,
+                        customerName,
+                        customerPhone,
+                        customerAddress1,
+                        paymentMethod,
+                        strategy: 'IDEMPOTENCY_KEY',
+                        reason: 'SIGNATURE_MISMATCH',
+                        metadata: {
+                            dedupKey: `idempotency:${idempotencyKey}`,
+                            windowMs: this.duplicateWindowMs,
+                            lookbackLimit: this.duplicateLookbackLimit,
+                        },
+                    });
+                    throw new common_1.ConflictException('이미 처리된 주문과 내용이 일치하지 않습니다.');
+                }
+                await this.logDedupEvent(adminClient, {
+                    branchId: dto.branchId,
+                    orderId: existingOrder.id,
+                    matchedOrderId: existingOrder.id,
+                    idempotencyKey,
+                    signature,
+                    totalAmount,
+                    customerName,
+                    customerPhone,
+                    customerAddress1,
+                    paymentMethod,
+                    strategy: 'IDEMPOTENCY_KEY',
+                    reason: 'MATCHED_EXISTING',
+                    metadata: {
+                        dedupKey: `idempotency:${idempotencyKey}`,
+                        windowMs: this.duplicateWindowMs,
+                        lookbackLimit: this.duplicateLookbackLimit,
+                    },
+                });
+                this.logMetric('order.create.idempotent_hit', {
+                    branchId: dto.branchId,
+                    orderId: existingOrder.id,
+                    idempotencyKey,
+                });
+                return this.buildOrderResponse(existingOrder);
+            }
+        }
         const duplicateOrder = await this.findRecentDuplicateOrder(adminClient, dto, totalAmount, signature);
         if (duplicateOrder) {
-            return duplicateOrder;
-        }
-        const { data: inventoryRecords, error: invError } = await adminClient
-            .from('product_inventory')
-            .select('product_id, qty_available, qty_reserved')
-            .in('product_id', productIds)
-            .eq('branch_id', dto.branchId);
-        if (invError) {
-            throw new common_1.BadRequestException(`재고 조회 실패: ${invError.message}`);
-        }
-        const inventoryMap = new Map(inventoryRecords?.map((inv) => [inv.product_id, inv]) ?? []);
-        for (const item of dto.items) {
-            const inventory = inventoryMap.get(item.productId);
-            if (!inventory) {
-                throw new common_1.BadRequestException(`재고 정보를 찾을 수 없습니다: ${productMap.get(item.productId)?.name}`);
-            }
-            if (inventory.qty_available < item.qty) {
-                throw new common_1.BadRequestException(`재고가 부족합니다: ${productMap.get(item.productId)?.name} (재고: ${inventory.qty_available}개, 주문: ${item.qty}개)`);
-            }
+            await this.logDedupEvent(adminClient, {
+                branchId: dto.branchId,
+                orderId: duplicateOrder.order.id,
+                matchedOrderId: duplicateOrder.order.id,
+                idempotencyKey,
+                signature,
+                totalAmount,
+                customerName,
+                customerPhone,
+                customerAddress1,
+                paymentMethod,
+                strategy: duplicateOrder.strategy,
+                reason: 'RECENT_DUPLICATE',
+                metadata: duplicateOrder.metadata,
+            });
+            this.logMetric('order.create.duplicate', {
+                branchId: dto.branchId,
+                orderId: duplicateOrder.order.id,
+                strategy: duplicateOrder.strategy,
+                dedupKey: duplicateOrder.metadata?.dedupKey,
+            });
+            return duplicateOrder.order;
         }
         const { data: order, error: orderError } = await sb
             .from('orders')
@@ -399,17 +651,48 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             customer_address1: dto.customerAddress1 ?? null,
             customer_address2: dto.customerAddress2 ?? null,
             customer_memo: dto.customerMemo ?? null,
-            payment_method: dto.paymentMethod ?? 'CARD',
+            payment_method: paymentMethod,
             subtotal_amount: subtotalAmount,
             shipping_fee: 0,
             discount_amount: 0,
             total_amount: totalAmount,
             status: 'CREATED',
             payment_status: 'PENDING',
+            idempotency_key: idempotencyKey ?? null,
         })
             .select('id, order_no, status, total_amount, created_at')
             .single();
         if (orderError) {
+            if (orderError.code === '23505' && idempotencyKey) {
+                const existingOrder = await this.fetchOrderByIdempotencyKey(adminClient, dto.branchId, idempotencyKey);
+                if (existingOrder) {
+                    await this.logDedupEvent(adminClient, {
+                        branchId: dto.branchId,
+                        orderId: existingOrder.id,
+                        matchedOrderId: existingOrder.id,
+                        idempotencyKey,
+                        signature,
+                        totalAmount,
+                        customerName,
+                        customerPhone,
+                        customerAddress1,
+                        paymentMethod,
+                        strategy: 'IDEMPOTENCY_KEY',
+                        reason: 'UNIQUE_CONSTRAINT_RACE',
+                        metadata: {
+                            dedupKey: `idempotency:${idempotencyKey}`,
+                            windowMs: this.duplicateWindowMs,
+                            lookbackLimit: this.duplicateLookbackLimit,
+                        },
+                    });
+                    this.logMetric('order.create.idempotency_race', {
+                        branchId: dto.branchId,
+                        orderId: existingOrder.id,
+                        idempotencyKey,
+                    });
+                    return this.buildOrderResponse(existingOrder);
+                }
+            }
             throw new common_1.BadRequestException(`주문 생성 실패: ${orderError.message}`);
         }
         const orderItemResults = [];
@@ -458,48 +741,49 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             await this.rollbackOrder(adminClient, order.id);
             throw error;
         }
-        const reservedItems = [];
         try {
-            for (const item of dto.items) {
-                const inventory = inventoryMap.get(item.productId);
-                if (!inventory)
-                    continue;
-                const { error: updateError } = await adminClient
-                    .from('product_inventory')
-                    .update({
-                    qty_available: inventory.qty_available - item.qty,
-                    qty_reserved: inventory.qty_reserved + item.qty,
-                })
-                    .eq('product_id', item.productId)
-                    .eq('branch_id', dto.branchId);
-                if (updateError) {
-                    this.logger.error(`Failed to reserve inventory for product ${item.productId}`, updateError);
-                    throw new common_1.BadRequestException(`재고 예약 실패: ${productMap.get(item.productId)?.name}`);
-                }
-                reservedItems.push({
-                    productId: item.productId,
-                    qty: item.qty,
-                    inventory,
-                });
-                await adminClient.from('inventory_logs').insert({
+            const { error: reserveError } = await adminClient.rpc('reserve_inventory_for_order', {
+                branch_id: dto.branchId,
+                order_id: order.id,
+                order_no: order.order_no,
+                items: dto.items.map((item) => ({
                     product_id: item.productId,
-                    branch_id: dto.branchId,
-                    transaction_type: 'RESERVE',
-                    qty_change: -item.qty,
-                    qty_before: inventory.qty_available,
-                    qty_after: inventory.qty_available - item.qty,
-                    reference_id: order.id,
-                    reference_type: 'ORDER',
-                    notes: `주문 생성으로 인한 재고 예약 (주문번호: ${order.order_no})`,
-                });
+                    qty: item.qty,
+                })),
+            });
+            if (reserveError) {
+                const message = reserveError.message ?? '';
+                const notFoundMatch = message.match(/INVENTORY_NOT_FOUND:([0-9a-f-]+)/i);
+                if (notFoundMatch) {
+                    const missingId = notFoundMatch[1];
+                    throw new common_1.BadRequestException(`재고 정보를 찾을 수 없습니다: ${productMap.get(missingId)?.name ?? missingId}`);
+                }
+                const insufficientMatch = message.match(/INSUFFICIENT_INVENTORY:([0-9a-f-]+)/i);
+                if (insufficientMatch) {
+                    const productId = insufficientMatch[1];
+                    throw new common_1.BadRequestException(`재고가 부족합니다: ${productMap.get(productId)?.name ?? productId}`);
+                }
+                throw new common_1.BadRequestException('재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.');
             }
         }
         catch (error) {
-            await this.rollbackInventory(adminClient, dto.branchId, reservedItems);
             await this.rollbackOrder(adminClient, order.id);
             this.logger.error('Inventory reservation failed for order ' + order.id, error);
+            this.logMetric('order.create.inventory_failed', {
+                branchId: dto.branchId,
+                orderId: order.id,
+            });
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
             throw new common_1.BadRequestException('재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.');
         }
+        this.logMetric('order.create.success', {
+            branchId: dto.branchId,
+            orderId: order.id,
+            totalAmount: order.total_amount,
+            idempotencyKey,
+        });
         return {
             id: order.id,
             orderNo: order.order_no,

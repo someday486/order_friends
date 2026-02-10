@@ -24,10 +24,14 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
     mockMode;
     constructor(configService) {
         this.configService = configService;
-        this.sendGridApiKey = this.configService.get('SENDGRID_API_KEY') || '';
+        this.sendGridApiKey =
+            this.configService.get('SENDGRID_API_KEY') || '';
         this.smsApiKey = this.configService.get('SMS_API_KEY') || '';
-        this.fromEmail = this.configService.get('FROM_EMAIL') || 'noreply@orderfriends.com';
-        this.fromName = this.configService.get('FROM_NAME') || 'OrderFriends';
+        this.fromEmail =
+            this.configService.get('FROM_EMAIL') ||
+                'noreply@orderfriends.com';
+        this.fromName =
+            this.configService.get('FROM_NAME') || 'OrderFriends';
         this.mockMode = !this.sendGridApiKey || !this.smsApiKey;
         if (this.mockMode) {
             this.logger.warn('Notification service running in MOCK MODE - API keys not configured');

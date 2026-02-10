@@ -44,12 +44,18 @@ describe('OrdersController', () => {
     const result = await controller.getOrders(makeReq(), query);
 
     expect(result).toEqual([{ id: 'order-1' }]);
-    expect(mockService.getOrders).toHaveBeenCalledWith('token', 'branch-1', query);
+    expect(mockService.getOrders).toHaveBeenCalledWith(
+      'token',
+      'branch-1',
+      query,
+    );
   });
 
   it('getOrders should throw when access token is missing', async () => {
     await expect(
-      controller.getOrders(makeReq({ accessToken: undefined }), { branchId: 'branch-1' } as any),
+      controller.getOrders(makeReq({ accessToken: undefined }), {
+        branchId: 'branch-1',
+      } as any),
     ).rejects.toThrow('Missing access token');
   });
 
@@ -59,23 +65,34 @@ describe('OrdersController', () => {
     const result = await controller.getOrder('order-1', makeReq(), 'branch-1');
 
     expect(result).toEqual({ id: 'order-1' });
-    expect(mockService.getOrder).toHaveBeenCalledWith('token', 'order-1', 'branch-1');
+    expect(mockService.getOrder).toHaveBeenCalledWith(
+      'token',
+      'order-1',
+      'branch-1',
+    );
   });
 
   it('getOrder should throw when branchId is missing', async () => {
-    await expect(
-      controller.getOrder('order-1', makeReq(), ''),
-    ).rejects.toThrow(BadRequestException);
+    await expect(controller.getOrder('order-1', makeReq(), '')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('getOrder should throw when access token is missing', async () => {
     await expect(
-      controller.getOrder('order-1', makeReq({ accessToken: undefined }), 'branch-1'),
+      controller.getOrder(
+        'order-1',
+        makeReq({ accessToken: undefined }),
+        'branch-1',
+      ),
     ).rejects.toThrow('Missing access token');
   });
 
   it('updateOrderStatus should call service and return result', async () => {
-    mockService.updateStatus.mockResolvedValue({ id: 'order-1', status: 'COMPLETED' });
+    mockService.updateStatus.mockResolvedValue({
+      id: 'order-1',
+      status: 'COMPLETED',
+    });
 
     const result = await controller.updateOrderStatus(
       'order-1',

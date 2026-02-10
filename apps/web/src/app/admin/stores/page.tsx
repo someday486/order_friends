@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import AddStoreModal from "./AddStoreModal";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
@@ -24,21 +24,9 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatDate(iso: string) {
   if (!iso) return "-";
@@ -77,65 +65,35 @@ export default function StoresPage() {
       setLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(
-        `${API_BASE}/admin/branches?brandId=${encodeURIComponent(bid)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`가게 목록 조회 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as Branch[];
+      const data = await apiClient.get<Branch[]>(`/admin/branches?brandId=${encodeURIComponent(bid)}`);
       setBranches(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "조회 실패");
+      setError(err?.message ?? "?? ??");
     } finally {
       setLoading(false);
     }
   };
 
-  // 가게 삭제
   const handleDelete = async (branchId: string, branchName: string) => {
     if (
       !confirm(
-        `"${branchName}" 가게를 삭제하시겠습니까?\n관련 상품과 주문 데이터가 모두 삭제됩니다.`
+        `"${branchName}" ??? ?????????\n?? ??? ?? ???? ?? ?????.`
       )
     )
       return;
 
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/branches/${branchId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`삭제 실패: ${res.status} ${text}`);
-      }
-
+      await apiClient.delete("/admin/branches/" + branchId);
       setBranches((prev) => prev.filter((b) => b.id !== branchId));
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "삭제 실패");
+      alert(err?.message ?? "?? ??");
     }
   };
 
-  // brandId 준비되면 목록 조회
   useEffect(() => {
+useEffect(() => {
     if (!ready) return;
     if (brandId) fetchBranches(brandId);
   }, [ready, brandId]);
@@ -179,27 +137,12 @@ export default function StoresPage() {
 
           try {
             setAdding(true);
-            const token = await getAccessToken();
 
-            const res = await fetch(`${API_BASE}/admin/branches`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                brandId,
-                name,
-                slug,
-              }),
+            const data = await apiClient.post<Branch>("/admin/branches", {
+              brandId,
+              name,
+              slug,
             });
-
-            if (!res.ok) {
-              const text = await res.text().catch(() => "");
-              throw new Error(`추가 실패: ${res.status} ${text}`);
-            }
-
-            const data = (await res.json()) as Branch;
             setBranches((prev) => [data, ...prev]);
             setShowAddForm(false);
           } catch (e: unknown) {

@@ -90,11 +90,14 @@ describe('MembersService', () => {
   });
 
   it('getBrandMembers should throw on error', async () => {
-    mockSb.order.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.order.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
-    await expect(service.getBrandMembers('token', 'brand', true)).rejects.toThrow(
-      '[members.getBrandMembers]',
-    );
+    await expect(
+      service.getBrandMembers('token', 'brand', true),
+    ).rejects.toThrow('[members.getBrandMembers]');
   });
 
   it('inviteBrandMember should throw not implemented', async () => {
@@ -124,7 +127,13 @@ describe('MembersService', () => {
       error: null,
     });
 
-    const result = await service.addBrandMember('token', 'brand', 'u1', 'MEMBER' as any, true);
+    const result = await service.addBrandMember(
+      'token',
+      'brand',
+      'u1',
+      'MEMBER' as any,
+      true,
+    );
 
     expect(result.brandId).toBe('brand');
   });
@@ -142,7 +151,13 @@ describe('MembersService', () => {
       error: null,
     });
 
-    const result = await service.addBrandMember('token', 'brand', 'u1', undefined as any, true);
+    const result = await service.addBrandMember(
+      'token',
+      'brand',
+      'u1',
+      undefined as any,
+      true,
+    );
 
     expect(result.role).toBe('MEMBER');
     expect(result.createdAt).toBe('');
@@ -150,7 +165,10 @@ describe('MembersService', () => {
 
   it('addBrandMember should throw on insert error', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.addBrandMember('token', 'brand', 'u1', 'MEMBER' as any, true),
@@ -211,10 +229,19 @@ describe('MembersService', () => {
   });
 
   it('updateBrandMember should throw on update error', async () => {
-    mockSb.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
-      service.updateBrandMember('token', 'brand', 'u1', { role: 'OWNER' } as any, true),
+      service.updateBrandMember(
+        'token',
+        'brand',
+        'u1',
+        { role: 'OWNER' } as any,
+        true,
+      ),
     ).rejects.toThrow('[members.updateBrandMember]');
   });
 
@@ -222,7 +249,13 @@ describe('MembersService', () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     await expect(
-      service.updateBrandMember('token', 'brand', 'u1', { role: 'OWNER' } as any, true),
+      service.updateBrandMember(
+        'token',
+        'brand',
+        'u1',
+        { role: 'OWNER' } as any,
+        true,
+      ),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -231,7 +264,12 @@ describe('MembersService', () => {
       .mockReturnValueOnce(mockSb) // brand_id filter
       .mockResolvedValueOnce({ error: null }); // user_id filter
 
-    const result = await service.removeBrandMember('token', 'brand', 'u1', true);
+    const result = await service.removeBrandMember(
+      'token',
+      'brand',
+      'u1',
+      true,
+    );
 
     expect(result.deleted).toBe(true);
   });
@@ -304,18 +342,25 @@ describe('MembersService', () => {
   });
 
   it('getBranchMembers should throw on error', async () => {
-    mockSb.order.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.order.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
-    await expect(service.getBranchMembers('token', 'branch', true)).rejects.toThrow(
-      '[members.getBranchMembers]',
-    );
+    await expect(
+      service.getBranchMembers('token', 'branch', true),
+    ).rejects.toThrow('[members.getBranchMembers]');
   });
 
   it('addBranchMember should throw when exists', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: { user_id: 'u1' } });
 
     await expect(
-      service.addBranchMember('token', { branchId: 'branch', userId: 'u1' } as any, true),
+      service.addBranchMember(
+        'token',
+        { branchId: 'branch', userId: 'u1' } as any,
+        true,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -387,10 +432,17 @@ describe('MembersService', () => {
 
   it('addBranchMember should throw on insert error', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
-    mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
-      service.addBranchMember('token', { branchId: 'branch', userId: 'u1' } as any, true),
+      service.addBranchMember(
+        'token',
+        { branchId: 'branch', userId: 'u1' } as any,
+        true,
+      ),
     ).rejects.toThrow('[members.addBranchMember]');
   });
 
@@ -448,10 +500,19 @@ describe('MembersService', () => {
   });
 
   it('updateBranchMember should throw on update error', async () => {
-    mockSb.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    mockSb.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
-      service.updateBranchMember('token', 'branch', 'u1', { role: 'MANAGER' } as any, true),
+      service.updateBranchMember(
+        'token',
+        'branch',
+        'u1',
+        { role: 'MANAGER' } as any,
+        true,
+      ),
     ).rejects.toThrow('[members.updateBranchMember]');
   });
 
@@ -459,7 +520,13 @@ describe('MembersService', () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     await expect(
-      service.updateBranchMember('token', 'branch', 'u1', { role: 'MANAGER' } as any, true),
+      service.updateBranchMember(
+        'token',
+        'branch',
+        'u1',
+        { role: 'MANAGER' } as any,
+        true,
+      ),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -468,7 +535,12 @@ describe('MembersService', () => {
       .mockReturnValueOnce(mockSb) // branch_id filter
       .mockResolvedValueOnce({ error: null }); // user_id filter
 
-    const result = await service.removeBranchMember('token', 'branch', 'u1', true);
+    const result = await service.removeBranchMember(
+      'token',
+      'branch',
+      'u1',
+      true,
+    );
 
     expect(result.deleted).toBe(true);
   });

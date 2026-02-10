@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
 
@@ -23,21 +23,9 @@ type Product = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
@@ -69,87 +57,48 @@ function ProductsPageContent() {
       setLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/products?branchId=${encodeURIComponent(bid)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`상품 목록 조회 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as Product[];
+      const data = await apiClient.get<Product[]>(`/admin/products?branchId=${encodeURIComponent(bid)}`);
       setProducts(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "조회 실패");
+      setError(err?.message ?? "?? ??");
     } finally {
       setLoading(false);
     }
   };
 
-  // 상품 삭제
   const handleDelete = async (productId: string, productName: string) => {
-    if (!confirm(`"${productName}" 상품을 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${productName}" ??? ?????????`)) return;
 
     try {
-      const token = await getAccessToken();
+      await apiClient.delete("/admin/products/" + productId);
 
-      const res = await fetch(`${API_BASE}/admin/products/${productId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`삭제 실패: ${res.status} ${text}`);
-      }
-
-      // 목록에서 제거
+      // ???? ??
       setProducts((prev) => prev.filter((p) => p.id !== productId));
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "삭제 실패");
+      alert(err?.message ?? "?? ??");
     }
   };
 
-  // 활성/비활성 토글
   const handleToggleActive = async (product: Product) => {
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/products/${product.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ isActive: !product.isActive }),
+      await apiClient.patch("/admin/products/" + product.id, {
+        isActive: !product.isActive,
       });
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`상태 변경 실패: ${res.status} ${text}`);
-      }
-
-      // 목록 업데이트
+      // ?? ????
       setProducts((prev) =>
         prev.map((p) => (p.id === product.id ? { ...p, isActive: !p.isActive } : p))
       );
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "상태 변경 실패");
+      alert(err?.message ?? "?? ?? ??");
     }
   };
 
-  // branchId 변경 시 조회
   useEffect(() => {
+useEffect(() => {
     if (branchId) {
       fetchProducts(branchId);
     } else {

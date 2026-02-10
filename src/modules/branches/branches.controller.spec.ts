@@ -45,7 +45,11 @@ describe('BranchesController', () => {
     const result = await controller.getBranches(makeReq(), 'brand-1');
 
     expect(result).toEqual([{ id: 'branch-1' }]);
-    expect(mockService.getBranches).toHaveBeenCalledWith('token', 'brand-1', false);
+    expect(mockService.getBranches).toHaveBeenCalledWith(
+      'token',
+      'brand-1',
+      false,
+    );
   });
 
   it('getBranches should throw when access token is missing', async () => {
@@ -60,7 +64,11 @@ describe('BranchesController', () => {
     const result = await controller.getBranch(makeReq(), 'branch-1');
 
     expect(result).toEqual({ id: 'branch-1' });
-    expect(mockService.getBranch).toHaveBeenCalledWith('token', 'branch-1', false);
+    expect(mockService.getBranch).toHaveBeenCalledWith(
+      'token',
+      'branch-1',
+      false,
+    );
   });
 
   it('getBranch should throw when access token is missing', async () => {
@@ -85,13 +93,19 @@ describe('BranchesController', () => {
 
   it('createBranch should throw when brandId is missing', async () => {
     await expect(
-      controller.createBranch({ name: 'Store', slug: 'store' } as any, makeReq()),
+      controller.createBranch(
+        { name: 'Store', slug: 'store' } as any,
+        makeReq(),
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('createBranch should throw when name or slug is missing', async () => {
     await expect(
-      controller.createBranch({ brandId: 'brand-1', name: '' } as any, makeReq()),
+      controller.createBranch(
+        { brandId: 'brand-1', name: '' } as any,
+        makeReq(),
+      ),
     ).rejects.toThrow('name and slug are required');
   });
 
@@ -102,12 +116,21 @@ describe('BranchesController', () => {
     const result = await controller.updateBranch(makeReq(), 'branch-1', dto);
 
     expect(result).toEqual({ id: 'branch-1' });
-    expect(mockService.updateBranch).toHaveBeenCalledWith('token', 'branch-1', dto, false);
+    expect(mockService.updateBranch).toHaveBeenCalledWith(
+      'token',
+      'branch-1',
+      dto,
+      false,
+    );
   });
 
   it('updateBranch should throw when access token is missing', async () => {
     await expect(
-      controller.updateBranch(makeReq({ accessToken: undefined }), 'branch-1', {} as any),
+      controller.updateBranch(
+        makeReq({ accessToken: undefined }),
+        'branch-1',
+        {} as any,
+      ),
     ).rejects.toThrow('Missing access token');
   });
 
@@ -117,7 +140,11 @@ describe('BranchesController', () => {
     const result = await controller.deleteBranch(makeReq(), 'branch-1');
 
     expect(result).toEqual({ id: 'branch-1' });
-    expect(mockService.deleteBranch).toHaveBeenCalledWith('token', 'branch-1', false);
+    expect(mockService.deleteBranch).toHaveBeenCalledWith(
+      'token',
+      'branch-1',
+      false,
+    );
   });
 
   it('deleteBranch should throw when access token is missing', async () => {

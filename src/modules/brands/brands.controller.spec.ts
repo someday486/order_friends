@@ -80,11 +80,34 @@ describe('BrandsController', () => {
   });
 
   it.each([
-    { name: 'getMyBrands', call: () => controller.getMyBrands(makeReq({ accessToken: undefined })) },
-    { name: 'getBrand', call: () => controller.getBrand(makeReq({ accessToken: undefined }), 'brand-1') },
-    { name: 'createBrand', call: () => controller.createBrand(makeReq({ accessToken: undefined }), {} as any) },
-    { name: 'updateBrand', call: () => controller.updateBrand(makeReq({ accessToken: undefined }), 'brand-1', {} as any) },
-    { name: 'deleteBrand', call: () => controller.deleteBrand(makeReq({ accessToken: undefined }), 'brand-1') },
+    {
+      name: 'getMyBrands',
+      call: () => controller.getMyBrands(makeReq({ accessToken: undefined })),
+    },
+    {
+      name: 'getBrand',
+      call: () =>
+        controller.getBrand(makeReq({ accessToken: undefined }), 'brand-1'),
+    },
+    {
+      name: 'createBrand',
+      call: () =>
+        controller.createBrand(makeReq({ accessToken: undefined }), {} as any),
+    },
+    {
+      name: 'updateBrand',
+      call: () =>
+        controller.updateBrand(
+          makeReq({ accessToken: undefined }),
+          'brand-1',
+          {} as any,
+        ),
+    },
+    {
+      name: 'deleteBrand',
+      call: () =>
+        controller.deleteBrand(makeReq({ accessToken: undefined }), 'brand-1'),
+    },
   ])('should throw missing access token for $name', async ({ call }) => {
     await expect(call()).rejects.toThrow('Missing access token');
   });

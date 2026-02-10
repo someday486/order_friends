@@ -29,11 +29,7 @@ describe('QueryBuilder', () => {
       const searchDto: ProductSearchDto = {};
       const branchId = 'branch-123';
 
-      QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
-        branchId,
-        searchDto,
-      );
+      QueryBuilder.buildProductSearchQuery(mockSupabase, branchId, searchDto);
 
       expect(mockSupabase.from).toHaveBeenCalledWith('products');
       expect(mockQuery.select).toHaveBeenCalledWith('*', { count: 'exact' });
@@ -46,7 +42,7 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -62,15 +58,12 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
 
-      expect(mockQuery.eq).toHaveBeenCalledWith(
-        'category',
-        'category-456',
-      );
+      expect(mockQuery.eq).toHaveBeenCalledWith('category', 'category-456');
     });
 
     it('should add price range filters when provided', () => {
@@ -80,7 +73,7 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -95,7 +88,7 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -110,7 +103,7 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -124,7 +117,7 @@ describe('QueryBuilder', () => {
       const searchDto: ProductSearchDto = {};
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -141,7 +134,7 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -163,7 +156,7 @@ describe('QueryBuilder', () => {
       };
 
       QueryBuilder.buildProductSearchQuery(
-        mockSupabase as any,
+        mockSupabase,
         'branch-123',
         searchDto,
       );
@@ -206,11 +199,7 @@ describe('QueryBuilder', () => {
       const searchDto: OrderSearchDto = {};
       const branchId = 'branch-123';
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        branchId,
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, branchId, searchDto);
 
       expect(mockSupabase.from).toHaveBeenCalledWith('orders');
       expect(mockQuery.select).toHaveBeenCalledWith('*', { count: 'exact' });
@@ -222,11 +211,7 @@ describe('QueryBuilder', () => {
         q: 'ORD-123',
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
       expect(mockQuery.or).toHaveBeenCalledWith(
         'order_no.ilike.%ORD-123%,customer_name.ilike.%ORD-123%,customer_phone.ilike.%ORD-123%',
@@ -238,11 +223,7 @@ describe('QueryBuilder', () => {
         status: 'CONFIRMED',
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
       expect(mockQuery.eq).toHaveBeenCalledWith('status', 'CONFIRMED');
     });
@@ -252,16 +233,9 @@ describe('QueryBuilder', () => {
         customerName: 'Kim',
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
-      expect(mockQuery.ilike).toHaveBeenCalledWith(
-        'customer_name',
-        '%Kim%',
-      );
+      expect(mockQuery.ilike).toHaveBeenCalledWith('customer_name', '%Kim%');
     });
 
     it('should add date range filters when provided', () => {
@@ -270,11 +244,7 @@ describe('QueryBuilder', () => {
         endDate: '2024-01-31',
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
       expect(mockQuery.gte).toHaveBeenCalledWith('created_at', '2024-01-01');
       expect(mockQuery.lt).toHaveBeenCalledWith('created_at', '2024-02-01');
@@ -286,11 +256,7 @@ describe('QueryBuilder', () => {
         maxAmount: 5000,
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
       expect(mockQuery.gte).toHaveBeenCalledWith('total_amount', 1000);
       expect(mockQuery.lte).toHaveBeenCalledWith('total_amount', 5000);
@@ -304,11 +270,7 @@ describe('QueryBuilder', () => {
         limit: 15,
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
       expect(mockQuery.order).toHaveBeenCalledWith('total_amount', {
         ascending: true,
@@ -328,11 +290,7 @@ describe('QueryBuilder', () => {
         limit: 25,
       };
 
-      QueryBuilder.buildOrderSearchQuery(
-        mockSupabase as any,
-        'branch-123',
-        searchDto,
-      );
+      QueryBuilder.buildOrderSearchQuery(mockSupabase, 'branch-123', searchDto);
 
       expect(mockQuery.or).toHaveBeenCalledWith(
         'order_no.ilike.%홍길동%,customer_name.ilike.%홍길동%,customer_phone.ilike.%홍길동%',

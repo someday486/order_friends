@@ -50,11 +50,9 @@ describe('ProductsController', () => {
     {
       name: 'searchProducts',
       call: () =>
-        controller.searchProducts(
-          makeReq(),
-          'branch-1',
-          { keyword: 'coffee' } as any,
-        ),
+        controller.searchProducts(makeReq(), 'branch-1', {
+          keyword: 'coffee',
+        } as any),
       mockFn: mockService.searchProducts,
       args: ['token', 'branch-1', { keyword: 'coffee' }, false],
     },
@@ -79,7 +77,9 @@ describe('ProductsController', () => {
     {
       name: 'updateProduct',
       call: () =>
-        controller.updateProduct(makeReq(), 'product-1', { name: 'Latte' } as any),
+        controller.updateProduct(makeReq(), 'product-1', {
+          name: 'Latte',
+        } as any),
       mockFn: mockService.updateProduct,
       args: ['token', 'product-1', { name: 'Latte' }, false],
     },
@@ -99,13 +99,58 @@ describe('ProductsController', () => {
   });
 
   it.each([
-    { name: 'getProducts', call: () => controller.getProducts(makeReq({ accessToken: undefined }), 'branch-1') },
-    { name: 'searchProducts', call: () => controller.searchProducts(makeReq({ accessToken: undefined }), 'branch-1', {} as any) },
-    { name: 'getCategories', call: () => controller.getCategories(makeReq({ accessToken: undefined }), 'branch-1') },
-    { name: 'getProduct', call: () => controller.getProduct(makeReq({ accessToken: undefined }), 'product-1') },
-    { name: 'createProduct', call: () => controller.createProduct(makeReq({ accessToken: undefined }), {} as any) },
-    { name: 'updateProduct', call: () => controller.updateProduct(makeReq({ accessToken: undefined }), 'product-1', {} as any) },
-    { name: 'deleteProduct', call: () => controller.deleteProduct(makeReq({ accessToken: undefined }), 'product-1') },
+    {
+      name: 'getProducts',
+      call: () =>
+        controller.getProducts(makeReq({ accessToken: undefined }), 'branch-1'),
+    },
+    {
+      name: 'searchProducts',
+      call: () =>
+        controller.searchProducts(
+          makeReq({ accessToken: undefined }),
+          'branch-1',
+          {} as any,
+        ),
+    },
+    {
+      name: 'getCategories',
+      call: () =>
+        controller.getCategories(
+          makeReq({ accessToken: undefined }),
+          'branch-1',
+        ),
+    },
+    {
+      name: 'getProduct',
+      call: () =>
+        controller.getProduct(makeReq({ accessToken: undefined }), 'product-1'),
+    },
+    {
+      name: 'createProduct',
+      call: () =>
+        controller.createProduct(
+          makeReq({ accessToken: undefined }),
+          {} as any,
+        ),
+    },
+    {
+      name: 'updateProduct',
+      call: () =>
+        controller.updateProduct(
+          makeReq({ accessToken: undefined }),
+          'product-1',
+          {} as any,
+        ),
+    },
+    {
+      name: 'deleteProduct',
+      call: () =>
+        controller.deleteProduct(
+          makeReq({ accessToken: undefined }),
+          'product-1',
+        ),
+    },
   ])('should throw missing access token for $name', async ({ call }) => {
     await expect(call()).rejects.toThrow('Missing access token');
   });

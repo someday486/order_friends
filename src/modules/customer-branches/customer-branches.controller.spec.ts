@@ -40,7 +40,9 @@ describe('CustomerBranchesController', () => {
       .useValue(mockGuard)
       .compile();
 
-    controller = module.get<CustomerBranchesController>(CustomerBranchesController);
+    controller = module.get<CustomerBranchesController>(
+      CustomerBranchesController,
+    );
     jest.clearAllMocks();
   });
 
@@ -50,7 +52,12 @@ describe('CustomerBranchesController', () => {
     const result = await controller.getBranches(makeReq(), 'brand-1');
 
     expect(result).toEqual([{ id: 'branch-1' }]);
-    expect(mockService.getMyBranches).toHaveBeenCalledWith('user-1', 'brand-1', [], []);
+    expect(mockService.getMyBranches).toHaveBeenCalledWith(
+      'user-1',
+      'brand-1',
+      [],
+      [],
+    );
   });
 
   it('getBranches should throw when user is missing', async () => {
@@ -65,7 +72,12 @@ describe('CustomerBranchesController', () => {
     const result = await controller.getBranch(makeReq(), 'branch-1');
 
     expect(result).toEqual({ id: 'branch-1' });
-    expect(mockService.getMyBranch).toHaveBeenCalledWith('user-1', 'branch-1', [], []);
+    expect(mockService.getMyBranch).toHaveBeenCalledWith(
+      'user-1',
+      'branch-1',
+      [],
+      [],
+    );
   });
 
   it('getBranch should throw when user is missing', async () => {
@@ -97,12 +109,22 @@ describe('CustomerBranchesController', () => {
     const result = await controller.updateBranch(makeReq(), 'branch-1', dto);
 
     expect(result).toEqual({ id: 'branch-1' });
-    expect(mockService.updateMyBranch).toHaveBeenCalledWith('user-1', 'branch-1', dto, [], []);
+    expect(mockService.updateMyBranch).toHaveBeenCalledWith(
+      'user-1',
+      'branch-1',
+      dto,
+      [],
+      [],
+    );
   });
 
   it('updateBranch should throw when user is missing', async () => {
     await expect(
-      controller.updateBranch(makeReq({ user: undefined }), 'branch-1', {} as any),
+      controller.updateBranch(
+        makeReq({ user: undefined }),
+        'branch-1',
+        {} as any,
+      ),
     ).rejects.toThrow('Missing user');
   });
 
@@ -112,7 +134,12 @@ describe('CustomerBranchesController', () => {
     const result = await controller.deleteBranch(makeReq(), 'branch-1');
 
     expect(result).toEqual({ ok: true });
-    expect(mockService.deleteMyBranch).toHaveBeenCalledWith('user-1', 'branch-1', [], []);
+    expect(mockService.deleteMyBranch).toHaveBeenCalledWith(
+      'user-1',
+      'branch-1',
+      [],
+      [],
+    );
   });
 
   it('deleteBranch should throw when user is missing', async () => {
@@ -124,32 +151,54 @@ describe('CustomerBranchesController', () => {
   it.each([
     {
       name: 'getBranches',
-      setup: () => mockService.getMyBranches.mockResolvedValueOnce([{ id: 'branch-1' }]),
+      setup: () =>
+        mockService.getMyBranches.mockResolvedValueOnce([{ id: 'branch-1' }]),
       call: () =>
         controller.getBranches(
-          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
           'brand-1',
         ),
       expectCall: () =>
-        expect(mockService.getMyBranches).toHaveBeenCalledWith('user-1', 'brand-1', [], []),
+        expect(mockService.getMyBranches).toHaveBeenCalledWith(
+          'user-1',
+          'brand-1',
+          [],
+          [],
+        ),
     },
     {
       name: 'getBranch',
-      setup: () => mockService.getMyBranch.mockResolvedValueOnce({ id: 'branch-1' }),
+      setup: () =>
+        mockService.getMyBranch.mockResolvedValueOnce({ id: 'branch-1' }),
       call: () =>
         controller.getBranch(
-          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
           'branch-1',
         ),
       expectCall: () =>
-        expect(mockService.getMyBranch).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+        expect(mockService.getMyBranch).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          [],
+          [],
+        ),
     },
     {
       name: 'createBranch',
-      setup: () => mockService.createMyBranch.mockResolvedValueOnce({ id: 'branch-1' }),
+      setup: () =>
+        mockService.createMyBranch.mockResolvedValueOnce({ id: 'branch-1' }),
       call: () =>
         controller.createBranch(
-          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
           { brandId: 'brand-1', name: 'Store', slug: 'store' } as any,
         ),
       expectCall: () =>
@@ -161,10 +210,14 @@ describe('CustomerBranchesController', () => {
     },
     {
       name: 'updateBranch',
-      setup: () => mockService.updateMyBranch.mockResolvedValueOnce({ id: 'branch-1' }),
+      setup: () =>
+        mockService.updateMyBranch.mockResolvedValueOnce({ id: 'branch-1' }),
       call: () =>
         controller.updateBranch(
-          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
           'branch-1',
           { name: 'New' } as any,
         ),
@@ -179,18 +232,30 @@ describe('CustomerBranchesController', () => {
     },
     {
       name: 'deleteBranch',
-      setup: () => mockService.deleteMyBranch.mockResolvedValueOnce({ ok: true }),
+      setup: () =>
+        mockService.deleteMyBranch.mockResolvedValueOnce({ ok: true }),
       call: () =>
         controller.deleteBranch(
-          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
           'branch-1',
         ),
       expectCall: () =>
-        expect(mockService.deleteMyBranch).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+        expect(mockService.deleteMyBranch).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          [],
+          [],
+        ),
     },
-  ])('should default memberships for $name', async ({ setup, call, expectCall }) => {
-    setup();
-    await call();
-    expectCall();
-  });
+  ])(
+    'should default memberships for $name',
+    async ({ setup, call, expectCall }) => {
+      setup();
+      await call();
+      expectCall();
+    },
+  );
 });

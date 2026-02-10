@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -27,20 +27,9 @@ type Branch = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -68,12 +57,7 @@ export default function CustomerCategoriesPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const token = await getAccessToken();
-        const res = await fetch(`${API_BASE}/customer/branches`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`매장 목록 조회 실패: ${res.status}`);
-        const data = await res.json();
+        const data = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(data);
         if (data.length > 0) {
           setSelectedBranchId(data[0].id);
@@ -81,7 +65,7 @@ export default function CustomerCategoriesPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "매장 목록 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
       }
     };
     loadBranches();
@@ -98,20 +82,15 @@ export default function CustomerCategoriesPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
-        const res = await fetch(
-          `${API_BASE}/customer/products/categories?branchId=${encodeURIComponent(selectedBranchId)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!res.ok) throw new Error(`카테고리 조회 실패: ${res.status}`);
-        const data = await res.json();
+
+        const data = await apiClient.get<Category[]>(`/customer/products/categories?branchId=${encodeURIComponent(selectedBranchId)}`);
         setCategories(data);
 
         const branch = branches.find((b) => b.id === selectedBranchId);
         if (branch) setUserRole(branch.myRole);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "카테고리 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "???? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -126,100 +105,62 @@ export default function CustomerCategoriesPage() {
     if (!newCategoryName.trim()) return;
     try {
       setAddLoading(true);
-      const token = await getAccessToken();
-      const res = await fetch(`${API_BASE}/customer/products/categories`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          branchId: selectedBranchId,
-          name: newCategoryName.trim(),
-          sortOrder: categories.length,
-        }),
+      const created = await apiClient.post<Category>("/customer/products/categories", {
+        branchId: selectedBranchId,
+        name: newCategoryName.trim(),
+        sortOrder: categories.length,
       });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`카테고리 생성 실패: ${res.status} ${text}`);
-      }
-      const created = await res.json();
       setCategories((prev) => [...prev, created]);
       setNewCategoryName("");
       setShowAddForm(false);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "카테고리 생성 실패");
+      alert(e instanceof Error ? e.message : "???? ?? ??");
     } finally {
       setAddLoading(false);
     }
   };
 
-  // Update category name
   const handleUpdate = async (categoryId: string) => {
     if (!editName.trim()) return;
     try {
       setEditLoading(true);
-      const token = await getAccessToken();
-      const res = await fetch(`${API_BASE}/customer/products/categories/${categoryId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: editName.trim() }),
+      const updated = await apiClient.patch<Category>("/customer/products/categories/" + categoryId, {
+        name: editName.trim(),
       });
-      if (!res.ok) throw new Error(`카테고리 수정 실패: ${res.status}`);
-      const updated = await res.json();
       setCategories((prev) => prev.map((c) => (c.id === categoryId ? updated : c)));
       setEditingId(null);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "카테고리 수정 실패");
+      alert(e instanceof Error ? e.message : "???? ?? ??");
     } finally {
       setEditLoading(false);
     }
   };
 
-  // Toggle active
   const handleToggleActive = async (category: Category) => {
     try {
-      const token = await getAccessToken();
-      const res = await fetch(`${API_BASE}/customer/products/categories/${category.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ isActive: !category.isActive }),
+      const updated = await apiClient.patch<Category>("/customer/products/categories/" + category.id, {
+        isActive: !category.isActive,
       });
-      if (!res.ok) throw new Error(`상태 변경 실패: ${res.status}`);
-      const updated = await res.json();
       setCategories((prev) => prev.map((c) => (c.id === category.id ? updated : c)));
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "상태 변경 실패");
+      alert(e instanceof Error ? e.message : "?? ?? ??");
     }
   };
 
-  // Delete category
   const handleDelete = async (categoryId: string) => {
-    if (!confirm("이 카테고리를 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.")) return;
+    if (!confirm("? ????? ?????????\n?? ????? ??? '???? ??' ??? ???.")) return;
     try {
-      const token = await getAccessToken();
-      const res = await fetch(`${API_BASE}/customer/products/categories/${categoryId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`카테고리 삭제 실패: ${res.status}`);
+      await apiClient.delete("/customer/products/categories/" + categoryId);
       setCategories((prev) => prev.filter((c) => c.id !== categoryId));
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "카테고리 삭제 실패");
+      alert(e instanceof Error ? e.message : "???? ?? ??");
     }
   };
 
-  // Move category up/down
   const moveCategory = async (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= categories.length) return;
@@ -228,24 +169,19 @@ export default function CustomerCategoriesPage() {
     [newList[index], newList[targetIndex]] = [newList[targetIndex], newList[index]];
     setCategories(newList);
 
-    // Save immediately
     try {
-      const token = await getAccessToken();
       const items = newList.map((c, idx) => ({ id: c.id, sortOrder: idx }));
-      await fetch(`${API_BASE}/customer/products/categories/reorder`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ branchId: selectedBranchId, items }),
+      await apiClient.patch("/customer/products/categories/reorder", {
+        branchId: selectedBranchId,
+        items,
       });
     } catch (e) {
-      console.error("순서 저장 실패:", e);
+      console.error("?? ?? ??:", e);
     }
   };
 
   if (loading && branches.length === 0) {
+if (loading && branches.length === 0) {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">카테고리 관리</h1>

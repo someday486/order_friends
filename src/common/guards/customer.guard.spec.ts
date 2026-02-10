@@ -48,7 +48,10 @@ describe('CustomerGuard', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CustomerGuard,
-        { provide: SupabaseService, useValue: { adminClient: jest.fn(() => mockSb) } },
+        {
+          provide: SupabaseService,
+          useValue: { adminClient: jest.fn(() => mockSb) },
+        },
       ],
     }).compile();
 
@@ -115,7 +118,10 @@ describe('CustomerGuard', () => {
       .mockReturnValueOnce(brandMembersChain)
       .mockResolvedValueOnce({ data: [], error: null });
 
-    brandsChain.eq.mockResolvedValueOnce({ data: [{ id: 'brand-1' }], error: null });
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [{ id: 'brand-1' }],
+      error: null,
+    });
 
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
@@ -140,7 +146,10 @@ describe('CustomerGuard', () => {
         error: null,
       });
 
-    brandsChain.eq.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    brandsChain.eq.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
@@ -189,7 +198,10 @@ describe('CustomerGuard', () => {
       .mockReturnValueOnce(brandMembersChain)
       .mockResolvedValueOnce({ data: null, error: null });
 
-    brandsChain.eq.mockResolvedValueOnce({ data: [{ id: 'brand-1' }], error: null });
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [{ id: 'brand-1' }],
+      error: null,
+    });
 
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)

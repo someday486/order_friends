@@ -13,14 +13,18 @@ describe('PolicyGuard', () => {
     }) as any;
 
   it('should allow when no permissions are required', () => {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue([]) } as unknown as Reflector;
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue([]),
+    } as unknown as Reflector;
     const guard = new PolicyGuard(reflector);
 
     expect(guard.canActivate(createContext({}))).toBe(true);
   });
 
   it('should allow when reflector returns undefined', () => {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) } as unknown as Reflector;
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(undefined),
+    } as unknown as Reflector;
     const guard = new PolicyGuard(reflector);
 
     expect(guard.canActivate(createContext({}))).toBe(true);
@@ -41,7 +45,9 @@ describe('PolicyGuard', () => {
     } as unknown as Reflector;
     const guard = new PolicyGuard(reflector);
 
-    expect(() => guard.canActivate(createContext({ role: undefined }))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(createContext({ role: undefined }))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should throw when permissions are insufficient', () => {
@@ -50,7 +56,9 @@ describe('PolicyGuard', () => {
     } as unknown as Reflector;
     const guard = new PolicyGuard(reflector);
 
-    expect(() => guard.canActivate(createContext({ role: Role.STAFF }))).toThrow(ForbiddenException);
+    expect(() =>
+      guard.canActivate(createContext({ role: Role.STAFF })),
+    ).toThrow(ForbiddenException);
   });
 
   it('should treat unknown roles as insufficient', () => {
@@ -59,9 +67,9 @@ describe('PolicyGuard', () => {
     } as unknown as Reflector;
     const guard = new PolicyGuard(reflector);
 
-    expect(() => guard.canActivate(createContext({ role: 'UNKNOWN' as Role }))).toThrow(
-      ForbiddenException,
-    );
+    expect(() =>
+      guard.canActivate(createContext({ role: 'UNKNOWN' as Role })),
+    ).toThrow(ForbiddenException);
   });
 
   it('should allow when permissions are sufficient', () => {

@@ -5,7 +5,9 @@ import { LoggingInterceptor } from './logging.interceptor';
 describe('LoggingInterceptor', () => {
   const createContext = () =>
     ({
-      switchToHttp: () => ({ getRequest: () => ({ method: 'GET', url: '/test' }) }),
+      switchToHttp: () => ({
+        getRequest: () => ({ method: 'GET', url: '/test' }),
+      }),
     }) as any;
 
   beforeEach(() => {
@@ -50,7 +52,9 @@ describe('LoggingInterceptor', () => {
 
     jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(10);
 
-    await expect(lastValueFrom(interceptor.intercept(ctx, next))).rejects.toThrow('boom');
+    await expect(
+      lastValueFrom(interceptor.intercept(ctx, next)),
+    ).rejects.toThrow('boom');
     expect(Logger.prototype.error).toHaveBeenCalled();
   });
 });

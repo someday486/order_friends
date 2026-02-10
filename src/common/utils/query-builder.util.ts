@@ -17,7 +17,9 @@ export class QueryBuilder {
 
     // Text search
     if (searchDto.q) {
-      query = query.or(`name.ilike.%${searchDto.q}%,description.ilike.%${searchDto.q}%`);
+      query = query.or(
+        `name.ilike.%${searchDto.q}%,description.ilike.%${searchDto.q}%`,
+      );
     }
 
     // Category filter

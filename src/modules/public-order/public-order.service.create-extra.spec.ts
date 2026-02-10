@@ -48,7 +48,10 @@ describe('PublicOrderService - Create Order Branches', () => {
         PublicOrderService,
         {
           provide: SupabaseService,
-          useValue: { anonClient: () => anonClient, adminClient: () => adminClient },
+          useValue: {
+            anonClient: () => anonClient,
+            adminClient: () => adminClient,
+          },
         },
         { provide: InventoryService, useValue: {} },
       ],
@@ -228,7 +231,13 @@ describe('PublicOrderService - Create Order Branches', () => {
 
     adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
     anonChains.orders.single.mockResolvedValueOnce({
-      data: { id: 'o1', order_no: 'O-1', status: 'CREATED', total_amount: 50, created_at: 't' },
+      data: {
+        id: 'o1',
+        order_no: 'O-1',
+        status: 'CREATED',
+        total_amount: 50,
+        created_at: 't',
+      },
       error: null,
     });
 

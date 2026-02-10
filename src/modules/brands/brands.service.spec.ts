@@ -106,7 +106,10 @@ describe('BrandsService', () => {
 
   it('getMyBrands should skip rows without brands for user', async () => {
     userSb.eq.mockResolvedValueOnce({
-      data: [{ brands: null }, { brands: { id: 'b3', name: 'Brand3', created_at: null } }],
+      data: [
+        { brands: null },
+        { brands: { id: 'b3', name: 'Brand3', created_at: null } },
+      ],
       error: null,
     });
 
@@ -140,7 +143,10 @@ describe('BrandsService', () => {
   });
 
   it('getBrand should throw when not found', async () => {
-    adminSb.single.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
+    adminSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'x' },
+    });
 
     await expect(service.getBrand('token', 'b1', true)).rejects.toThrow(
       NotFoundException,
@@ -233,7 +239,10 @@ describe('BrandsService', () => {
   });
 
   it('createBrand should throw when user missing', async () => {
-    userSb.auth.getUser.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
+    userSb.auth.getUser.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'x' },
+    });
 
     await expect(
       service.createBrand('token', { name: 'Brand' } as any),
@@ -258,7 +267,10 @@ describe('BrandsService', () => {
       error: null,
     });
     adminSb.upsert.mockResolvedValueOnce({ error: null });
-    adminSb.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    adminSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.createBrand('token', { name: 'Brand' } as any),
@@ -357,7 +369,10 @@ describe('BrandsService', () => {
       error: null,
     });
     adminSb.maybeSingle
-      .mockResolvedValueOnce({ data: { role: 'OWNER', status: 'ACTIVE' }, error: null })
+      .mockResolvedValueOnce({
+        data: { role: 'OWNER', status: 'ACTIVE' },
+        error: null,
+      })
       .mockResolvedValueOnce({
         data: { id: 'b1', name: 'Brand', owner_user_id: 'u1', created_at: 't' },
         error: null,
@@ -374,7 +389,10 @@ describe('BrandsService', () => {
   });
 
   it('updateBrand should throw when user is missing for non-admin', async () => {
-    userSb.auth.getUser.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
+    userSb.auth.getUser.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'x' },
+    });
 
     await expect(
       service.updateBrand('token', 'b1', { name: 'New' } as any, false),
@@ -428,7 +446,10 @@ describe('BrandsService', () => {
       data: { user: { id: 'u1' } },
       error: null,
     });
-    adminSb.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    adminSb.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.updateBrand('token', 'b1', { name: 'New' } as any, false),
@@ -436,7 +457,10 @@ describe('BrandsService', () => {
   });
 
   it('updateBrand should throw on update error', async () => {
-    adminSb.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    adminSb.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'boom' },
+    });
 
     await expect(
       service.updateBrand('token', 'b1', { name: 'New' } as any, true),
@@ -496,7 +520,10 @@ describe('BrandsService', () => {
       data: { user: { id: 'u1' } },
       error: null,
     });
-    adminSb.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    adminSb.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(service.deleteBrand('token', 'b1', false)).rejects.toThrow(
       '[brands.deleteBrand] membership check',
@@ -504,7 +531,10 @@ describe('BrandsService', () => {
   });
 
   it('deleteBrand should throw when user missing', async () => {
-    userSb.auth.getUser.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
+    userSb.auth.getUser.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'x' },
+    });
 
     await expect(service.deleteBrand('token', 'b1', false)).rejects.toThrow(
       ForbiddenException,

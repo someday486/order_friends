@@ -52,7 +52,9 @@ export class CustomerBranchesService {
     // 브랜치 정보 조회
     const { data: branch, error } = await sb
       .from('branches')
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .eq('id', branchId)
       .single();
 
@@ -284,7 +286,9 @@ export class CustomerBranchesService {
     const { data, error } = await sb
       .from('branches')
       .insert(insertPayload)
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .single();
 
     if (error) {
@@ -351,8 +355,10 @@ export class CustomerBranchesService {
     if (dto.name !== undefined) updateFields.name = dto.name;
     if (dto.slug !== undefined) updateFields.slug = dto.slug;
     if (dto.logoUrl !== undefined) updateFields.logo_url = dto.logoUrl;
-    if (dto.coverImageUrl !== undefined) updateFields.cover_image_url = dto.coverImageUrl;
-    if (dto.thumbnailUrl !== undefined) updateFields.thumbnail_url = dto.thumbnailUrl;
+    if (dto.coverImageUrl !== undefined)
+      updateFields.cover_image_url = dto.coverImageUrl;
+    if (dto.thumbnailUrl !== undefined)
+      updateFields.thumbnail_url = dto.thumbnailUrl;
 
     if (Object.keys(updateFields).length === 0) {
       return this.getMyBranch(
@@ -367,7 +373,9 @@ export class CustomerBranchesService {
       .from('branches')
       .update(updateFields)
       .eq('id', branchId)
-      .select('id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at')
+      .select(
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+      )
       .single();
 
     if (error) {

@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 
 // ============================================================
@@ -43,21 +44,9 @@ type Brand = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -92,56 +81,29 @@ export default function BrandPage() {
       setLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/brands`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`브랜드 조회 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as Brand[];
+      const data = await apiClient.get<Brand[]>("/admin/brands");
       setBrands(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "조회 실패");
+      setError(err?.message ?? "?? ??");
     } finally {
       setLoading(false);
     }
   };
 
-  // 브랜드 추가
+  // ??? ??
   const handleAdd = async () => {
     if (!newName.trim()) return;
 
     try {
       setAdding(true);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/brands`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: newName,
-          slug: newSlug || null,
-          bizName: newBizName || null,
-          bizRegNo: newBizRegNo || null,
-        }),
+      await apiClient.post("/admin/brands", {
+        name: newName,
+        slug: newSlug || null,
+        bizName: newBizName || null,
+        bizRegNo: newBizRegNo || null,
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`추가 실패: ${res.status} ${text}`);
-      }
 
       await fetchBrands();
       setNewName("");
@@ -153,13 +115,13 @@ export default function BrandPage() {
       setShowAddForm(false);
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "추가 실패");
+      alert(err?.message ?? "?? ??");
     } finally {
       setAdding(false);
     }
   };
 
-  // 수정 시작
+  // ?? ??
   const startEdit = (brand: Brand) => {
     setEditingId(brand.id);
     setEditName(brand.name);
@@ -220,60 +182,33 @@ export default function BrandPage() {
     try {
       setSaving(true);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/brands/${editingId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: editName,
-          slug: editSlug || null,
-          bizName: editBizName || null,
-          bizRegNo: editBizRegNo || null,
-        }),
+      await apiClient.patch("/admin/brands/" + editingId, {
+        name: editName,
+        slug: editSlug || null,
+        bizName: editBizName || null,
+        bizRegNo: editBizRegNo || null,
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`수정 실패: ${res.status} ${text}`);
-      }
 
       await fetchBrands();
       setEditingId(null);
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "수정 실패");
+      alert(err?.message ?? "?? ??");
     } finally {
       setSaving(false);
     }
   };
 
-  // 삭제
+  // ??
   const handleDelete = async (brandId: string, brandName: string) => {
-    if (!confirm(`"${brandName}" 브랜드를 삭제하시겠습니까?\n모든 가게, 상품, 주문이 삭제됩니다.`)) return;
+    if (!confirm(`"${brandName}" ???? ?????????\n?? ??, ??, ??? ?????.`)) return;
 
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/brands/${brandId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`삭제 실패: ${res.status} ${text}`);
-      }
-
+      await apiClient.delete("/admin/brands/" + brandId);
       setBrands((prev) => prev.filter((b) => b.id !== brandId));
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "삭제 실패");
+      alert(err?.message ?? "?? ??");
     }
   };
 

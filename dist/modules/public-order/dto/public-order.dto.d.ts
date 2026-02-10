@@ -54,6 +54,7 @@ export declare enum PaymentMethod {
 }
 export declare class CreatePublicOrderRequest {
     branchId: string;
+    idempotencyKey?: string;
     customerName: string;
     customerPhone?: string;
     customerAddress1?: string;

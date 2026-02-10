@@ -455,7 +455,10 @@ describe('OrdersService', () => {
       );
 
       expect(resolved).toBe(uuid);
-      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('branch_id', 'branch-123');
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith(
+        'branch_id',
+        'branch-123',
+      );
     });
 
     it('should resolve by order_no with branch filter', async () => {
@@ -471,7 +474,10 @@ describe('OrdersService', () => {
       );
 
       expect(resolved).toBe('order-1');
-      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('branch_id', 'branch-123');
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith(
+        'branch_id',
+        'branch-123',
+      );
     });
 
     it('should resolve by uuid without branch filter', async () => {
@@ -539,7 +545,12 @@ describe('OrdersService', () => {
         .mockResolvedValueOnce({ data: null, error: { message: 'fail' } }); // update
 
       await expect(
-        service.updateStatus('token', '123', OrderStatus.CONFIRMED, 'branch-123'),
+        service.updateStatus(
+          'token',
+          '123',
+          OrderStatus.CONFIRMED,
+          'branch-123',
+        ),
       ).rejects.toThrow(BusinessException);
     });
 
@@ -549,7 +560,12 @@ describe('OrdersService', () => {
         .mockResolvedValueOnce({ data: null, error: null });
 
       await expect(
-        service.updateStatus('token', '123', OrderStatus.CONFIRMED, 'branch-123'),
+        service.updateStatus(
+          'token',
+          '123',
+          OrderStatus.CONFIRMED,
+          'branch-123',
+        ),
       ).rejects.toThrow(OrderNotFoundException);
     });
 
@@ -804,12 +820,36 @@ describe('OrdersService', () => {
 
   describe('Order Status Transitions', () => {
     const validTransitions = [
-      { from: OrderStatus.CREATED, to: OrderStatus.CONFIRMED, shouldRelease: false },
-      { from: OrderStatus.CONFIRMED, to: OrderStatus.PREPARING, shouldRelease: false },
-      { from: OrderStatus.PREPARING, to: OrderStatus.READY, shouldRelease: false },
-      { from: OrderStatus.READY, to: OrderStatus.COMPLETED, shouldRelease: false },
-      { from: OrderStatus.CREATED, to: OrderStatus.CANCELLED, shouldRelease: true },
-      { from: OrderStatus.CONFIRMED, to: OrderStatus.CANCELLED, shouldRelease: true },
+      {
+        from: OrderStatus.CREATED,
+        to: OrderStatus.CONFIRMED,
+        shouldRelease: false,
+      },
+      {
+        from: OrderStatus.CONFIRMED,
+        to: OrderStatus.PREPARING,
+        shouldRelease: false,
+      },
+      {
+        from: OrderStatus.PREPARING,
+        to: OrderStatus.READY,
+        shouldRelease: false,
+      },
+      {
+        from: OrderStatus.READY,
+        to: OrderStatus.COMPLETED,
+        shouldRelease: false,
+      },
+      {
+        from: OrderStatus.CREATED,
+        to: OrderStatus.CANCELLED,
+        shouldRelease: true,
+      },
+      {
+        from: OrderStatus.CONFIRMED,
+        to: OrderStatus.CANCELLED,
+        shouldRelease: true,
+      },
     ];
 
     test.each(validTransitions)(

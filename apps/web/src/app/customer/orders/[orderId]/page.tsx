@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -53,8 +53,6 @@ type OrderDetail = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 const statusLabel: Record<OrderStatus, string> = {
   CREATED: "주문접수",
   CONFIRMED: "확인",
@@ -98,16 +96,6 @@ const STATUS_OPTIONS: OrderStatus[] = [
 // Helpers
 // ============================================================
 
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
-
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
 }
@@ -147,23 +135,12 @@ export default function CustomerOrderDetailPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/orders/${orderId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`주문 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<OrderDetail>(`/customer/orders/${orderId}`);
         setOrder(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "주문 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -176,34 +153,21 @@ export default function CustomerOrderDetailPage() {
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
     if (!order || !orderId) return;
     if (!canUpdateStatus) {
-      alert("권한이 없습니다. OWNER 또는 ADMIN만 상태를 변경할 수 있습니다.");
+      alert("??? ????. OWNER ?? ADMIN? ??? ??? ? ????.");
       return;
     }
 
     try {
       setStatusLoading(true);
       setError(null);
-      const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/customer/orders/${orderId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
+      const data = await apiClient.patch<{ status: OrderStatus }>(`/customer/orders/${orderId}/status`, {
+        status: newStatus,
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`상태 변경 실패: ${res.status} ${text}`);
-      }
-
-      const data = await res.json();
       setOrder((prev) => (prev ? { ...prev, status: data.status } : null));
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "상태 변경 중 오류 발생");
+      setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
     } finally {
       setStatusLoading(false);
     }

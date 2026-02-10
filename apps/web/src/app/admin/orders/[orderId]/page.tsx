@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
 
@@ -54,8 +54,6 @@ type OrderDetail = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 const STATUS_FLOW: OrderStatus[] = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
 
 const statusLabel: Record<OrderStatus, string> = {
@@ -100,25 +98,6 @@ function nextStatus(current: OrderStatus): OrderStatus | null {
   return STATUS_FLOW[idx + 1] ?? null;
 }
 
-async function getAccessToken() {
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
-
-async function readErrorText(res: Response) {
-  const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const j = await res.json().catch(() => null);
-    return j ? JSON.stringify(j) : "";
-  }
-  return await res.text().catch(() => "");
-}
-
 // ============================================================
 // Component
 // ============================================================
@@ -155,23 +134,7 @@ function OrderDetailPageContent() {
         setLoading(true);
         setError(null);
 
-        const token = await getAccessToken();
-
-        const res = await fetch(
-          `${API_BASE}/admin/orders/${encodeURIComponent(orderId)}?branchId=${encodeURIComponent(branchId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!res.ok) {
-          const text = await readErrorText(res);
-          throw new Error(`주문 조회 실패: ${res.status} ${text}`);
-        }
-
-        const data = (await res.json()) as OrderDetail;
+        const data = await apiClient.get<OrderDetail>(`/admin/orders/${encodeURIComponent(orderId)}?branchId=${encodeURIComponent(branchId)}`);
         setOrder(data);
       } catch (e: unknown) {
         const err = e as Error;
@@ -193,26 +156,7 @@ function OrderDetailPageContent() {
       setStatusLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(
-        `${API_BASE}/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(branchId)}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
-
-      if (!res.ok) {
-        const text = await readErrorText(res);
-        throw new Error(`상태 변경 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as { id: string; status: OrderStatus };
+      const data = await apiClient.patch<{ id: string; status: OrderStatus }>(`/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(branchId)}`, { status: newStatus });
       setOrder((prev) => (prev ? { ...prev, status: data.status } : null));
     } catch (e: unknown) {
       const err = e as Error;

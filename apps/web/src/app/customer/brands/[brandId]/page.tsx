@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
 // ============================================================
@@ -25,21 +26,9 @@ type Brand = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 // ============================================================
 // Helpers
 // ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -69,19 +58,8 @@ export default function BrandDetailPage() {
       try {
         setLoading(true);
         setError(null);
-        const token = await getAccessToken();
 
-        const res = await fetch(`${API_BASE}/customer/brands/${brandId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`브랜드 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
+        const data = await apiClient.get<Brand>(`/customer/brands/${brandId}`);
         setBrand(data);
         setFormData({
           name: data.name || "",
@@ -93,7 +71,7 @@ export default function BrandDetailPage() {
         });
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "브랜드 조회 중 오류 발생");
+        setError(e instanceof Error ? e.message : "??? ?? ? ?? ??");
       } finally {
         setLoading(false);
       }
@@ -107,28 +85,14 @@ export default function BrandDetailPage() {
   const handleSave = async () => {
     try {
       setSaveLoading(true);
-      const token = await getAccessToken();
 
-      const res = await fetch(`${API_BASE}/customer/brands/${brandId}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        throw new Error(`브랜드 수정 실패: ${res.status}`);
-      }
-
-      const updated = await res.json();
-      setBrand(updated);
+      const updatedBrand = await apiClient.patch<Brand>(`/customer/brands/${brandId}`, formData);
+      setBrand(updatedBrand);
       setIsEditing(false);
-      alert("브랜드 정보가 수정되었습니다");
+      alert("??? ??? ???????.");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "브랜드 수정 중 오류 발생");
+      alert(e instanceof Error ? e.message : "??? ?? ? ?? ??");
     } finally {
       setSaveLoading(false);
     }
@@ -248,9 +212,11 @@ export default function BrandDetailPage() {
             {/* Cover image banner */}
             {brand.cover_image_url && (
               <div className="mb-6">
-                <img
+                <Image
                   src={brand.cover_image_url}
-                  alt="커버 이미지"
+                  alt="?? ???"
+                  width={1200}
+                  height={675}
                   className="w-full rounded-lg object-cover"
                   style={{ aspectRatio: "16/9" }}
                 />
@@ -259,9 +225,11 @@ export default function BrandDetailPage() {
 
             <div className="flex items-center gap-4 mb-6">
               {brand.logo_url ? (
-                <img
+                <Image
                   src={brand.logo_url}
                   alt={brand.name}
+                  width={80}
+                  height={80}
                   className="w-20 h-20 rounded-xl object-cover"
                 />
               ) : (
@@ -293,9 +261,11 @@ export default function BrandDetailPage() {
             {brand.thumbnail_url && (
               <div className="mb-5">
                 <div className="text-[13px] text-text-secondary mb-2">썸네일</div>
-                <img
+                <Image
                   src={brand.thumbnail_url}
-                  alt="썸네일"
+                  alt="???"
+                  width={120}
+                  height={120}
                   className="w-[120px] h-[120px] object-cover rounded-lg border border-border"
                 />
               </div>

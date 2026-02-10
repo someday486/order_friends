@@ -24,13 +24,19 @@ __decorate([
     __metadata("design:type", String)
 ], AnalyticsQueryDto.prototype, "branchId", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: '시작 날짜 (ISO 8601)', example: '2026-01-01' }),
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '시작 날짜 (ISO 8601)',
+        example: '2026-01-01',
+    }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], AnalyticsQueryDto.prototype, "startDate", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ description: '종료 날짜 (ISO 8601)', example: '2026-01-31' }),
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '종료 날짜 (ISO 8601)',
+        example: '2026-01-31',
+    }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
@@ -84,7 +90,10 @@ class TopProductDto {
 }
 exports.TopProductDto = TopProductDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: '상품 ID', example: '123e4567-e89b-12d3-a456-426614174000' }),
+    (0, swagger_1.ApiProperty)({
+        description: '상품 ID',
+        example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     __metadata("design:type", String)
 ], TopProductDto.prototype, "productId", void 0);
 __decorate([
@@ -108,7 +117,10 @@ class SalesByProductDto {
 }
 exports.SalesByProductDto = SalesByProductDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: '상품 ID', example: '123e4567-e89b-12d3-a456-426614174000' }),
+    (0, swagger_1.ApiProperty)({
+        description: '상품 ID',
+        example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     __metadata("design:type", String)
 ], SalesByProductDto.prototype, "productId", void 0);
 __decorate([
@@ -147,7 +159,10 @@ class ProductAnalyticsResponse {
 }
 exports.ProductAnalyticsResponse = ProductAnalyticsResponse;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: '상위 판매 상품 (Top 10)', type: [TopProductDto] }),
+    (0, swagger_1.ApiProperty)({
+        description: '상위 판매 상품 (Top 10)',
+        type: [TopProductDto],
+    }),
     __metadata("design:type", Array)
 ], ProductAnalyticsResponse.prototype, "topProducts", void 0);
 __decorate([
@@ -219,7 +234,10 @@ class OrderAnalyticsResponse {
 }
 exports.OrderAnalyticsResponse = OrderAnalyticsResponse;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: '주문 상태별 분포', type: [OrderStatusDistributionDto] }),
+    (0, swagger_1.ApiProperty)({
+        description: '주문 상태별 분포',
+        type: [OrderStatusDistributionDto],
+    }),
     __metadata("design:type", Array)
 ], OrderAnalyticsResponse.prototype, "statusDistribution", void 0);
 __decorate([

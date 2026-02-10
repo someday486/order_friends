@@ -78,7 +78,7 @@ let CustomerBrandsService = CustomerBrandsService_1 = class CustomerBrandsServic
             throw new common_1.ForbiddenException('Only OWNER or ADMIN can update brand information');
         }
         const sb = this.supabase.adminClient();
-        const { name, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url } = updateData;
+        const { name, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, } = updateData;
         const updateFields = {};
         if (name !== undefined)
             updateFields.name = name;

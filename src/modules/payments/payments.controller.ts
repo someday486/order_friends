@@ -218,6 +218,3 @@ export class PaymentsCustomerController {
     return this.paymentsService.refundPayment(paymentId, branchId, dto);
   }
 }
-
-
-

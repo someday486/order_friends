@@ -102,10 +102,9 @@ describe('main bootstrap', () => {
       await runMain(app);
 
     expect(sentryMock.init).toHaveBeenCalled();
-    expect(nestFactoryMock.create).toHaveBeenCalledWith(
-      expect.any(Function),
-      { rawBody: true },
-    );
+    expect(nestFactoryMock.create).toHaveBeenCalledWith(expect.any(Function), {
+      rawBody: true,
+    });
     expect(helmetMock).toHaveBeenCalled();
     expect(swaggerMock.createDocument).toHaveBeenCalled();
     expect(swaggerMock.setup).toHaveBeenCalledWith(

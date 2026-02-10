@@ -201,13 +201,15 @@ export class AnalyticsController {
   })
   @ApiQuery({
     name: 'startDate',
-    description: '시작 날짜 (ISO 8601 형식, 예: 2026-01-01) - 신규 고객 집계에 사용',
+    description:
+      '시작 날짜 (ISO 8601 형식, 예: 2026-01-01) - 신규 고객 집계에 사용',
     required: false,
     type: String,
   })
   @ApiQuery({
     name: 'endDate',
-    description: '종료 날짜 (ISO 8601 형식, 예: 2026-01-31) - 신규 고객 집계에 사용',
+    description:
+      '종료 날짜 (ISO 8601 형식, 예: 2026-01-31) - 신규 고객 집계에 사용',
     required: false,
     type: String,
   })

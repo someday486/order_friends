@@ -24,6 +24,7 @@ export declare class PreparePaymentRequest {
 }
 export declare class ConfirmPaymentRequest {
     orderId: string;
+    idempotencyKey?: string;
     paymentKey: string;
     amount: number;
 }

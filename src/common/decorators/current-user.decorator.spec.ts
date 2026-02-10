@@ -17,7 +17,11 @@ describe('CurrentUser decorator', () => {
 
     // Apply decorator to capture metadata
     (CurrentUser() as any)(TestController.prototype, 'test', 0);
-    const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestController, 'test');
+    const args = Reflect.getMetadata(
+      ROUTE_ARGS_METADATA,
+      TestController,
+      'test',
+    );
     const key = Object.keys(args)[0];
     const factory = args[key].factory;
     const result = factory(undefined, ctx);

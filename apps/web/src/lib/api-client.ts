@@ -19,15 +19,22 @@ interface RequestOptions {
   auth?: boolean;
 }
 
+function isFormData(body: unknown): body is FormData {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
 async function request<T = unknown>(
   path: string,
   init: RequestInit = {},
   options: RequestOptions = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(init.headers as Record<string, string>),
   };
+
+  if (!isFormData(init.body) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (options.auth !== false) {
     headers['Authorization'] = `Bearer ${await getAccessToken()}`;
@@ -48,18 +55,44 @@ export const apiClient = {
     return request<T>(path, {}, options);
   },
 
-  post<T = unknown>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    return request<T>(path, {
-      method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
-    }, options);
+  post<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    const payload = isFormData(body)
+      ? body
+      : body
+        ? JSON.stringify(body)
+        : undefined;
+    return request<T>(
+      path,
+      {
+        method: 'POST',
+        body: payload,
+      },
+      options,
+    );
   },
 
-  patch<T = unknown>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    return request<T>(path, {
-      method: 'PATCH',
-      body: body ? JSON.stringify(body) : undefined,
-    }, options);
+  patch<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    const payload = isFormData(body)
+      ? body
+      : body
+        ? JSON.stringify(body)
+        : undefined;
+    return request<T>(
+      path,
+      {
+        method: 'PATCH',
+        body: payload,
+      },
+      options,
+    );
   },
 
   delete<T = unknown>(path: string, options?: RequestOptions): Promise<T> {

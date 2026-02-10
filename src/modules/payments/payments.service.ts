@@ -506,7 +506,10 @@ export class PaymentsService {
             .eq('idempotency_key', idempotencyKey)
             .maybeSingle();
 
-          if (idempotentPayment && idempotentPayment.status === PaymentStatus.SUCCESS) {
+          if (
+            idempotentPayment &&
+            idempotentPayment.status === PaymentStatus.SUCCESS
+          ) {
             await this.updateOrderPaymentStatus(
               sb,
               idempotentPayment.order_id,
@@ -540,7 +543,12 @@ export class PaymentsService {
       payment = created;
     }
 
-    await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'confirm-success');
+    await this.updateOrderPaymentStatus(
+      sb,
+      resolvedId,
+      'PAID',
+      'confirm-success',
+    );
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
     this.logMetric('payment.confirm.success', {
       orderId: resolvedId,
@@ -927,10 +935,16 @@ export class PaymentsService {
     try {
       switch (webhookData.eventType) {
         case 'PAYMENT_CONFIRMED':
-          await this.handlePaymentConfirmedWebhook(webhookData, payment || null);
+          await this.handlePaymentConfirmedWebhook(
+            webhookData,
+            payment || null,
+          );
           break;
         case 'PAYMENT_CANCELLED':
-          await this.handlePaymentCancelledWebhook(webhookData, payment || null);
+          await this.handlePaymentCancelledWebhook(
+            webhookData,
+            payment || null,
+          );
           break;
         // TODO: Add more event types as needed
         default:
@@ -1002,7 +1016,11 @@ export class PaymentsService {
       return;
     }
 
-    if (amount !== undefined && amount !== null && order.total_amount !== amount) {
+    if (
+      amount !== undefined &&
+      amount !== null &&
+      order.total_amount !== amount
+    ) {
       throw new BusinessException(
         'Payment amount mismatch',
         'WEBHOOK_PAYMENT_AMOUNT_MISMATCH',
@@ -1296,9 +1314,7 @@ export class PaymentsService {
       headers[headerName.toLowerCase()] ||
       headers[headerName.toUpperCase()];
 
-    const signature = Array.isArray(headerValue)
-      ? headerValue[0]
-      : headerValue;
+    const signature = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
     if (!signature) return false;
 
@@ -1318,7 +1334,3 @@ export class PaymentsService {
     );
   }
 }
-
-
-
-

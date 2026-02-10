@@ -60,9 +60,9 @@ describe('InventoryController', () => {
   });
 
   it('getInventoryList should throw when branchId is missing', async () => {
-    await expect(
-      controller.getInventoryList(makeReq(), ''),
-    ).rejects.toThrow(BadRequestException);
+    await expect(controller.getInventoryList(makeReq(), '')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('getInventoryList should throw when user is missing', async () => {
@@ -86,9 +86,9 @@ describe('InventoryController', () => {
   });
 
   it('getLowStockAlerts should throw when branchId is missing', async () => {
-    await expect(
-      controller.getLowStockAlerts(makeReq(), ''),
-    ).rejects.toThrow(BadRequestException);
+    await expect(controller.getLowStockAlerts(makeReq(), '')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('getLowStockAlerts should throw when user is missing', async () => {
@@ -100,7 +100,11 @@ describe('InventoryController', () => {
   it('getInventoryLogs should call service and return result', async () => {
     mockService.getInventoryLogs.mockResolvedValue([{ id: 'log-1' }]);
 
-    const result = await controller.getInventoryLogs(makeReq(), 'branch-1', 'prod-1');
+    const result = await controller.getInventoryLogs(
+      makeReq(),
+      'branch-1',
+      'prod-1',
+    );
 
     expect(result).toEqual([{ id: 'log-1' }]);
     expect(mockService.getInventoryLogs).toHaveBeenCalledWith(
@@ -114,7 +118,11 @@ describe('InventoryController', () => {
 
   it('getInventoryLogs should throw when user is missing', async () => {
     await expect(
-      controller.getInventoryLogs(makeReq({ user: undefined }), 'branch-1', 'prod-1'),
+      controller.getInventoryLogs(
+        makeReq({ user: undefined }),
+        'branch-1',
+        'prod-1',
+      ),
     ).rejects.toThrow('Missing user');
   });
 
@@ -156,7 +164,11 @@ describe('InventoryController', () => {
 
   it('updateInventory should throw when user is missing', async () => {
     await expect(
-      controller.updateInventory(makeReq({ user: undefined }), 'prod-1', {} as any),
+      controller.updateInventory(
+        makeReq({ user: undefined }),
+        'prod-1',
+        {} as any,
+      ),
     ).rejects.toThrow('Missing user');
   });
 
@@ -178,56 +190,151 @@ describe('InventoryController', () => {
 
   it('adjustInventory should throw when user is missing', async () => {
     await expect(
-      controller.adjustInventory(makeReq({ user: undefined }), 'prod-1', {} as any),
+      controller.adjustInventory(
+        makeReq({ user: undefined }),
+        'prod-1',
+        {} as any,
+      ),
     ).rejects.toThrow('Missing user');
   });
 
   it.each([
     {
       name: 'getInventoryList',
-      setup: () => mockService.getInventoryList.mockResolvedValueOnce([{ id: 'inv-1' }]),
-      call: () => controller.getInventoryList(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1'),
+      setup: () =>
+        mockService.getInventoryList.mockResolvedValueOnce([{ id: 'inv-1' }]),
+      call: () =>
+        controller.getInventoryList(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'branch-1',
+        ),
       expectCall: () =>
-        expect(mockService.getInventoryList).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+        expect(mockService.getInventoryList).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          [],
+          [],
+        ),
     },
     {
       name: 'getLowStockAlerts',
-      setup: () => mockService.getLowStockAlerts.mockResolvedValueOnce([{ id: 'alert-1' }]),
-      call: () => controller.getLowStockAlerts(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1'),
+      setup: () =>
+        mockService.getLowStockAlerts.mockResolvedValueOnce([
+          { id: 'alert-1' },
+        ]),
+      call: () =>
+        controller.getLowStockAlerts(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'branch-1',
+        ),
       expectCall: () =>
-        expect(mockService.getLowStockAlerts).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+        expect(mockService.getLowStockAlerts).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          [],
+          [],
+        ),
     },
     {
       name: 'getInventoryLogs',
-      setup: () => mockService.getInventoryLogs.mockResolvedValueOnce([{ id: 'log-1' }]),
-      call: () => controller.getInventoryLogs(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1', 'prod-1'),
+      setup: () =>
+        mockService.getInventoryLogs.mockResolvedValueOnce([{ id: 'log-1' }]),
+      call: () =>
+        controller.getInventoryLogs(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'branch-1',
+          'prod-1',
+        ),
       expectCall: () =>
-        expect(mockService.getInventoryLogs).toHaveBeenCalledWith('user-1', 'branch-1', 'prod-1', [], []),
+        expect(mockService.getInventoryLogs).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          'prod-1',
+          [],
+          [],
+        ),
     },
     {
       name: 'getInventoryByProduct',
-      setup: () => mockService.getInventoryByProduct.mockResolvedValueOnce({ id: 'inv-1' }),
-      call: () => controller.getInventoryByProduct(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'prod-1'),
+      setup: () =>
+        mockService.getInventoryByProduct.mockResolvedValueOnce({
+          id: 'inv-1',
+        }),
+      call: () =>
+        controller.getInventoryByProduct(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'prod-1',
+        ),
       expectCall: () =>
-        expect(mockService.getInventoryByProduct).toHaveBeenCalledWith('user-1', 'prod-1', [], []),
+        expect(mockService.getInventoryByProduct).toHaveBeenCalledWith(
+          'user-1',
+          'prod-1',
+          [],
+          [],
+        ),
     },
     {
       name: 'updateInventory',
-      setup: () => mockService.updateInventory.mockResolvedValueOnce({ id: 'inv-1' }),
-      call: () => controller.updateInventory(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'prod-1', { qty: 10 } as any),
+      setup: () =>
+        mockService.updateInventory.mockResolvedValueOnce({ id: 'inv-1' }),
+      call: () =>
+        controller.updateInventory(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'prod-1',
+          { qty: 10 } as any,
+        ),
       expectCall: () =>
-        expect(mockService.updateInventory).toHaveBeenCalledWith('user-1', 'prod-1', { qty: 10 }, [], []),
+        expect(mockService.updateInventory).toHaveBeenCalledWith(
+          'user-1',
+          'prod-1',
+          { qty: 10 },
+          [],
+          [],
+        ),
     },
     {
       name: 'adjustInventory',
-      setup: () => mockService.adjustInventory.mockResolvedValueOnce({ id: 'inv-1' }),
-      call: () => controller.adjustInventory(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'prod-1', { change: 2 } as any),
+      setup: () =>
+        mockService.adjustInventory.mockResolvedValueOnce({ id: 'inv-1' }),
+      call: () =>
+        controller.adjustInventory(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'prod-1',
+          { change: 2 } as any,
+        ),
       expectCall: () =>
-        expect(mockService.adjustInventory).toHaveBeenCalledWith('user-1', 'prod-1', { change: 2 }, [], []),
+        expect(mockService.adjustInventory).toHaveBeenCalledWith(
+          'user-1',
+          'prod-1',
+          { change: 2 },
+          [],
+          [],
+        ),
     },
-  ])('should default memberships for $name', async ({ setup, call, expectCall }) => {
-    setup();
-    await call();
-    expectCall();
-  });
+  ])(
+    'should default memberships for $name',
+    async ({ setup, call, expectCall }) => {
+      setup();
+      await call();
+      expectCall();
+    },
+  );
 });

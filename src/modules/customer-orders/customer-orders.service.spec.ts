@@ -41,7 +41,9 @@ describe('CustomerOrdersService', () => {
 
   it('isUuid should validate uuid', () => {
     expect((service as any).isUuid('not-uuid')).toBe(false);
-    expect((service as any).isUuid('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
+    expect(
+      (service as any).isUuid('123e4567-e89b-12d3-a456-426614174000'),
+    ).toBe(true);
   });
 
   it('resolveOrderId should resolve by uuid and order_no', async () => {
@@ -49,7 +51,10 @@ describe('CustomerOrdersService', () => {
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
 
-    const byId = await (service as any).resolveOrderId(mockSb, '123e4567-e89b-12d3-a456-426614174000');
+    const byId = await (service as any).resolveOrderId(
+      mockSb,
+      '123e4567-e89b-12d3-a456-426614174000',
+    );
     const byNo = await (service as any).resolveOrderId(mockSb, 'ORD-1');
 
     expect(byId).toBe('o1');
@@ -57,7 +62,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('resolveOrderId should apply branch filter for uuid', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
 
     const result = await (service as any).resolveOrderId(
       mockSb,
@@ -164,10 +172,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('getAccessibleBranchIds should return branch memberships only when no brands', async () => {
-    const ids = await (service as any).getAccessibleBranchIds([], [
-      { branch_id: 'b1' },
-      { branch_id: 'b2' },
-    ]);
+    const ids = await (service as any).getAccessibleBranchIds(
+      [],
+      [{ branch_id: 'b1' }, { branch_id: 'b2' }],
+    );
 
     expect(ids.sort()).toEqual(['b1', 'b2']);
   });
@@ -188,11 +196,24 @@ describe('CustomerOrdersService', () => {
       .mockReturnValueOnce(ordersChain); // data query
     ordersChain.order.mockReturnValueOnce(ordersChain);
     ordersChain.range.mockResolvedValueOnce({
-      data: [{ id: 'o1', status: OrderStatus.CREATED, created_at: 't', total_amount: 10 }],
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+        },
+      ],
       error: null,
     });
 
-    const result = await service.getMyOrders('user-1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }], { page: 1, limit: 10 });
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+    );
 
     expect(result.data).toHaveLength(1);
     expect(result.pagination.total).toBe(1);
@@ -209,7 +230,14 @@ describe('CustomerOrdersService', () => {
       .mockReturnValueOnce(ordersChain);
     ordersChain.order.mockReturnValueOnce(ordersChain);
     ordersChain.range.mockResolvedValueOnce({
-      data: [{ id: 'o1', status: OrderStatus.CREATED, created_at: 't', total_amount: 10 }],
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+        },
+      ],
       error: null,
     });
 
@@ -302,7 +330,14 @@ describe('CustomerOrdersService', () => {
       .mockReturnValueOnce(ordersChain);
     ordersChain.order.mockReturnValueOnce(ordersChain);
     ordersChain.range.mockResolvedValueOnce({
-      data: [{ id: 'o1', status: OrderStatus.CREATED, created_at: 't', total_amount: 10 }],
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+        },
+      ],
       error: null,
     });
 
@@ -329,7 +364,14 @@ describe('CustomerOrdersService', () => {
     ordersChain.eq
       .mockResolvedValueOnce({ count: 1, error: null })
       .mockResolvedValueOnce({
-        data: [{ id: 'o1', status: OrderStatus.CONFIRMED, created_at: 't', total_amount: 10 }],
+        data: [
+          {
+            id: 'o1',
+            status: OrderStatus.CONFIRMED,
+            created_at: 't',
+            total_amount: 10,
+          },
+        ],
         error: null,
       });
     ordersChain.order.mockReturnValueOnce(ordersChain);
@@ -353,10 +395,19 @@ describe('CustomerOrdersService', () => {
       error: null,
     });
 
-    ordersChain.in.mockResolvedValueOnce({ count: null, error: { message: 'fail' } });
+    ordersChain.in.mockResolvedValueOnce({
+      count: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
-      service.getMyOrders('user-1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }], {}),
+      service.getMyOrders(
+        'user-1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+        {},
+      ),
     ).rejects.toThrow('Failed to count orders');
   });
 
@@ -370,10 +421,19 @@ describe('CustomerOrdersService', () => {
       .mockResolvedValueOnce({ count: 1, error: null })
       .mockReturnValueOnce(ordersChain);
     ordersChain.order.mockReturnValueOnce(ordersChain);
-    ordersChain.range.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    ordersChain.range.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
-      service.getMyOrders('user-1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }], {}),
+      service.getMyOrders(
+        'user-1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+        {},
+      ),
     ).rejects.toThrow('Failed to fetch orders');
   });
 
@@ -386,7 +446,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('checkOrderAccess should return branch membership', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single.mockResolvedValueOnce({
       data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
       error: null,
@@ -403,8 +466,14 @@ describe('CustomerOrdersService', () => {
   });
 
   it('checkOrderAccess should throw when order fetch fails', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
-    ordersChain.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
 
     await expect(
       (service as any).checkOrderAccess('o1', 'user-1', [], []),
@@ -412,7 +481,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('checkOrderAccess should throw when forbidden', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single.mockResolvedValueOnce({
       data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
       error: null,
@@ -441,7 +513,13 @@ describe('CustomerOrdersService', () => {
           discount_total: 0,
           total_amount: 10,
           items: [
-            { id: 'i1', product_name_snapshot: 'P', qty: 1, unit_price_snapshot: 10, options: [] },
+            {
+              id: 'i1',
+              product_name_snapshot: 'P',
+              qty: 1,
+              unit_price_snapshot: 10,
+              options: [],
+            },
           ],
         },
         error: null,
@@ -451,7 +529,12 @@ describe('CustomerOrdersService', () => {
       error: null,
     });
 
-    const result = await service.getMyOrder('user-1', 'o1', [{ brand_id: 'brand-1', role: 'OWNER' }], []);
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
 
     expect(result.id).toBe('o1');
     expect(result.items).toHaveLength(1);
@@ -607,7 +690,12 @@ describe('CustomerOrdersService', () => {
     });
 
     await expect(
-      service.getMyOrder('user-1', 'o1', [{ brand_id: 'brand-1', role: 'OWNER' }], []),
+      service.getMyOrder(
+        'user-1',
+        'o1',
+        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [],
+      ),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -620,26 +708,38 @@ describe('CustomerOrdersService', () => {
   });
 
   it('getMyOrder should throw when access is forbidden', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single.mockResolvedValueOnce({
       data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
       error: null,
     });
 
-    await expect(
-      service.getMyOrder('user-1', 'o1', [], []),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(service.getMyOrder('user-1', 'o1', [], [])).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('updateMyOrderStatus should update status', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single
       .mockResolvedValueOnce({
         data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
         error: null,
       })
       .mockResolvedValueOnce({
-        data: { id: 'o1', status: OrderStatus.READY, created_at: 't', customer_name: 'A', total_amount: 10 },
+        data: {
+          id: 'o1',
+          status: OrderStatus.READY,
+          created_at: 't',
+          customer_name: 'A',
+          total_amount: 10,
+        },
         error: null,
       });
 
@@ -655,7 +755,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('updateMyOrderStatus should map nullable fields', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single
       .mockResolvedValueOnce({
         data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
@@ -702,7 +805,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('updateMyOrderStatus should throw for insufficient role', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single.mockResolvedValueOnce({
       data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
       error: null,
@@ -720,7 +826,10 @@ describe('CustomerOrdersService', () => {
   });
 
   it('updateMyOrderStatus should throw on update error', async () => {
-    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
     ordersChain.single
       .mockResolvedValueOnce({
         data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },

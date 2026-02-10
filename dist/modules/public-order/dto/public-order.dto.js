@@ -91,6 +91,7 @@ var PaymentMethod;
 })(PaymentMethod || (exports.PaymentMethod = PaymentMethod = {}));
 class CreatePublicOrderRequest {
     branchId;
+    idempotencyKey;
     customerName;
     customerPhone;
     customerAddress1;
@@ -104,6 +105,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreatePublicOrderRequest.prototype, "branchId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreatePublicOrderRequest.prototype, "idempotencyKey", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)

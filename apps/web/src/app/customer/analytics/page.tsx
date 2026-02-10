@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import { apiClient } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import LineChart from "@/components/analytics/LineChart";
@@ -68,8 +69,10 @@ function AnalyticsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, status } = useAuth();
+  const { branchId: selectedBranchId } = useSelectedBranch();
 
   const branchId = searchParams.get("branchId");
+  const effectiveBranchId = branchId || selectedBranchId;
 
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
@@ -96,7 +99,7 @@ function AnalyticsContent() {
   }, [status, router]);
 
   useEffect(() => {
-    if (!branchId || !session) return;
+    if (!effectiveBranchId || !session) return;
 
     const fetchAnalytics = async () => {
       setLoading(true);
@@ -104,7 +107,7 @@ function AnalyticsContent() {
 
       try {
         const params = new URLSearchParams({
-          branchId,
+          branchId: effectiveBranchId,
           startDate,
           endDate,
         });
@@ -140,7 +143,7 @@ function AnalyticsContent() {
     };
 
     fetchAnalytics();
-  }, [branchId, session, startDate, endDate, compareEnabled]);
+  }, [effectiveBranchId, session, startDate, endDate, compareEnabled]);
 
   if (status === "loading") {
     return (
@@ -150,7 +153,7 @@ function AnalyticsContent() {
     );
   }
 
-  if (!branchId) {
+  if (!effectiveBranchId) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4 text-foreground">분석</h1>

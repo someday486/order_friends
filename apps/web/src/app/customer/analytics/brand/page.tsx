@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
 
@@ -126,6 +127,7 @@ function KpiCard({
 
 export default function BrandAnalyticsPage() {
   const { session, status } = useAuth();
+  const { branchId: selectedBranchId } = useSelectedBranch();
 
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
@@ -224,6 +226,10 @@ export default function BrandAnalyticsPage() {
   const c = customers?.current;
   const ch = sales?.changes;
   const cch = customers?.changes;
+  const branchLinkId = selectedBranchId || s?.byBranch?.[0]?.branchId;
+  const branchLink = branchLinkId
+    ? `/customer/analytics?branchId=${encodeURIComponent(branchLinkId)}`
+    : "/customer/analytics";
 
   return (
     <div>
@@ -236,7 +242,7 @@ export default function BrandAnalyticsPage() {
           </p>
         </div>
         <Link
-          href="/customer/analytics"
+          href={branchLink}
           className="text-xs text-primary-500 hover:underline"
         >
           지점별 분석 보기 →

@@ -3,28 +3,78 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useState } from "react";
 
-const menuItems = [
+type MenuItem = {
+  href: string;
+  label: string;
+  icon: string;
+  allowedRoles?: UserRole[];
+};
+
+const menuItems: MenuItem[] = [
   { href: "/customer", label: "대시보드", icon: "📊" },
-  { href: "/customer/analytics/brand", label: "브랜드 분석", icon: "📈" },
-  { href: "/customer/brands", label: "브랜드 관리", icon: "🏢" },
-  { href: "/customer/branches", label: "매장 관리", icon: "🏪" },
-  { href: "/customer/products", label: "상품 관리", icon: "📦" },
-  { href: "/customer/categories", label: "카테고리 관리", icon: "🏷" },
-  { href: "/customer/inventory", label: "재고 관리", icon: "📊" },
-  { href: "/customer/orders", label: "주문 관리", icon: "📋" },
+  {
+    href: "/customer/analytics/brand",
+    label: "브랜드 분석",
+    icon: "📈",
+    allowedRoles: ["system_admin", "brand_owner"],
+  },
+  {
+    href: "/customer/brands",
+    label: "브랜드 관리",
+    icon: "🏢",
+    allowedRoles: ["system_admin", "brand_owner"],
+  },
+  {
+    href: "/customer/branches",
+    label: "매장 관리",
+    icon: "🏪",
+    allowedRoles: ["system_admin", "brand_owner"],
+  },
+  {
+    href: "/customer/products",
+    label: "상품 관리",
+    icon: "📦",
+    allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+  },
+  {
+    href: "/customer/categories",
+    label: "카테고리 관리",
+    icon: "🏷",
+    allowedRoles: ["system_admin", "brand_owner"],
+  },
+  {
+    href: "/customer/inventory",
+    label: "재고 관리",
+    icon: "📊",
+    allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+  },
+  {
+    href: "/customer/orders",
+    label: "주문 관리",
+    icon: "📋",
+    allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+  },
 ];
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
     return pathname?.startsWith(href);
   };
+
+  const visibleMenuItems = roleLoading
+    ? []
+    : menuItems.filter(
+        (item) => !item.allowedRoles || item.allowedRoles.includes(role),
+      );
 
   return (
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">
@@ -78,7 +128,12 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
         {/* Navigation */}
         <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
-          {menuItems.map((item) => (
+          {roleLoading && (
+            <div className="text-xs text-text-tertiary px-3 py-2">
+              메뉴 로딩 중...
+            </div>
+          )}
+          {visibleMenuItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}

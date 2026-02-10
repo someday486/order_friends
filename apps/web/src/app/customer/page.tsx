@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -67,6 +68,7 @@ function getStatusVariant(status: string): "info" | "success" | "warning" | "dan
 
 export default function CustomerDashboardPage() {
   const { user } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -206,38 +208,59 @@ export default function CustomerDashboardPage() {
       {/* Quick Links */}
       <div className="mb-8">
         <h2 className="text-lg font-bold mb-4">빠른 이동</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <QuickLinkCard
-            href="/customer/brands"
-            title="브랜드 관리"
-            description="브랜드 정보 수정"
-            icon="🏢"
-          />
-          <QuickLinkCard
-            href="/customer/branches"
-            title="매장 관리"
-            description="매장 추가 및 수정"
-            icon="🏪"
-          />
-          <QuickLinkCard
-            href="/customer/products"
-            title="상품 관리"
-            description="상품 등록 및 관리"
-            icon="📦"
-          />
-          <QuickLinkCard
-            href="/customer/orders"
-            title="주문 관리"
-            description="주문 처리 및 조회"
-            icon="📋"
-          />
-          <QuickLinkCard
-            href="/customer/analytics/brand"
-            title="브랜드 분석"
-            description="지점 통합 리포트"
-            icon="📈"
-          />
-        </div>
+        {roleLoading ? (
+          <div className="text-sm text-muted-foreground">빠른 이동 로딩 중...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              {
+                href: "/customer/brands",
+                title: "브랜드 관리",
+                description: "브랜드 정보 수정",
+                icon: "🏢",
+                allowedRoles: ["system_admin", "brand_owner"],
+              },
+              {
+                href: "/customer/branches",
+                title: "매장 관리",
+                description: "매장 추가 및 수정",
+                icon: "🏪",
+                allowedRoles: ["system_admin", "brand_owner"],
+              },
+              {
+                href: "/customer/products",
+                title: "상품 관리",
+                description: "상품 등록 및 관리",
+                icon: "📦",
+                allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+              },
+              {
+                href: "/customer/orders",
+                title: "주문 관리",
+                description: "주문 처리 및 조회",
+                icon: "📋",
+                allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
+              },
+              {
+                href: "/customer/analytics/brand",
+                title: "브랜드 분석",
+                description: "지점 통합 리포트",
+                icon: "📈",
+                allowedRoles: ["system_admin", "brand_owner"],
+              },
+            ]
+              .filter((item) => !item.allowedRoles || item.allowedRoles.includes(role as UserRole))
+              .map((item) => (
+                <QuickLinkCard
+                  key={item.href}
+                  href={item.href}
+                  title={item.title}
+                  description={item.description}
+                  icon={item.icon}
+                />
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );

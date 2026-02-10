@@ -511,6 +511,10 @@ export class PublicOrderService {
     }
   }
 
+  private logMetric(event: string, payload: Record<string, any>) {
+    this.logger.log(`[METRIC] ${event} ${JSON.stringify(payload)}`);
+  }
+
   private async findRecentDuplicateOrder(
     adminClient: any,
     dto: CreatePublicOrderRequest,
@@ -695,6 +699,13 @@ export class PublicOrderService {
     const customerAddress1 = this.normalizeOptional(dto.customerAddress1) ?? null;
     const paymentMethod = dto.paymentMethod ?? 'CARD';
 
+    this.logMetric('order.create.start', {
+      branchId: dto.branchId,
+      totalAmount,
+      idempotencyKey,
+      paymentMethod,
+    });
+
     if (idempotencyKey) {
       const existingOrder = await this.fetchOrderByIdempotencyKey(
         adminClient,
@@ -777,6 +788,11 @@ export class PublicOrderService {
           },
         });
 
+        this.logMetric('order.create.idempotent_hit', {
+          branchId: dto.branchId,
+          orderId: existingOrder.id,
+          idempotencyKey,
+        });
         return this.buildOrderResponse(existingOrder);
       }
     }
@@ -805,6 +821,12 @@ export class PublicOrderService {
         metadata: duplicateOrder.metadata,
       });
 
+      this.logMetric('order.create.duplicate', {
+        branchId: dto.branchId,
+        orderId: duplicateOrder.order.id,
+        strategy: duplicateOrder.strategy,
+        dedupKey: duplicateOrder.metadata?.dedupKey,
+      });
       return duplicateOrder.order;
     }
 
@@ -858,6 +880,11 @@ export class PublicOrderService {
             },
           });
 
+          this.logMetric('order.create.idempotency_race', {
+            branchId: dto.branchId,
+            orderId: existingOrder.id,
+            idempotencyKey,
+          });
           return this.buildOrderResponse(existingOrder);
         }
       }
@@ -969,6 +996,10 @@ export class PublicOrderService {
         'Inventory reservation failed for order ' + order.id,
         error,
       );
+      this.logMetric('order.create.inventory_failed', {
+        branchId: dto.branchId,
+        orderId: order.id,
+      });
 
       if (error instanceof BadRequestException) {
         throw error;
@@ -978,6 +1009,13 @@ export class PublicOrderService {
         '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
       );
     }
+
+    this.logMetric('order.create.success', {
+      branchId: dto.branchId,
+      orderId: order.id,
+      totalAmount: order.total_amount,
+      idempotencyKey,
+    });
 
     return {
       id: order.id,

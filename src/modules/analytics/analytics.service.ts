@@ -284,7 +284,7 @@ export class AnalyticsService {
         .map(([status, count]) => ({
           status,
           count,
-          percentage: totalOrders > 0 ? parseFloat(((count / totalOrders) * 100).toFixed(2)) : 0,
+          percentage: parseFloat(((count / totalOrders) * 100).toFixed(2)),
         }))
         .sort((a, b) => b.count - a.count);
 

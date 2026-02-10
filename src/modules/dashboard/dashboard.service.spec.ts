@@ -54,12 +54,27 @@ describe('DashboardService', () => {
     expect(supabaseService.adminClient).toHaveBeenCalled();
   });
 
+  it('getClient should default to userClient when isAdmin is undefined', () => {
+    (service as any).getClient('token');
+    expect(supabaseService.userClient).toHaveBeenCalledWith('token');
+  });
+
   it('should throw when branch lookup fails', async () => {
     mockSb.eq.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
     await expect(service.getStats('token', 'brand-1', true)).rejects.toThrow(
       /dashboard.getStats/,
     );
+  });
+
+  it('should return zeros when branchRows is null', async () => {
+    mockSb.eq.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getStats('token', 'brand-1', true);
+
+    expect(result.totalOrders).toBe(0);
+    expect(result.totalBranches).toBe(0);
+    expect(result.recentOrders).toEqual([]);
   });
 
   it('should return aggregated stats', async () => {
@@ -98,6 +113,40 @@ describe('DashboardService', () => {
     expect(result.totalProducts).toBe(7);
     expect(result.totalBranches).toBe(1);
     expect(result.recentOrders).toHaveLength(1);
+  });
+
+  it('should map recentOrders defaults when fields are null', async () => {
+    mockSb.eq
+      .mockResolvedValueOnce({ data: [{ id: 'b1' }], error: null })
+      .mockResolvedValueOnce({ count: 1, error: null });
+
+    mockSb.in
+      .mockResolvedValueOnce({ count: 0 })
+      .mockReturnValueOnce(mockSb)
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 0 })
+      .mockReturnValueOnce(mockSb);
+
+    mockSb.gte.mockReturnValueOnce(mockSb);
+
+    mockSb.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: null,
+          status: 'CREATED',
+          total_amount: null,
+          created_at: null,
+        },
+      ],
+    });
+
+    const result = await service.getStats('token', 'brand-1', true);
+
+    expect(result.recentOrders[0].orderNo).toBeUndefined();
+    expect(result.recentOrders[0].totalAmount).toBe(0);
+    expect(result.recentOrders[0].createdAt).toBe('');
   });
 
   it('should default counts and recentOrders when data is missing', async () => {

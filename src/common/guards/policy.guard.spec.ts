@@ -19,6 +19,13 @@ describe('PolicyGuard', () => {
     expect(guard.canActivate(createContext({}))).toBe(true);
   });
 
+  it('should allow when reflector returns undefined', () => {
+    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) } as unknown as Reflector;
+    const guard = new PolicyGuard(reflector);
+
+    expect(guard.canActivate(createContext({}))).toBe(true);
+  });
+
   it('should allow admin users', () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue([Permission.BRAND_WRITE]),
@@ -44,6 +51,17 @@ describe('PolicyGuard', () => {
     const guard = new PolicyGuard(reflector);
 
     expect(() => guard.canActivate(createContext({ role: Role.STAFF }))).toThrow(ForbiddenException);
+  });
+
+  it('should treat unknown roles as insufficient', () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue([Permission.BRAND_WRITE]),
+    } as unknown as Reflector;
+    const guard = new PolicyGuard(reflector);
+
+    expect(() => guard.canActivate(createContext({ role: 'UNKNOWN' as Role }))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should allow when permissions are sufficient', () => {

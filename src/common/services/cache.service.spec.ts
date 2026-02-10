@@ -51,6 +51,14 @@ describe('CacheService', () => {
     expect(cacheManager.set).toHaveBeenCalledWith('key', { ok: true }, 30);
   });
 
+  it('set should store value without ttl', async () => {
+    const { service, cacheManager } = makeService();
+
+    await service.set('key', { ok: true });
+
+    expect(cacheManager.set).toHaveBeenCalledWith('key', { ok: true }, undefined);
+  });
+
   it('set should handle errors', async () => {
     const { service, cacheManager } = makeService();
     cacheManager.set.mockRejectedValueOnce(new Error('boom'));

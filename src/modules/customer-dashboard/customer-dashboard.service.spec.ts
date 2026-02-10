@@ -110,4 +110,31 @@ describe('CustomerDashboardService', () => {
     expect(result.myBranchesCount).toBe(1);
     expect(result.totalOrders).toBe(0);
   });
+
+  it('should default brands and recentOrders when data is null', async () => {
+    mockSb.in
+      .mockResolvedValueOnce({ count: 0 }) // totalOrders
+      .mockReturnValueOnce(mockSb) // todayOrders branch filter
+      .mockReturnValueOnce(mockSb) // pendingOrders branch filter
+      .mockResolvedValueOnce({ count: 0 }) // pendingOrders status filter
+      .mockReturnValueOnce(mockSb) // totalProducts branch filter
+      .mockReturnValueOnce(mockSb) // brands in
+      .mockReturnValueOnce(mockSb); // recentOrders branch filter
+
+    mockSb.gte.mockResolvedValueOnce({ count: 0 }); // todayOrders result
+    mockSb.eq.mockResolvedValueOnce({ count: 0 }); // totalProducts result
+    mockSb.order
+      .mockResolvedValueOnce({ data: null }) // brands
+      .mockReturnValueOnce(mockSb); // recentOrders
+    mockSb.limit.mockResolvedValueOnce({ data: null }); // recentOrders
+
+    const result = await service.getDashboardStats(
+      'user-1',
+      [],
+      [{ branch_id: 'b1' } as any],
+    );
+
+    expect(result.brands).toEqual([]);
+    expect(result.recentOrders).toEqual([]);
+  });
 });

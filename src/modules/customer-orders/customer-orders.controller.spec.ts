@@ -68,6 +68,27 @@ describe('CustomerOrdersController', () => {
     ).rejects.toThrow('Missing user');
   });
 
+  it('getOrders should allow missing branchId (all branches)', async () => {
+    mockService.getMyOrders.mockResolvedValue([{ id: 'order-1' }]);
+
+    const result = await controller.getOrders(
+      makeReq(),
+      undefined as any,
+      undefined as any,
+      { page: 1, limit: 10 } as any,
+    );
+
+    expect(result).toEqual([{ id: 'order-1' }]);
+    expect(mockService.getMyOrders).toHaveBeenCalledWith(
+      'user-1',
+      undefined,
+      [],
+      [],
+      { page: 1, limit: 10 },
+      undefined,
+    );
+  });
+
   it('getOrder should call service and return result', async () => {
     mockService.getMyOrder.mockResolvedValue({ id: 'order-1' });
 

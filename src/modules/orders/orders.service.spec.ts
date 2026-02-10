@@ -299,6 +299,46 @@ describe('OrdersService', () => {
       expect(result.items[0].option).toBe('Option-A');
     });
 
+    it('should handle items with missing options', async () => {
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-002',
+        status: OrderStatus.PENDING,
+        created_at: '2024-01-01',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: null,
+        subtotal: 10000,
+        delivery_fee: 3000,
+        discount_total: 0,
+        total_amount: 13000,
+        items: [
+          {
+            id: 'item-1',
+            product_name_snapshot: 'Test Product',
+            qty: 2,
+            unit_price_snapshot: 5000,
+            options: undefined,
+          },
+        ],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.items[0].option).toBeUndefined();
+    });
+
     it('should resolve uuid directly when id exists', async () => {
       const uuid = '123e4567-e89b-12d3-a456-426614174000';
       const mockOrder = {
@@ -432,6 +472,22 @@ describe('OrdersService', () => {
 
       expect(resolved).toBe('order-1');
       expect(mockSupabaseClient.eq).toHaveBeenCalledWith('branch_id', 'branch-123');
+    });
+
+    it('should resolve by uuid without branch filter', async () => {
+      const uuid = '123e4567-e89b-12d3-a456-426614174000';
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: uuid },
+        error: null,
+      });
+
+      const resolved = await (service as any).resolveOrderId(
+        mockSupabaseClient,
+        uuid,
+      );
+
+      expect(resolved).toBe(uuid);
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('id', uuid);
     });
   });
 

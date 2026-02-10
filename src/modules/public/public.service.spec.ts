@@ -125,6 +125,7 @@ describe('PublicService', () => {
 
   it('getPriceFromRow should handle price fallbacks', () => {
     expect((service as any).getPriceFromRow(null)).toBe(0);
+    expect((service as any).getPriceFromRow({})).toBe(0);
     expect((service as any).getPriceFromRow({ base_price: 7 })).toBe(7);
     expect((service as any).getPriceFromRow({ price: 5 })).toBe(5);
     expect((service as any).getPriceFromRow({ price_amount: 3 })).toBe(3);

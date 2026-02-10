@@ -188,6 +188,27 @@ describe('UploadService', () => {
       );
     });
 
+    it('should treat undefined folder as default', async () => {
+      const mockFile = createMockFile('image/jpeg', 1024, 'test.jpg');
+
+      mockStorageClient.upload.mockResolvedValue({
+        data: { path: 'general/uuid.jpg' },
+        error: null,
+      });
+      mockStorageClient.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://example.com/general/uuid.jpg' },
+      });
+
+      const result = await service.uploadImage(mockFile, undefined as any);
+
+      expect(result.path).toMatch(/^general\//);
+      expect(mockStorageClient.upload).toHaveBeenCalledWith(
+        expect.stringMatching(/^general\/[a-f0-9-]+\.jpg$/),
+        expect.any(Buffer),
+        expect.any(Object),
+      );
+    });
+
     it('should generate unique filenames for multiple uploads', async () => {
       const mockFile = createMockFile('image/jpeg', 1024, 'test.jpg');
 
@@ -243,6 +264,28 @@ describe('UploadService', () => {
       expect(results[1]).toHaveProperty('url');
       expect(results[1]).toHaveProperty('path');
       expect(mockStorageClient.upload).toHaveBeenCalledTimes(2);
+    });
+
+    it('should use default folder when omitted', async () => {
+      const mockFiles = [
+        {
+          fieldname: 'files',
+          originalname: 'image1.jpg',
+          encoding: '7bit',
+          mimetype: 'image/jpeg',
+          size: 1024,
+          buffer: Buffer.from('test1'),
+        } as Express.Multer.File,
+      ];
+
+      const spy = jest
+        .spyOn(service, 'uploadImage')
+        .mockResolvedValue({ url: 'u', path: 'general/x.jpg', bucket: 'product-images' });
+
+      const results = await service.uploadMultipleImages(mockFiles);
+
+      expect(results).toHaveLength(1);
+      expect(spy).toHaveBeenCalledWith(mockFiles[0], 'general');
     });
 
     it('should fail if any file is invalid', async () => {

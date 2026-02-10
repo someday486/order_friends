@@ -172,6 +172,10 @@ export class PaymentsService {
     }
   }
 
+  private logMetric(event: string, payload: Record<string, any>) {
+    this.logger.log(`[METRIC] ${event} ${JSON.stringify(payload)}`);
+  }
+
   /**
    * 寃곗젣 以鍮?- 二쇰Ц 寃利?諛?寃곗젣 ?뺣낫 諛섑솚
    * PUBLIC (?몄쬆 遺덊븘??
@@ -250,6 +254,12 @@ export class PaymentsService {
     dto: ConfirmPaymentRequest,
   ): Promise<ConfirmPaymentResponse> {
     this.logger.log(`Confirming payment for order: ${dto.orderId}`);
+    const idempotencyKey = dto.idempotencyKey?.trim() || undefined;
+    this.logMetric('payment.confirm.start', {
+      orderId: dto.orderId,
+      amount: dto.amount,
+      idempotencyKey,
+    });
 
     const sb = this.supabase.adminClient();
 
@@ -270,11 +280,11 @@ export class PaymentsService {
     // 4. idempotency key 기반 결제 중복 처리
     let existingPayment: any | null = null;
 
-    if (dto.idempotencyKey) {
+    if (idempotencyKey) {
       const { data: idempotentPayment } = await sb
         .from('payments')
         .select('id, order_id, status, amount, paid_at, idempotency_key')
-        .eq('idempotency_key', dto.idempotencyKey)
+        .eq('idempotency_key', idempotencyKey)
         .maybeSingle();
 
       if (idempotentPayment) {
@@ -302,6 +312,11 @@ export class PaymentsService {
             'PAID',
             'confirm-idempotency',
           );
+          this.logMetric('payment.confirm.idempotent_hit', {
+            orderId: resolvedId,
+            paymentId: idempotentPayment.id,
+            idempotencyKey,
+          });
           return {
             paymentId: idempotentPayment.id,
             orderId: resolvedId,
@@ -340,6 +355,11 @@ export class PaymentsService {
           'PAID',
           'confirm-existing',
         );
+        this.logMetric('payment.confirm.existing_hit', {
+          orderId: resolvedId,
+          paymentId: paymentByOrder.id,
+          idempotencyKey,
+        });
         return {
           paymentId: paymentByOrder.id,
           orderId: resolvedId,
@@ -388,7 +408,7 @@ export class PaymentsService {
               failed_at: new Date().toISOString(),
               failure_reason: error?.message || 'Payment confirmation failed',
               idempotency_key:
-                dto.idempotencyKey ?? existingPayment.idempotency_key ?? null,
+                idempotencyKey ?? existingPayment.idempotency_key ?? null,
             })
             .eq('id', existingPayment.id);
         } else {
@@ -402,7 +422,7 @@ export class PaymentsService {
             payment_method: PaymentMethod.CARD,
             failed_at: new Date().toISOString(),
             failure_reason: error?.message || 'Payment confirmation failed',
-            idempotency_key: dto.idempotencyKey ?? null,
+            idempotency_key: idempotencyKey ?? null,
           });
         }
 
@@ -412,6 +432,11 @@ export class PaymentsService {
           'FAILED',
           'confirm-provider-error',
         );
+        this.logMetric('payment.confirm.provider_error', {
+          orderId: resolvedId,
+          idempotencyKey,
+          error: error?.message || 'Payment confirmation failed',
+        });
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
           error?.message || 'Payment confirmation failed',
@@ -436,7 +461,7 @@ export class PaymentsService {
           failure_reason: null,
           metadata: providerResponse || {},
           idempotency_key:
-            dto.idempotencyKey ?? existingPayment.idempotency_key ?? null,
+            idempotencyKey ?? existingPayment.idempotency_key ?? null,
         })
         .eq('id', existingPayment.id)
         .select()
@@ -468,17 +493,17 @@ export class PaymentsService {
           payment_method: PaymentMethod.CARD,
           paid_at: paidAt,
           metadata: providerResponse || {},
-          idempotency_key: dto.idempotencyKey ?? null,
+          idempotency_key: idempotencyKey ?? null,
         })
         .select()
         .single();
 
       if (insertError) {
-        if (insertError.code === '23505' && dto.idempotencyKey) {
+        if (insertError.code === '23505' && idempotencyKey) {
           const { data: idempotentPayment } = await sb
             .from('payments')
             .select('id, status, amount, paid_at, order_id')
-            .eq('idempotency_key', dto.idempotencyKey)
+            .eq('idempotency_key', idempotencyKey)
             .maybeSingle();
 
           if (idempotentPayment && idempotentPayment.status === PaymentStatus.SUCCESS) {
@@ -488,6 +513,11 @@ export class PaymentsService {
               'PAID',
               'confirm-idempotency-race',
             );
+            this.logMetric('payment.confirm.idempotency_race', {
+              orderId: idempotentPayment.order_id,
+              paymentId: idempotentPayment.id,
+              idempotencyKey,
+            });
             return {
               paymentId: idempotentPayment.id,
               orderId: idempotentPayment.order_id,
@@ -512,6 +542,12 @@ export class PaymentsService {
 
     await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'confirm-success');
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
+    this.logMetric('payment.confirm.success', {
+      orderId: resolvedId,
+      paymentId: payment.id,
+      amount: payment.amount,
+      idempotencyKey,
+    });
 
     return {
       paymentId: payment.id,

@@ -129,6 +129,23 @@ describe('NotificationsService', () => {
     expect(smsResult.success).toBe(true);
   });
 
+  it('should use mock mode when sms key is missing and log N/A text', async () => {
+    const service = new NotificationsService(
+      makeConfig({
+        SENDGRID_API_KEY: 'sg',
+      }),
+    );
+
+    const result = await (service as any).sendEmail(
+      'a@test.com',
+      'subj',
+      '<p>html</p>',
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.type).toBe(NotificationType.EMAIL);
+  });
+
   it('should render templates without optional fields', async () => {
     const service = new NotificationsService(makeConfig({}));
 
@@ -167,6 +184,39 @@ describe('NotificationsService', () => {
     expect(paymentTemplate.subject).toContain('Payment Confirmation');
     expect(refundTemplate.subject).toContain('Refund Confirmation');
     expect(lowStockTemplate.subject).toContain('Low Stock Alert');
+  });
+
+  it('should omit delivery memo when not provided', () => {
+    const service = new NotificationsService(makeConfig({}));
+    const orderTemplate = (service as any).getOrderConfirmationEmailTemplate({
+      orderNo: 'O-1',
+      customerName: 'A',
+      orderedAt: '2024-01-01T00:00:00Z',
+      items: [{ name: 'P', qty: 2, unitPrice: 5 }],
+      subtotal: 10,
+      shippingFee: 0,
+      discount: 0,
+      total: 10,
+      deliveryAddress: 'Addr',
+    });
+
+    expect(orderTemplate.html).toContain('Delivery');
+    expect(orderTemplate.html).not.toContain('Note:');
+  });
+
+  it('should fallback to raw status when not mapped', () => {
+    const service = new NotificationsService(makeConfig({}));
+    const statusTemplate = (service as any).getOrderStatusUpdateEmailTemplate({
+      orderNo: 'O-9',
+      customerName: 'A',
+      oldStatus: 'PENDING',
+      newStatus: 'CUSTOM',
+      updatedAt: '2024-01-01T00:00:00Z',
+    });
+
+    expect(statusTemplate.html).toContain('CUSTOM');
+    expect(statusTemplate.text).toContain('CUSTOM');
+    expect(statusTemplate.text).not.toContain('Message:');
   });
 
   it('should handle send errors gracefully', async () => {

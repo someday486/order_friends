@@ -612,6 +612,25 @@ describe('InventoryService', () => {
     expect(result).toHaveLength(0);
   });
 
+  it('getInventoryLogs should use fallback memberships when undefined', async () => {
+    const branchSpy = jest
+      .spyOn(service as any, 'checkBranchAccess')
+      .mockResolvedValueOnce({ role: 'OWNER', branch: { id: 'b1', name: 'B' } });
+    const productSpy = jest
+      .spyOn(service as any, 'checkProductAccess')
+      .mockResolvedValueOnce({ role: 'OWNER', product: { id: 'p1', branch_id: 'b1' } });
+
+    chains.inventory_logs.eq
+      .mockReturnValueOnce(chains.inventory_logs)
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    const result = await service.getInventoryLogs('u1', 'b1', 'p1');
+
+    expect(result).toEqual([]);
+    expect(branchSpy).toHaveBeenCalledWith('b1', 'u1', [], []);
+    expect(productSpy).toHaveBeenCalledWith('p1', 'u1', [], []);
+  });
+
   it('getInventoryLogs should throw on error', async () => {
     chains.branches.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },

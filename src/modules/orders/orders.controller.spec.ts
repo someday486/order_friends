@@ -68,6 +68,12 @@ describe('OrdersController', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('getOrder should throw when access token is missing', async () => {
+    await expect(
+      controller.getOrder('order-1', makeReq({ accessToken: undefined }), 'branch-1'),
+    ).rejects.toThrow('Missing access token');
+  });
+
   it('updateOrderStatus should call service and return result', async () => {
     mockService.updateStatus.mockResolvedValue({ id: 'order-1', status: 'COMPLETED' });
 
@@ -96,5 +102,16 @@ describe('OrdersController', () => {
         '',
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('updateOrderStatus should throw when access token is missing', async () => {
+    await expect(
+      controller.updateOrderStatus(
+        'order-1',
+        { status: 'COMPLETED' } as any,
+        makeReq({ accessToken: undefined }),
+        'branch-1',
+      ),
+    ).rejects.toThrow('Missing access token');
   });
 });

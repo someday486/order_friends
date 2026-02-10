@@ -180,4 +180,22 @@ describe('CustomerBrandsService', () => {
       }),
     );
   });
+
+  it('updateMyBrand should allow updates without name', async () => {
+    mockSb.single.mockResolvedValueOnce({
+      data: { id: 'brand-1', name: 'Brand' },
+      error: null,
+    });
+
+    await service.updateMyBrand(
+      'brand-1',
+      { logo_url: 'logo.png' },
+      'user-1',
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+    );
+
+    const updatePayload = mockSb.update.mock.calls[0][0];
+    expect(updatePayload.name).toBeUndefined();
+    expect(updatePayload.logo_url).toBe('logo.png');
+  });
 });

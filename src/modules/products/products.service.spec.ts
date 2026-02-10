@@ -504,6 +504,31 @@ describe('ProductsService', () => {
       expect(result.price).toBe(15000);
     });
 
+    it('should include description when provided', async () => {
+      const spy = jest
+        .spyOn(service, 'getProduct')
+        .mockResolvedValueOnce({ id: '123', description: 'Desc' } as any);
+
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: '123' },
+        error: null,
+      });
+
+      await service.updateProduct(
+        'token',
+        '123',
+        { description: 'Desc' } as any,
+        true,
+      );
+
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Desc',
+        }),
+      );
+      expect(spy).toHaveBeenCalled();
+    });
+
     it('should throw ProductNotFoundException when product not found', async () => {
       mockSupabaseClient.maybeSingle.mockResolvedValue({
         data: null,

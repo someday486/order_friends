@@ -100,6 +100,23 @@ describe('GlobalExceptionFilter', () => {
     );
   });
 
+  it('should fallback to exception fields when response object omits message/error', () => {
+    const exception = new HttpException(
+      { message: undefined, error: undefined },
+      HttpStatus.BAD_REQUEST,
+    );
+
+    filter.catch(exception, mockHost);
+
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: exception.message,
+        error: exception.name,
+      }),
+    );
+  });
+
   it('should handle unknown exceptions', () => {
     const exception = 'string error';
 

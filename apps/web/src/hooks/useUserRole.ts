@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
+import { apiClient } from '@/lib/api-client';
 
 export type UserRole = 'system_admin' | 'brand_owner' | 'branch_manager' | 'staff' | 'customer';
 
@@ -32,25 +33,10 @@ export function useUserRole() {
       return;
     }
 
-    // Fetch user role from /me endpoint
     const fetchUserRole = async () => {
       try {
         setLoading(true);
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/me`,
-          {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch user data');
-        }
-
-        const data = await response.json();
+        const data = await apiClient.get<UserData>('/me');
         setUserData(data);
       } catch (err) {
         console.error('Error fetching user role:', err);

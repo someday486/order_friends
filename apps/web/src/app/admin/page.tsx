@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 
@@ -21,22 +21,6 @@ type DashboardStats = {
 // ============================================================
 // Constants
 // ============================================================
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
-// ============================================================
-// Helpers
-// ============================================================
-
-async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
 
 // ============================================================
 // Component
@@ -59,22 +43,9 @@ export default function AdminHomePage() {
     const loadStats = async () => {
       try {
         setLoading(true);
-        const token = await getAccessToken();
-
-        const res = await fetch(
-          `${API_BASE}/admin/dashboard/stats?brandId=${encodeURIComponent(brandId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+        const data = await apiClient.get<DashboardStats>(
+          `/admin/dashboard/stats?brandId=${encodeURIComponent(brandId)}`
         );
-
-        if (!res.ok) {
-          throw new Error(`통계 조회 실패: ${res.status}`);
-        }
-
-        const data = await res.json();
         setStats({
           totalOrders: data.totalOrders ?? 0,
           pendingOrders: data.pendingOrders ?? 0,

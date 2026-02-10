@@ -69,6 +69,18 @@ describe('CustomerOrdersService', () => {
     expect(ordersChain.eq).toHaveBeenCalledWith('branch_id', 'b1');
   });
 
+  it('resolveOrderId should fall back to order_no when uuid lookup fails and apply branch filter', async () => {
+    const uuid = '123e4567-e89b-12d3-a456-426614174000';
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
+
+    const result = await (service as any).resolveOrderId(mockSb, uuid, 'b1');
+
+    expect(result).toBe('o2');
+    expect(ordersChain.eq).toHaveBeenCalledWith('branch_id', 'b1');
+  });
+
   it('checkBranchAccess should return branch membership', async () => {
     branchesChain.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },
@@ -184,6 +196,57 @@ describe('CustomerOrdersService', () => {
 
     expect(result.data).toHaveLength(1);
     expect(result.pagination.total).toBe(1);
+  });
+
+  it('getMyOrders should use default pagination when undefined', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [{ id: 'o1', status: OrderStatus.CREATED, created_at: 't', total_amount: 10 }],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      undefined as any,
+    );
+
+    expect(result.pagination.page).toBe(1);
+    expect(result.pagination.limit).toBe(20);
+  });
+
+  it('getMyOrders should handle null data with zero count', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 0, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data).toEqual([]);
+    expect(result.pagination.total).toBe(0);
   });
 
   it('getMyOrders should map defaults when nullable fields are missing', async () => {
@@ -339,6 +402,15 @@ describe('CustomerOrdersService', () => {
     expect(result.role).toBe('ADMIN');
   });
 
+  it('checkOrderAccess should throw when order fetch fails', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    await expect(
+      (service as any).checkOrderAccess('o1', 'user-1', [], []),
+    ).rejects.toThrow(NotFoundException);
+  });
+
   it('checkOrderAccess should throw when forbidden', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
     ordersChain.single.mockResolvedValueOnce({
@@ -445,6 +517,50 @@ describe('CustomerOrdersService', () => {
     expect(result.items[0].option).toBe('Opt-A');
   });
 
+  it('getMyOrder should omit option when options are missing', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          customer_name: 'A',
+          customer_phone: '1',
+          delivery_address: 'addr',
+          delivery_memo: null,
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          items: [
+            {
+              id: 'i1',
+              product_name_snapshot: 'P',
+              qty: 1,
+              unit_price_snapshot: 10,
+              options: undefined,
+            },
+          ],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result.items[0].option).toBeUndefined();
+  });
+
   it('getMyOrder should throw when detail fetch fails', async () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
@@ -500,6 +616,39 @@ describe('CustomerOrdersService', () => {
     );
 
     expect(result.status).toBe(OrderStatus.READY);
+  });
+
+  it('updateMyOrderStatus should map nullable fields', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'o1' }, error: null });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: null,
+          status: OrderStatus.READY,
+          created_at: null,
+          customer_name: null,
+          total_amount: null,
+        },
+        error: null,
+      });
+
+    const result = await service.updateMyOrderStatus(
+      'user-1',
+      'o1',
+      OrderStatus.READY,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result.orderNo).toBeNull();
+    expect(result.orderedAt).toBe('');
+    expect(result.customerName).toBe('');
+    expect(result.totalAmount).toBe(0);
   });
 
   it('updateMyOrderStatus should throw when order not found', async () => {

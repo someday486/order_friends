@@ -113,6 +113,57 @@ describe('PublicOrderService - Inventory Integration', () => {
     });
   });
 
+  it('should insert order item options when present and ignore option insert errors', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'product-1', name: 'Product', price: 1000, branch_id: 'branch-123' }],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: { id: 'order-1', order_no: 'O-1', total_amount: 1000, status: 'CREATED', created_at: 't' },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({ data: { id: 'item-1' }, error: null });
+    anonChains.order_item_options.insert
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: { message: 'fail' } });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const originalPush = Array.prototype.push;
+    Array.prototype.push = function (...args: any[]) {
+      const first = args[0];
+      if (first && first.product_id && Array.isArray(first.options)) {
+        first.options.push({
+          product_option_id: 'opt-1',
+          option_name_snapshot: 'Opt-1',
+          price_delta_snapshot: 0,
+        });
+        first.options.push({
+          product_option_id: 'opt-2',
+          option_name_snapshot: 'Opt-2',
+          price_delta_snapshot: 0,
+        });
+      }
+      return originalPush.apply(this, args as any);
+    };
+
+    try {
+      const result = await service.createOrder(mockOrderDto as any);
+
+      expect(result.items[0].options).toEqual(['Opt-1']);
+      expect(anonChains.order_item_options.insert).toHaveBeenCalledTimes(2);
+    } finally {
+      Array.prototype.push = originalPush;
+    }
+  });
+
   it('should throw BadRequestException when inventory is insufficient', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',
@@ -169,6 +220,62 @@ describe('PublicOrderService - Inventory Integration', () => {
     );
   });
 
+  it('should include missing inventory id when map lacks product name', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 2 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'product-1', name: 'Product', price: 10000, branch_id: 'branch-123' }],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: { id: 'order-1', order_no: 'O-1', total_amount: 1000, status: 'CREATED', created_at: 't' },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({ data: { id: 'item-1' }, error: null });
+    adminClient.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'INVENTORY_NOT_FOUND:deadbeef' },
+    });
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      'deadbeef',
+    );
+  });
+
+  it('should include insufficient inventory id when map lacks product name', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 2 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'product-1', name: 'Product', price: 10000, branch_id: 'branch-123' }],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: { id: 'order-1', order_no: 'O-1', total_amount: 1000, status: 'CREATED', created_at: 't' },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({ data: { id: 'item-1' }, error: null });
+    adminClient.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'INSUFFICIENT_INVENTORY:deadbeef' },
+    });
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      'deadbeef',
+    );
+  });
+
   it('should throw BadRequestException when inventory reservation fails with generic error', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',
@@ -197,6 +304,34 @@ describe('PublicOrderService - Inventory Integration', () => {
     );
   });
 
+  it('should throw BadRequestException when inventory error message is missing', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'product-1', name: 'Product', price: 1000, branch_id: 'branch-123' }],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: { id: 'order-1', order_no: 'O-1', total_amount: 1000, status: 'CREATED', created_at: 't' },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({ data: { id: 'item-1' }, error: null });
+    adminClient.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {},
+    });
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
   it('should throw BadRequestException when inventory reservation throws', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',
@@ -216,6 +351,24 @@ describe('PublicOrderService - Inventory Integration', () => {
     });
     anonChains.order_items.single.mockResolvedValueOnce({ data: { id: 'item-1' }, error: null });
     adminClient.rpc.mockRejectedValueOnce(new Error('boom'));
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('should throw BadRequestException when products list is null', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
       BadRequestException,

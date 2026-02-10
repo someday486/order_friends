@@ -64,6 +64,28 @@ describe('PublicOrderService - Public Queries', () => {
     await expect(service.getBranchBySlug('slug')).rejects.toThrow(ConflictException);
   });
 
+  it('getBranchBySlug should prefer branch images when present', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          name: 'Branch',
+          slug: 'slug',
+          logo_url: 'logo.png',
+          cover_image_url: 'cover.png',
+          brands: { name: undefined, logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranchBySlug('slug');
+
+    expect(result.logoUrl).toBe('logo.png');
+    expect(result.coverImageUrl).toBe('cover.png');
+    expect(result.brandName).toBeUndefined();
+  });
+
   it('getBranchBySlug should throw on error', async () => {
     anonChains.branches.limit.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
     await expect(service.getBranchBySlug('slug')).rejects.toThrow(NotFoundException);

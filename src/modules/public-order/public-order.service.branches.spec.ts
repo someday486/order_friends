@@ -207,6 +207,26 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect(result.coverImageUrl).toBe('brand-cover');
   });
 
+  it('getBranchBySlug should return null assets when both branch and brand are missing', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          name: 'Branch',
+          logo_url: null,
+          cover_image_url: null,
+          brands: { name: null, logo_url: null, cover_image_url: null },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranchBySlug('slug');
+    expect(result.brandName).toBeUndefined();
+    expect(result.logoUrl).toBeNull();
+    expect(result.coverImageUrl).toBeNull();
+  });
+
   it('getBranchByBrandSlug should map brand fallback logo', async () => {
     anonChains.branches.limit.mockResolvedValueOnce({
       data: [
@@ -224,6 +244,26 @@ describe('PublicOrderService - Branch Coverage', () => {
     const result = await service.getBranchByBrandSlug('brand', 'branch');
     expect(result.brandName).toBe('Brand');
     expect(result.logoUrl).toBe('brand-logo');
+    expect(result.coverImageUrl).toBeNull();
+  });
+
+  it('getBranchByBrandSlug should handle missing brand name', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          name: 'Branch',
+          logo_url: null,
+          cover_image_url: null,
+          brands: { name: null, logo_url: null, cover_image_url: null },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranchByBrandSlug('brand', 'branch');
+    expect(result.brandName).toBeUndefined();
+    expect(result.logoUrl).toBeNull();
     expect(result.coverImageUrl).toBeNull();
   });
 
@@ -302,6 +342,14 @@ describe('PublicOrderService - Branch Coverage', () => {
     anonChains.products._results = [
       { data: null, error: { message: 'other failure' } },
     ];
+
+    await expect(service.getProducts('b1')).rejects.toThrow(
+      '상품 목록 조회 실패',
+    );
+  });
+
+  it('getProducts should throw when error message is missing', async () => {
+    anonChains.products._results = [{ data: null, error: {} }];
 
     await expect(service.getProducts('b1')).rejects.toThrow(
       '상품 목록 조회 실패',
@@ -387,6 +435,25 @@ describe('PublicOrderService - Branch Coverage', () => {
     });
   });
 
+  it('buildSignatureFromOrder should handle missing order_items', () => {
+    const signature = (service as any).buildSignatureFromOrder({ id: 'o1' });
+    const expected = (service as any).buildOrderSignature([]);
+    expect(signature).toBe(expected);
+  });
+
+  it('buildOrderResponse should handle missing order_items', () => {
+    const response = (service as any).buildOrderResponse({
+      id: 'o1',
+      order_no: 'O-1',
+      status: 'CREATED',
+      total_amount: 1000,
+      created_at: 't',
+      order_items: undefined,
+    });
+
+    expect(response.items).toEqual([]);
+  });
+
   it('findRecentDuplicateOrder should use name+phone strategy and return matching order', async () => {
     const dto = {
       branchId: 'b1',
@@ -431,6 +498,7 @@ describe('PublicOrderService - Branch Coverage', () => {
 
     expect(result.strategy).toBe('NAME_PHONE');
     expect(result.order.id).toBe('o2');
+    expect(result.metadata.windowMs).toBe((service as any).duplicateWindowMs);
   });
 
   it('findRecentDuplicateOrder should handle different strategies with no matches', async () => {
@@ -475,6 +543,92 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect(result).toBeNull();
   });
 
+  it('findRecentDuplicateOrder should use payment method filter when no customer info', async () => {
+    const dto = {
+      branchId: 'b1',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+    const signature = (service as any).buildOrderSignature(dto.items);
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await (service as any).findRecentDuplicateOrder(
+      adminClient,
+      dto,
+      1000,
+      signature,
+    );
+
+    expect(adminChains.orders.eq).toHaveBeenCalledWith('payment_method', 'CARD');
+    expect(result?.strategy).toBe('ANON');
+    expect(result?.metadata.paymentMethod).toBe('CARD');
+  });
+
+  it('findRecentDuplicateOrder should default payment method when policy omits it', async () => {
+    const dto = {
+      branchId: 'b1',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+    const signature = (service as any).buildOrderSignature(dto.items);
+
+    const policySpy = jest.spyOn(service as any, 'getDuplicatePolicy').mockReturnValue({
+      strategy: 'ANON',
+      windowMs: 1000,
+      lookbackLimit: 1,
+      filters: {},
+      paymentMethod: undefined,
+      customerName: undefined,
+      customerPhone: undefined,
+      customerAddress1: undefined,
+      dedupKey: 'anon',
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    let result: any;
+    try {
+      result = await (service as any).findRecentDuplicateOrder(
+        adminClient,
+        dto,
+        1000,
+        signature,
+      );
+    } finally {
+      policySpy.mockRestore();
+    }
+
+    expect(adminChains.orders.eq).toHaveBeenCalledWith('payment_method', 'CARD');
+    expect(result?.metadata.paymentMethod).toBeNull();
+  });
+
   it('findRecentDuplicateOrder should use name+address strategy', async () => {
     const dto = {
       branchId: 'b1',
@@ -509,6 +663,78 @@ describe('PublicOrderService - Branch Coverage', () => {
 
     expect(result?.strategy).toBe('NAME_ADDRESS');
     expect(result?.order.id).toBe('o1');
+    expect(result?.metadata.dedupKey).toContain('name_address');
+  });
+
+  it('findRecentDuplicateOrder should use phone+address strategy', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerPhone: '010',
+      customerAddress1: 'Addr',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+    const signature = (service as any).buildOrderSignature(dto.items);
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await (service as any).findRecentDuplicateOrder(
+      adminClient,
+      dto,
+      1000,
+      signature,
+    );
+
+    expect(result?.strategy).toBe('PHONE_ADDRESS');
+    expect(result?.metadata.dedupKey).toContain('phone_address');
+  });
+
+  it('findRecentDuplicateOrder should use address-only strategy when customer info missing', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerAddress1: 'Addr',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+    const signature = (service as any).buildOrderSignature(dto.items);
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await (service as any).findRecentDuplicateOrder(
+      adminClient,
+      dto,
+      1000,
+      signature,
+    );
+
+    expect(result?.strategy).toBe('ADDRESS_ONLY');
+    expect(result?.metadata.lookbackLimit).toBeLessThanOrEqual(3);
   });
 
   it('getOrder should resolve by order_no and map options', async () => {
@@ -544,6 +770,25 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect(result.items[0].options).toEqual(['Opt']);
   });
 
+  it('getOrder should handle missing order items', async () => {
+    anonChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: undefined,
+        },
+        error: null,
+      });
+
+    const result = await service.getOrder('O-1');
+    expect(result.items).toEqual([]);
+  });
+
   it('getOrder should throw when missing', async () => {
     anonChains.orders.maybeSingle
       .mockResolvedValueOnce({ data: null, error: null })
@@ -561,6 +806,15 @@ describe('PublicOrderService - Branch Coverage', () => {
 
     const result = await service.getCategories('b1');
     expect(result[0].sortOrder).toBe(0);
+  });
+
+  it('getCategories should return empty when data is null', async () => {
+    adminChains.product_categories._results = [
+      { data: null, error: null },
+    ];
+
+    const result = await service.getCategories('b1');
+    expect(result).toEqual([]);
   });
 
   it('getCategories should throw on error', async () => {

@@ -71,6 +71,17 @@ describe('BranchesService', () => {
     expect(userSb.from).toHaveBeenCalledWith('branches');
   });
 
+  it('getBranches should return empty list when data is null', async () => {
+    adminSb.order.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const result = await service.getBranches('token', 'brand', true);
+
+    expect(result).toEqual([]);
+  });
+
   it('getBranches should throw on error', async () => {
     adminSb.order.mockResolvedValueOnce({
       data: null,
@@ -108,6 +119,30 @@ describe('BranchesService', () => {
     expect(result.brandId).toBe('brand');
   });
 
+  it('getBranch should map optional fields with defaults', async () => {
+    adminSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'b1',
+        brand_id: 'brand',
+        name: 'Branch',
+        slug: null,
+        logo_url: null,
+        cover_image_url: null,
+        thumbnail_url: null,
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.getBranch('token', 'b1', true);
+
+    expect(result.slug).toBe('');
+    expect(result.logoUrl).toBeNull();
+    expect(result.coverImageUrl).toBeNull();
+    expect(result.thumbnailUrl).toBeNull();
+    expect(result.createdAt).toBe('');
+  });
+
   it('getBranch should throw when data missing', async () => {
     adminSb.single.mockResolvedValueOnce({ data: null, error: null });
 
@@ -135,6 +170,28 @@ describe('BranchesService', () => {
     );
 
     expect(result.id).toBe('b1');
+  });
+
+  it('createBranch should map admin response with defaults', async () => {
+    adminSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'b1',
+        brand_id: 'brand',
+        name: 'Branch',
+        slug: null,
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.createBranch(
+      'token',
+      { brandId: 'brand', name: 'Branch', slug: 's' } as any,
+      true,
+    );
+
+    expect(result.slug).toBe('');
+    expect(result.createdAt).toBe('');
   });
 
   it('createBranch should include optional fields in payload', async () => {
@@ -207,6 +264,17 @@ describe('BranchesService', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('createBranch should throw conflict on duplicate for user client', async () => {
+    userSb.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'dup', code: '23505' },
+    });
+
+    await expect(
+      service.createBranch('token', { brandId: 'b', name: 'n', slug: 's' } as any),
+    ).rejects.toThrow(ConflictException);
+  });
+
   it('createBranch should throw on admin insert error', async () => {
     adminSb.single.mockResolvedValueOnce({
       data: null,
@@ -227,6 +295,33 @@ describe('BranchesService', () => {
     await expect(
       service.createBranch('token', { brandId: 'b', name: 'n', slug: 's' } as any),
     ).rejects.toThrow('[branches.createBranch]');
+  });
+
+  it('createBranch should map user response defaults', async () => {
+    userSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'b2',
+        brand_id: 'brand',
+        name: 'Branch',
+        slug: null,
+        logo_url: null,
+        cover_image_url: null,
+        thumbnail_url: null,
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.createBranch(
+      'token',
+      { brandId: 'brand', name: 'Branch', slug: 's' } as any,
+    );
+
+    expect(result.slug).toBe('');
+    expect(result.logoUrl).toBeNull();
+    expect(result.coverImageUrl).toBeNull();
+    expect(result.thumbnailUrl).toBeNull();
+    expect(result.createdAt).toBe('');
   });
 
   it('updateBranch should return getBranch when no changes', async () => {

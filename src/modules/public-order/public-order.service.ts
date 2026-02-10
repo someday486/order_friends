@@ -320,6 +320,91 @@ export class PublicOrderService {
     return createHash('sha256').update(payload).digest('hex');
   }
 
+  private normalizeOptional(value?: string | null): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  }
+
+  private getDuplicatePolicy(dto: CreatePublicOrderRequest) {
+    const customerName = this.normalizeOptional(dto.customerName);
+    const customerPhone = this.normalizeOptional(dto.customerPhone);
+    const customerAddress1 = this.normalizeOptional(dto.customerAddress1);
+    const paymentMethod = dto.paymentMethod ?? 'CARD';
+
+    const strongLimit = this.duplicateLookbackLimit;
+    const weakLimit = Math.min(this.duplicateLookbackLimit, 3);
+
+    let strategy = 'ANON';
+    let windowMs = this.weakDuplicateWindowMs;
+    let lookbackLimit = weakLimit;
+
+    const filters: { name?: string; phone?: string; address1?: string } = {};
+
+    if (customerName && customerPhone) {
+      strategy = 'NAME_PHONE';
+      windowMs = this.duplicateWindowMs;
+      lookbackLimit = strongLimit;
+      filters.name = customerName;
+      filters.phone = customerPhone;
+    } else if (customerPhone && customerAddress1) {
+      strategy = 'PHONE_ADDRESS';
+      windowMs = this.duplicateWindowMs;
+      lookbackLimit = strongLimit;
+      filters.phone = customerPhone;
+      filters.address1 = customerAddress1;
+    } else if (customerPhone) {
+      strategy = 'PHONE_ONLY';
+      windowMs = this.duplicateWindowMs;
+      lookbackLimit = strongLimit;
+      filters.phone = customerPhone;
+    } else if (customerName && customerAddress1) {
+      strategy = 'NAME_ADDRESS';
+      windowMs = this.duplicateWindowMs;
+      lookbackLimit = strongLimit;
+      filters.name = customerName;
+      filters.address1 = customerAddress1;
+    } else if (customerName) {
+      strategy = 'NAME_ONLY';
+      windowMs = this.weakDuplicateWindowMs;
+      lookbackLimit = weakLimit;
+      filters.name = customerName;
+    } else if (customerAddress1) {
+      strategy = 'ADDRESS_ONLY';
+      windowMs = this.weakDuplicateWindowMs;
+      lookbackLimit = weakLimit;
+      filters.address1 = customerAddress1;
+    }
+
+    let dedupKey: string | null = null;
+    if (strategy === 'NAME_PHONE') {
+      dedupKey = `name_phone:${customerName}:${customerPhone}`;
+    } else if (strategy === 'PHONE_ADDRESS') {
+      dedupKey = `phone_address:${customerPhone}:${customerAddress1}`;
+    } else if (strategy === 'PHONE_ONLY') {
+      dedupKey = `phone_only:${customerPhone}`;
+    } else if (strategy === 'NAME_ADDRESS') {
+      dedupKey = `name_address:${customerName}:${customerAddress1}`;
+    } else if (strategy === 'NAME_ONLY') {
+      dedupKey = `name_only:${customerName}`;
+    } else if (strategy === 'ADDRESS_ONLY') {
+      dedupKey = `address_only:${customerAddress1}`;
+    } else {
+      dedupKey = `anon:${paymentMethod}`;
+    }
+
+    return {
+      strategy,
+      windowMs,
+      lookbackLimit,
+      filters,
+      paymentMethod,
+      customerName,
+      customerPhone,
+      customerAddress1,
+      dedupKey,
+    };
+  }
+
   private buildSignatureFromOrder(order: any): string {
     const items = (order?.order_items ?? []).map((item: any) => ({
       productId: item.product_id,
@@ -431,37 +516,13 @@ export class PublicOrderService {
     dto: CreatePublicOrderRequest,
     totalAmount: number,
     signature: string,
-  ): Promise<{ order: PublicOrderResponse; strategy: string } | null> {
-    const customerName = dto.customerName?.trim() || undefined;
-    const customerPhone = dto.customerPhone?.trim() || undefined;
-    const customerAddress1 = dto.customerAddress1?.trim() || undefined;
-
-    let strategy = 'ANON';
-    let windowMs = this.weakDuplicateWindowMs;
-
-    const filters: { name?: string; phone?: string; address1?: string } = {};
-
-    if (customerName && customerPhone) {
-      strategy = 'NAME_PHONE';
-      windowMs = this.duplicateWindowMs;
-      filters.name = customerName;
-      filters.phone = customerPhone;
-    } else if (customerPhone) {
-      strategy = 'PHONE_ONLY';
-      windowMs = this.duplicateWindowMs;
-      filters.phone = customerPhone;
-    } else if (customerName && customerAddress1) {
-      strategy = 'NAME_ADDRESS';
-      windowMs = this.duplicateWindowMs;
-      filters.name = customerName;
-      filters.address1 = customerAddress1;
-    } else if (customerName) {
-      strategy = 'NAME_ONLY';
-      windowMs = this.weakDuplicateWindowMs;
-      filters.name = customerName;
-    }
-
-    const cutoff = new Date(Date.now() - windowMs).toISOString();
+  ): Promise<{
+    order: PublicOrderResponse;
+    strategy: string;
+    metadata: Record<string, any>;
+  } | null> {
+    const policy = this.getDuplicatePolicy(dto);
+    const cutoff = new Date(Date.now() - policy.windowMs).toISOString();
 
     let query = adminClient
       .from('orders')
@@ -490,23 +551,27 @@ export class PublicOrderService {
       .gte('created_at', cutoff)
       .order('created_at', { ascending: false });
 
-    if (filters.name) {
-      query = query.eq('customer_name', filters.name);
+    if (policy.filters.name) {
+      query = query.eq('customer_name', policy.filters.name);
     }
 
-    if (filters.phone) {
-      query = query.eq('customer_phone', filters.phone);
+    if (policy.filters.phone) {
+      query = query.eq('customer_phone', policy.filters.phone);
     }
 
-    if (filters.address1) {
-      query = query.eq('customer_address1', filters.address1);
+    if (policy.filters.address1) {
+      query = query.eq('customer_address1', policy.filters.address1);
     }
 
-    if (!filters.name && !filters.phone && !filters.address1) {
-      query = query.eq('payment_method', dto.paymentMethod ?? 'CARD');
+    if (
+      !policy.filters.name &&
+      !policy.filters.phone &&
+      !policy.filters.address1
+    ) {
+      query = query.eq('payment_method', policy.paymentMethod ?? 'CARD');
     }
 
-    const { data, error } = await query.limit(this.duplicateLookbackLimit);
+    const { data, error } = await query.limit(policy.lookbackLimit);
 
     if (error || !data || data.length === 0) {
       return null;
@@ -525,7 +590,15 @@ export class PublicOrderService {
 
       return {
         order: this.buildOrderResponse(order),
-        strategy,
+        strategy: policy.strategy,
+        metadata: {
+          windowMs: policy.windowMs,
+          lookbackLimit: policy.lookbackLimit,
+          cutoff,
+          dedupKey: policy.dedupKey,
+          paymentMethod: policy.paymentMethod ?? null,
+          filters: policy.filters,
+        },
       };
     }
 
@@ -617,9 +690,9 @@ export class PublicOrderService {
       })),
     );
     const idempotencyKey = dto.idempotencyKey?.trim() || undefined;
-    const customerName = dto.customerName?.trim() || null;
-    const customerPhone = dto.customerPhone?.trim() || null;
-    const customerAddress1 = dto.customerAddress1?.trim() || null;
+    const customerName = this.normalizeOptional(dto.customerName) ?? null;
+    const customerPhone = this.normalizeOptional(dto.customerPhone) ?? null;
+    const customerAddress1 = this.normalizeOptional(dto.customerAddress1) ?? null;
     const paymentMethod = dto.paymentMethod ?? 'CARD';
 
     if (idempotencyKey) {
@@ -646,6 +719,11 @@ export class PublicOrderService {
             paymentMethod,
             strategy: 'IDEMPOTENCY_KEY',
             reason: 'AMOUNT_MISMATCH',
+            metadata: {
+              dedupKey: `idempotency:${idempotencyKey}`,
+              windowMs: this.duplicateWindowMs,
+              lookbackLimit: this.duplicateLookbackLimit,
+            },
           });
 
           throw new ConflictException(
@@ -667,6 +745,11 @@ export class PublicOrderService {
             paymentMethod,
             strategy: 'IDEMPOTENCY_KEY',
             reason: 'SIGNATURE_MISMATCH',
+            metadata: {
+              dedupKey: `idempotency:${idempotencyKey}`,
+              windowMs: this.duplicateWindowMs,
+              lookbackLimit: this.duplicateLookbackLimit,
+            },
           });
 
           throw new ConflictException(
@@ -687,6 +770,11 @@ export class PublicOrderService {
           paymentMethod,
           strategy: 'IDEMPOTENCY_KEY',
           reason: 'MATCHED_EXISTING',
+          metadata: {
+            dedupKey: `idempotency:${idempotencyKey}`,
+            windowMs: this.duplicateWindowMs,
+            lookbackLimit: this.duplicateLookbackLimit,
+          },
         });
 
         return this.buildOrderResponse(existingOrder);
@@ -714,6 +802,7 @@ export class PublicOrderService {
         paymentMethod,
         strategy: duplicateOrder.strategy,
         reason: 'RECENT_DUPLICATE',
+        metadata: duplicateOrder.metadata,
       });
 
       return duplicateOrder.order;
@@ -762,6 +851,11 @@ export class PublicOrderService {
             paymentMethod,
             strategy: 'IDEMPOTENCY_KEY',
             reason: 'UNIQUE_CONSTRAINT_RACE',
+            metadata: {
+              dedupKey: `idempotency:${idempotencyKey}`,
+              windowMs: this.duplicateWindowMs,
+              lookbackLimit: this.duplicateLookbackLimit,
+            },
           });
 
           return this.buildOrderResponse(existingOrder);

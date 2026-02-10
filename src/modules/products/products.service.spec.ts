@@ -114,6 +114,17 @@ describe('ProductsService', () => {
       ).rejects.toThrow(BusinessException);
     });
 
+    it('should return empty list when data is null without error', async () => {
+      mockSupabaseClient.order.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+
+      const result = await service.getProducts('token', 'branch-123', true);
+
+      expect(result).toEqual([]);
+    });
+
     it('should use user client when isAdmin is false', async () => {
       mockSupabaseClient.order.mockResolvedValueOnce({
         data: [],
@@ -255,6 +266,24 @@ describe('ProductsService', () => {
       expect(result.pagination.hasPrev).toBe(false);
       expect(result.data[0].createdAt).toBe('');
     });
+
+    it('should return empty list when search data is null without error', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: null,
+        error: null,
+        count: 0,
+      });
+
+      const result = await service.searchProducts(
+        'token',
+        'branch-123',
+        { page: 1, limit: 10 } as any,
+        true,
+      );
+
+      expect(result.data).toEqual([]);
+      expect(result.pagination.total).toBe(0);
+    });
   });
 
   describe('getCategories', () => {
@@ -281,6 +310,18 @@ describe('ProductsService', () => {
       await expect(service.getCategories('token', 'b1', true)).rejects.toThrow(
         '[products.getCategories]',
       );
+    });
+
+    it('should return empty list when category data is null without error', async () => {
+      mockSupabaseClient.order
+        .mockReturnValueOnce(mockSupabaseClient)
+        .mockResolvedValueOnce({
+          data: null,
+          error: null,
+        });
+
+      const result = await service.getCategories('token', 'b1', true);
+      expect(result).toEqual([]);
     });
 
     it('should map category defaults', async () => {
@@ -526,6 +567,33 @@ describe('ProductsService', () => {
       );
 
       expect(result.isActive).toBe(false);
+    });
+
+    it('should update category and image when provided', async () => {
+      const spy = jest
+        .spyOn(service, 'getProduct')
+        .mockResolvedValueOnce({ id: '123' } as any);
+
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: '123' },
+        error: null,
+      });
+
+      await service.updateProduct(
+        'token',
+        '123',
+        { name: 'Name', categoryId: 'cat-1', imageUrl: 'img.png' } as any,
+        true,
+      );
+
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Name',
+          category_id: 'cat-1',
+          image_url: 'img.png',
+        }),
+      );
+      expect(spy).toHaveBeenCalled();
     });
   });
 

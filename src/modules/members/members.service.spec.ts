@@ -52,6 +52,27 @@ describe('MembersService', () => {
     expect(result[0].displayName).toBe('User');
   });
 
+  it('getBrandMembers should map missing profile and createdAt', async () => {
+    mockSb.order.mockResolvedValueOnce({
+      data: [
+        {
+          brand_id: 'brand',
+          user_id: 'u1',
+          role: 'OWNER',
+          status: 'ACTIVE',
+          created_at: null,
+          profiles: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBrandMembers('token', 'brand', true);
+
+    expect(result[0].displayName).toBeNull();
+    expect(result[0].createdAt).toBe('');
+  });
+
   it('getBrandMembers should return empty list when data is null', async () => {
     mockSb.order.mockResolvedValueOnce({ data: null, error: null });
 
@@ -106,6 +127,25 @@ describe('MembersService', () => {
     const result = await service.addBrandMember('token', 'brand', 'u1', 'MEMBER' as any, true);
 
     expect(result.brandId).toBe('brand');
+  });
+
+  it('addBrandMember should default role and map null createdAt', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        brand_id: 'brand',
+        user_id: 'u1',
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.addBrandMember('token', 'brand', 'u1', undefined as any, true);
+
+    expect(result.role).toBe('MEMBER');
+    expect(result.createdAt).toBe('');
   });
 
   it('addBrandMember should throw on insert error', async () => {
@@ -226,6 +266,14 @@ describe('MembersService', () => {
     expect(result[0].branchId).toBe('branch');
   });
 
+  it('getBranchMembers should return empty list when data is null', async () => {
+    mockSb.order.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getBranchMembers('token', 'branch', true);
+
+    expect(result).toEqual([]);
+  });
+
   it('getBranchMembers should map missing profile to null', async () => {
     mockSb.order.mockResolvedValueOnce({
       data: [
@@ -291,6 +339,28 @@ describe('MembersService', () => {
     );
 
     expect(result.branchId).toBe('branch');
+  });
+
+  it('addBranchMember should map null createdAt', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        branch_id: 'branch',
+        user_id: 'u1',
+        role: 'STAFF',
+        status: 'ACTIVE',
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.addBranchMember(
+      'token',
+      { branchId: 'branch', userId: 'u1' } as any,
+      true,
+    );
+
+    expect(result.createdAt).toBe('');
   });
 
   it('addBranchMember should default role when missing', async () => {

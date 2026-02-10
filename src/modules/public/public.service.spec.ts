@@ -53,6 +53,17 @@ describe('PublicService', () => {
     expect(result).toEqual({ id: 'b1', name: 'Branch', brandName: 'Brand' });
   });
 
+  it('getBranch should map undefined brand when missing', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', name: 'Branch', brands: null },
+      error: null,
+    });
+
+    const result = await service.getBranch('b1');
+
+    expect(result.brandName).toBeUndefined();
+  });
+
   it('getBranch should throw when missing', async () => {
     chains.branches.single.mockResolvedValueOnce({ data: null, error: { message: 'missing' } });
 
@@ -83,10 +94,30 @@ describe('PublicService', () => {
     expect(result[0].price).toBe(5);
   });
 
+  it('getProducts should return empty list when data is null', async () => {
+    chains.products.order.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const result = await service.getProducts('b1');
+
+    expect(result).toEqual([]);
+  });
+
   it('getProducts should throw on unrecoverable error', async () => {
     chains.products.order.mockResolvedValueOnce({
       data: null,
       error: { message: 'other' },
+    });
+
+    await expect(service.getProducts('b1')).rejects.toThrow('[public.getProducts]');
+  });
+
+  it('getProducts should throw when error message is missing', async () => {
+    chains.products.order.mockResolvedValueOnce({
+      data: null,
+      error: {},
     });
 
     await expect(service.getProducts('b1')).rejects.toThrow('[public.getProducts]');
@@ -163,6 +194,21 @@ describe('PublicService', () => {
   it('createOrder should throw when product missing in map', async () => {
     chains.products.in.mockResolvedValueOnce({
       data: [],
+      error: null,
+    });
+
+    await expect(
+      service.createOrder({
+        branchId: 'b1',
+        customerName: 'A',
+        items: [{ productId: 'p1', qty: 1 }],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('createOrder should throw when products list is null', async () => {
+    chains.products.in.mockResolvedValueOnce({
+      data: null,
       error: null,
     });
 
@@ -277,6 +323,23 @@ describe('PublicService', () => {
 
     const result = await service.getOrder('o1');
     expect(result.id).toBe('o1');
+  });
+
+  it('getOrder should handle missing order items', async () => {
+    chains.orders.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        order_no: 'O-1',
+        status: 'CREATED',
+        total_amount: 10,
+        created_at: 't',
+        order_items: undefined,
+      },
+      error: null,
+    });
+
+    const result = await service.getOrder('o1');
+    expect(result.items).toEqual([]);
   });
 
   it('getOrder should resolve by orderNo when id lookup misses', async () => {

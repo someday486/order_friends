@@ -113,6 +113,28 @@ describe('AuthGuard', () => {
     expect(req.isAdmin).toBe(true);
   });
 
+  it('should handle user without email', async () => {
+    const { guard, supabase } = makeGuard({
+      ADMIN_EMAILS: 'admin@example.com',
+      ADMIN_EMAIL_DOMAINS: 'example.org',
+    });
+    supabase.userClient.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: 'user-11', email: null } },
+          error: null,
+        }),
+      },
+    });
+
+    const req: any = { headers: { authorization: 'Bearer token4' } };
+    const result = await guard.canActivate(makeContext(req));
+
+    expect(result).toBe(true);
+    expect(req.user).toEqual({ id: 'user-11', email: undefined });
+    expect(req.isAdmin).toBe(false);
+  });
+
   it('should parse config helpers', () => {
     const { guard } = makeGuard({});
     const parseList = (guard as any).parseList;

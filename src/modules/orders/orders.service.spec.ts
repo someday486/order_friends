@@ -125,6 +125,22 @@ describe('OrdersService', () => {
       });
     });
 
+    it('should return empty list when data is null and count is zero', async () => {
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        count: 0,
+        error: null,
+      });
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+
+      const result = await service.getOrders('token', 'branch-123');
+
+      expect(result.data).toEqual([]);
+      expect(result.pagination.total).toBe(0);
+    });
+
     it('should throw BusinessException on database error', async () => {
       // Mock count query returning an error
       mockSupabaseClient.eq.mockResolvedValueOnce({
@@ -193,6 +209,38 @@ describe('OrdersService', () => {
       expect(result.id).toBe('123');
       expect(result.orderNo).toBe('ORD-001');
       expect(result.items).toHaveLength(1);
+    });
+
+    it('should return empty items when order items are missing', async () => {
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.PENDING,
+        created_at: '2024-01-01',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: 'Test Memo',
+        subtotal: 10000,
+        delivery_fee: 3000,
+        discount_total: 0,
+        total_amount: 13000,
+        items: undefined,
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.items).toEqual([]);
     });
 
     it('should map defaults and option names when fields are null', async () => {
@@ -369,6 +417,22 @@ describe('OrdersService', () => {
       expect(resolved).toBe(uuid);
       expect(mockSupabaseClient.eq).toHaveBeenCalledWith('branch_id', 'branch-123');
     });
+
+    it('should resolve by order_no with branch filter', async () => {
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: 'order-1' },
+        error: null,
+      });
+
+      const resolved = await (service as any).resolveOrderId(
+        mockSupabaseClient,
+        'ORD-002',
+        'branch-123',
+      );
+
+      expect(resolved).toBe('order-1');
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('branch_id', 'branch-123');
+    });
   });
 
   describe('updateStatus', () => {
@@ -512,6 +576,60 @@ describe('OrdersService', () => {
         'branch-123',
       );
 
+      expect(result.status).toBe(OrderStatus.CANCELLED);
+    });
+
+    it('should skip inventory release when inventory records are missing', async () => {
+      const ordersChain = {
+        from: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        update: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn(),
+      };
+      const orderItemsChain = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValueOnce({
+          data: [{ product_id: 'product-1', qty: 1 }],
+          error: null,
+        }),
+      };
+      const inventoryChain = {
+        select: jest.fn().mockReturnThis(),
+        in: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockResolvedValueOnce({ data: null, error: null }),
+      };
+      const logsChain = {
+        insert: jest.fn().mockResolvedValueOnce({ data: {}, error: null }),
+      };
+
+      ordersChain.maybeSingle
+        .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+        .mockResolvedValueOnce({
+          data: { id: 'o1', order_no: null, status: OrderStatus.CANCELLED },
+          error: null,
+        });
+
+      const client = {
+        from: jest.fn((table: string) => {
+          if (table === 'orders') return ordersChain;
+          if (table === 'order_items') return orderItemsChain;
+          if (table === 'product_inventory') return inventoryChain;
+          if (table === 'inventory_logs') return logsChain;
+          return ordersChain;
+        }),
+      };
+
+      mockSupabaseService.adminClient.mockReturnValueOnce(client as any);
+
+      const result = await service.updateStatus(
+        'token',
+        'ORD-1',
+        OrderStatus.CANCELLED,
+        'branch-123',
+      );
+
+      expect(result.orderNo).toBeNull();
       expect(result.status).toBe(OrderStatus.CANCELLED);
     });
   });

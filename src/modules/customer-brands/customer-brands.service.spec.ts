@@ -47,6 +47,21 @@ describe('CustomerBrandsService', () => {
     expect(result[0].myRole).toBe('OWNER');
   });
 
+  it('getMyBrands should set myRole null when membership is missing', async () => {
+    mockSb.in.mockReturnValueOnce(mockSb);
+    mockSb.order.mockResolvedValueOnce({
+      data: [{ id: 'brand-2', name: 'Brand2' }],
+      error: null,
+    });
+
+    const result = await service.getMyBrands('user-1', [
+      { brand_id: 'brand-1', role: 'OWNER' } as any,
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].myRole).toBeNull();
+  });
+
   it('getMyBrands should throw on query error', async () => {
     mockSb.in.mockReturnValueOnce(mockSb);
     mockSb.order.mockResolvedValueOnce({
@@ -132,5 +147,37 @@ describe('CustomerBrandsService', () => {
 
     expect(result.id).toBe('brand-1');
     expect(result.myRole).toBe('OWNER');
+  });
+
+  it('updateMyBrand should apply optional fields', async () => {
+    mockSb.single.mockResolvedValueOnce({
+      data: { id: 'brand-1', name: 'Brand' },
+      error: null,
+    });
+
+    await service.updateMyBrand(
+      'brand-1',
+      {
+        name: 'Brand',
+        biz_name: 'Biz',
+        biz_reg_no: '123',
+        logo_url: 'logo.png',
+        cover_image_url: 'cover.png',
+        thumbnail_url: 'thumb.png',
+      },
+      'user-1',
+      [{ brand_id: 'brand-1', role: 'ADMIN' } as any],
+    );
+
+    expect(mockSb.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Brand',
+        biz_name: 'Biz',
+        biz_reg_no: '123',
+        logo_url: 'logo.png',
+        cover_image_url: 'cover.png',
+        thumbnail_url: 'thumb.png',
+      }),
+    );
   });
 });

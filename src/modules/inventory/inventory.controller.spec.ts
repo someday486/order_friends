@@ -65,6 +65,12 @@ describe('InventoryController', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('getInventoryList should throw when user is missing', async () => {
+    await expect(
+      controller.getInventoryList(makeReq({ user: undefined }), 'branch-1'),
+    ).rejects.toThrow('Missing user');
+  });
+
   it('getLowStockAlerts should call service and return result', async () => {
     mockService.getLowStockAlerts.mockResolvedValue([{ id: 'alert-1' }]);
 
@@ -83,6 +89,12 @@ describe('InventoryController', () => {
     await expect(
       controller.getLowStockAlerts(makeReq(), ''),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('getLowStockAlerts should throw when user is missing', async () => {
+    await expect(
+      controller.getLowStockAlerts(makeReq({ user: undefined }), 'branch-1'),
+    ).rejects.toThrow('Missing user');
   });
 
   it('getInventoryLogs should call service and return result', async () => {

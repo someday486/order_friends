@@ -146,6 +146,32 @@ export class PaymentsService {
     return data;
   }
 
+  private async updateOrderPaymentStatus(
+    sb: any,
+    orderId: string,
+    paymentStatus: string,
+    source: string,
+  ) {
+    try {
+      const { error } = await sb
+        .from('orders')
+        .update({ payment_status: paymentStatus })
+        .eq('id', orderId);
+
+      if (error) {
+        this.logger.error(
+          `Failed to update order payment_status (${paymentStatus}) from ${source}`,
+          error,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Order payment_status update failed (${paymentStatus}) from ${source}`,
+        error,
+      );
+    }
+  }
+
   /**
    * 寃곗젣 以鍮?- 二쇰Ц 寃利?諛?寃곗젣 ?뺣낫 諛섑솚
    * PUBLIC (?몄쬆 遺덊븘??
@@ -173,6 +199,7 @@ export class PaymentsService {
 
     // 4. ?대? 寃곗젣??二쇰Ц?몄? ?뺤씤
     if (order.payment_status === 'PAID') {
+      await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'prepare');
       throw new OrderAlreadyPaidException(resolvedId);
     }
 
@@ -189,6 +216,7 @@ export class PaymentsService {
       .maybeSingle();
 
     if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
+      await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'prepare');
       throw new OrderAlreadyPaidException(resolvedId);
     }
 
@@ -268,6 +296,12 @@ export class PaymentsService {
         }
 
         if (idempotentPayment.status === PaymentStatus.SUCCESS) {
+          await this.updateOrderPaymentStatus(
+            sb,
+            resolvedId,
+            'PAID',
+            'confirm-idempotency',
+          );
           return {
             paymentId: idempotentPayment.id,
             orderId: resolvedId,
@@ -300,6 +334,12 @@ export class PaymentsService {
           );
         }
 
+        await this.updateOrderPaymentStatus(
+          sb,
+          resolvedId,
+          'PAID',
+          'confirm-existing',
+        );
         return {
           paymentId: paymentByOrder.id,
           orderId: resolvedId,
@@ -366,6 +406,12 @@ export class PaymentsService {
           });
         }
 
+        await this.updateOrderPaymentStatus(
+          sb,
+          resolvedId,
+          'FAILED',
+          'confirm-provider-error',
+        );
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
           error?.message || 'Payment confirmation failed',
@@ -436,6 +482,12 @@ export class PaymentsService {
             .maybeSingle();
 
           if (idempotentPayment && idempotentPayment.status === PaymentStatus.SUCCESS) {
+            await this.updateOrderPaymentStatus(
+              sb,
+              idempotentPayment.order_id,
+              'PAID',
+              'confirm-idempotency-race',
+            );
             return {
               paymentId: idempotentPayment.id,
               orderId: idempotentPayment.order_id,
@@ -458,6 +510,7 @@ export class PaymentsService {
       payment = created;
     }
 
+    await this.updateOrderPaymentStatus(sb, resolvedId, 'PAID', 'confirm-success');
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
 
     return {
@@ -772,6 +825,12 @@ export class PaymentsService {
       );
     }
 
+    await this.updateOrderPaymentStatus(
+      sb,
+      payment.order_id,
+      newStatus,
+      'refund',
+    );
     this.logger.log(`Payment refunded successfully: ${paymentId}`);
 
     return {
@@ -990,6 +1049,12 @@ export class PaymentsService {
       }
     }
 
+    await this.updateOrderPaymentStatus(
+      sb,
+      resolvedId,
+      'PAID',
+      'webhook-confirmed',
+    );
     this.logger.log(`Payment confirmed via webhook: ${orderId}`);
   }
 
@@ -1094,6 +1159,12 @@ export class PaymentsService {
       }
     }
 
+    await this.updateOrderPaymentStatus(
+      sb,
+      resolvedId,
+      'CANCELLED',
+      'webhook-cancelled',
+    );
     this.logger.log(`Payment cancelled via webhook: ${orderId}`);
   }
 
@@ -1149,7 +1220,7 @@ export class PaymentsService {
       try {
         data = text ? JSON.parse(text) : null;
       } catch {
-        data = text ? { raw: text } : null;
+        data = { raw: text };
       }
 
       if (!res.ok) {

@@ -290,6 +290,34 @@ describe('PublicOrderService - Create Order Branches', () => {
     expect(anonChains.order_items.insert).not.toHaveBeenCalled();
   });
 
+  it('should throw when unique constraint race has no existing order', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      idempotencyKey: 'idem-1',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P1', branch_id: 'b1', base_price: 1000 }],
+      error: null,
+    });
+
+    adminChains.orders.limit
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '23505', message: 'dup' },
+    });
+
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
   it('should return duplicate order when only name is provided', async () => {
     const dto = {
       branchId: 'b1',

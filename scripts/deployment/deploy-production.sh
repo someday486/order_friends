@@ -47,9 +47,13 @@ rollback() {
     print_error "Deployment failed! Rolling back..."
     docker-compose -f docker-compose.prod.yml down
 
-    if [ -f ".deployment.backup" ]; then
+    if docker image inspect orderfriends/api:previous > /dev/null 2>&1; then
         print_status "Restoring previous deployment..."
-        # Add rollback logic here
+        docker tag orderfriends/api:previous orderfriends/api:latest
+        docker-compose -f docker-compose.prod.yml up -d
+        print_status "Rolled back to previous version"
+    else
+        print_error "No previous image available for rollback"
     fi
 
     exit 1
@@ -98,15 +102,24 @@ print_status "Pre-deployment validation passed ✓"
 if [ "$BACKUP_ENABLED" = "true" ]; then
     print_status "Creating deployment backup..."
     echo "$(date +'%Y-%m-%d %H:%M:%S')" > .deployment.backup
-    # Add backup logic (database snapshot, config backup, etc.)
+    # Tag current image as 'previous' for rollback
+    if docker image inspect orderfriends/api:latest > /dev/null 2>&1; then
+        docker tag orderfriends/api:latest orderfriends/api:previous
+        print_status "Current image tagged as 'previous' for rollback"
+    fi
+    # Backup environment config
+    cp .env ".env.backup.$(date +'%Y%m%d_%H%M%S')" 2>/dev/null || true
     print_status "Backup created ✓"
 fi
 
 # Step 3: Run database migrations (if any)
 print_status "Checking for database migrations..."
-# Add migration check and execution logic here
-# Example: npm run migration:run
-print_status "Database migrations completed ✓"
+if command -v supabase &> /dev/null; then
+    supabase db push --linked || { print_error "Migration failed"; exit 1; }
+    print_status "Database migrations completed ✓"
+else
+    print_warning "Supabase CLI not found - skipping migrations (run manually if needed)"
+fi
 
 # Step 4: Build Docker image (if not already built by CI)
 if [ "$SKIP_BUILD" != "true" ]; then
@@ -162,14 +175,20 @@ fi
 
 # Step 9: Run smoke tests
 print_status "Running smoke tests..."
-# Add your smoke test commands here
-# Example: npm run test:smoke -- --env=production
+API_BASE="${PRODUCTION_API_URL:-https://api.orderfriends.app}"
+curl -f -s "$API_BASE/health" > /dev/null || { print_error "Smoke test failed: /health"; rollback; }
+curl -f -s "$API_BASE/api-docs" > /dev/null || { print_error "Smoke test failed: /api-docs"; rollback; }
 print_status "Smoke tests passed ✓"
 
 # Step 10: Verify critical endpoints
 print_status "Verifying critical endpoints..."
-# Add endpoint verification logic
-# Example: curl -f "$HEALTH_CHECK_URL/../api" || rollback
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE/brands")
+if [ "$STATUS" = "401" ] || [ "$STATUS" = "200" ]; then
+    print_status "Endpoint /brands responding ($STATUS) ✓"
+else
+    print_error "Endpoint /brands returned unexpected status: $STATUS"
+    rollback
+fi
 print_status "Critical endpoints verified ✓"
 
 # Step 11: Monitor initial traffic

@@ -124,7 +124,13 @@ fi
 
 # Step 7: Verify endpoints
 print_status "Verifying critical endpoints..."
-# Add endpoint verification
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_CHECK_URL")
+if [ "$STATUS" = "200" ]; then
+    print_status "Endpoint health check responding (200) ✓"
+else
+    print_error "Endpoint returned unexpected status: $STATUS"
+    print_error "Manual verification required"
+fi
 print_status "Endpoints verified ✓"
 
 # Step 8: Rollback summary

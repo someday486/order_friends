@@ -92,6 +92,32 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect((withDefaults as any).duplicateLookbackLimit).toBe(5);
   });
 
+  it('constructor should fallback when env values are NaN', () => {
+    process.env = {
+      ...originalEnv,
+      PUBLIC_ORDER_DUPLICATE_WINDOW_MS: 'abc',
+      PUBLIC_ORDER_ANON_DUPLICATE_WINDOW_MS: 'def',
+      PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT: '0',
+    };
+
+    const withNaN = new PublicOrderService({} as any, {} as any);
+    expect((withNaN as any).duplicateWindowMs).toBe(60000);
+    expect((withNaN as any).weakDuplicateWindowMs).toBe(20000);
+    expect((withNaN as any).duplicateLookbackLimit).toBe(5);
+  });
+
+  it('rollbackOrder should swallow rollback failures', async () => {
+    const failingAdmin = {
+      from: jest.fn(() => {
+        throw new Error('boom');
+      }),
+    };
+
+    await expect(
+      (service as any).rollbackOrder(failingAdmin, 'order-1'),
+    ).resolves.toBeUndefined();
+  });
+
   it('getBranch should map brand info and fallbacks', async () => {
     anonChains.branches.single.mockResolvedValueOnce({
       data: {
@@ -107,6 +133,23 @@ describe('PublicOrderService - Branch Coverage', () => {
     const result = await service.getBranch('b1');
     expect(result.brandName).toBe('Brand');
     expect(result.logoUrl).toBe('logo');
+    expect(result.coverImageUrl).toBe('brand-cover');
+  });
+
+  it('getBranch should fallback to brand assets', async () => {
+    anonChains.branches.single.mockResolvedValueOnce({
+      data: {
+        id: 'b1',
+        name: 'Branch',
+        logo_url: null,
+        cover_image_url: null,
+        brands: { name: 'Brand', logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+      },
+      error: null,
+    });
+
+    const result = await service.getBranch('b1');
+    expect(result.logoUrl).toBe('brand-logo');
     expect(result.coverImageUrl).toBe('brand-cover');
   });
 
@@ -144,6 +187,26 @@ describe('PublicOrderService - Branch Coverage', () => {
     );
   });
 
+  it('getBranchBySlug should return branch with brand fallbacks', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          name: 'Branch',
+          logo_url: null,
+          cover_image_url: null,
+          brands: { name: 'Brand', logo_url: 'brand-logo', cover_image_url: 'brand-cover' },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranchBySlug('slug');
+    expect(result.brandName).toBe('Brand');
+    expect(result.logoUrl).toBe('brand-logo');
+    expect(result.coverImageUrl).toBe('brand-cover');
+  });
+
   it('getBranchByBrandSlug should map brand fallback logo', async () => {
     anonChains.branches.limit.mockResolvedValueOnce({
       data: [
@@ -162,6 +225,17 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect(result.brandName).toBe('Brand');
     expect(result.logoUrl).toBe('brand-logo');
     expect(result.coverImageUrl).toBeNull();
+  });
+
+  it('getBranchByBrandSlug should throw on duplicates', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [{ id: 'b1' }, { id: 'b2' }],
+      error: null,
+    });
+
+    await expect(
+      service.getBranchByBrandSlug('brand', 'branch'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('getBranchByBrandSlug should throw when not found', async () => {
@@ -195,6 +269,33 @@ describe('PublicOrderService - Branch Coverage', () => {
     const result = await service.getProducts('b1');
     expect(result).toHaveLength(1);
     expect(result[0].categoryName).toBe('Category');
+  });
+
+  it('getProducts should handle missing category lookup data', async () => {
+    anonChains.products._results = [
+      {
+        data: [
+          {
+            id: 'p1',
+            name: 'Product',
+            price: 1000,
+            image_url: 'img',
+            category_id: 'c1',
+            sort_order: null,
+          },
+        ],
+        error: null,
+      },
+    ];
+
+    anonChains.product_categories._results = [
+      { data: null, error: null },
+    ];
+
+    const result = await service.getProducts('b1');
+    expect(result[0].imageUrl).toBe('img');
+    expect(result[0].categoryName).toBeNull();
+    expect(result[0].sortOrder).toBe(0);
   });
 
   it('getProducts should throw when error is not retried', async () => {
@@ -231,6 +332,20 @@ describe('PublicOrderService - Branch Coverage', () => {
       'idem-1',
     );
     expect(onError).toBeNull();
+  });
+
+  it('fetchOrderByIdempotencyKey should return null on empty result', async () => {
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await (service as any).fetchOrderByIdempotencyKey(
+      adminClient,
+      'b1',
+      'idem-1',
+    );
+    expect(result).toBeNull();
   });
 
   it('fetchOrderByIdempotencyKey should return latest order', async () => {
@@ -358,6 +473,42 @@ describe('PublicOrderService - Branch Coverage', () => {
       'sig',
     );
     expect(result).toBeNull();
+  });
+
+  it('findRecentDuplicateOrder should use name+address strategy', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Name',
+      customerAddress1: 'Addr',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+    const signature = (service as any).buildOrderSignature(dto.items);
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            { product_id: 'p1', product_name_snapshot: 'P1', qty: 1, unit_price: 1000 },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await (service as any).findRecentDuplicateOrder(
+      adminClient,
+      dto,
+      1000,
+      signature,
+    );
+
+    expect(result?.strategy).toBe('NAME_ADDRESS');
+    expect(result?.order.id).toBe('o1');
   });
 
   it('getOrder should resolve by order_no and map options', async () => {

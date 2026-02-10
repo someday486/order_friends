@@ -103,8 +103,9 @@ fi
 
 # Step 7: Run smoke tests
 print_status "Running smoke tests..."
-# Add your smoke test commands here
-# Example: npm run test:smoke -- --env=staging
+API_BASE="${STAGING_API_URL:-https://staging-api.orderfriends.app}"
+curl -f -s "$API_BASE/health" > /dev/null || { print_error "Smoke test failed: /health"; exit 1; }
+curl -f -s "$API_BASE/api-docs" > /dev/null || { print_error "Smoke test failed: /api-docs"; exit 1; }
 print_status "Smoke tests passed ✓"
 
 # Step 8: Deployment summary

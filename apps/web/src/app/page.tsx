@@ -20,7 +20,7 @@ export default function LoginPage() {
         case "brand_owner":
         case "branch_manager":
         case "staff":
-          router.replace("/admin");
+          router.replace("/customer");
           break;
         case "customer":
         default:

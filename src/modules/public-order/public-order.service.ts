@@ -5,6 +5,7 @@
   ConflictException,
   Logger,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import {
@@ -17,6 +18,7 @@ import {
 @Injectable()
 export class PublicOrderService {
   private readonly logger = new Logger(PublicOrderService.name);
+  private readonly duplicateWindowMs = 60 * 1000;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -315,6 +317,106 @@ export class PublicOrderService {
     }));
   }
 
+  private buildOrderSignature(
+    items: { productId: string; qty: number }[],
+  ): string {
+    const normalized = items
+      .map((item) => ({ productId: item.productId, qty: item.qty }))
+      .sort((a, b) => a.productId.localeCompare(b.productId));
+    const payload = normalized
+      .map((item) => `${item.productId}:${item.qty}`)
+      .join('|');
+    return createHash('sha256').update(payload).digest('hex');
+  }
+
+  private async findRecentDuplicateOrder(
+    adminClient: any,
+    dto: CreatePublicOrderRequest,
+    totalAmount: number,
+    signature: string,
+  ): Promise<PublicOrderResponse | null> {
+    const customerName = dto.customerName?.trim();
+    const customerPhone = dto.customerPhone?.trim();
+
+    if (!customerName || !customerPhone) {
+      return null;
+    }
+
+    const cutoff = new Date(
+      Date.now() - this.duplicateWindowMs,
+    ).toISOString();
+
+    const { data, error } = await adminClient
+      .from('orders')
+      .select(
+        `
+        id,
+        order_no,
+        status,
+        total_amount,
+        created_at,
+        order_items (
+          product_id,
+          product_name_snapshot,
+          qty,
+          unit_price,
+          order_item_options (
+            option_name_snapshot
+          )
+        )
+      `,
+      )
+      .eq('branch_id', dto.branchId)
+      .eq('customer_name', customerName)
+      .eq('customer_phone', customerPhone)
+      .eq('status', 'CREATED')
+      .eq('payment_status', 'PENDING')
+      .eq('total_amount', totalAmount)
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error || !data || data.length === 0) {
+      return null;
+    }
+
+    for (const order of data as any[]) {
+      const items = order.order_items ?? [];
+      const candidateSignature = this.buildOrderSignature(
+        items.map((item: any) => ({
+          productId: item.product_id,
+          qty: item.qty,
+        })),
+      );
+
+      if (candidateSignature !== signature) {
+        continue;
+      }
+
+      this.logger.warn(
+        `Duplicate order detected for ${dto.branchId} within window: ${order.id}`,
+      );
+
+      return {
+        id: order.id,
+        orderNo: order.order_no,
+        status: order.status,
+        totalAmount: order.total_amount,
+        createdAt: order.created_at,
+        items: items.map((item: any) => ({
+          productName: item.product_name_snapshot,
+          qty: item.qty,
+          unitPrice: item.unit_price,
+          options: (item.order_item_options ?? []).map(
+            (opt: any) => opt.option_name_snapshot,
+          ),
+        })),
+      };
+    }
+
+    return null;
+  }
+
   /**
    * Create order (public)
    * Now includes inventory reservation and logging
@@ -351,38 +453,6 @@ export class PublicOrderService {
     }
     if (dto.items.some((item) => item.options && item.options.length > 0)) {
       throw new BadRequestException('옵션 기능이 비활성화되어 있습니다.');
-    }
-
-    // ============================================================
-    // STEP 1: Check inventory availability
-    // ============================================================
-    const { data: inventoryRecords, error: invError } = await adminClient
-      .from('product_inventory')
-      .select('product_id, qty_available, qty_reserved')
-      .in('product_id', productIds)
-      .eq('branch_id', dto.branchId);
-
-    if (invError) {
-      throw new BadRequestException(`재고 조회 실패: ${invError.message}`);
-    }
-
-    const inventoryMap = new Map(
-      inventoryRecords?.map((inv: any) => [inv.product_id, inv]) ?? [],
-    );
-
-    // Check if all products have sufficient inventory
-    for (const item of dto.items) {
-      const inventory = inventoryMap.get(item.productId);
-      if (!inventory) {
-        throw new BadRequestException(
-          `재고 정보를 찾을 수 없습니다: ${productMap.get(item.productId)?.name}`,
-        );
-      }
-      if (inventory.qty_available < item.qty) {
-        throw new BadRequestException(
-          `재고가 부족합니다: ${productMap.get(item.productId)?.name} (재고: ${inventory.qty_available}개, 주문: ${item.qty}개)`,
-        );
-      }
     }
 
     let subtotalAmount = 0;
@@ -425,6 +495,54 @@ export class PublicOrderService {
     }
 
     const totalAmount = subtotalAmount;
+    const signature = this.buildOrderSignature(
+      dto.items.map((item) => ({
+        productId: item.productId,
+        qty: item.qty,
+      })),
+    );
+    const duplicateOrder = await this.findRecentDuplicateOrder(
+      adminClient,
+      dto,
+      totalAmount,
+      signature,
+    );
+
+    if (duplicateOrder) {
+      return duplicateOrder;
+    }
+
+    // ============================================================
+    // STEP 1: Check inventory availability
+    // ============================================================
+    const { data: inventoryRecords, error: invError } = await adminClient
+      .from('product_inventory')
+      .select('product_id, qty_available, qty_reserved')
+      .in('product_id', productIds)
+      .eq('branch_id', dto.branchId);
+
+    if (invError) {
+      throw new BadRequestException(`재고 조회 실패: ${invError.message}`);
+    }
+
+    const inventoryMap = new Map(
+      inventoryRecords?.map((inv: any) => [inv.product_id, inv]) ?? [],
+    );
+
+    // Check if all products have sufficient inventory
+    for (const item of dto.items) {
+      const inventory = inventoryMap.get(item.productId);
+      if (!inventory) {
+        throw new BadRequestException(
+          `재고 정보를 찾을 수 없습니다: ${productMap.get(item.productId)?.name}`,
+        );
+      }
+      if (inventory.qty_available < item.qty) {
+        throw new BadRequestException(
+          `재고가 부족합니다: ${productMap.get(item.productId)?.name} (재고: ${inventory.qty_available}개, 주문: ${item.qty}개)`,
+        );
+      }
+    }
 
     const { data: order, error: orderError } = await sb
       .from('orders')
@@ -687,3 +805,10 @@ export class PublicOrderService {
     }));
   }
 }
+
+
+
+
+
+
+

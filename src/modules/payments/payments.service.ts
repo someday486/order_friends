@@ -242,12 +242,29 @@ export class PaymentsService {
     // 4. ?대? 寃곗젣??二쇰Ц?몄? ?뺤씤
     const { data: existingPayment } = await sb
       .from('payments')
-      .select('id, status')
+      .select('id, status, amount, paid_at')
       .eq('order_id', resolvedId)
       .maybeSingle();
 
     if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
-      throw new OrderAlreadyPaidException(resolvedId);
+      if (
+        existingPayment.amount !== undefined &&
+        existingPayment.amount !== null &&
+        existingPayment.amount !== dto.amount
+      ) {
+        throw new PaymentAmountMismatchException(
+          existingPayment.amount,
+          dto.amount,
+        );
+      }
+
+      return {
+        paymentId: existingPayment.id,
+        orderId: resolvedId,
+        status: PaymentStatus.SUCCESS,
+        amount: existingPayment.amount ?? dto.amount,
+        paidAt: existingPayment.paid_at || new Date().toISOString(),
+      };
     }
 
     // 5. Toss Payments API call
@@ -1112,5 +1129,7 @@ export class PaymentsService {
     );
   }
 }
+
+
 
 

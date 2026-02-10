@@ -15,6 +15,9 @@ describe('PublicOrderService - Create Order Branches', () => {
     update: jest.fn().mockReturnThis(),
     delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
+    gte: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockResolvedValue({ data: [], error: null }),
     in: jest.fn().mockReturnThis(),
     single: jest.fn(),
   });
@@ -161,5 +164,49 @@ describe('PublicOrderService - Create Order Branches', () => {
     await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('should return duplicate order without reserving inventory', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      customerPhone: '010-9999-9999',
+      items: [{ productId: 'p1', qty: 2 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P1', branch_id: 'b1', base_price: 1000 }],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 2000,
+          created_at: 't',
+          order_items: [
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 2,
+              unit_price: 1000,
+              order_item_options: [],
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.createOrder(dto);
+
+    expect(result.id).toBe('o1');
+    expect(result.totalAmount).toBe(2000);
+    expect(result.items).toHaveLength(1);
+    expect(anonChains.orders.insert).not.toHaveBeenCalled();
+    expect(adminChains.product_inventory.in).not.toHaveBeenCalled();
   });
 });

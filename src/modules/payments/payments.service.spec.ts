@@ -270,7 +270,7 @@ describe('PaymentsService', () => {
     expect(result.status).toBe(PaymentStatus.SUCCESS);
   });
 
-  it('confirmPayment should reject when already paid', async () => {
+  it('confirmPayment should return existing payment when already paid', async () => {
     const service = setupService({ TOSS_MOCK_MODE: 'true' });
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
@@ -288,13 +288,16 @@ describe('PaymentsService', () => {
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'pay1', status: PaymentStatus.SUCCESS },
+      data: { id: 'pay1', status: PaymentStatus.SUCCESS, amount: 10, paid_at: 't' },
       error: null,
     });
-
-    await expect(
-      service.confirmPayment({ orderId: 'o1', amount: 10, paymentKey: 'pk' } as any),
-    ).rejects.toBeInstanceOf(OrderAlreadyPaidException);
+    const result = await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
+    expect(result.paymentId).toBe('pay1');
+    expect(result.paidAt).toBe('t');
   });
 
   it('confirmPayment should reject on amount mismatch', async () => {

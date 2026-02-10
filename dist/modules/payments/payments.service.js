@@ -147,11 +147,22 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
         const { data: existingPayment } = await sb
             .from('payments')
-            .select('id, status')
+            .select('id, status, amount, paid_at')
             .eq('order_id', resolvedId)
             .maybeSingle();
         if (existingPayment && existingPayment.status === payment_dto_1.PaymentStatus.SUCCESS) {
-            throw new payment_exception_1.OrderAlreadyPaidException(resolvedId);
+            if (existingPayment.amount !== undefined &&
+                existingPayment.amount !== null &&
+                existingPayment.amount !== dto.amount) {
+                throw new payment_exception_1.PaymentAmountMismatchException(existingPayment.amount, dto.amount);
+            }
+            return {
+                paymentId: existingPayment.id,
+                orderId: resolvedId,
+                status: payment_dto_1.PaymentStatus.SUCCESS,
+                amount: existingPayment.amount ?? dto.amount,
+                paidAt: existingPayment.paid_at || new Date().toISOString(),
+            };
         }
         let providerPaymentId = null;
         let providerResponse = null;

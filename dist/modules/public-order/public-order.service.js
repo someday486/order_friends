@@ -12,12 +12,14 @@ var PublicOrderService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PublicOrderService = void 0;
 const common_1 = require("@nestjs/common");
+const crypto_1 = require("crypto");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
 const inventory_service_1 = require("../inventory/inventory.service");
 let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
     supabase;
     inventoryService;
     logger = new common_1.Logger(PublicOrderService_1.name);
+    duplicateWindowMs = 60 * 1000;
     constructor(supabase, inventoryService) {
         this.supabase = supabase;
         this.inventoryService = inventoryService;
@@ -247,6 +249,78 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             options: [],
         }));
     }
+    buildOrderSignature(items) {
+        const normalized = items
+            .map((item) => ({ productId: item.productId, qty: item.qty }))
+            .sort((a, b) => a.productId.localeCompare(b.productId));
+        const payload = normalized
+            .map((item) => `${item.productId}:${item.qty}`)
+            .join('|');
+        return (0, crypto_1.createHash)('sha256').update(payload).digest('hex');
+    }
+    async findRecentDuplicateOrder(adminClient, dto, totalAmount, signature) {
+        const customerName = dto.customerName?.trim();
+        const customerPhone = dto.customerPhone?.trim();
+        if (!customerName || !customerPhone) {
+            return null;
+        }
+        const cutoff = new Date(Date.now() - this.duplicateWindowMs).toISOString();
+        const { data, error } = await adminClient
+            .from('orders')
+            .select(`
+        id,
+        order_no,
+        status,
+        total_amount,
+        created_at,
+        order_items (
+          product_id,
+          product_name_snapshot,
+          qty,
+          unit_price,
+          order_item_options (
+            option_name_snapshot
+          )
+        )
+      `)
+            .eq('branch_id', dto.branchId)
+            .eq('customer_name', customerName)
+            .eq('customer_phone', customerPhone)
+            .eq('status', 'CREATED')
+            .eq('payment_status', 'PENDING')
+            .eq('total_amount', totalAmount)
+            .gte('created_at', cutoff)
+            .order('created_at', { ascending: false })
+            .limit(5);
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+        for (const order of data) {
+            const items = order.order_items ?? [];
+            const candidateSignature = this.buildOrderSignature(items.map((item) => ({
+                productId: item.product_id,
+                qty: item.qty,
+            })));
+            if (candidateSignature !== signature) {
+                continue;
+            }
+            this.logger.warn(`Duplicate order detected for ${dto.branchId} within window: ${order.id}`);
+            return {
+                id: order.id,
+                orderNo: order.order_no,
+                status: order.status,
+                totalAmount: order.total_amount,
+                createdAt: order.created_at,
+                items: items.map((item) => ({
+                    productName: item.product_name_snapshot,
+                    qty: item.qty,
+                    unitPrice: item.unit_price,
+                    options: (item.order_item_options ?? []).map((opt) => opt.option_name_snapshot),
+                })),
+            };
+        }
+        return null;
+    }
     async createOrder(dto) {
         const sb = this.supabase.anonClient();
         const adminClient = this.supabase.adminClient();
@@ -271,24 +345,6 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
         if (dto.items.some((item) => item.options && item.options.length > 0)) {
             throw new common_1.BadRequestException('옵션 기능이 비활성화되어 있습니다.');
         }
-        const { data: inventoryRecords, error: invError } = await adminClient
-            .from('product_inventory')
-            .select('product_id, qty_available, qty_reserved')
-            .in('product_id', productIds)
-            .eq('branch_id', dto.branchId);
-        if (invError) {
-            throw new common_1.BadRequestException(`재고 조회 실패: ${invError.message}`);
-        }
-        const inventoryMap = new Map(inventoryRecords?.map((inv) => [inv.product_id, inv]) ?? []);
-        for (const item of dto.items) {
-            const inventory = inventoryMap.get(item.productId);
-            if (!inventory) {
-                throw new common_1.BadRequestException(`재고 정보를 찾을 수 없습니다: ${productMap.get(item.productId)?.name}`);
-            }
-            if (inventory.qty_available < item.qty) {
-                throw new common_1.BadRequestException(`재고가 부족합니다: ${productMap.get(item.productId)?.name} (재고: ${inventory.qty_available}개, 주문: ${item.qty}개)`);
-            }
-        }
         let subtotalAmount = 0;
         const orderItemsData = [];
         for (const item of dto.items) {
@@ -308,6 +364,32 @@ let PublicOrderService = PublicOrderService_1 = class PublicOrderService {
             });
         }
         const totalAmount = subtotalAmount;
+        const signature = this.buildOrderSignature(dto.items.map((item) => ({
+            productId: item.productId,
+            qty: item.qty,
+        })));
+        const duplicateOrder = await this.findRecentDuplicateOrder(adminClient, dto, totalAmount, signature);
+        if (duplicateOrder) {
+            return duplicateOrder;
+        }
+        const { data: inventoryRecords, error: invError } = await adminClient
+            .from('product_inventory')
+            .select('product_id, qty_available, qty_reserved')
+            .in('product_id', productIds)
+            .eq('branch_id', dto.branchId);
+        if (invError) {
+            throw new common_1.BadRequestException(`재고 조회 실패: ${invError.message}`);
+        }
+        const inventoryMap = new Map(inventoryRecords?.map((inv) => [inv.product_id, inv]) ?? []);
+        for (const item of dto.items) {
+            const inventory = inventoryMap.get(item.productId);
+            if (!inventory) {
+                throw new common_1.BadRequestException(`재고 정보를 찾을 수 없습니다: ${productMap.get(item.productId)?.name}`);
+            }
+            if (inventory.qty_available < item.qty) {
+                throw new common_1.BadRequestException(`재고가 부족합니다: ${productMap.get(item.productId)?.name} (재고: ${inventory.qty_available}개, 주문: ${item.qty}개)`);
+            }
+        }
         const { data: order, error: orderError } = await sb
             .from('orders')
             .insert({

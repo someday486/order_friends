@@ -16,6 +16,9 @@ describe('PublicOrderService - Inventory Integration', () => {
     update: jest.fn().mockReturnThis(),
     delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
+    gte: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockResolvedValue({ data: [], error: null }),
     in: jest.fn().mockReturnThis(),
     single: jest.fn().mockReturnThis(),
   };
@@ -60,6 +63,9 @@ describe('PublicOrderService - Inventory Integration', () => {
     mockAdminClient.insert.mockReturnThis();
     mockAdminClient.update.mockReturnThis();
     mockAdminClient.eq.mockReturnThis();
+    mockAdminClient.gte.mockReturnThis();
+    mockAdminClient.order.mockReturnThis();
+    mockAdminClient.limit.mockResolvedValue({ data: [], error: null });
     mockAdminClient.in.mockReturnThis();
     mockAdminClient.single.mockReturnThis();
   });
@@ -122,16 +128,20 @@ describe('PublicOrderService - Inventory Integration', () => {
       let eqCallCount = 0;
       mockAdminClient.eq.mockImplementation(() => {
         eqCallCount++;
-        // Call 1: inventory query terminal (.eq('branch_id', branchId))
-        if (eqCallCount === 1) {
+        // Calls 1-6: duplicate order checks
+        if (eqCallCount <= 6) {
+          return mockAdminClient;
+        }
+        // Call 7: inventory query terminal (.eq('branch_id', branchId))
+        if (eqCallCount === 7) {
           return Promise.resolve({ data: mockInventory, error: null });
         }
-        // Calls 2-5: inventory updates for 2 items (update().eq('product_id').eq('branch_id') per item)
+        // Calls 8-11: inventory updates for 2 items (update().eq('product_id').eq('branch_id') per item)
         // Each item has 2 eq calls, first returns mock, second returns promise
-        if (eqCallCount === 2 || eqCallCount === 4) {
+        if (eqCallCount === 8 || eqCallCount === 10) {
           return mockAdminClient; // First eq in update chain
         }
-        if (eqCallCount === 3 || eqCallCount === 5) {
+        if (eqCallCount === 9 || eqCallCount === 11) {
           return Promise.resolve({ data: {}, error: null }); // Terminal eq in update
         }
         return mockAdminClient;
@@ -221,7 +231,12 @@ describe('PublicOrderService - Inventory Integration', () => {
         return mockAdminClient;
       });
 
+      let eqCallCount = 0;
       mockAdminClient.eq.mockImplementation(() => {
+        eqCallCount += 1;
+        if (eqCallCount <= 6) {
+          return mockAdminClient;
+        }
         // Inventory query terminal
         return Promise.resolve({ data: mockInventory, error: null });
       });
@@ -261,7 +276,12 @@ describe('PublicOrderService - Inventory Integration', () => {
         return mockAdminClient;
       });
 
+      let eqCallCount = 0;
       mockAdminClient.eq.mockImplementation(() => {
+        eqCallCount += 1;
+        if (eqCallCount <= 6) {
+          return mockAdminClient;
+        }
         // Inventory query terminal - returns empty array
         return Promise.resolve({ data: mockInventory, error: null });
       });

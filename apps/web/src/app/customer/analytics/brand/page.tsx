@@ -70,11 +70,6 @@ interface Brand {
   name: string;
 }
 
-interface Branch {
-  id: string;
-  name: string;
-}
-
 // ============================================================
 // Helpers
 // ============================================================
@@ -132,17 +127,10 @@ function KpiCard({
 
 export default function BrandAnalyticsPage() {
   const { session, status } = useAuth();
-  const {
-    branchId: selectedBranchId,
-    selectBranch,
-    clearBranch,
-  } = useSelectedBranch();
+  const { branchId: selectedBranchId } = useSelectedBranch();
 
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [branchLoading, setBranchLoading] = useState(false);
-  const [branchError, setBranchError] = useState<string | null>(null);
   const [compare, setCompare] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,44 +167,6 @@ export default function BrandAnalyticsPage() {
     };
     loadBrands();
   }, [status, selectedBrandId]);
-
-  // Load branches for selected brand
-  useEffect(() => {
-    if (!selectedBrandId || status !== "authenticated") {
-      setBranches([]);
-      setBranchError(null);
-      return;
-    }
-
-    const loadBranches = async () => {
-      setBranchLoading(true);
-      setBranchError(null);
-      try {
-        const data = await apiClient.get<Branch[]>(
-          `/customer/branches?brandId=${selectedBrandId}`,
-        );
-        setBranches(data);
-
-        if (data.length === 0) {
-          clearBranch();
-          return;
-        }
-
-        if (!selectedBranchId || !data.some((b) => b.id === selectedBranchId)) {
-          selectBranch(data[0].id);
-        }
-      } catch (e) {
-        setBranches([]);
-        setBranchError(
-          e instanceof Error ? e.message : "지점 목록을 불러오지 못했습니다.",
-        );
-      } finally {
-        setBranchLoading(false);
-      }
-    };
-
-    loadBranches();
-  }, [selectedBrandId, status, selectedBranchId, selectBranch, clearBranch]);
 
   // Load analytics
   useEffect(() => {
@@ -276,11 +226,6 @@ export default function BrandAnalyticsPage() {
   const c = customers?.current;
   const ch = sales?.changes;
   const cch = customers?.changes;
-  const branchPlaceholder = branchLoading
-    ? "지점 불러오는 중..."
-    : branches.length === 0
-      ? "지점 없음"
-      : "지점 선택";
   const branchLinkId = selectedBranchId || s?.byBranch?.[0]?.branchId;
   const branchLink = branchLinkId
     ? `/customer/analytics?branchId=${encodeURIComponent(branchLinkId)}`
@@ -324,32 +269,6 @@ export default function BrandAnalyticsPage() {
             </option>
           ))}
         </select>
-
-        <select
-          value={selectedBranchId ?? ""}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (!value) {
-              clearBranch();
-              return;
-            }
-            selectBranch(value);
-          }}
-          className="input-field max-w-[240px]"
-          disabled={!selectedBrandId || branchLoading || branches.length === 0}
-        >
-          <option value="">{branchPlaceholder}</option>
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
-            </option>
-          ))}
-        </select>
-        {branchError && (
-          <span className="text-xs text-danger-500 self-center">
-            {branchError}
-          </span>
-        )}
 
         <input
           type="date"

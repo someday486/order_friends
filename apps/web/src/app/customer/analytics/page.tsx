@@ -18,6 +18,11 @@ import {
   SalesAnalytics,
 } from "@/types/analytics";
 
+interface Branch {
+  id: string;
+  name: string;
+}
+
 const formatCurrency = (value: number | string) => {
   const numericValue = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(numericValue)) {
@@ -69,7 +74,11 @@ function AnalyticsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, status } = useAuth();
-  const { branchId: selectedBranchId } = useSelectedBranch();
+  const {
+    branchId: selectedBranchId,
+    selectBranch,
+    clearBranch,
+  } = useSelectedBranch();
 
   const branchId = searchParams.get("branchId");
   const effectiveBranchId = branchId || selectedBranchId;
@@ -84,6 +93,10 @@ function AnalyticsContent() {
   });
   const [compareEnabled, setCompareEnabled] = useState(false);
 
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
+
   const [salesData, setSalesData] = useState<PeriodComparison<SalesAnalytics> | null>(null);
   const [productData, setProductData] = useState<PeriodComparison<ProductAnalytics> | null>(null);
   const [orderData, setOrderData] = useState<PeriodComparison<OrderAnalytics> | null>(null);
@@ -97,6 +110,39 @@ function AnalyticsContent() {
       router.push("/");
     }
   }, [status, router]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+
+    const loadBranches = async () => {
+      setBranchLoading(true);
+      setBranchError(null);
+      try {
+        const data = await apiClient.get<Branch[]>("/customer/branches");
+        setBranches(data);
+
+        if (!branchId && !selectedBranchId && data.length === 1) {
+          const onlyBranchId = data[0].id;
+          selectBranch(onlyBranchId);
+          router.replace(`/customer/analytics?branchId=${encodeURIComponent(onlyBranchId)}`);
+        }
+      } catch (err) {
+        setBranches([]);
+        setBranchError(err instanceof Error ? err.message : "지점 목록을 불러오지 못했습니다");
+      } finally {
+        setBranchLoading(false);
+      }
+    };
+
+    loadBranches();
+  }, [status, branchId, selectedBranchId, selectBranch, router]);
+
+  useEffect(() => {
+    if (!branchId) return;
+    if (branchId !== selectedBranchId) {
+      selectBranch(branchId);
+    }
+  }, [branchId, selectedBranchId, selectBranch]);
 
   useEffect(() => {
     if (!effectiveBranchId || !session) return;
@@ -153,17 +199,6 @@ function AnalyticsContent() {
     );
   }
 
-  if (!effectiveBranchId) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4 text-foreground">분석</h1>
-        <p className="text-danger-500">
-          URL에서 지점을 선택해주세요 (예: ?branchId=xxx)
-        </p>
-      </div>
-    );
-  }
-
   const statusLabelMap: Record<string, string> = {
     CREATED: "생성",
     CONFIRMED: "확정",
@@ -178,12 +213,45 @@ function AnalyticsContent() {
   const productCurrent = productData?.current;
   const orderCurrent = orderData?.current;
   const customerCurrent = customerData?.current;
+  const branchPlaceholder = branchLoading
+    ? "지점 불러오는 중..."
+    : branches.length === 0
+      ? "지점 없음"
+      : "지점 선택";
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <h1 className="text-2xl font-bold text-foreground">분석 대시보드</h1>
         <div className="flex flex-wrap gap-4 items-end">
+          <div>
+            <label className="block text-sm mb-1 text-text-secondary">지점</label>
+            <select
+              value={effectiveBranchId ?? ""}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!value) {
+                  clearBranch();
+                  router.replace("/customer/analytics");
+                  return;
+                }
+                selectBranch(value);
+                router.replace(`/customer/analytics?branchId=${encodeURIComponent(value)}`);
+              }}
+              className="input-field min-w-[200px]"
+              disabled={branchLoading || branches.length === 0}
+            >
+              <option value="">{branchPlaceholder}</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            {branchError && (
+              <p className="text-xs text-danger-500 mt-1">{branchError}</p>
+            )}
+          </div>
           <div>
             <label className="block text-sm mb-1 text-text-secondary">시작일</label>
             <input
@@ -214,10 +282,16 @@ function AnalyticsContent() {
         </div>
       </div>
 
+      {!effectiveBranchId && (
+        <div className="rounded-md border border-border bg-bg-secondary p-4 text-sm text-text-secondary">
+          지점을 선택하면 분석 데이터를 확인할 수 있습니다.
+        </div>
+      )}
+
       {loading && <p className="text-text-secondary">분석 데이터를 불러오는 중...</p>}
       {error && <p className="text-danger-500">오류: {error}</p>}
 
-      {!loading && !error && (
+      {!loading && !error && effectiveBranchId && (
         <>
           {/* 매출 분석 */}
           {salesCurrent && (

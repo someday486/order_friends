@@ -46,6 +46,31 @@ describe('BranchesService', () => {
     expect(result[0].id).toBe('b1');
   });
 
+  it('getBranches should map optional fields with defaults using user client', async () => {
+    userSb.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          brand_id: 'brand',
+          name: 'A',
+          slug: null,
+          logo_url: null,
+          thumbnail_url: null,
+          created_at: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranches('token', 'brand', false);
+
+    expect(result[0].slug).toBe('');
+    expect(result[0].logoUrl).toBeNull();
+    expect(result[0].thumbnailUrl).toBeNull();
+    expect(result[0].createdAt).toBe('');
+    expect(userSb.from).toHaveBeenCalledWith('branches');
+  });
+
   it('getBranches should throw on error', async () => {
     adminSb.order.mockResolvedValueOnce({
       data: null,
@@ -110,6 +135,41 @@ describe('BranchesService', () => {
     );
 
     expect(result.id).toBe('b1');
+  });
+
+  it('createBranch should include optional fields in payload', async () => {
+    adminSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'b1',
+        brand_id: 'brand',
+        name: 'Branch',
+        slug: 's',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    await service.createBranch(
+      'token',
+      {
+        brandId: 'brand',
+        name: 'Branch',
+        slug: 's',
+        logoUrl: 'logo.png',
+        coverImageUrl: 'cover.png',
+        thumbnailUrl: 'thumb.png',
+      } as any,
+      true,
+    );
+
+    expect(adminSb.insert).toHaveBeenCalledWith({
+      brand_id: 'brand',
+      name: 'Branch',
+      slug: 's',
+      logo_url: 'logo.png',
+      cover_image_url: 'cover.png',
+      thumbnail_url: 'thumb.png',
+    });
   });
 
   it('createBranch should fall back to admin on RLS error', async () => {
@@ -204,6 +264,48 @@ describe('BranchesService', () => {
     );
 
     expect(result.name).toBe('Branch');
+  });
+
+  it('updateBranch should include optional fields in update payload', async () => {
+    adminSb.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'b1',
+        brand_id: 'brand',
+        name: 'Branch',
+        slug: null,
+        logo_url: null,
+        cover_image_url: null,
+        thumbnail_url: null,
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.updateBranch(
+      'token',
+      'b1',
+      {
+        name: 'New',
+        slug: 'slug',
+        logoUrl: 'logo.png',
+        coverImageUrl: 'cover.png',
+        thumbnailUrl: 'thumb.png',
+      } as any,
+      true,
+    );
+
+    expect(adminSb.update).toHaveBeenCalledWith({
+      name: 'New',
+      slug: 'slug',
+      logo_url: 'logo.png',
+      cover_image_url: 'cover.png',
+      thumbnail_url: 'thumb.png',
+    });
+    expect(result.slug).toBe('');
+    expect(result.logoUrl).toBeNull();
+    expect(result.coverImageUrl).toBeNull();
+    expect(result.thumbnailUrl).toBeNull();
+    expect(result.createdAt).toBe('');
   });
 
   it('updateBranch should throw when not found', async () => {

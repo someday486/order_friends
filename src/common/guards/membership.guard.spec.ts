@@ -84,6 +84,21 @@ describe('MembershipGuard', () => {
     expect(ctx._req.role).toBe(Role.OWNER);
   });
 
+  it('should ignore empty ids for admin requests', async () => {
+    const ctx = createContext({
+      isAdmin: true,
+      params: { brandId: '   ' },
+      query: { branchId: ['   '] },
+    });
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.brandId).toBeUndefined();
+    expect(ctx._req.branchId).toBeUndefined();
+    expect(ctx._req.role).toBe(Role.OWNER);
+  });
+
   it('should infer role when no scope is provided', async () => {
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
@@ -95,6 +110,32 @@ describe('MembershipGuard', () => {
 
     expect(result).toBe(true);
     expect(ctx._req.role).toBe(Role.OWNER);
+  });
+
+  it('should infer STAFF role when no owner is present', async () => {
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({ data: [{ role: BrandRole.ADMIN }], error: null });
+
+    const ctx = createContext();
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.role).toBe(Role.STAFF);
+  });
+
+  it('should allow request when no scope and no memberships', async () => {
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    const ctx = createContext();
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.role).toBeUndefined();
   });
 
   it('should validate brand membership and set role', async () => {
@@ -159,6 +200,23 @@ describe('MembershipGuard', () => {
     expect(result).toBe(true);
     expect(ctx._req.branchId).toBe('branch-1');
     expect(ctx._req.role).toBe(Role.OWNER);
+  });
+
+  it('should map branch manager to STAFF', async () => {
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockReturnValueOnce(branchMembersChain);
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: { role: BranchRole.MANAGER, status: MemberStatus.ACTIVE },
+      error: null,
+    });
+
+    const ctx = createContext({ params: { branchId: 'branch-1' } });
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.role).toBe(Role.STAFF);
   });
 
   it('should throw when branch membership lookup fails', async () => {
@@ -256,6 +314,28 @@ describe('MembershipGuard', () => {
       .mockReturnValueOnce(brandMembersChain)
       .mockReturnValueOnce(brandMembersChain);
     brandMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    const ctx = createContext({ params: { branchId: 'branch-1' } });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should throw when fallback brand membership is inactive', async () => {
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockReturnValueOnce(branchMembersChain);
+    branchMembersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    branchesChain.eq.mockReturnValueOnce(branchesChain);
+    branchesChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'branch-1', brand_id: 'brand-1' }, error: null });
+
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockReturnValueOnce(brandMembersChain);
+    brandMembersChain.maybeSingle.mockResolvedValueOnce({
+      data: { role: BrandRole.ADMIN, status: MemberStatus.SUSPENDED },
+      error: null,
+    });
 
     const ctx = createContext({ params: { branchId: 'branch-1' } });
 

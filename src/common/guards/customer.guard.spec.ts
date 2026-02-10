@@ -131,4 +131,75 @@ describe('CustomerGuard', () => {
     ]);
     expect(ctx._req.branchMemberships).toEqual([]);
   });
+
+  it('should allow access even when owned brand lookup fails', async () => {
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({
+        data: [{ brand_id: 'brand-1', role: 'STAFF', status: 'ACTIVE' }],
+        error: null,
+      });
+
+    brandsChain.eq.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockResolvedValueOnce({
+        data: [{ branch_id: 'branch-1', role: 'STAFF', status: 'ACTIVE' }],
+        error: null,
+      });
+
+    const ctx = createContext();
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+  });
+
+  it('should avoid duplicating owned brands', async () => {
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({
+        data: [{ brand_id: 'brand-1', role: 'STAFF', status: 'ACTIVE' }],
+        error: null,
+      });
+
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [{ id: 'brand-1' }, { id: 'brand-2' }],
+      error: null,
+    });
+
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    const ctx = createContext();
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.brandMemberships).toHaveLength(2);
+    expect(ctx._req.brandMemberships.map((m: any) => m.brand_id)).toEqual(
+      expect.arrayContaining(['brand-1', 'brand-2']),
+    );
+  });
+
+  it('should allow access when branch memberships are null', async () => {
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    brandsChain.eq.mockResolvedValueOnce({ data: [{ id: 'brand-1' }], error: null });
+
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const ctx = createContext();
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.branchMemberships).toEqual([]);
+  });
 });

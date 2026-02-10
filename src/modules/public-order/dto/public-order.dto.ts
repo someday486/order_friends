@@ -94,6 +94,10 @@ export class CreatePublicOrderRequest {
   branchId: string;
 
   @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
+
+  @IsString()
   customerName: string;
 
   @IsString()

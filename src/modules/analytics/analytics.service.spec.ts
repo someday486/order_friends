@@ -69,6 +69,34 @@ describe('AnalyticsService', () => {
     expect(result.revenueByDay).toHaveLength(0);
   });
 
+  it('getSalesAnalytics should treat null data as empty list', async () => {
+    chain.in.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getSalesAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.orderCount).toBe(0);
+    expect(result.totalRevenue).toBe(0);
+    expect(result.avgOrderValue).toBe(0);
+    expect(result.revenueByDay).toHaveLength(0);
+  });
+
+  it('getSalesAnalytics should treat missing totals as zero', async () => {
+    chain.in.mockResolvedValueOnce({
+      data: [
+        { total_amount: undefined, created_at: '2024-01-01T00:00:00Z' },
+        { total_amount: null, created_at: '2024-01-01T12:00:00Z' },
+      ],
+      error: null,
+    });
+
+    const result = await service.getSalesAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.totalRevenue).toBe(0);
+    expect(result.orderCount).toBe(2);
+    expect(result.avgOrderValue).toBe(0);
+    expect(result.revenueByDay[0].revenue).toBe(0);
+  });
+
   it('getSalesAnalytics should throw BusinessException on query error', async () => {
     chain.in.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
@@ -98,6 +126,15 @@ describe('AnalyticsService', () => {
     expect(result.topProducts).toHaveLength(2);
     expect(result.salesByProduct[0].revenue).toBeGreaterThan(0);
     expect(result.inventoryTurnover.periodDays).toBeGreaterThan(0);
+  });
+
+  it('getProductAnalytics should handle null data', async () => {
+    chain.in.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getProductAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.topProducts).toHaveLength(0);
+    expect(result.salesByProduct).toHaveLength(0);
   });
 
   it('getProductAnalytics should handle zero revenue and zero days', async () => {
@@ -150,8 +187,31 @@ describe('AnalyticsService', () => {
     expect(result.peakHours).toHaveLength(2);
   });
 
+  it('getOrderAnalytics should handle unknown status', async () => {
+    chain.lte.mockResolvedValueOnce({
+      data: [
+        { status: undefined, created_at: '2024-01-01T01:00:00Z' },
+      ],
+      error: null,
+    });
+
+    const result = await service.getOrderAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.statusDistribution[0].status).toBe('UNKNOWN');
+  });
+
   it('getOrderAnalytics should handle empty orders', async () => {
     chain.lte.mockResolvedValueOnce({ data: [], error: null });
+
+    const result = await service.getOrderAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.statusDistribution).toHaveLength(0);
+    expect(result.ordersByDay).toHaveLength(0);
+    expect(result.peakHours).toHaveLength(0);
+  });
+
+  it('getOrderAnalytics should handle null data', async () => {
+    chain.lte.mockResolvedValueOnce({ data: null, error: null });
 
     const result = await service.getOrderAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
 
@@ -199,6 +259,58 @@ describe('AnalyticsService', () => {
     expect(result.newCustomers).toBe(1);
   });
 
+  it('getCustomerAnalytics should handle missing phones and totals', async () => {
+    chain.in
+      .mockResolvedValueOnce({
+        data: [
+          { customer_phone: null, total_amount: undefined, created_at: '2024-01-01T00:00:00Z' },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          { customer_phone: null, total_amount: undefined, created_at: '2024-01-01T00:00:00Z' },
+        ],
+        error: null,
+      });
+
+    const result = await service.getCustomerAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.totalCustomers).toBe(1);
+    expect(result.newCustomers).toBe(0);
+  });
+
+  it('getCustomerAnalytics should handle null allOrders and missing first order', async () => {
+    chain.in
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: [
+          { customer_phone: undefined, total_amount: 5, created_at: '2024-01-01T00:00:00Z' },
+        ],
+        error: null,
+      });
+
+    const result = await service.getCustomerAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.totalCustomers).toBe(0);
+    expect(result.newCustomers).toBe(0);
+  });
+
+  it('getCustomerAnalytics should handle null period orders', async () => {
+    chain.in
+      .mockResolvedValueOnce({
+        data: [
+          { customer_phone: '1', total_amount: 10, created_at: '2024-01-01T00:00:00Z' },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getCustomerAnalytics('token', 'b1', '2024-01-01', '2024-01-02');
+
+    expect(result.newCustomers).toBe(0);
+  });
+
   it('getCustomerAnalytics should handle empty datasets', async () => {
     chain.in
       .mockResolvedValueOnce({ data: [], error: null })
@@ -212,6 +324,16 @@ describe('AnalyticsService', () => {
     expect(result.clv).toBe(0);
     expect(result.repeatCustomerRate).toBe(0);
     expect(result.avgOrdersPerCustomer).toBe(0);
+  });
+
+  it('getCustomerAnalytics should throw on period query error', async () => {
+    chain.in
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+
+    await expect(
+      service.getCustomerAnalytics('token', 'b1'),
+    ).rejects.toBeInstanceOf(BusinessException);
   });
 
   it('getCustomerAnalytics should throw on query error', async () => {

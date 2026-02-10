@@ -175,6 +175,22 @@ describe('CustomerProductsService', () => {
     expect(result[0].id).toBe('p1');
   });
 
+  it('getMyProducts should return empty when data is null', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.products.order
+      .mockReturnValueOnce(chains.products)
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getMyProducts('u1', 'b1', [], [
+      { branch_id: 'b1', role: 'OWNER' },
+    ]);
+
+    expect(result).toHaveLength(0);
+  });
+
   it('getMyProduct should include options when available', async () => {
     chains.products.single.mockResolvedValueOnce({
       data: { id: 'p1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
@@ -228,6 +244,19 @@ describe('CustomerProductsService', () => {
       isActive: true,
       createdAt: '',
     });
+  });
+
+  it('getMyCategories should return empty when data is null', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_categories.order
+      .mockReturnValueOnce(chains.product_categories)
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getMyCategories('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    expect(result).toHaveLength(0);
   });
 
   it('getMyCategories should throw on error', async () => {
@@ -352,6 +381,34 @@ describe('CustomerProductsService', () => {
     expect(result.id).toBe('p1');
   });
 
+  it('createMyProduct should insert options when no errors', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1' },
+      error: null,
+    });
+    chains.product_options.insert.mockResolvedValueOnce({ error: null });
+
+    const result = await service.createMyProduct(
+      'u1',
+      {
+        branchId: 'b1',
+        name: 'P',
+        categoryId: 'c1',
+        price: 10,
+        options: [{ name: 'O1', priceDelta: 1, isActive: true, sortOrder: 2 }],
+      } as any,
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.id).toBe('p1');
+    expect(chains.product_options.insert).toHaveBeenCalled();
+  });
+
   it('createMyProduct should create product without options', async () => {
     chains.branches.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },
@@ -444,6 +501,36 @@ describe('CustomerProductsService', () => {
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
     expect(result.name).toBe('Updated');
+  });
+
+  it('updateMyProduct should include description and category updates', async () => {
+    chains.products.single
+      .mockResolvedValueOnce({
+        data: { id: 'p1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'p1', description: 'Desc', category_id: 'c1', base_price: 20, image_url: 'img' },
+        error: null,
+      });
+
+    const result = await service.updateMyProduct(
+      'u1',
+      'p1',
+      { description: 'Desc', categoryId: 'c1', price: 20, imageUrl: 'img' } as any,
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.description).toBe('Desc');
+    expect(chains.products.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Desc',
+        category_id: 'c1',
+        base_price: 20,
+        image_url: 'img',
+      }),
+    );
   });
 
   it('updateMyProduct should map isActive to is_hidden', async () => {
@@ -618,6 +705,48 @@ describe('CustomerProductsService', () => {
     ).rejects.toThrow('Failed to create category');
   });
 
+  it('createCategory should allow brand membership role', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_categories.single.mockResolvedValueOnce({
+      data: { id: 'c1', branch_id: 'b1', name: 'Cat', sort_order: 1, is_active: true, created_at: 't' },
+      error: null,
+    });
+
+    const result = await service.createCategory(
+      'u1',
+      'b1',
+      'Cat',
+      1,
+      true,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result.id).toBe('c1');
+  });
+
+  it('createCategory should throw when role missing', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    await expect(
+      service.createCategory(
+        'u1',
+        'b1',
+        'Cat',
+        1,
+        true,
+        [],
+        [{ branch_id: 'b1', role: undefined } as any],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
   it('createCategory should return mapped category', async () => {
     chains.branches.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },
@@ -682,6 +811,61 @@ describe('CustomerProductsService', () => {
     expect(result.id).toBe('c1');
   });
 
+  it('updateCategory should return defaults for nullable fields', async () => {
+    chains.product_categories.single.mockResolvedValueOnce({
+      data: {
+        id: 'c1',
+        branch_id: 'b1',
+        name: 'Cat',
+        sort_order: null,
+        is_active: null,
+        created_at: null,
+      },
+      error: null,
+    });
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    const result = await service.updateCategory(
+      'u1',
+      'c1',
+      {},
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.sortOrder).toBe(0);
+    expect(result.isActive).toBe(true);
+    expect(result.createdAt).toBe('');
+  });
+
+  it('updateCategory should throw when role missing', async () => {
+    chains.product_categories.single.mockResolvedValueOnce({
+      data: {
+        id: 'c1',
+        branch_id: 'b1',
+        name: 'Cat',
+      },
+      error: null,
+    });
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    await expect(
+      service.updateCategory(
+        'u1',
+        'c1',
+        { name: 'New' },
+        [],
+        [{ branch_id: 'b1', role: undefined } as any],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
   it('updateCategory should throw when category missing', async () => {
     chains.product_categories.single.mockResolvedValueOnce({
       data: null,
@@ -734,6 +918,48 @@ describe('CustomerProductsService', () => {
     expect(result.sortOrder).toBe(2);
   });
 
+  it('updateCategory should map defaults when update returns nulls', async () => {
+    chains.product_categories.single
+      .mockResolvedValueOnce({
+        data: {
+          id: 'c1',
+          branch_id: 'b1',
+          name: 'Cat',
+          sort_order: 1,
+          is_active: true,
+          created_at: 't',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'c1',
+          branch_id: 'b1',
+          name: 'New',
+          sort_order: null,
+          is_active: null,
+          created_at: null,
+        },
+        error: null,
+      });
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    const result = await service.updateCategory(
+      'u1',
+      'c1',
+      { name: 'New' },
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.sortOrder).toBe(0);
+    expect(result.isActive).toBe(true);
+    expect(result.createdAt).toBe('');
+  });
+
   it('updateCategory should throw on update error', async () => {
     chains.product_categories.single
       .mockResolvedValueOnce({
@@ -778,6 +1004,60 @@ describe('CustomerProductsService', () => {
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
     ).rejects.toThrow('Failed to delete category');
+  });
+
+  it('deleteCategory should throw when category missing', async () => {
+    chains.product_categories.single.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    await expect(
+      service.deleteCategory('u1', 'c1', [], []),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('deleteCategory should allow brand membership role', async () => {
+    chains.product_categories.single.mockResolvedValueOnce({
+      data: { id: 'c1', branch_id: 'b1' },
+      error: null,
+    });
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_categories.eq
+      .mockReturnValueOnce(chains.product_categories)
+      .mockResolvedValueOnce({ error: null });
+
+    const result = await service.deleteCategory(
+      'u1',
+      'c1',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result.deleted).toBe(true);
+  });
+
+  it('deleteCategory should throw when role missing', async () => {
+    chains.product_categories.single.mockResolvedValueOnce({
+      data: { id: 'c1', branch_id: 'b1' },
+      error: null,
+    });
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    await expect(
+      service.deleteCategory(
+        'u1',
+        'c1',
+        [],
+        [{ branch_id: 'b1', role: undefined } as any],
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('deleteCategory should succeed', async () => {
@@ -825,6 +1105,48 @@ describe('CustomerProductsService', () => {
     );
     expect(result).toHaveLength(1);
     expect(spy).toHaveBeenCalled();
+  });
+
+  it('reorderCategories should allow brand membership role', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_categories.eq
+      .mockReturnValueOnce(chains.product_categories)
+      .mockResolvedValueOnce({ error: null });
+
+    const spy = jest
+      .spyOn(service, 'getMyCategories')
+      .mockResolvedValueOnce([{ id: 'c1' }] as any);
+
+    const result = await service.reorderCategories(
+      'u1',
+      'b1',
+      [{ id: 'c1', sortOrder: 1 }],
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('reorderCategories should throw when role missing', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    await expect(
+      service.reorderCategories(
+        'u1',
+        'b1',
+        [{ id: 'c1', sortOrder: 1 }],
+        [],
+        [{ branch_id: 'b1', role: undefined } as any],
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('reorderCategories should update and return list', async () => {

@@ -1,5 +1,5 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -8,6 +8,7 @@ describe('PublicOrderService - Create Order Branches', () => {
   let service: PublicOrderService;
   let anonChains: Record<string, any>;
   let adminChains: Record<string, any>;
+  let adminClient: any;
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -20,6 +21,7 @@ describe('PublicOrderService - Create Order Branches', () => {
     limit: jest.fn().mockResolvedValue({ data: [], error: null }),
     in: jest.fn().mockReturnThis(),
     single: jest.fn(),
+    maybeSingle: jest.fn(),
   });
 
   beforeEach(async () => {
@@ -30,14 +32,16 @@ describe('PublicOrderService - Create Order Branches', () => {
       order_item_options: makeChain(),
     };
     adminChains = {
-      product_inventory: makeChain(),
-      inventory_logs: makeChain(),
       orders: makeChain(),
       order_items: makeChain(),
+      order_dedup_logs: makeChain(),
     };
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };
-    const adminClient = { from: jest.fn((table: string) => adminChains[table]) };
+    adminClient = {
+      from: jest.fn((table: string) => adminChains[table]),
+      rpc: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -53,27 +57,6 @@ describe('PublicOrderService - Create Order Branches', () => {
     service = module.get<PublicOrderService>(PublicOrderService);
   });
 
-  it('should throw when inventory query fails', async () => {
-    const dto = {
-      branchId: 'b1',
-      customerName: 'Customer',
-      items: [{ productId: 'p1', qty: 1 }],
-    } as any;
-
-    anonChains.products.in.mockResolvedValueOnce({
-      data: [{ id: 'p1', name: 'P', branch_id: 'b1' }],
-      error: null,
-    });
-
-    adminChains.product_inventory.in.mockReturnValueOnce(adminChains.product_inventory);
-    adminChains.product_inventory.eq.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'fail' },
-    });
-
-    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(BadRequestException);
-  });
-
   it('should throw when product is sold out', async () => {
     const dto = {
       branchId: 'b1',
@@ -86,7 +69,80 @@ describe('PublicOrderService - Create Order Branches', () => {
       error: null,
     });
 
-    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('should throw when product query fails', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('should throw when product belongs to another branch', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P', branch_id: 'b2', base_price: 10 }],
+      error: null,
+    });
+
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('should throw when product is missing from product map', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      items: [
+        { productId: 'p1', qty: 1 },
+        { productId: 'p2', qty: 1 },
+      ],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P', branch_id: 'b1', base_price: 10 }],
+      error: null,
+    });
+
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('should throw when options are provided', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      items: [{ productId: 'p1', qty: 1, options: [{ id: 'o1' }] }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P', branch_id: 'b1' }],
+      error: null,
+    });
+
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('should throw when order insert fails', async () => {
@@ -101,18 +157,55 @@ describe('PublicOrderService - Create Order Branches', () => {
       error: null,
     });
 
-    adminChains.product_inventory.in.mockReturnValueOnce(adminChains.product_inventory);
-    adminChains.product_inventory.eq.mockResolvedValueOnce({
-      data: [{ product_id: 'p1', qty_available: 10, qty_reserved: 0 }],
-      error: null,
-    });
-
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
     anonChains.orders.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'fail' },
     });
 
-    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('should throw when idempotency key payload signature mismatches', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
+      idempotencyKey: 'idem-1',
+      items: [{ productId: 'p1', qty: 2 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P1', branch_id: 'b1', base_price: 1000 }],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 2000,
+          created_at: 't',
+          order_items: [
+            {
+              product_id: 'p2',
+              product_name_snapshot: 'P2',
+              qty: 1,
+              unit_price: 2000,
+              order_item_options: [],
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('should rollback when order item insert fails', async () => {
@@ -133,22 +226,7 @@ describe('PublicOrderService - Create Order Branches', () => {
       error: null,
     });
 
-    let eqCallCount = 0;
-    adminChains.product_inventory.in.mockReturnValueOnce(adminChains.product_inventory);
-    adminChains.product_inventory.eq.mockImplementation(() => {
-      eqCallCount += 1;
-      if (eqCallCount === 1) {
-        return Promise.resolve({
-          data: [
-            { product_id: 'p1', qty_available: 10, qty_reserved: 0 },
-            { product_id: 'p2', qty_available: 10, qty_reserved: 0 },
-          ],
-          error: null,
-        });
-      }
-      return adminChains.product_inventory;
-    });
-
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
     anonChains.orders.single.mockResolvedValueOnce({
       data: { id: 'o1', order_no: 'O-1', status: 'CREATED', total_amount: 50, created_at: 't' },
       error: null,
@@ -158,19 +236,64 @@ describe('PublicOrderService - Create Order Branches', () => {
       .mockResolvedValueOnce({ data: null, error: { message: 'fail' } })
       .mockResolvedValueOnce({ data: { id: 'item-2' }, error: null });
 
-    adminChains.product_inventory.update.mockReturnValue(adminChains.product_inventory);
-    adminChains.inventory_logs.insert.mockResolvedValue({ data: {}, error: null });
-
     await expect(service.createOrder(dto)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+    expect(adminClient.rpc).not.toHaveBeenCalled();
   });
 
-  it('should return duplicate order without reserving inventory', async () => {
+  it('should return existing order on unique constraint race', async () => {
     const dto = {
       branchId: 'b1',
       customerName: 'Customer',
-      customerPhone: '010-9999-9999',
+      idempotencyKey: 'idem-1',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P1', branch_id: 'b1', base_price: 1000 }],
+      error: null,
+    });
+
+    adminChains.orders.limit
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '23505', message: 'dup' },
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+              order_item_options: [],
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.createOrder(dto);
+    expect(result.id).toBe('o1');
+    expect(anonChains.order_items.insert).not.toHaveBeenCalled();
+  });
+
+  it('should return duplicate order when only name is provided', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Customer',
       items: [{ productId: 'p1', qty: 2 }],
     } as any;
 
@@ -207,6 +330,44 @@ describe('PublicOrderService - Create Order Branches', () => {
     expect(result.totalAmount).toBe(2000);
     expect(result.items).toHaveLength(1);
     expect(anonChains.orders.insert).not.toHaveBeenCalled();
-    expect(adminChains.product_inventory.in).not.toHaveBeenCalled();
+  });
+
+  it('should return duplicate order when only phone is provided', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerPhone: '010-1111-2222',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [{ id: 'p1', name: 'P1', branch_id: 'b1', base_price: 1000 }],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+              order_item_options: [],
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.createOrder(dto);
+    expect(result.id).toBe('o1');
+    expect(anonChains.orders.insert).not.toHaveBeenCalled();
   });
 });

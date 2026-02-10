@@ -46,6 +46,14 @@ describe('DashboardService', () => {
     expect(supabaseService.userClient).toHaveBeenCalledWith('token');
   });
 
+  it('should use adminClient when isAdmin is true', async () => {
+    mockSb.eq.mockResolvedValueOnce({ data: [], error: null });
+
+    await service.getStats('token', 'brand-1', true);
+
+    expect(supabaseService.adminClient).toHaveBeenCalled();
+  });
+
   it('should throw when branch lookup fails', async () => {
     mockSb.eq.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
@@ -90,5 +98,32 @@ describe('DashboardService', () => {
     expect(result.totalProducts).toBe(7);
     expect(result.totalBranches).toBe(1);
     expect(result.recentOrders).toHaveLength(1);
+  });
+
+  it('should default counts and recentOrders when data is missing', async () => {
+    mockSb.eq
+      .mockResolvedValueOnce({ data: [{ id: 'b1' }], error: null })
+      .mockResolvedValueOnce({ count: undefined, error: null });
+
+    mockSb.in
+      .mockResolvedValueOnce({ count: undefined })
+      .mockReturnValueOnce(mockSb)
+      .mockResolvedValueOnce({ count: undefined })
+      .mockResolvedValueOnce({ count: undefined })
+      .mockResolvedValueOnce({ count: undefined })
+      .mockReturnValueOnce(mockSb);
+
+    mockSb.gte.mockReturnValueOnce(mockSb);
+
+    mockSb.limit.mockResolvedValueOnce({ data: null });
+
+    const result = await service.getStats('token', 'brand-1', true);
+
+    expect(result.totalOrders).toBe(0);
+    expect(result.pendingOrders).toBe(0);
+    expect(result.todayOrders).toBe(0);
+    expect(result.totalProducts).toBe(0);
+    expect(result.totalBranches).toBe(0);
+    expect(result.recentOrders).toEqual([]);
   });
 });

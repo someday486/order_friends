@@ -239,32 +239,77 @@ export class PaymentsService {
       throw new PaymentAmountMismatchException(order.total_amount, dto.amount);
     }
 
-    // 4. ?대? 寃곗젣??二쇰Ц?몄? ?뺤씤
-    const { data: existingPayment } = await sb
-      .from('payments')
-      .select('id, status, amount, paid_at')
-      .eq('order_id', resolvedId)
-      .maybeSingle();
+    // 4. idempotency key 기반 결제 중복 처리
+    let existingPayment: any | null = null;
 
-    if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
-      if (
-        existingPayment.amount !== undefined &&
-        existingPayment.amount !== null &&
-        existingPayment.amount !== dto.amount
-      ) {
-        throw new PaymentAmountMismatchException(
-          existingPayment.amount,
-          dto.amount,
-        );
+    if (dto.idempotencyKey) {
+      const { data: idempotentPayment } = await sb
+        .from('payments')
+        .select('id, order_id, status, amount, paid_at, idempotency_key')
+        .eq('idempotency_key', dto.idempotencyKey)
+        .maybeSingle();
+
+      if (idempotentPayment) {
+        if (idempotentPayment.order_id !== resolvedId) {
+          throw new PaymentNotAllowedException(
+            'Idempotency key already used for another order',
+          );
+        }
+
+        if (
+          idempotentPayment.amount !== undefined &&
+          idempotentPayment.amount !== null &&
+          idempotentPayment.amount !== dto.amount
+        ) {
+          throw new PaymentAmountMismatchException(
+            idempotentPayment.amount,
+            dto.amount,
+          );
+        }
+
+        if (idempotentPayment.status === PaymentStatus.SUCCESS) {
+          return {
+            paymentId: idempotentPayment.id,
+            orderId: resolvedId,
+            status: PaymentStatus.SUCCESS,
+            amount: idempotentPayment.amount ?? dto.amount,
+            paidAt: idempotentPayment.paid_at || new Date().toISOString(),
+          };
+        }
+
+        existingPayment = idempotentPayment;
+      }
+    }
+
+    if (!existingPayment) {
+      const { data: paymentByOrder } = await sb
+        .from('payments')
+        .select('id, status, amount, paid_at, idempotency_key')
+        .eq('order_id', resolvedId)
+        .maybeSingle();
+
+      if (paymentByOrder && paymentByOrder.status === PaymentStatus.SUCCESS) {
+        if (
+          paymentByOrder.amount !== undefined &&
+          paymentByOrder.amount !== null &&
+          paymentByOrder.amount !== dto.amount
+        ) {
+          throw new PaymentAmountMismatchException(
+            paymentByOrder.amount,
+            dto.amount,
+          );
+        }
+
+        return {
+          paymentId: paymentByOrder.id,
+          orderId: resolvedId,
+          status: PaymentStatus.SUCCESS,
+          amount: paymentByOrder.amount ?? dto.amount,
+          paidAt: paymentByOrder.paid_at || new Date().toISOString(),
+        };
       }
 
-      return {
-        paymentId: existingPayment.id,
-        orderId: resolvedId,
-        status: PaymentStatus.SUCCESS,
-        amount: existingPayment.amount ?? dto.amount,
-        paidAt: existingPayment.paid_at || new Date().toISOString(),
-      };
+      existingPayment = paymentByOrder;
     }
 
     // 5. Toss Payments API call
@@ -293,17 +338,33 @@ export class PaymentsService {
         this.logger.error('Toss Payments API call failed', error);
 
         // 寃곗젣 ?ㅽ뙣 ?덉퐫???앹꽦
-        await sb.from('payments').insert({
-          order_id: resolvedId,
-          amount: dto.amount,
-          currency: 'KRW',
-          provider: PaymentProvider.TOSS,
-          provider_payment_key: dto.paymentKey,
-          status: PaymentStatus.FAILED,
-          payment_method: PaymentMethod.CARD,
-          failed_at: new Date().toISOString(),
-          failure_reason: error?.message || 'Payment confirmation failed',
-        });
+        if (existingPayment) {
+          await sb
+            .from('payments')
+            .update({
+              status: PaymentStatus.FAILED,
+              provider_payment_key: dto.paymentKey,
+              payment_method: PaymentMethod.CARD,
+              failed_at: new Date().toISOString(),
+              failure_reason: error?.message || 'Payment confirmation failed',
+              idempotency_key:
+                dto.idempotencyKey ?? existingPayment.idempotency_key ?? null,
+            })
+            .eq('id', existingPayment.id);
+        } else {
+          await sb.from('payments').insert({
+            order_id: resolvedId,
+            amount: dto.amount,
+            currency: 'KRW',
+            provider: PaymentProvider.TOSS,
+            provider_payment_key: dto.paymentKey,
+            status: PaymentStatus.FAILED,
+            payment_method: PaymentMethod.CARD,
+            failed_at: new Date().toISOString(),
+            failure_reason: error?.message || 'Payment confirmation failed',
+            idempotency_key: dto.idempotencyKey ?? null,
+          });
+        }
 
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
@@ -328,6 +389,8 @@ export class PaymentsService {
           paid_at: paidAt,
           failure_reason: null,
           metadata: providerResponse || {},
+          idempotency_key:
+            dto.idempotencyKey ?? existingPayment.idempotency_key ?? null,
         })
         .eq('id', existingPayment.id)
         .select()
@@ -359,11 +422,30 @@ export class PaymentsService {
           payment_method: PaymentMethod.CARD,
           paid_at: paidAt,
           metadata: providerResponse || {},
+          idempotency_key: dto.idempotencyKey ?? null,
         })
         .select()
         .single();
 
       if (insertError) {
+        if (insertError.code === '23505' && dto.idempotencyKey) {
+          const { data: idempotentPayment } = await sb
+            .from('payments')
+            .select('id, status, amount, paid_at, order_id')
+            .eq('idempotency_key', dto.idempotencyKey)
+            .maybeSingle();
+
+          if (idempotentPayment && idempotentPayment.status === PaymentStatus.SUCCESS) {
+            return {
+              paymentId: idempotentPayment.id,
+              orderId: idempotentPayment.order_id,
+              status: PaymentStatus.SUCCESS,
+              amount: idempotentPayment.amount ?? dto.amount,
+              paidAt: idempotentPayment.paid_at || new Date().toISOString(),
+            };
+          }
+        }
+
         this.logger.error('Failed to create payment record', insertError);
         throw new BusinessException(
           'Failed to create payment',

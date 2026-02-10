@@ -39,6 +39,11 @@ describe('Business Exceptions', () => {
     });
   });
 
+  it('BusinessException should default to bad request status', () => {
+    const ex = new BusinessException('msg', 'CODE');
+    expect(ex.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+  });
+
   it('ResourceNotFoundException should include resource and identifier', () => {
     const ex = new ResourceNotFoundException('Thing', 'id-1');
     expect(ex.getStatus()).toBe(HttpStatus.NOT_FOUND);
@@ -162,6 +167,14 @@ describe('Order/Product Exceptions', () => {
     expect(ex.getResponse()).toMatchObject({
       error: 'ORDER_UPDATE_NOT_ALLOWED',
       message: 'nope',
+    });
+  });
+
+  it('OrderUpdateNotAllowedException should use default reason', () => {
+    const ex = new OrderUpdateNotAllowedException();
+    expect(ex.getResponse()).toMatchObject({
+      error: 'ORDER_UPDATE_NOT_ALLOWED',
+      message: 'Order cannot be updated at this time',
     });
   });
 

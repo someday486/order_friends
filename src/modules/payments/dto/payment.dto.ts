@@ -67,6 +67,14 @@ export class ConfirmPaymentRequest {
   @IsString()
   orderId: string;
 
+  @ApiPropertyOptional({
+    description: '결제 idempotency 키 (재시도 방지용)',
+    example: 'payment-idem-20260210-001',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+
   @ApiProperty({
     description: 'Toss Payments 결제 키',
     example: 'tgen_payment_key_123456',

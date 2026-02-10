@@ -52,6 +52,10 @@ describe('ProductsService', () => {
     expect(service).toBeDefined();
   });
 
+  it('getPriceFromRow should handle null row', () => {
+    expect((service as any).getPriceFromRow(null)).toBe(0);
+  });
+
   describe('getProducts', () => {
     it('should return list of products', async () => {
       const mockProducts = [
@@ -109,6 +113,29 @@ describe('ProductsService', () => {
         service.getProducts('token', 'branch-123', true),
       ).rejects.toThrow(BusinessException);
     });
+
+    it('should use user client when isAdmin is false', async () => {
+      mockSupabaseClient.order.mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+      await service.getProducts('token', 'branch-123', false);
+
+      expect(mockSupabaseService.userClient).toHaveBeenCalledWith('token');
+    });
+
+    it('should map defaults when price fields are missing', async () => {
+      mockSupabaseClient.order.mockResolvedValueOnce({
+        data: [{ id: '1', name: 'P', is_hidden: undefined }],
+        error: null,
+      });
+
+      const result = await service.getProducts('token', 'branch-123', true);
+      expect(result[0].price).toBe(0);
+      expect(result[0].isActive).toBe(true);
+      expect(result[0].createdAt).toBe('');
+    });
   });
 
   describe('getProduct', () => {
@@ -159,6 +186,29 @@ describe('ProductsService', () => {
         BusinessException,
       );
     });
+
+    it('should map detail defaults when optional fields missing', async () => {
+      mockSupabaseClient.single.mockResolvedValue({
+        data: {
+          id: '123',
+          branch_id: 'branch-123',
+          name: 'Test Product',
+          category_id: null,
+          description: null,
+          base_price: 10000,
+          image_url: null,
+          is_hidden: null,
+          created_at: null,
+          updated_at: null,
+        },
+        error: null,
+      });
+
+      const result = await service.getProduct('token', '123', true);
+      expect(result.isActive).toBe(true);
+      expect(result.createdAt).toBe('');
+      expect(result.updatedAt).toBe('');
+    });
   });
 
   describe('searchProducts', () => {
@@ -190,6 +240,21 @@ describe('ProductsService', () => {
         service.searchProducts('token', 'branch-123', {} as any, true),
       ).rejects.toThrow(BusinessException);
     });
+
+    it('should handle missing count and defaults', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: [{ id: '1', name: 'P', base_price: 10, is_hidden: null, created_at: null }],
+        error: null,
+        count: null,
+      });
+
+      const result = await service.searchProducts('token', 'branch-123', {} as any, true);
+      expect(result.pagination.total).toBe(0);
+      expect(result.pagination.totalPages).toBe(0);
+      expect(result.pagination.hasNext).toBe(false);
+      expect(result.pagination.hasPrev).toBe(false);
+      expect(result.data[0].createdAt).toBe('');
+    });
   });
 
   describe('getCategories', () => {
@@ -216,6 +281,29 @@ describe('ProductsService', () => {
       await expect(service.getCategories('token', 'b1', true)).rejects.toThrow(
         '[products.getCategories]',
       );
+    });
+
+    it('should map category defaults', async () => {
+      mockSupabaseClient.order
+        .mockReturnValueOnce(mockSupabaseClient)
+        .mockResolvedValueOnce({
+          data: [
+            {
+              id: 'c1',
+              branch_id: 'b1',
+              name: 'Cat',
+              sort_order: null,
+              is_active: null,
+              created_at: null,
+            },
+          ],
+          error: null,
+        });
+
+      const result = await service.getCategories('token', 'b1', true);
+      expect(result[0].sortOrder).toBe(0);
+      expect(result[0].isActive).toBe(true);
+      expect(result[0].createdAt).toBe('');
     });
   });
 
@@ -304,6 +392,37 @@ describe('ProductsService', () => {
       await service.createProduct('token', createDto as any, true);
       expect(warnSpy).toHaveBeenCalled();
     });
+
+    it('should handle isActive default when missing', async () => {
+      const createDto = {
+        branchId: 'branch-123',
+        name: 'New Product',
+        categoryId: null,
+        description: null,
+        price: 10000,
+      };
+
+      mockSupabaseClient.single
+        .mockResolvedValueOnce({
+          data: { id: 'new-123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: 'new-123',
+            branch_id: 'branch-123',
+            name: 'New Product',
+            base_price: 10000,
+            is_hidden: false,
+            created_at: 't',
+            updated_at: 't',
+          },
+          error: null,
+        });
+
+      const result = await service.createProduct('token', createDto as any, true);
+      expect(result.id).toBe('new-123');
+    });
   });
 
   describe('updateProduct', () => {
@@ -379,6 +498,34 @@ describe('ProductsService', () => {
       await expect(
         service.updateProduct('token', '123', { name: 'X' }, true),
       ).rejects.toThrow(BusinessException);
+    });
+
+    it('should update isActive when provided', async () => {
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: { id: '123' },
+        error: null,
+      });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: {
+          id: '123',
+          branch_id: 'branch-123',
+          name: 'Updated Product',
+          base_price: 10000,
+          is_hidden: true,
+          created_at: 't',
+          updated_at: 't',
+        },
+        error: null,
+      });
+
+      const result = await service.updateProduct(
+        'token',
+        '123',
+        { isActive: false } as any,
+        true,
+      );
+
+      expect(result.isActive).toBe(false);
     });
   });
 

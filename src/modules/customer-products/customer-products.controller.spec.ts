@@ -198,4 +198,163 @@ describe('CustomerProductsController', () => {
   ])('should throw missing user for $name', async ({ call }) => {
     await expect(call()).rejects.toThrow('Missing user');
   });
+
+  it.each([
+    {
+      name: 'getProducts',
+      setup: () => mockService.getMyProducts.mockResolvedValueOnce([{ id: 'prod-1' }]),
+      call: () => controller.getProducts(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1'),
+      expectCall: () =>
+        expect(mockService.getMyProducts).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+    },
+    {
+      name: 'getCategories',
+      setup: () => mockService.getMyCategories.mockResolvedValueOnce([{ id: 'cat-1' }]),
+      call: () => controller.getCategories(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1'),
+      expectCall: () =>
+        expect(mockService.getMyCategories).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+    },
+    {
+      name: 'createCategory',
+      setup: () => mockService.createCategory.mockResolvedValueOnce({ id: 'cat-1' }),
+      call: () =>
+        controller.createCategory(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          { branchId: 'branch-1', name: 'Coffee', sortOrder: 1, isActive: true } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.createCategory).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          'Coffee',
+          1,
+          true,
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'reorderCategories',
+      setup: () => mockService.reorderCategories.mockResolvedValueOnce({ ok: true }),
+      call: () =>
+        controller.reorderCategories(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          { branchId: 'branch-1', items: [{ id: 'cat-1', sortOrder: 1 }] } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.reorderCategories).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          [{ id: 'cat-1', sortOrder: 1 }],
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'updateCategory',
+      setup: () => mockService.updateCategory.mockResolvedValueOnce({ id: 'cat-1' }),
+      call: () =>
+        controller.updateCategory(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          'cat-1',
+          { name: 'Tea' } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.updateCategory).toHaveBeenCalledWith(
+          'user-1',
+          'cat-1',
+          { name: 'Tea' },
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'deleteCategory',
+      setup: () => mockService.deleteCategory.mockResolvedValueOnce({ ok: true }),
+      call: () =>
+        controller.deleteCategory(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          'cat-1',
+        ),
+      expectCall: () =>
+        expect(mockService.deleteCategory).toHaveBeenCalledWith('user-1', 'cat-1', [], []),
+    },
+    {
+      name: 'reorderProducts',
+      setup: () => mockService.reorderProducts.mockResolvedValueOnce({ ok: true }),
+      call: () =>
+        controller.reorderProducts(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          { branchId: 'branch-1', items: [{ id: 'prod-1', sortOrder: 1 }] } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.reorderProducts).toHaveBeenCalledWith(
+          'user-1',
+          'branch-1',
+          [{ id: 'prod-1', sortOrder: 1 }],
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'getProduct',
+      setup: () => mockService.getMyProduct.mockResolvedValueOnce({ id: 'prod-1' }),
+      call: () =>
+        controller.getProduct(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          'prod-1',
+        ),
+      expectCall: () =>
+        expect(mockService.getMyProduct).toHaveBeenCalledWith('user-1', 'prod-1', [], []),
+    },
+    {
+      name: 'createProduct',
+      setup: () => mockService.createMyProduct.mockResolvedValueOnce({ id: 'prod-1' }),
+      call: () =>
+        controller.createProduct(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          { branchId: 'branch-1', name: 'Latte' } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.createMyProduct).toHaveBeenCalledWith(
+          'user-1',
+          { branchId: 'branch-1', name: 'Latte' },
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'updateProduct',
+      setup: () => mockService.updateMyProduct.mockResolvedValueOnce({ id: 'prod-1' }),
+      call: () =>
+        controller.updateProduct(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          'prod-1',
+          { name: 'Mocha' } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.updateMyProduct).toHaveBeenCalledWith(
+          'user-1',
+          'prod-1',
+          { name: 'Mocha' },
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'deleteProduct',
+      setup: () => mockService.deleteMyProduct.mockResolvedValueOnce({ ok: true }),
+      call: () =>
+        controller.deleteProduct(
+          makeReq({ brandMemberships: undefined, branchMemberships: undefined }),
+          'prod-1',
+        ),
+      expectCall: () =>
+        expect(mockService.deleteMyProduct).toHaveBeenCalledWith('user-1', 'prod-1', [], []),
+    },
+  ])('should default memberships for $name', async ({ setup, call, expectCall }) => {
+    setup();
+    await call();
+    expectCall();
+  });
 });

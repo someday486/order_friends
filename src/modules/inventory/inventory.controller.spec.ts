@@ -169,4 +169,53 @@ describe('InventoryController', () => {
       controller.adjustInventory(makeReq({ user: undefined }), 'prod-1', {} as any),
     ).rejects.toThrow('Missing user');
   });
+
+  it.each([
+    {
+      name: 'getInventoryList',
+      setup: () => mockService.getInventoryList.mockResolvedValueOnce([{ id: 'inv-1' }]),
+      call: () => controller.getInventoryList(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1'),
+      expectCall: () =>
+        expect(mockService.getInventoryList).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+    },
+    {
+      name: 'getLowStockAlerts',
+      setup: () => mockService.getLowStockAlerts.mockResolvedValueOnce([{ id: 'alert-1' }]),
+      call: () => controller.getLowStockAlerts(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1'),
+      expectCall: () =>
+        expect(mockService.getLowStockAlerts).toHaveBeenCalledWith('user-1', 'branch-1', [], []),
+    },
+    {
+      name: 'getInventoryLogs',
+      setup: () => mockService.getInventoryLogs.mockResolvedValueOnce([{ id: 'log-1' }]),
+      call: () => controller.getInventoryLogs(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'branch-1', 'prod-1'),
+      expectCall: () =>
+        expect(mockService.getInventoryLogs).toHaveBeenCalledWith('user-1', 'branch-1', 'prod-1', [], []),
+    },
+    {
+      name: 'getInventoryByProduct',
+      setup: () => mockService.getInventoryByProduct.mockResolvedValueOnce({ id: 'inv-1' }),
+      call: () => controller.getInventoryByProduct(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'prod-1'),
+      expectCall: () =>
+        expect(mockService.getInventoryByProduct).toHaveBeenCalledWith('user-1', 'prod-1', [], []),
+    },
+    {
+      name: 'updateInventory',
+      setup: () => mockService.updateInventory.mockResolvedValueOnce({ id: 'inv-1' }),
+      call: () => controller.updateInventory(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'prod-1', { qty: 10 } as any),
+      expectCall: () =>
+        expect(mockService.updateInventory).toHaveBeenCalledWith('user-1', 'prod-1', { qty: 10 }, [], []),
+    },
+    {
+      name: 'adjustInventory',
+      setup: () => mockService.adjustInventory.mockResolvedValueOnce({ id: 'inv-1' }),
+      call: () => controller.adjustInventory(makeReq({ brandMemberships: undefined, branchMemberships: undefined }), 'prod-1', { change: 2 } as any),
+      expectCall: () =>
+        expect(mockService.adjustInventory).toHaveBeenCalledWith('user-1', 'prod-1', { change: 2 }, [], []),
+    },
+  ])('should default memberships for $name', async ({ setup, call, expectCall }) => {
+    setup();
+    await call();
+    expectCall();
+  });
 });

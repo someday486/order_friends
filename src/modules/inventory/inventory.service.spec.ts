@@ -80,6 +80,14 @@ describe('InventoryService', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it('checkBranchAccess should throw when branch not found', async () => {
+    chains.branches.single.mockResolvedValueOnce({ data: null, error: { message: 'missing' } });
+
+    await expect(
+      (service as any).checkBranchAccess('b1', 'u1', [], []),
+    ).rejects.toThrow(NotFoundException);
+  });
+
   it('checkProductAccess should return branch membership', async () => {
     chains.products.single.mockResolvedValueOnce({
       data: { id: 'p1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
@@ -131,6 +139,12 @@ describe('InventoryService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  it('checkModificationPermission should reject non-admin roles', () => {
+    expect(() =>
+      (service as any).checkModificationPermission('STAFF', 'update inventory', 'u1'),
+    ).toThrow(ForbiddenException);
+  });
+
   it('createInventoryLog should swallow errors', async () => {
     chains.inventory_logs.insert.mockResolvedValueOnce({ error: { message: 'fail' } });
     await (service as any).createInventoryLog('p1', 'b1', 'ADJUST', 1, 0, 1, 'u1');
@@ -163,6 +177,47 @@ describe('InventoryService', () => {
 
     expect(result[0].is_low_stock).toBe(true);
     expect(result[0].category).toBe('C');
+  });
+
+  it('getInventoryList should return empty list when data is null', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_inventory.order.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getInventoryList('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('getInventoryList should map unknown product fields', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_inventory.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'i1',
+          product_id: 'p1',
+          branch_id: 'b1',
+          qty_available: 1,
+          qty_reserved: 0,
+          qty_sold: 0,
+          low_stock_threshold: 2,
+          created_at: 't',
+          updated_at: 't',
+          products: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getInventoryList('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+
+    expect(result[0].product_name).toBe('Unknown');
+    expect(result[0].category).toBeUndefined();
   });
 
   it('getInventoryList should throw on error', async () => {
@@ -326,6 +381,39 @@ describe('InventoryService', () => {
     expect(detailSpy).toHaveBeenCalled();
   });
 
+  it('updateInventory should update low stock threshold without logging', async () => {
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', name: 'P', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+    chains.product_inventory.single
+      .mockResolvedValueOnce({
+        data: { id: 'i1', product_id: 'p1', branch_id: 'b1', qty_available: 1, qty_reserved: 0, qty_sold: 0, low_stock_threshold: 2 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'i1', product_id: 'p1', branch_id: 'b1' },
+        error: null,
+      });
+
+    const logSpy = jest.spyOn(service as any, 'createInventoryLog').mockResolvedValueOnce(undefined);
+    const detailSpy = jest
+      .spyOn(service, 'getInventoryByProduct')
+      .mockResolvedValueOnce({ id: 'i1' } as any);
+
+    const result = await service.updateInventory(
+      'u1',
+      'p1',
+      { low_stock_threshold: 3 } as any,
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.id).toBe('i1');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(detailSpy).toHaveBeenCalled();
+  });
+
   it('adjustInventory should throw when qty would go negative', async () => {
     chains.products.single.mockResolvedValueOnce({
       data: { id: 'p1', name: 'P', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
@@ -339,6 +427,21 @@ describe('InventoryService', () => {
     await expect(
       service.adjustInventory('u1', 'p1', { qty_change: -2, transaction_type: 'ADJUST' } as any, [], [{ branch_id: 'b1', role: 'OWNER' }]),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('adjustInventory should throw when inventory missing', async () => {
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', name: 'P', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+    chains.product_inventory.single.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    await expect(
+      service.adjustInventory('u1', 'p1', { qty_change: 1, transaction_type: 'ADJUST' } as any, [], [{ branch_id: 'b1', role: 'OWNER' }]),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('adjustInventory should throw on update error', async () => {
@@ -412,6 +515,34 @@ describe('InventoryService', () => {
     expect(result[0].product_id).toBe('p1');
   });
 
+  it('getLowStockAlerts should return empty when data is null', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', name: 'B', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_inventory.order.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getLowStockAlerts('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('getLowStockAlerts should map unknown product names', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', name: 'B', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.product_inventory.order.mockResolvedValueOnce({
+      data: [
+        { product_id: 'p1', branch_id: 'b1', qty_available: 1, low_stock_threshold: 2, products: null },
+      ],
+      error: null,
+    });
+
+    const result = await service.getLowStockAlerts('u1', 'b1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
+    expect(result[0].product_name).toBe('Unknown');
+  });
+
   it('getLowStockAlerts should throw on error', async () => {
     chains.branches.single.mockResolvedValueOnce({
       data: { id: 'b1', name: 'B', brand_id: 'brand-1' },
@@ -443,6 +574,42 @@ describe('InventoryService', () => {
 
     const result = await service.getInventoryLogs('u1', 'b1', 'p1', [], [{ branch_id: 'b1', role: 'OWNER' }]);
     expect(result).toHaveLength(1);
+  });
+
+  it('getInventoryLogs should fetch by branch only with default memberships', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.inventory_logs.eq.mockResolvedValueOnce({ data: [{ id: 'l1' }], error: null });
+
+    const result = await service.getInventoryLogs(
+      'u1',
+      'b1',
+      undefined,
+      undefined,
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result).toHaveLength(1);
+  });
+
+  it('getInventoryLogs should fetch by product only and return empty on null data', async () => {
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+    chains.inventory_logs.eq.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getInventoryLogs(
+      'u1',
+      undefined,
+      'p1',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      undefined,
+    );
+
+    expect(result).toHaveLength(0);
   });
 
   it('getInventoryLogs should throw on error', async () => {

@@ -5,6 +5,7 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 describe('MembersService', () => {
   let service: MembersService;
   let mockSb: any;
+  let supabase: any;
 
   const makeSupabase = () => {
     mockSb = {
@@ -25,7 +26,7 @@ describe('MembersService', () => {
   };
 
   beforeEach(() => {
-    const supabase = makeSupabase();
+    supabase = makeSupabase();
     service = new MembersService(supabase as SupabaseService);
     jest.clearAllMocks();
   });
@@ -49,6 +50,22 @@ describe('MembersService', () => {
 
     expect(result[0].brandId).toBe('brand');
     expect(result[0].displayName).toBe('User');
+  });
+
+  it('getBrandMembers should return empty list when data is null', async () => {
+    mockSb.order.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.getBrandMembers('token', 'brand', true);
+
+    expect(result).toEqual([]);
+  });
+
+  it('getBrandMembers should use user client when isAdmin is false', async () => {
+    mockSb.order.mockResolvedValueOnce({ data: [], error: null });
+
+    await service.getBrandMembers('token', 'brand', false);
+
+    expect(supabase.userClient).toHaveBeenCalledWith('token');
   });
 
   it('getBrandMembers should throw on error', async () => {
@@ -129,6 +146,30 @@ describe('MembersService', () => {
     expect(result.role).toBe('OWNER');
   });
 
+  it('updateBrandMember should update status when provided', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({
+      data: {
+        brand_id: 'brand',
+        user_id: 'u1',
+        role: 'MEMBER',
+        status: 'INACTIVE',
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.updateBrandMember(
+      'token',
+      'brand',
+      'u1',
+      { status: 'INACTIVE' } as any,
+      true,
+    );
+
+    expect(result.status).toBe('INACTIVE');
+    expect(result.createdAt).toBe('');
+  });
+
   it('updateBrandMember should throw on update error', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
@@ -185,6 +226,35 @@ describe('MembersService', () => {
     expect(result[0].branchId).toBe('branch');
   });
 
+  it('getBranchMembers should map missing profile to null', async () => {
+    mockSb.order.mockResolvedValueOnce({
+      data: [
+        {
+          branch_id: 'branch',
+          user_id: 'u1',
+          role: 'STAFF',
+          status: 'ACTIVE',
+          created_at: null,
+          profiles: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranchMembers('token', 'branch', true);
+
+    expect(result[0].displayName).toBeNull();
+    expect(result[0].createdAt).toBe('');
+  });
+
+  it('getBranchMembers should use user client when isAdmin is false', async () => {
+    mockSb.order.mockResolvedValueOnce({ data: [], error: null });
+
+    await service.getBranchMembers('token', 'branch', false);
+
+    expect(supabase.userClient).toHaveBeenCalledWith('token');
+  });
+
   it('getBranchMembers should throw on error', async () => {
     mockSb.order.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
 
@@ -223,6 +293,28 @@ describe('MembersService', () => {
     expect(result.branchId).toBe('branch');
   });
 
+  it('addBranchMember should default role when missing', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        branch_id: 'branch',
+        user_id: 'u1',
+        role: 'STAFF',
+        status: 'ACTIVE',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    const result = await service.addBranchMember(
+      'token',
+      { branchId: 'branch', userId: 'u1' } as any,
+      true,
+    );
+
+    expect(result.role).toBe('STAFF');
+  });
+
   it('addBranchMember should throw on insert error', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
     mockSb.single.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
@@ -259,6 +351,30 @@ describe('MembersService', () => {
     );
 
     expect(result.branchId).toBe('branch');
+  });
+
+  it('updateBranchMember should update status when provided', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({
+      data: {
+        branch_id: 'branch',
+        user_id: 'u1',
+        role: 'STAFF',
+        status: 'INACTIVE',
+        created_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.updateBranchMember(
+      'token',
+      'branch',
+      'u1',
+      { status: 'INACTIVE' } as any,
+      true,
+    );
+
+    expect(result.status).toBe('INACTIVE');
+    expect(result.createdAt).toBe('');
   });
 
   it('updateBranchMember should throw on update error', async () => {

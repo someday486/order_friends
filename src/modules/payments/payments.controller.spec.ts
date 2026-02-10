@@ -104,6 +104,23 @@ describe('PaymentsController', () => {
         controller.handleTossWebhook({} as any, {} as any, {} as any),
       ).rejects.toThrow('boom');
     });
+
+    it('handleTossWebhook should pass undefined rawBody when missing', async () => {
+      mockService.handleTossWebhook.mockResolvedValue(undefined);
+
+      const result = await controller.handleTossWebhook(
+        { eventType: 'PAYMENT' } as any,
+        { 'x-signature': 'sig' },
+        undefined as any,
+      );
+
+      expect(result).toEqual({ success: true });
+      expect(mockService.handleTossWebhook).toHaveBeenCalledWith(
+        { eventType: 'PAYMENT' },
+        { 'x-signature': 'sig' },
+        undefined,
+      );
+    });
   });
 
   describe('PaymentsCustomerController', () => {

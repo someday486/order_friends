@@ -108,4 +108,31 @@ describe('SupabaseService', () => {
       'Supabase anon client is not initialized',
     );
   });
+
+  it('should allow user and anon clients when service role key is missing', () => {
+    const config = {
+      get: jest.fn((key: string) => {
+        const values: Record<string, string> = {
+          SUPABASE_URL: 'https://example.supabase.co',
+          SUPABASE_ANON_KEY: 'anon-key',
+        };
+        return values[key];
+      }),
+    } as unknown as ConfigService;
+
+    const userClient = { id: 'user' } as any;
+    const anonClient = { id: 'anon' } as any;
+
+    (createClient as jest.Mock)
+      .mockReturnValueOnce(userClient)
+      .mockReturnValueOnce(anonClient);
+
+    const service = new SupabaseService(config);
+
+    expect(() => service.adminClient()).toThrow(
+      'Supabase admin client is not initialized',
+    );
+    expect(service.userClient('token')).toBe(userClient);
+    expect(service.anonClient()).toBe(anonClient);
+  });
 });

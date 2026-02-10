@@ -7,6 +7,7 @@ import { useState } from "react";
 
 const menuItems = [
   { href: "/customer", label: "대시보드", icon: "📊" },
+  { href: "/customer/analytics/brand", label: "브랜드 분석", icon: "📈" },
   { href: "/customer/brands", label: "브랜드 관리", icon: "🏢" },
   { href: "/customer/branches", label: "매장 관리", icon: "🏪" },
   { href: "/customer/products", label: "상품 관리", icon: "📦" },

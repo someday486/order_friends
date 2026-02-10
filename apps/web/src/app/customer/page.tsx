@@ -231,6 +231,12 @@ export default function CustomerDashboardPage() {
             description="주문 처리 및 조회"
             icon="📋"
           />
+          <QuickLinkCard
+            href="/customer/analytics/brand"
+            title="브랜드 분석"
+            description="지점 통합 리포트"
+            icon="📈"
+          />
         </div>
       </div>
     </div>

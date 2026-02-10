@@ -2,6 +2,7 @@ export declare class AnalyticsQueryDto {
     branchId: string;
     startDate?: string;
     endDate?: string;
+    compare?: boolean;
 }
 export declare class RevenueByDayDto {
     date: string;
@@ -63,4 +64,24 @@ export declare class CustomerAnalyticsResponse {
     clv: number;
     repeatCustomerRate: number;
     avgOrdersPerCustomer: number;
+}
+export declare class BrandAnalyticsQueryDto {
+    brandId: string;
+    startDate?: string;
+    endDate?: string;
+    compare?: boolean;
+}
+export declare class PeriodComparisonDto<T> {
+    current: T;
+    previous?: T;
+    changes?: Record<string, number>;
+}
+export declare class BranchBreakdownDto {
+    branchId: string;
+    branchName: string;
+    revenue: number;
+    orderCount: number;
+}
+export declare class BrandSalesAnalyticsResponse extends SalesAnalyticsResponse {
+    byBranch: BranchBreakdownDto[];
 }

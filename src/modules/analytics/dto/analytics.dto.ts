@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsDateString, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 /**
  * Query parameters for analytics endpoints
@@ -24,6 +25,14 @@ export class AnalyticsQueryDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @ApiPropertyOptional({
+    description: '이전 기간 비교 활성화',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  compare?: boolean;
 }
 
 /**
@@ -208,4 +217,86 @@ export class CustomerAnalyticsResponse {
 
   @ApiProperty({ description: '평균 고객당 주문 수', example: 2.8 })
   avgOrdersPerCustomer: number;
+}
+
+// ============================================================
+// Brand-level analytics DTOs
+// ============================================================
+
+/**
+ * Query parameters for brand-level analytics endpoints
+ */
+export class BrandAnalyticsQueryDto {
+  @ApiProperty({ description: '브랜드 ID', required: true })
+  @IsUUID()
+  brandId: string;
+
+  @ApiPropertyOptional({
+    description: '시작 날짜 (ISO 8601)',
+    example: '2026-01-01',
+  })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: '종료 날짜 (ISO 8601)',
+    example: '2026-01-31',
+  })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiPropertyOptional({
+    description: '이전 기간 비교 활성화',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  compare?: boolean;
+}
+
+/**
+ * Period comparison wrapper
+ */
+export class PeriodComparisonDto<T> {
+  @ApiProperty({ description: '현재 기간 데이터' })
+  current: T;
+
+  @ApiPropertyOptional({ description: '이전 기간 데이터' })
+  previous?: T;
+
+  @ApiPropertyOptional({
+    description: '주요 지표별 변화율 (%)',
+    example: { totalRevenue: 12.5, orderCount: -3.2 },
+  })
+  changes?: Record<string, number>;
+}
+
+/**
+ * Branch breakdown for brand-level analytics
+ */
+export class BranchBreakdownDto {
+  @ApiProperty({ description: '지점 ID' })
+  branchId: string;
+
+  @ApiProperty({ description: '지점명' })
+  branchName: string;
+
+  @ApiProperty({ description: '매출액' })
+  revenue: number;
+
+  @ApiProperty({ description: '주문 수' })
+  orderCount: number;
+}
+
+/**
+ * Brand-level sales analytics response
+ */
+export class BrandSalesAnalyticsResponse extends SalesAnalyticsResponse {
+  @ApiProperty({
+    description: '지점별 매출 분포',
+    type: [BranchBreakdownDto],
+  })
+  byBranch: BranchBreakdownDto[];
 }

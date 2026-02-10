@@ -93,7 +93,6 @@ export default function StoresPage() {
   };
 
   useEffect(() => {
-useEffect(() => {
     if (!ready) return;
     if (brandId) fetchBranches(brandId);
   }, [ready, brandId]);

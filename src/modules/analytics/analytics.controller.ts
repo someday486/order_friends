@@ -5,6 +5,7 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +24,8 @@ import {
   OrderAnalyticsResponse,
   CustomerAnalyticsResponse,
   AnalyticsQueryDto,
+  PeriodComparisonDto,
+  BrandSalesAnalyticsResponse,
 } from './dto/analytics.dto';
 
 @ApiTags('analytics')
@@ -239,6 +242,219 @@ export class AnalyticsController {
       branchId,
       startDate,
       endDate,
+    );
+  }
+
+  // ============================================================
+  // Brand-level analytics endpoints
+  // ============================================================
+
+  private validateBrandAccess(req: AuthRequest, brandId: string): void {
+    const memberships = req.brandMemberships || [];
+    const hasAccess = memberships.some((m: any) => m.brand_id === brandId);
+    if (!hasAccess) {
+      throw new ForbiddenException('No access to this brand');
+    }
+  }
+
+  @Get('brand/sales')
+  @ApiOperation({
+    summary: '브랜드 전체 매출 분석 조회',
+    description:
+      '브랜드 소속 전체 지점의 매출을 집계합니다. 지점별 비교 데이터를 포함합니다.',
+  })
+  @ApiQuery({
+    name: 'brandId',
+    description: '브랜드 ID',
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'compare',
+    description: '이전 기간 비교',
+    required: false,
+    type: Boolean,
+  })
+  @ApiResponse({ status: 200, description: '브랜드 매출 분석 조회 성공' })
+  async getBrandSalesAnalytics(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('compare') compare?: string,
+  ): Promise<PeriodComparisonDto<BrandSalesAnalyticsResponse>> {
+    if (!req.accessToken) throw new BadRequestException('Missing access token');
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+
+    return this.analyticsService.getBrandSalesAnalytics(
+      req.accessToken,
+      brandId,
+      startDate,
+      endDate,
+      compare === 'true',
+    );
+  }
+
+  @Get('brand/products')
+  @ApiOperation({
+    summary: '브랜드 전체 상품 분석 조회',
+    description: '브랜드 소속 전체 지점의 상품별 판매 실적을 집계합니다.',
+  })
+  @ApiQuery({
+    name: 'brandId',
+    description: '브랜드 ID',
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'compare',
+    description: '이전 기간 비교',
+    required: false,
+    type: Boolean,
+  })
+  @ApiResponse({ status: 200, description: '브랜드 상품 분석 조회 성공' })
+  async getBrandProductAnalytics(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('compare') compare?: string,
+  ): Promise<PeriodComparisonDto<ProductAnalyticsResponse>> {
+    if (!req.accessToken) throw new BadRequestException('Missing access token');
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+
+    return this.analyticsService.getBrandProductAnalytics(
+      req.accessToken,
+      brandId,
+      startDate,
+      endDate,
+      compare === 'true',
+    );
+  }
+
+  @Get('brand/orders')
+  @ApiOperation({
+    summary: '브랜드 전체 주문 통계 조회',
+    description: '브랜드 소속 전체 지점의 주문 상태 분포, 추이를 집계합니다.',
+  })
+  @ApiQuery({
+    name: 'brandId',
+    description: '브랜드 ID',
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'compare',
+    description: '이전 기간 비교',
+    required: false,
+    type: Boolean,
+  })
+  @ApiResponse({ status: 200, description: '브랜드 주문 통계 조회 성공' })
+  async getBrandOrderAnalytics(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('compare') compare?: string,
+  ): Promise<PeriodComparisonDto<OrderAnalyticsResponse>> {
+    if (!req.accessToken) throw new BadRequestException('Missing access token');
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+
+    return this.analyticsService.getBrandOrderAnalytics(
+      req.accessToken,
+      brandId,
+      startDate,
+      endDate,
+      compare === 'true',
+    );
+  }
+
+  @Get('brand/customers')
+  @ApiOperation({
+    summary: '브랜드 전체 고객 분석 조회',
+    description: '브랜드 소속 전체 지점의 고객 분석을 집계합니다.',
+  })
+  @ApiQuery({
+    name: 'brandId',
+    description: '브랜드 ID',
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'compare',
+    description: '이전 기간 비교',
+    required: false,
+    type: Boolean,
+  })
+  @ApiResponse({ status: 200, description: '브랜드 고객 분석 조회 성공' })
+  async getBrandCustomerAnalytics(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('compare') compare?: string,
+  ): Promise<PeriodComparisonDto<CustomerAnalyticsResponse>> {
+    if (!req.accessToken) throw new BadRequestException('Missing access token');
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+
+    return this.analyticsService.getBrandCustomerAnalytics(
+      req.accessToken,
+      brandId,
+      startDate,
+      endDate,
+      compare === 'true',
     );
   }
 }

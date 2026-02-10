@@ -134,22 +134,6 @@ export default function StoreDetailPage() {
       return;
     }
 
-const handleSave = async () => {
-    if (!branch) return;
-
-    if (!name.trim()) {
-      alert("???? ??????");
-      return;
-    }
-    if (!slug.trim()) {
-      alert("?? URL? ??????");
-      return;
-    }
-    if (!isValidSlug(slug.trim())) {
-      alert("?? URL? ??/??/???(-)? ?????.");
-      return;
-    }
-
     try {
       setSaving(true);
 
@@ -170,11 +154,10 @@ const handleSave = async () => {
   };
 
   const handleDelete = async () => {
-    iconst handleDelete = async () => {
     if (!branch) return;
 
     if (
-      !confirm(`"${branch.name}" ??? ?????????\n?? ??? ?? ???? ?? ?????.`)
+      !confirm(`"${branch.name}" 가게를 삭제하시겠습니까?\n관련 데이터가 모두 삭제되며 복구할 수 없습니다.`)
     ) {
       return;
     }

@@ -60,6 +60,45 @@ let AnalyticsController = class AnalyticsController {
         }
         return this.analyticsService.getCustomerAnalytics(req.accessToken, branchId, startDate, endDate);
     }
+    validateBrandAccess(req, brandId) {
+        const memberships = req.brandMemberships || [];
+        const hasAccess = memberships.some((m) => m.brand_id === brandId);
+        if (!hasAccess) {
+            throw new common_1.ForbiddenException('No access to this brand');
+        }
+    }
+    async getBrandSalesAnalytics(req, brandId, startDate, endDate, compare) {
+        if (!req.accessToken)
+            throw new common_1.BadRequestException('Missing access token');
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        return this.analyticsService.getBrandSalesAnalytics(req.accessToken, brandId, startDate, endDate, compare === 'true');
+    }
+    async getBrandProductAnalytics(req, brandId, startDate, endDate, compare) {
+        if (!req.accessToken)
+            throw new common_1.BadRequestException('Missing access token');
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        return this.analyticsService.getBrandProductAnalytics(req.accessToken, brandId, startDate, endDate, compare === 'true');
+    }
+    async getBrandOrderAnalytics(req, brandId, startDate, endDate, compare) {
+        if (!req.accessToken)
+            throw new common_1.BadRequestException('Missing access token');
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        return this.analyticsService.getBrandOrderAnalytics(req.accessToken, brandId, startDate, endDate, compare === 'true');
+    }
+    async getBrandCustomerAnalytics(req, brandId, startDate, endDate, compare) {
+        if (!req.accessToken)
+            throw new common_1.BadRequestException('Missing access token');
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        return this.analyticsService.getBrandCustomerAnalytics(req.accessToken, brandId, startDate, endDate, compare === 'true');
+    }
 };
 exports.AnalyticsController = AnalyticsController;
 __decorate([
@@ -222,6 +261,166 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getCustomerAnalytics", null);
+__decorate([
+    (0, common_1.Get)('brand/sales'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 전체 매출 분석 조회',
+        description: '브랜드 소속 전체 지점의 매출을 집계합니다. 지점별 비교 데이터를 포함합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'brandId',
+        description: '브랜드 ID',
+        required: true,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'compare',
+        description: '이전 기간 비교',
+        required: false,
+        type: Boolean,
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '브랜드 매출 분석 조회 성공' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('compare')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandSalesAnalytics", null);
+__decorate([
+    (0, common_1.Get)('brand/products'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 전체 상품 분석 조회',
+        description: '브랜드 소속 전체 지점의 상품별 판매 실적을 집계합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'brandId',
+        description: '브랜드 ID',
+        required: true,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'compare',
+        description: '이전 기간 비교',
+        required: false,
+        type: Boolean,
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '브랜드 상품 분석 조회 성공' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('compare')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandProductAnalytics", null);
+__decorate([
+    (0, common_1.Get)('brand/orders'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 전체 주문 통계 조회',
+        description: '브랜드 소속 전체 지점의 주문 상태 분포, 추이를 집계합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'brandId',
+        description: '브랜드 ID',
+        required: true,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'compare',
+        description: '이전 기간 비교',
+        required: false,
+        type: Boolean,
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '브랜드 주문 통계 조회 성공' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('compare')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandOrderAnalytics", null);
+__decorate([
+    (0, common_1.Get)('brand/customers'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 전체 고객 분석 조회',
+        description: '브랜드 소속 전체 지점의 고객 분석을 집계합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'brandId',
+        description: '브랜드 ID',
+        required: true,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+        type: String,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'compare',
+        description: '이전 기간 비교',
+        required: false,
+        type: Boolean,
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '브랜드 고객 분석 조회 성공' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('compare')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandCustomerAnalytics", null);
 exports.AnalyticsController = AnalyticsController = __decorate([
     (0, swagger_1.ApiTags)('analytics'),
     (0, swagger_1.ApiBearerAuth)(),

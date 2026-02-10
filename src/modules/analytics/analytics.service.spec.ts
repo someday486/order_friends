@@ -147,13 +147,13 @@ describe('AnalyticsService', () => {
           product_id: 'p1',
           product_name_snapshot: 'P1',
           qty: 2,
-          unit_price: 10,
+          unit_price_snapshot: 10,
         },
         {
           product_id: 'p2',
           product_name_snapshot: 'P2',
           qty: 1,
-          unit_price: 5,
+          unit_price_snapshot: 5,
         },
       ],
       error: null,
@@ -197,7 +197,7 @@ describe('AnalyticsService', () => {
           product_id: null,
           product_name_snapshot: null,
           qty: 0,
-          unit_price: 0,
+          unit_price_snapshot: 0,
         },
       ],
       error: null,
@@ -505,6 +505,136 @@ describe('AnalyticsService', () => {
 
     await expect(
       service.getCustomerAnalytics('token', 'b1'),
+    ).rejects.toBeInstanceOf(BusinessException);
+  });
+
+  it('getPreviousPeriod should mirror current duration', () => {
+    const current = (service as any).getDateRange('2024-01-10', '2024-01-20');
+    const previous = (service as any).getPreviousPeriod(
+      '2024-01-10',
+      '2024-01-20',
+    );
+    const currentDuration =
+      new Date(current.end).getTime() - new Date(current.start).getTime();
+    const previousDuration =
+      new Date(previous.end).getTime() - new Date(previous.start).getTime();
+    const oneDayMs = 1000 * 60 * 60 * 24;
+
+    expect(Math.abs(previousDuration - currentDuration)).toBeLessThan(oneDayMs);
+    expect(new Date(previous.start).getTime()).toBeLessThan(
+      new Date(previous.end).getTime(),
+    );
+  });
+
+  it('calcChange should handle zero baseline', () => {
+    const calcChange = (service as any).calcChange.bind(service);
+    expect(calcChange(10, 0)).toBe(100);
+    expect(calcChange(0, 0)).toBe(0);
+    expect(calcChange(50, 100)).toBe(-50);
+  });
+
+  it('getBrandSalesAnalytics should aggregate across branches with comparison', async () => {
+    const ordersChain = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      gte: jest.fn().mockReturnThis(),
+      lte: jest.fn().mockReturnThis(),
+      in: jest
+        .fn()
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_amount: 100,
+              created_at: '2024-01-10T00:00:00Z',
+              branch_id: 'br1',
+            },
+            {
+              total_amount: 50,
+              created_at: '2024-01-11T00:00:00Z',
+              branch_id: 'br2',
+            },
+            {
+              total_amount: 25,
+              created_at: '2024-01-11T00:00:00Z',
+              branch_id: 'br1',
+            },
+          ],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              total_amount: 100,
+              created_at: '2024-01-01T00:00:00Z',
+              branch_id: 'br1',
+            },
+            {
+              total_amount: 50,
+              created_at: '2024-01-02T00:00:00Z',
+              branch_id: 'br2',
+            },
+          ],
+          error: null,
+        }),
+    };
+
+    const branchesChain = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockResolvedValue({
+        data: [
+          { id: 'br1', name: 'Branch 1' },
+          { id: 'br2', name: 'Branch 2' },
+        ],
+        error: null,
+      }),
+    };
+
+    const brandSb = {
+      from: jest.fn((table: string) => {
+        if (table === 'branches') return branchesChain;
+        return ordersChain;
+      }),
+    };
+    const supabase = { adminClient: jest.fn(() => brandSb) };
+    service = new AnalyticsService(supabase as SupabaseService);
+
+    const result = await service.getBrandSalesAnalytics(
+      'token',
+      'brand-1',
+      '2024-01-10',
+      '2024-01-20',
+      true,
+    );
+
+    expect(result.current.totalRevenue).toBe(175);
+    expect(result.current.orderCount).toBe(3);
+    expect(result.current.byBranch).toHaveLength(2);
+    expect(result.current.byBranch[0].branchName).toBe('Branch 1');
+    expect(result.changes?.totalRevenue).toBeCloseTo(16.7, 1);
+    expect(result.changes?.orderCount).toBeCloseTo(50, 1);
+    expect(result.changes?.avgOrderValue).toBeCloseTo(-22.7, 1);
+  });
+
+  it('getBrandSalesAnalytics should throw on orders query error', async () => {
+    const ordersChain = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      gte: jest.fn().mockReturnThis(),
+      lte: jest.fn().mockReturnThis(),
+      in: jest.fn().mockResolvedValueOnce({
+        data: null,
+        error: { message: 'permission denied' },
+      }),
+    };
+
+    const brandSb = {
+      from: jest.fn(() => ordersChain),
+    };
+    const supabase = { adminClient: jest.fn(() => brandSb) };
+    service = new AnalyticsService(supabase as SupabaseService);
+
+    await expect(
+      service.getBrandSalesAnalytics('token', 'brand-1'),
     ).rejects.toBeInstanceOf(BusinessException);
   });
 });

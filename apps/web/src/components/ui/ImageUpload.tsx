@@ -41,11 +41,11 @@ export function ImageUpload({
   const handleUpload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
-        setError("?��?지 ?�일�??�로??가?�합?�다");
+        setError("이미지 파일만 업로드 가능합니다");
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setError("?�일 ?�기??5MB ?�하�?가?�합?�다");
+        setError("파일 크기는 5MB 이하만 가능합니다");
         return;
       }
 
@@ -63,7 +63,7 @@ export function ImageUpload({
         );
         onChange(data.url);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "?�로??�??�류 발생");
+        setError(e instanceof Error ? e.message : "업로드 오류 발생");
       } finally {
         setUploading(false);
       }
@@ -110,7 +110,7 @@ export function ImageUpload({
             type="button"
             onClick={handleRemove}
             className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 text-white text-xs font-bold flex items-center justify-center cursor-pointer border-none hover:bg-black/90 transition-colors"
-            title="?��?지 ??��"
+            title="이미지 삭제"
           >
             X
           </button>
@@ -135,15 +135,15 @@ export function ImageUpload({
           `}
         >
           {uploading ? (
-            <span className="text-sm text-text-secondary">?�로??�?..</span>
+            <span className="text-sm text-text-secondary">업로드 중...</span>
           ) : (
             <>
               <span className="text-[28px] mb-2">+</span>
               <span className="text-sm text-text-secondary">
-                ?�릭 ?�는 ?�래그하???��?지 ?�로??
+                클릭 또는 드래그하여 이미지 업로드
               </span>
               <span className="text-2xs text-text-tertiary mt-1">
-                JPG, PNG, WebP, GIF (최�? 5MB)
+                JPG, PNG, WebP, GIF (최대 5MB)
               </span>
             </>
           )}

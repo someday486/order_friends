@@ -1,83 +1,64 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiClient } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
+import LineChart from "@/components/analytics/LineChart";
+import BarChart from "@/components/analytics/BarChart";
+import PieChart from "@/components/analytics/PieChart";
+import KpiCard from "@/components/analytics/KpiCard";
+import {
+  CustomerAnalytics,
+  MaybePeriodComparison,
+  OrderAnalytics,
+  PeriodComparison,
+  ProductAnalytics,
+  SalesAnalytics,
+} from "@/types/analytics";
 
-interface RevenueByDay {
-  date: string;
-  revenue: number;
-  orderCount: number;
-}
+const formatCurrency = (value: number | string) => {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numericValue)) {
+    return String(value);
+  }
+  return `₩${numericValue.toLocaleString()}`;
+};
 
-interface SalesAnalytics {
-  totalRevenue: number;
-  orderCount: number;
-  avgOrderValue: number;
-  revenueByDay: RevenueByDay[];
-}
+const formatPercent = (value: number | string) => {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numericValue)) {
+    return String(value);
+  }
+  return `${numericValue.toFixed(1)}%`;
+};
 
-interface TopProduct {
-  productId: string;
-  productName: string;
-  soldQuantity: number;
-  totalRevenue: number;
-}
+const formatDecimal = (value: number | string) => {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numericValue)) {
+    return String(value);
+  }
+  return numericValue.toFixed(1);
+};
 
-interface SalesByProduct {
-  productId: string;
-  productName: string;
-  quantity: number;
-  revenue: number;
-  revenuePercentage: number;
-}
+const isPeriodComparison = <T,>(
+  value: MaybePeriodComparison<T>
+): value is PeriodComparison<T> => {
+  return typeof value === "object" && value !== null && "current" in value;
+};
 
-interface ProductAnalytics {
-  topProducts: TopProduct[];
-  salesByProduct: SalesByProduct[];
-  inventoryTurnover: {
-    averageTurnoverRate: number;
-    periodDays: number;
-  };
-}
-
-interface OrderStatusDistribution {
-  status: string;
-  count: number;
-  percentage: number;
-}
-
-interface OrdersByDay {
-  date: string;
-  orderCount: number;
-  completedCount: number;
-  cancelledCount: number;
-}
-
-interface PeakHours {
-  hour: number;
-  orderCount: number;
-}
-
-interface OrderAnalytics {
-  statusDistribution: OrderStatusDistribution[];
-  ordersByDay: OrdersByDay[];
-  peakHours: PeakHours[];
-}
-
-interface CustomerAnalytics {
-  totalCustomers: number;
-  newCustomers: number;
-  returningCustomers: number;
-  clv: number;
-  repeatCustomerRate: number;
-  avgOrdersPerCustomer: number;
-}
+const normalizeComparison = <T,>(
+  value: MaybePeriodComparison<T>
+): PeriodComparison<T> => {
+  if (isPeriodComparison(value)) {
+    return value;
+  }
+  return { current: value as T };
+};
 
 export default function AnalyticsPage() {
   return (
-    <Suspense fallback={<div className="p-6"><p>Loading...</p></div>}>
+    <Suspense fallback={<div className="p-6"><p>로딩 중...</p></div>}>
       <AnalyticsContent />
     </Suspense>
   );
@@ -98,13 +79,12 @@ function AnalyticsContent() {
   const [endDate, setEndDate] = useState(() => {
     return new Date().toISOString().split("T")[0];
   });
+  const [compareEnabled, setCompareEnabled] = useState(false);
 
-  const [salesData, setSalesData] = useState<SalesAnalytics | null>(null);
-  const [productData, setProductData] = useState<ProductAnalytics | null>(null);
-  const [orderData, setOrderData] = useState<OrderAnalytics | null>(null);
-  const [customerData, setCustomerData] = useState<CustomerAnalytics | null>(
-    null
-  );
+  const [salesData, setSalesData] = useState<PeriodComparison<SalesAnalytics> | null>(null);
+  const [productData, setProductData] = useState<PeriodComparison<ProductAnalytics> | null>(null);
+  const [orderData, setOrderData] = useState<PeriodComparison<OrderAnalytics> | null>(null);
+  const [customerData, setCustomerData] = useState<PeriodComparison<CustomerAnalytics> | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,31 +109,43 @@ function AnalyticsContent() {
           endDate,
         });
 
-                const [sales, products, orders, customers] = await Promise.all([
-          apiClient.get(`/customer/analytics/sales?${params}`),
-          apiClient.get(`/customer/analytics/products?${params}`),
-          apiClient.get(`/customer/analytics/orders?${params}`),
-          apiClient.get(`/customer/analytics/customers?${params}`),
+        if (compareEnabled) {
+          params.set("compare", "true");
+        }
+
+        const [sales, products, orders, customers] = await Promise.all([
+          apiClient.get<MaybePeriodComparison<SalesAnalytics>>(
+            `/customer/analytics/sales?${params}`
+          ),
+          apiClient.get<MaybePeriodComparison<ProductAnalytics>>(
+            `/customer/analytics/products?${params}`
+          ),
+          apiClient.get<MaybePeriodComparison<OrderAnalytics>>(
+            `/customer/analytics/orders?${params}`
+          ),
+          apiClient.get<MaybePeriodComparison<CustomerAnalytics>>(
+            `/customer/analytics/customers?${params}`
+          ),
         ]);
 
-        setSalesData(sales);
-        setProductData(products);
-        setOrderData(orders);
-        setCustomerData(customers);
+        setSalesData(normalizeComparison(sales));
+        setProductData(normalizeComparison(products));
+        setOrderData(normalizeComparison(orders));
+        setCustomerData(normalizeComparison(customers));
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch analytics");
+        setError(err instanceof Error ? err.message : "분석 데이터를 불러오지 못했습니다");
       } finally {
         setLoading(false);
       }
     };
 
     fetchAnalytics();
-  }, [branchId, session, startDate, endDate]);
+  }, [branchId, session, startDate, endDate, compareEnabled]);
 
   if (status === "loading") {
     return (
       <div className="p-6">
-        <p className="text-text-secondary">Loading...</p>
+        <p className="text-text-secondary">로딩 중...</p>
       </div>
     );
   }
@@ -161,21 +153,36 @@ function AnalyticsContent() {
   if (!branchId) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4 text-foreground">Analytics</h1>
+        <h1 className="text-2xl font-bold mb-4 text-foreground">분석</h1>
         <p className="text-danger-500">
-          Please select a branch from the URL (e.g., ?branchId=xxx)
+          URL에서 지점을 선택해주세요 (예: ?branchId=xxx)
         </p>
       </div>
     );
   }
 
+  const statusLabelMap: Record<string, string> = {
+    CREATED: "생성",
+    CONFIRMED: "확정",
+    PREPARING: "준비중",
+    READY: "준비완료",
+    COMPLETED: "완료",
+    CANCELLED: "취소",
+    REFUNDED: "환불",
+  };
+
+  const salesCurrent = salesData?.current;
+  const productCurrent = productData?.current;
+  const orderCurrent = orderData?.current;
+  const customerCurrent = customerData?.current;
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-foreground">Analytics Dashboard</h1>
-        <div className="flex gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <h1 className="text-2xl font-bold text-foreground">분석 대시보드</h1>
+        <div className="flex flex-wrap gap-4 items-end">
           <div>
-            <label className="block text-sm mb-1 text-text-secondary">Start Date</label>
+            <label className="block text-sm mb-1 text-text-secondary">시작일</label>
             <input
               type="date"
               value={startDate}
@@ -184,7 +191,7 @@ function AnalyticsContent() {
             />
           </div>
           <div>
-            <label className="block text-sm mb-1 text-text-secondary">End Date</label>
+            <label className="block text-sm mb-1 text-text-secondary">종료일</label>
             <input
               type="date"
               value={endDate}
@@ -192,198 +199,183 @@ function AnalyticsContent() {
               className="input-field"
             />
           </div>
+          <label className="flex items-center gap-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-primary-500"
+              checked={compareEnabled}
+              onChange={(e) => setCompareEnabled(e.target.checked)}
+            />
+            이전 기간 비교
+          </label>
         </div>
       </div>
 
-      {loading && <p className="text-text-secondary">Loading analytics data...</p>}
-      {error && <p className="text-danger-500">Error: {error}</p>}
+      {loading && <p className="text-text-secondary">분석 데이터를 불러오는 중...</p>}
+      {error && <p className="text-danger-500">오류: {error}</p>}
 
       {!loading && !error && (
         <>
-          {/* Sales Analytics */}
-          {salesData && (
-            <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-foreground">Sales Analytics</h2>
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-bg-tertiary border-l-4 border-primary-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Total Revenue</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    ₩{salesData.totalRevenue.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-success-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Order Count</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {salesData.orderCount.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-secondary-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Avg Order Value</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    ₩{salesData.avgOrderValue.toLocaleString()}
-                  </p>
-                </div>
+          {/* 매출 분석 */}
+          {salesCurrent && (
+            <div className="card p-6 space-y-6">
+              <h2 className="text-xl font-semibold text-foreground">매출 분석</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <KpiCard
+                  title="총 매출"
+                  value={salesCurrent.totalRevenue}
+                  change={compareEnabled ? salesData?.changes?.totalRevenue : undefined}
+                  formatter={formatCurrency}
+                />
+                <KpiCard
+                  title="주문 수"
+                  value={salesCurrent.orderCount}
+                  change={compareEnabled ? salesData?.changes?.orderCount : undefined}
+                />
+                <KpiCard
+                  title="평균 주문 금액"
+                  value={salesCurrent.avgOrderValue}
+                  change={compareEnabled ? salesData?.changes?.avgOrderValue : undefined}
+                  formatter={formatCurrency}
+                />
               </div>
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">Revenue by Day</h3>
-                <div className="max-h-64 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-bg-tertiary sticky top-0">
-                      <tr>
-                        <th className="text-left p-2 text-text-secondary">Date</th>
-                        <th className="text-right p-2 text-text-secondary">Revenue</th>
-                        <th className="text-right p-2 text-text-secondary">Orders</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {salesData.revenueByDay.map((day) => (
-                        <tr key={day.date} className="border-t border-border">
-                          <td className="p-2 text-foreground">{day.date}</td>
-                          <td className="text-right p-2 text-foreground">
-                            ₩{day.revenue.toLocaleString()}
-                          </td>
-                          <td className="text-right p-2 text-foreground">{day.orderCount}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <h3 className="font-semibold mb-2 text-foreground">일별 매출</h3>
+                {salesCurrent.revenueByDay.length > 0 ? (
+                  <LineChart
+                    data={salesCurrent.revenueByDay}
+                    xKey="date"
+                    lines={[
+                      { dataKey: "revenue", name: "매출", color: "#2563eb" },
+                      { dataKey: "orderCount", name: "주문 수", color: "#22c55e" },
+                    ]}
+                    tooltipFormatter={(value, name) =>
+                      name === "매출" ? formatCurrency(value) : value.toLocaleString()
+                    }
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 상품 분석 */}
+          {productCurrent && (
+            <div className="card p-6 space-y-6">
+              <h2 className="text-xl font-semibold text-foreground">상품 분석</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+                <div>
+                  <h3 className="font-semibold mb-2 text-foreground">상위 10개 상품</h3>
+                  {productCurrent.topProducts.length > 0 ? (
+                    <BarChart
+                      data={productCurrent.topProducts.map((product) => ({
+                        name: product.productName,
+                        revenue: product.totalRevenue,
+                      }))}
+                      xKey="name"
+                      valueKey="revenue"
+                      layout="vertical"
+                      valueFormatter={(value) => formatCurrency(value)}
+                    />
+                  ) : (
+                    <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <KpiCard
+                    title="평균 회전율"
+                    value={`${productCurrent.inventoryTurnover.averageTurnoverRate.toFixed(2)}배`}
+                  />
+                  <KpiCard
+                    title="기간"
+                    value={`${productCurrent.inventoryTurnover.periodDays}일`}
+                  />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Product Analytics */}
-          {productData && (
-            <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-foreground">Product Analytics</h2>
-              <div className="grid grid-cols-2 gap-6">
+          {/* 주문 분석 */}
+          {orderCurrent && (
+            <div className="card p-6 space-y-6">
+              <h2 className="text-xl font-semibold text-foreground">주문 분석</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Top 10 Products</h3>
-                  <div className="space-y-2">
-                    {productData.topProducts.map((product, idx) => (
-                      <div
-                        key={product.productId}
-                        className="flex justify-between items-center p-3 bg-bg-tertiary rounded"
-                      >
-                        <div>
-                          <span className="font-semibold mr-2 text-primary-500">#{idx + 1}</span>
-                          <span className="text-foreground">{product.productName}</span>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-text-secondary">
-                            {product.soldQuantity} sold
-                          </p>
-                          <p className="font-semibold text-foreground">
-                            ₩{product.totalRevenue.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <h3 className="font-semibold mb-2 text-foreground">상태 분포</h3>
+                  {orderCurrent.statusDistribution.length > 0 ? (
+                    <PieChart
+                      data={orderCurrent.statusDistribution.map((item) => ({
+                        name: statusLabelMap[item.status] ?? item.status,
+                        value: item.count,
+                      }))}
+                      nameKey="name"
+                      valueKey="value"
+                    />
+                  ) : (
+                    <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                  )}
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Inventory Turnover</h3>
-                  <div className="bg-bg-tertiary border-l-4 border-warning-500 p-4 rounded">
-                    <p className="text-sm text-text-secondary">Average Turnover Rate</p>
-                    <p className="text-3xl font-bold text-foreground">
-                      {productData.inventoryTurnover.averageTurnoverRate.toFixed(2)}x
-                    </p>
-                    <p className="text-sm text-text-secondary mt-2">
-                      Period: {productData.inventoryTurnover.periodDays} days
-                    </p>
-                  </div>
+                  <h3 className="font-semibold mb-2 text-foreground">피크 시간대</h3>
+                  {orderCurrent.peakHours.length > 0 ? (
+                    <BarChart
+                      data={orderCurrent.peakHours
+                        .slice()
+                        .sort((a, b) => a.hour - b.hour)
+                        .map((hour) => ({
+                          hour: `${hour.hour}시`,
+                          orderCount: hour.orderCount,
+                        }))}
+                      xKey="hour"
+                      valueKey="orderCount"
+                      layout="horizontal"
+                    />
+                  ) : (
+                    <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Order Analytics */}
-          {orderData && (
-            <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-foreground">Order Analytics</h2>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Status Distribution</h3>
-                  <div className="space-y-2">
-                    {orderData.statusDistribution.map((item) => (
-                      <div
-                        key={item.status}
-                        className="flex justify-between items-center p-3 bg-bg-tertiary rounded"
-                      >
-                        <span className="font-medium text-foreground">{item.status}</span>
-                        <div className="text-right">
-                          <span className="font-semibold text-foreground">{item.count}</span>
-                          <span className="text-sm text-text-secondary ml-2">
-                            ({item.percentage.toFixed(1)}%)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Peak Hours</h3>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {orderData.peakHours
-                      .sort((a, b) => b.orderCount - a.orderCount)
-                      .map((hour) => (
-                        <div
-                          key={hour.hour}
-                          className="flex justify-between items-center p-3 bg-bg-tertiary rounded"
-                        >
-                          <span className="text-foreground">{hour.hour}:00 - {hour.hour + 1}:00</span>
-                          <span className="font-semibold text-foreground">
-                            {hour.orderCount} orders
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Customer Analytics */}
-          {customerData && (
-            <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-foreground">Customer Analytics</h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-bg-tertiary border-l-4 border-primary-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Total Customers</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {customerData.totalCustomers.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-success-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">New Customers</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {customerData.newCustomers.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-secondary-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Returning Customers</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {customerData.returningCustomers.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-warning-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Customer Lifetime Value</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    ₩{customerData.clv.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-danger-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Repeat Customer Rate</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {customerData.repeatCustomerRate.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="bg-bg-tertiary border-l-4 border-neutral-500 p-4 rounded">
-                  <p className="text-sm text-text-secondary">Avg Orders per Customer</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {customerData.avgOrdersPerCustomer.toFixed(1)}
-                  </p>
-                </div>
+          {/* 고객 분석 */}
+          {customerCurrent && (
+            <div className="card p-6 space-y-6">
+              <h2 className="text-xl font-semibold text-foreground">고객 분석</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <KpiCard
+                  title="총 고객 수"
+                  value={customerCurrent.totalCustomers}
+                  change={compareEnabled ? customerData?.changes?.totalCustomers : undefined}
+                />
+                <KpiCard
+                  title="신규 고객"
+                  value={customerCurrent.newCustomers}
+                  change={compareEnabled ? customerData?.changes?.newCustomers : undefined}
+                />
+                <KpiCard
+                  title="재방문 고객"
+                  value={customerCurrent.returningCustomers}
+                  change={compareEnabled ? customerData?.changes?.returningCustomers : undefined}
+                />
+                <KpiCard
+                  title="고객 생애 가치"
+                  value={customerCurrent.clv}
+                  change={compareEnabled ? customerData?.changes?.clv : undefined}
+                  formatter={formatCurrency}
+                />
+                <KpiCard
+                  title="재방문율"
+                  value={customerCurrent.repeatCustomerRate}
+                  change={compareEnabled ? customerData?.changes?.repeatCustomerRate : undefined}
+                  formatter={formatPercent}
+                />
+                <KpiCard
+                  title="고객당 평균 주문 수"
+                  value={customerCurrent.avgOrdersPerCustomer}
+                  formatter={formatDecimal}
+                />
               </div>
             </div>
           )}

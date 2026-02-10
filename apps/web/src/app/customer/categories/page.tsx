@@ -181,7 +181,6 @@ export default function CustomerCategoriesPage() {
   };
 
   if (loading && branches.length === 0) {
-if (loading && branches.length === 0) {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">카테고리 관리</h1>

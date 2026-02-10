@@ -9,13 +9,15 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CustomerAnalyticsResponse = exports.OrderAnalyticsResponse = exports.PeakHoursDto = exports.OrdersByDayDto = exports.OrderStatusDistributionDto = exports.ProductAnalyticsResponse = exports.InventoryTurnoverDto = exports.SalesByProductDto = exports.TopProductDto = exports.SalesAnalyticsResponse = exports.RevenueByDayDto = exports.AnalyticsQueryDto = void 0;
+exports.BrandSalesAnalyticsResponse = exports.BranchBreakdownDto = exports.PeriodComparisonDto = exports.BrandAnalyticsQueryDto = exports.CustomerAnalyticsResponse = exports.OrderAnalyticsResponse = exports.PeakHoursDto = exports.OrdersByDayDto = exports.OrderStatusDistributionDto = exports.ProductAnalyticsResponse = exports.InventoryTurnoverDto = exports.SalesByProductDto = exports.TopProductDto = exports.SalesAnalyticsResponse = exports.RevenueByDayDto = exports.AnalyticsQueryDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 class AnalyticsQueryDto {
     branchId;
     startDate;
     endDate;
+    compare;
 }
 exports.AnalyticsQueryDto = AnalyticsQueryDto;
 __decorate([
@@ -41,6 +43,15 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], AnalyticsQueryDto.prototype, "endDate", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '이전 기간 비교 활성화',
+        example: true,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(({ value }) => value === 'true' || value === true),
+    __metadata("design:type", Boolean)
+], AnalyticsQueryDto.prototype, "compare", void 0);
 class RevenueByDayDto {
     date;
     revenue;
@@ -281,4 +292,98 @@ __decorate([
     (0, swagger_1.ApiProperty)({ description: '평균 고객당 주문 수', example: 2.8 }),
     __metadata("design:type", Number)
 ], CustomerAnalyticsResponse.prototype, "avgOrdersPerCustomer", void 0);
+class BrandAnalyticsQueryDto {
+    brandId;
+    startDate;
+    endDate;
+    compare;
+}
+exports.BrandAnalyticsQueryDto = BrandAnalyticsQueryDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '브랜드 ID', required: true }),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], BrandAnalyticsQueryDto.prototype, "brandId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '시작 날짜 (ISO 8601)',
+        example: '2026-01-01',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], BrandAnalyticsQueryDto.prototype, "startDate", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '종료 날짜 (ISO 8601)',
+        example: '2026-01-31',
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], BrandAnalyticsQueryDto.prototype, "endDate", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '이전 기간 비교 활성화',
+        example: true,
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(({ value }) => value === 'true' || value === true),
+    __metadata("design:type", Boolean)
+], BrandAnalyticsQueryDto.prototype, "compare", void 0);
+class PeriodComparisonDto {
+    current;
+    previous;
+    changes;
+}
+exports.PeriodComparisonDto = PeriodComparisonDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '현재 기간 데이터' }),
+    __metadata("design:type", Object)
+], PeriodComparisonDto.prototype, "current", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: '이전 기간 데이터' }),
+    __metadata("design:type", Object)
+], PeriodComparisonDto.prototype, "previous", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({
+        description: '주요 지표별 변화율 (%)',
+        example: { totalRevenue: 12.5, orderCount: -3.2 },
+    }),
+    __metadata("design:type", Object)
+], PeriodComparisonDto.prototype, "changes", void 0);
+class BranchBreakdownDto {
+    branchId;
+    branchName;
+    revenue;
+    orderCount;
+}
+exports.BranchBreakdownDto = BranchBreakdownDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '지점 ID' }),
+    __metadata("design:type", String)
+], BranchBreakdownDto.prototype, "branchId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '지점명' }),
+    __metadata("design:type", String)
+], BranchBreakdownDto.prototype, "branchName", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '매출액' }),
+    __metadata("design:type", Number)
+], BranchBreakdownDto.prototype, "revenue", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '주문 수' }),
+    __metadata("design:type", Number)
+], BranchBreakdownDto.prototype, "orderCount", void 0);
+class BrandSalesAnalyticsResponse extends SalesAnalyticsResponse {
+    byBranch;
+}
+exports.BrandSalesAnalyticsResponse = BrandSalesAnalyticsResponse;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: '지점별 매출 분포',
+        type: [BranchBreakdownDto],
+    }),
+    __metadata("design:type", Array)
+], BrandSalesAnalyticsResponse.prototype, "byBranch", void 0);
 //# sourceMappingURL=analytics.dto.js.map

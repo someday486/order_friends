@@ -98,7 +98,6 @@ function ProductsPageContent() {
   };
 
   useEffect(() => {
-useEffect(() => {
     if (branchId) {
       fetchProducts(branchId);
     } else {

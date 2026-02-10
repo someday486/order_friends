@@ -13,6 +13,9 @@ import {
   OrdersByDayDto,
   PeakHoursDto,
   CustomerAnalyticsResponse,
+  PeriodComparisonDto,
+  BrandSalesAnalyticsResponse,
+  BranchBreakdownDto,
 } from './dto/analytics.dto';
 
 @Injectable()
@@ -53,6 +56,63 @@ export class AnalyticsService {
         (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       ),
     };
+  }
+
+  /**
+   * Calculate previous period of equal length
+   */
+  private getPreviousPeriod(
+    startDate?: string,
+    endDate?: string,
+  ): { start: string; end: string } {
+    const current = this.getDateRange(startDate, endDate);
+    const durationMs =
+      new Date(current.end).getTime() - new Date(current.start).getTime();
+
+    const prevEnd = new Date(new Date(current.start).getTime() - 1);
+    prevEnd.setHours(23, 59, 59, 999);
+    const prevStart = new Date(prevEnd.getTime() - durationMs);
+    prevStart.setHours(0, 0, 0, 0);
+
+    return {
+      start: prevStart.toISOString(),
+      end: prevEnd.toISOString(),
+    };
+  }
+
+  /**
+   * Calculate percentage change between two values
+   */
+  private calcChange(current: number, previous: number): number {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return parseFloat((((current - previous) / previous) * 100).toFixed(1));
+  }
+
+  /**
+   * Wrap result in PeriodComparisonDto if compare is enabled
+   */
+  private async withComparison<T extends Record<string, any>>(
+    compare: boolean | undefined,
+    currentData: T,
+    fetchPrevious: () => Promise<T>,
+    changeKeys: string[],
+  ): Promise<PeriodComparisonDto<T>> {
+    if (!compare) {
+      return { current: currentData };
+    }
+
+    const previous = await fetchPrevious();
+    const changes: Record<string, number> = {};
+    for (const key of changeKeys) {
+      if (
+        typeof currentData[key] === 'number' &&
+        typeof previous[key] === 'number'
+      ) {
+        changes[key] = this.calcChange(currentData[key], previous[key]);
+      }
+    }
+
+    return { current: currentData, previous, changes };
   }
 
   /**
@@ -169,7 +229,7 @@ export class AnalyticsService {
           product_id,
           product_name_snapshot,
           qty,
-          unit_price,
+          unit_price_snapshot,
           order:orders!inner(id, status, created_at, branch_id)
         `,
         )
@@ -202,7 +262,7 @@ export class AnalyticsService {
         const productId = item.product_id || 'unknown';
         const productName = item.product_name_snapshot || 'Unknown Product';
         const qty = item.qty || 0;
-        const revenue = (item.qty || 0) * (item.unit_price || 0);
+        const revenue = (item.qty || 0) * (item.unit_price_snapshot || 0);
 
         const current = productMap.get(productId) || {
           name: productName,
@@ -540,6 +600,554 @@ export class AnalyticsService {
       throw new BusinessException(
         'Failed to fetch customer analytics',
         'CUSTOMER_ANALYTICS_ERROR',
+        500,
+      );
+    }
+  }
+
+  // ============================================================
+  // Brand-level analytics
+  // ============================================================
+
+  /**
+   * Get brand-level sales analytics with optional period comparison
+   */
+  async getBrandSalesAnalytics(
+    accessToken: string,
+    brandId: string,
+    startDate?: string,
+    endDate?: string,
+    compare?: boolean,
+  ): Promise<PeriodComparisonDto<BrandSalesAnalyticsResponse>> {
+    this.logger.log(`Fetching brand sales analytics for brand: ${brandId}`);
+
+    const fetchForPeriod = async (
+      start: string,
+      end: string,
+    ): Promise<BrandSalesAnalyticsResponse> => {
+      const sb = this.supabase.adminClient();
+
+      // Get orders for the brand
+      const { data: orders, error } = await sb
+        .from('orders')
+        .select('id, total_amount, created_at, status, branch_id')
+        .eq('brand_id', brandId)
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .in('status', [
+          'COMPLETED',
+          'READY',
+          'PREPARING',
+          'CONFIRMED',
+          'CREATED',
+        ]);
+
+      if (error) {
+        throw new BusinessException(
+          'Failed to fetch brand sales analytics',
+          'BRAND_SALES_ANALYTICS_FAILED',
+          500,
+          { brandId, error: error.message },
+        );
+      }
+
+      // Get branch names
+      const { data: branches } = await sb
+        .from('branches')
+        .select('id, name')
+        .eq('brand_id', brandId);
+
+      const branchNameMap = new Map(
+        (branches || []).map((b: any) => [b.id, b.name]),
+      );
+
+      const orderList = orders || [];
+      const orderCount = orderList.length;
+      const totalRevenue = orderList.reduce(
+        (sum, o) => sum + (o.total_amount || 0),
+        0,
+      );
+      const avgOrderValue =
+        orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0;
+
+      // Group by day
+      const revenueByDayMap = new Map<
+        string,
+        { revenue: number; count: number }
+      >();
+      // Group by branch
+      const branchMap = new Map<
+        string,
+        { revenue: number; orderCount: number }
+      >();
+
+      orderList.forEach((order) => {
+        const date = new Date(order.created_at).toISOString().split('T')[0];
+        const dayData = revenueByDayMap.get(date) || {
+          revenue: 0,
+          count: 0,
+        };
+        dayData.revenue += order.total_amount || 0;
+        dayData.count += 1;
+        revenueByDayMap.set(date, dayData);
+
+        const bid = order.branch_id || 'unknown';
+        const bData = branchMap.get(bid) || { revenue: 0, orderCount: 0 };
+        bData.revenue += order.total_amount || 0;
+        bData.orderCount += 1;
+        branchMap.set(bid, bData);
+      });
+
+      const revenueByDay: RevenueByDayDto[] = Array.from(
+        revenueByDayMap.entries(),
+      )
+        .map(([date, data]) => ({
+          date,
+          revenue: data.revenue,
+          orderCount: data.count,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const byBranch: BranchBreakdownDto[] = Array.from(branchMap.entries())
+        .map(([branchId, data]) => ({
+          branchId,
+          branchName: branchNameMap.get(branchId) || branchId,
+          revenue: data.revenue,
+          orderCount: data.orderCount,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+      return {
+        totalRevenue,
+        orderCount,
+        avgOrderValue,
+        revenueByDay,
+        byBranch,
+      };
+    };
+
+    try {
+      const dateRange = this.getDateRange(startDate, endDate);
+      const currentData = await fetchForPeriod(dateRange.start, dateRange.end);
+
+      return this.withComparison(
+        compare,
+        currentData,
+        async () => {
+          const prev = this.getPreviousPeriod(startDate, endDate);
+          return fetchForPeriod(prev.start, prev.end);
+        },
+        ['totalRevenue', 'orderCount', 'avgOrderValue'],
+      );
+    } catch (error) {
+      if (error instanceof BusinessException) throw error;
+      this.logger.error('Unexpected error in getBrandSalesAnalytics', error);
+      throw new BusinessException(
+        'Failed to fetch brand sales analytics',
+        'BRAND_SALES_ANALYTICS_ERROR',
+        500,
+      );
+    }
+  }
+
+  /**
+   * Get brand-level product analytics with optional period comparison
+   */
+  async getBrandProductAnalytics(
+    accessToken: string,
+    brandId: string,
+    startDate?: string,
+    endDate?: string,
+    compare?: boolean,
+  ): Promise<PeriodComparisonDto<ProductAnalyticsResponse>> {
+    this.logger.log(`Fetching brand product analytics for brand: ${brandId}`);
+
+    const fetchForPeriod = async (
+      start: string,
+      end: string,
+    ): Promise<ProductAnalyticsResponse> => {
+      const sb = this.supabase.adminClient();
+      const days = Math.ceil(
+        (new Date(end).getTime() - new Date(start).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+
+      const { data: orderItems, error } = await sb
+        .from('order_items')
+        .select(
+          `
+          id,
+          product_id,
+          product_name_snapshot,
+          qty,
+          unit_price_snapshot,
+          order:orders!inner(id, status, created_at, brand_id)
+        `,
+        )
+        .eq('order.brand_id', brandId)
+        .gte('order.created_at', start)
+        .lte('order.created_at', end)
+        .in('order.status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED']);
+
+      if (error) {
+        throw new BusinessException(
+          'Failed to fetch brand product analytics',
+          'BRAND_PRODUCT_ANALYTICS_FAILED',
+          500,
+          { brandId, error: error.message },
+        );
+      }
+
+      const items = orderItems || [];
+      const productMap = new Map<
+        string,
+        { name: string; qty: number; revenue: number }
+      >();
+
+      items.forEach((item: any) => {
+        const productId = item.product_id || 'unknown';
+        const productName = item.product_name_snapshot || 'Unknown Product';
+        const qty = item.qty || 0;
+        const revenue = qty * (item.unit_price_snapshot || 0);
+        const current = productMap.get(productId) || {
+          name: productName,
+          qty: 0,
+          revenue: 0,
+        };
+        current.qty += qty;
+        current.revenue += revenue;
+        productMap.set(productId, current);
+      });
+
+      const totalRevenue = Array.from(productMap.values()).reduce(
+        (sum, p) => sum + p.revenue,
+        0,
+      );
+
+      const topProducts: TopProductDto[] = Array.from(productMap.entries())
+        .map(([productId, data]) => ({
+          productId,
+          productName: data.name,
+          soldQuantity: data.qty,
+          totalRevenue: data.revenue,
+        }))
+        .sort((a, b) => b.totalRevenue - a.totalRevenue)
+        .slice(0, 10);
+
+      const salesByProduct: SalesByProductDto[] = Array.from(
+        productMap.entries(),
+      )
+        .map(([productId, data]) => ({
+          productId,
+          productName: data.name,
+          quantity: data.qty,
+          revenue: data.revenue,
+          revenuePercentage:
+            totalRevenue > 0
+              ? parseFloat(((data.revenue / totalRevenue) * 100).toFixed(2))
+              : 0,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+      const totalQuantitySold = Array.from(productMap.values()).reduce(
+        (sum, p) => sum + p.qty,
+        0,
+      );
+
+      return {
+        topProducts,
+        salesByProduct,
+        inventoryTurnover: {
+          averageTurnoverRate:
+            days > 0 ? parseFloat((totalQuantitySold / days).toFixed(2)) : 0,
+          periodDays: days,
+        },
+      };
+    };
+
+    try {
+      const dateRange = this.getDateRange(startDate, endDate);
+      const currentData = await fetchForPeriod(dateRange.start, dateRange.end);
+
+      return this.withComparison(
+        compare,
+        currentData,
+        async () => {
+          const prev = this.getPreviousPeriod(startDate, endDate);
+          return fetchForPeriod(prev.start, prev.end);
+        },
+        [],
+      );
+    } catch (error) {
+      if (error instanceof BusinessException) throw error;
+      this.logger.error('Unexpected error in getBrandProductAnalytics', error);
+      throw new BusinessException(
+        'Failed to fetch brand product analytics',
+        'BRAND_PRODUCT_ANALYTICS_ERROR',
+        500,
+      );
+    }
+  }
+
+  /**
+   * Get brand-level order analytics with optional period comparison
+   */
+  async getBrandOrderAnalytics(
+    accessToken: string,
+    brandId: string,
+    startDate?: string,
+    endDate?: string,
+    compare?: boolean,
+  ): Promise<PeriodComparisonDto<OrderAnalyticsResponse>> {
+    this.logger.log(`Fetching brand order analytics for brand: ${brandId}`);
+
+    const fetchForPeriod = async (
+      start: string,
+      end: string,
+    ): Promise<OrderAnalyticsResponse> => {
+      const sb = this.supabase.adminClient();
+
+      const { data: orders, error } = await sb
+        .from('orders')
+        .select('id, status, created_at')
+        .eq('brand_id', brandId)
+        .gte('created_at', start)
+        .lte('created_at', end);
+
+      if (error) {
+        throw new BusinessException(
+          'Failed to fetch brand order analytics',
+          'BRAND_ORDER_ANALYTICS_FAILED',
+          500,
+          { brandId, error: error.message },
+        );
+      }
+
+      const orderList = orders || [];
+      const totalOrders = orderList.length;
+
+      const statusMap = new Map<string, number>();
+      const ordersByDayMap = new Map<
+        string,
+        { total: number; completed: number; cancelled: number }
+      >();
+      const hourMap = new Map<number, number>();
+
+      orderList.forEach((order) => {
+        const status = order.status || 'UNKNOWN';
+        statusMap.set(status, (statusMap.get(status) || 0) + 1);
+
+        const date = new Date(order.created_at).toISOString().split('T')[0];
+        const dayData = ordersByDayMap.get(date) || {
+          total: 0,
+          completed: 0,
+          cancelled: 0,
+        };
+        dayData.total += 1;
+        if (status === 'COMPLETED') dayData.completed += 1;
+        if (status === 'CANCELLED') dayData.cancelled += 1;
+        ordersByDayMap.set(date, dayData);
+
+        const hour = new Date(order.created_at).getHours();
+        hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
+      });
+
+      return {
+        statusDistribution: Array.from(statusMap.entries())
+          .map(([status, count]) => ({
+            status,
+            count,
+            percentage:
+              totalOrders > 0
+                ? parseFloat(((count / totalOrders) * 100).toFixed(2))
+                : 0,
+          }))
+          .sort((a, b) => b.count - a.count),
+        ordersByDay: Array.from(ordersByDayMap.entries())
+          .map(([date, data]) => ({
+            date,
+            orderCount: data.total,
+            completedCount: data.completed,
+            cancelledCount: data.cancelled,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        peakHours: Array.from(hourMap.entries())
+          .map(([hour, count]) => ({ hour, orderCount: count }))
+          .sort((a, b) => a.hour - b.hour),
+      };
+    };
+
+    try {
+      const dateRange = this.getDateRange(startDate, endDate);
+      const currentData = await fetchForPeriod(dateRange.start, dateRange.end);
+
+      return this.withComparison(
+        compare,
+        currentData,
+        async () => {
+          const prev = this.getPreviousPeriod(startDate, endDate);
+          return fetchForPeriod(prev.start, prev.end);
+        },
+        [],
+      );
+    } catch (error) {
+      if (error instanceof BusinessException) throw error;
+      this.logger.error('Unexpected error in getBrandOrderAnalytics', error);
+      throw new BusinessException(
+        'Failed to fetch brand order analytics',
+        'BRAND_ORDER_ANALYTICS_ERROR',
+        500,
+      );
+    }
+  }
+
+  /**
+   * Get brand-level customer analytics with optional period comparison
+   */
+  async getBrandCustomerAnalytics(
+    accessToken: string,
+    brandId: string,
+    startDate?: string,
+    endDate?: string,
+    compare?: boolean,
+  ): Promise<PeriodComparisonDto<CustomerAnalyticsResponse>> {
+    this.logger.log(`Fetching brand customer analytics for brand: ${brandId}`);
+
+    const fetchForPeriod = async (
+      periodStart: string,
+      periodEnd: string,
+    ): Promise<CustomerAnalyticsResponse> => {
+      const sb = this.supabase.adminClient();
+      const validStatuses = [
+        'COMPLETED',
+        'READY',
+        'PREPARING',
+        'CONFIRMED',
+        'CREATED',
+      ];
+
+      const { data: allOrders, error: allErr } = await sb
+        .from('orders')
+        .select('id, customer_phone, total_amount, created_at, status')
+        .eq('brand_id', brandId)
+        .in('status', validStatuses);
+
+      if (allErr) {
+        throw new BusinessException(
+          'Failed to fetch brand customer analytics',
+          'BRAND_CUSTOMER_ANALYTICS_FAILED',
+          500,
+          { brandId, error: allErr.message },
+        );
+      }
+
+      const { data: periodOrders, error: periodErr } = await sb
+        .from('orders')
+        .select('id, customer_phone, total_amount, created_at, status')
+        .eq('brand_id', brandId)
+        .gte('created_at', periodStart)
+        .lte('created_at', periodEnd)
+        .in('status', validStatuses);
+
+      if (periodErr) {
+        throw new BusinessException(
+          'Failed to fetch brand customer analytics',
+          'BRAND_CUSTOMER_ANALYTICS_FAILED',
+          500,
+          { brandId, error: periodErr.message },
+        );
+      }
+
+      const allOrdersList = allOrders || [];
+      const periodOrdersList = periodOrders || [];
+
+      const customerMap = new Map<
+        string,
+        { orderCount: number; totalSpent: number }
+      >();
+      allOrdersList.forEach((order) => {
+        const phone = order.customer_phone || 'anonymous';
+        const c = customerMap.get(phone) || { orderCount: 0, totalSpent: 0 };
+        c.orderCount += 1;
+        c.totalSpent += order.total_amount || 0;
+        customerMap.set(phone, c);
+      });
+
+      const newCustomerPhones = new Set<string>();
+      periodOrdersList.forEach((order) => {
+        const phone = order.customer_phone || 'anonymous';
+        const firstOrder = allOrdersList
+          .filter((o) => o.customer_phone === phone)
+          .sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime(),
+          )[0];
+
+        if (
+          firstOrder &&
+          new Date(firstOrder.created_at) >= new Date(periodStart) &&
+          new Date(firstOrder.created_at) <= new Date(periodEnd)
+        ) {
+          newCustomerPhones.add(phone);
+        }
+      });
+
+      const returningCustomers = Array.from(customerMap.values()).filter(
+        (c) => c.orderCount > 1,
+      ).length;
+
+      const totalCustomers = customerMap.size;
+      const totalRevenue = Array.from(customerMap.values()).reduce(
+        (sum, c) => sum + c.totalSpent,
+        0,
+      );
+      const clv =
+        totalCustomers > 0 ? Math.round(totalRevenue / totalCustomers) : 0;
+      const repeatCustomerRate =
+        totalCustomers > 0
+          ? parseFloat(((returningCustomers / totalCustomers) * 100).toFixed(2))
+          : 0;
+      const avgOrdersPerCustomer =
+        totalCustomers > 0
+          ? parseFloat((allOrdersList.length / totalCustomers).toFixed(2))
+          : 0;
+
+      return {
+        totalCustomers,
+        newCustomers: newCustomerPhones.size,
+        returningCustomers,
+        clv,
+        repeatCustomerRate,
+        avgOrdersPerCustomer,
+      };
+    };
+
+    try {
+      const dateRange = this.getDateRange(startDate, endDate);
+      const currentData = await fetchForPeriod(dateRange.start, dateRange.end);
+
+      return this.withComparison(
+        compare,
+        currentData,
+        async () => {
+          const prev = this.getPreviousPeriod(startDate, endDate);
+          return fetchForPeriod(prev.start, prev.end);
+        },
+        [
+          'totalCustomers',
+          'newCustomers',
+          'returningCustomers',
+          'clv',
+          'repeatCustomerRate',
+        ],
+      );
+    } catch (error) {
+      if (error instanceof BusinessException) throw error;
+      this.logger.error('Unexpected error in getBrandCustomerAnalytics', error);
+      throw new BusinessException(
+        'Failed to fetch brand customer analytics',
+        'BRAND_CUSTOMER_ANALYTICS_ERROR',
         500,
       );
     }

@@ -346,7 +346,11 @@ export default function BrandAnalyticsPage() {
                       ? (branch.revenue / s.totalRevenue) * 100
                       : 0;
                   return (
-                    <div key={branch.branchId} className="flex items-center gap-3">
+                    <Link
+                      key={branch.branchId}
+                      href={`/customer/analytics?branchId=${encodeURIComponent(branch.branchId)}`}
+                      className="flex items-center gap-3 rounded px-2 py-1 transition-colors hover:bg-bg-secondary"
+                    >
                       <div className="w-24 text-xs text-foreground font-medium truncate">
                         {branch.branchName}
                       </div>
@@ -362,7 +366,7 @@ export default function BrandAnalyticsPage() {
                       <div className="w-14 text-right text-xs text-text-tertiary">
                         {branch.orderCount}건
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

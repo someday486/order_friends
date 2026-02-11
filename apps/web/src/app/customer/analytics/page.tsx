@@ -12,6 +12,7 @@ import KpiCard from "@/components/analytics/KpiCard";
 import ParetoChart from "@/components/analytics/ParetoChart";
 import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
+import Tooltip from "@/components/ui/Tooltip";
 import {
   AbcAnalysis,
   CohortAnalysis,
@@ -73,13 +74,15 @@ const normalizeComparison = <T,>(
 const HelpLabel = ({ label, description }: { label: string; description: string }) => (
   <span className="inline-flex items-center gap-1">
     <span>{label}</span>
-    <span
-      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary cursor-help"
-      title={description}
-      aria-label={`${label} 도움말`}
-    >
-      ?
-    </span>
+    <Tooltip content={description}>
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary"
+        aria-label={`${label} 도움말`}
+      >
+        ?
+      </button>
+    </Tooltip>
   </span>
 );
 

@@ -1,4 +1,6 @@
 ﻿"use client";
+import Tooltip from "@/components/ui/Tooltip";
+
 
 type KpiCardProps = {
   title: string;
@@ -26,13 +28,15 @@ export default function KpiCard({
       <div className="text-xs text-text-secondary flex items-center gap-1">
         <span>{title}</span>
         {titleTooltip && (
-          <span
-            className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary cursor-help"
-            title={titleTooltip}
-            aria-label={`${title} 도움말`}
-          >
-            ?
-          </span>
+          <Tooltip content={titleTooltip}>
+            <button
+              type="button"
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary"
+              aria-label={`${title} 도움말`}
+            >
+              ?
+            </button>
+          </Tooltip>
         )}
       </div>
       <div className="text-2xl font-extrabold text-foreground">{formattedValue}</div>

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -26,8 +26,6 @@ type OrderInfo = {
 // ============================================================
 // Constants
 // ============================================================
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 const statusBadgeClasses: Record<string, string> = {
   CREATED: "bg-primary-500/30 text-primary-500",
@@ -63,19 +61,11 @@ export default function TrackOrderPage() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`${API_BASE}/public/orders/${orderId}`);
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error("주문을 찾을 수 없습니다.");
-        }
-        throw new Error(`조회 실패: ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await apiClient.get<OrderInfo>(`/public/orders/${orderId}`, { auth: false });
       setOrder(data);
     } catch (e: unknown) {
-      setError((e as Error)?.message ?? "조회 중 오류가 발생했습니다.");
+      const message = (e as Error)?.message ?? "조회 중 오류가 발생했습니다.";
+      setError(message.includes("404") ? "주문을 찾을 수 없습니다." : message);
     } finally {
       setLoading(false);
     }

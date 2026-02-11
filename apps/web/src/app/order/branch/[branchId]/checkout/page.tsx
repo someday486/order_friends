@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatWon } from "@/lib/format";
+import { apiClient } from "@/lib/api-client";
 
 // ============================================================
 // Types
@@ -29,12 +30,6 @@ type CartItem = {
   selectedOptions: ProductOption[];
   itemPrice: number;
 };
-
-// ============================================================
-// Constants
-// ============================================================
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 // ============================================================
 // Helpers
@@ -108,20 +103,7 @@ export default function CheckoutPage() {
         })),
       };
 
-      const res = await fetch(`${API_BASE}/public/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(orderData),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`주문 실패: ${res.status} ${text}`);
-      }
-
-      const result = await res.json();
+      const result = await apiClient.post("/public/orders", orderData, { auth: false });
 
       // 장바구니 클리어
       sessionStorage.removeItem("orderCart");

@@ -1,9 +1,10 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
 import { formatWon } from "@/lib/format";
+import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
 
 // ============================================================
@@ -21,6 +22,9 @@ type Product = {
   name: string;
   description?: string | null;
   price: number;
+  image_url?: string | null;
+  category_name?: string | null;
+  categoryName?: string | null;
   options: ProductOption[];
 };
 
@@ -36,12 +40,6 @@ type CartItem = {
   selectedOptions: ProductOption[];
   itemPrice: number; // 옵션 포함 단가
 };
-
-// ============================================================
-// Constants
-// ============================================================
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 // ============================================================
 // Helpers
@@ -67,6 +65,7 @@ export default function OrderPage() {
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("전체");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +78,21 @@ export default function OrderPage() {
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
 
+  const categories = useMemo(() => {
+    const names = products
+      .map((product) => product.category_name ?? product.categoryName)
+      .filter((name): name is string => Boolean(name));
+    return ["전체", ...Array.from(new Set(names))];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    if (selectedCategory === "전체") return products;
+    return products.filter((product) => {
+      const name = product.category_name ?? product.categoryName;
+      return name === selectedCategory;
+    });
+  }, [products, selectedCategory]);
+
   // 데이터 로드
   useEffect(() => {
     if (!branchId) return;
@@ -89,18 +103,15 @@ export default function OrderPage() {
         setError(null);
 
         // 가게 정보
-        const branchRes = await fetch(`${API_BASE}/public/branches/${branchId}`);
-        if (!branchRes.ok) throw new Error("가게를 찾을 수 없습니다.");
-        const branchData = await branchRes.json();
+        const branchData = await apiClient.get<Branch>(`/public/branches/${branchId}`, { auth: false });
         setBranch(branchData);
 
         // 상품 목록
-        const productsRes = await fetch(`${API_BASE}/public/branches/${branchId}/products`);
-        if (!productsRes.ok) throw new Error("상품을 불러올 수 없습니다.");
-        const productsData = await productsRes.json();
+        const productsData = await apiClient.get<Product[]>(`/public/branches/${branchId}/products`, { auth: false });
         setProducts(productsData);
       } catch (e: unknown) {
-        setError((e as Error)?.message ?? "오류가 발생했습니다.");
+        const message = (e as Error)?.message ?? "오류가 발생했습니다.";
+        setError(message.includes("404") ? "가게를 찾을 수 없습니다." : message);
       } finally {
         setLoading(false);
       }
@@ -205,16 +216,45 @@ export default function OrderPage() {
       <main className="p-4 pb-[120px]">
         <h2 className="text-base font-bold mb-3 text-foreground">메뉴</h2>
 
-        {products.length === 0 ? (
+        {categories.length > 1 && (
+          <div className="category-tabs mb-3">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`category-tab ${selectedCategory === category ? "category-tab-active" : ""}`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {filteredProducts.length === 0 ? (
           <p className="text-text-tertiary">등록된 상품이 없습니다.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <div
                 key={product.id}
                 className="flex items-center gap-3 p-4 rounded-xl border border-border bg-bg-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
                 onClick={() => handleSelectProduct(product)}
               >
+                {product.image_url ? (
+                  <Image
+                    src={product.image_url}
+                    alt={product.name}
+                    width={64}
+                    height={64}
+                    className="w-16 h-16 rounded-lg object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-bg-tertiary flex items-center justify-center shrink-0">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
+                      <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                )}
                 <div className="flex-1">
                   <div className="font-semibold text-foreground">{product.name}</div>
                   {product.description && (

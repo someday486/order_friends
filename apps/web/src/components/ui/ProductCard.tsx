@@ -22,6 +22,7 @@ export interface ProductCardProduct {
   price: number;
   discountPrice?: number;
   imageUrl?: string | null;
+  categoryId?: string | null;
   badges?: ProductBadge[];
   stock?: { available: number; threshold: number };
   options?: ProductOption[];

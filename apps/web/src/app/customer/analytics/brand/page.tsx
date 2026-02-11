@@ -45,13 +45,24 @@ interface TopProduct {
 
 interface ProductAnalytics {
   topProducts: TopProduct[];
-  salesByProduct: { productId: string; productName: string; quantity: number; revenue: number; revenuePercentage: number }[];
+  salesByProduct: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenue: number;
+    revenuePercentage: number;
+  }[];
   inventoryTurnover: { averageTurnoverRate: number; periodDays: number };
 }
 
 interface OrderAnalytics {
   statusDistribution: { status: string; count: number; percentage: number }[];
-  ordersByDay: { date: string; orderCount: number; completedCount: number; cancelledCount: number }[];
+  ordersByDay: {
+    date: string;
+    orderCount: number;
+    completedCount: number;
+    cancelledCount: number;
+  }[];
   peakHours: { hour: number; orderCount: number }[];
 }
 
@@ -131,7 +142,7 @@ function KpiCard({
 // ============================================================
 
 export default function BrandAnalyticsPage() {
-  const { session, status } = useAuth();
+  const { status } = useAuth();
   const { branchId: selectedBranchId } = useSelectedBranch();
 
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -209,15 +220,11 @@ export default function BrandAnalyticsPage() {
             apiClient.get<PeriodComparison<CustomerAnalytics>>(
               `/customer/analytics/brand/customers?${params}`,
             ),
-            apiClient.get<AbcAnalysis>(
-              `/customer/analytics/brand/products/abc?${params}`,
-            ),
+            apiClient.get<AbcAnalysis>(`/customer/analytics/brand/products/abc?${params}`),
             apiClient.get<CohortAnalysis>(
               `/customer/analytics/brand/customers/cohort?${cohortParams}`,
             ),
-            apiClient.get<RfmAnalysis>(
-              `/customer/analytics/brand/customers/rfm?${params}`,
-            ),
+            apiClient.get<RfmAnalysis>(`/customer/analytics/brand/customers/rfm?${params}`),
           ]);
 
         setSales(salesRes);
@@ -228,7 +235,7 @@ export default function BrandAnalyticsPage() {
         setCohortAnalysis(cohortRes);
         setRfmAnalysis(rfmRes);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "분석 데이터를 불러오지 못했습니다");
+        setError(e instanceof Error ? e.message : "분석 데이터를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -287,16 +294,11 @@ export default function BrandAnalyticsPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-[22px] font-extrabold text-foreground">브랜드 분석</h1>
-          <p className="text-text-secondary text-[13px] mt-1">
-            전체 지점 통합 분석
-          </p>
+          <p className="text-text-secondary text-[13px] mt-1">전체 지점 통합 분석</p>
         </div>
         {branchLinkId ? (
-          <Link
-            href={branchLink}
-            className="text-xs text-primary-500 hover:underline"
-          >
-            지점별 분석 보기 →
+          <Link href={branchLink} className="text-xs text-primary-500 hover:underline">
+            지점별 분석 보기
           </Link>
         ) : (
           <span className="text-xs text-text-tertiary">
@@ -361,16 +363,8 @@ export default function BrandAnalyticsPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <KpiCard
-              title="총 매출"
-              value={formatWon(s.totalRevenue)}
-              change={ch?.totalRevenue}
-            />
-            <KpiCard
-              title="주문 수"
-              value={`${s.orderCount}건`}
-              change={ch?.orderCount}
-            />
+            <KpiCard title="총 매출" value={formatWon(s.totalRevenue)} change={ch?.totalRevenue} />
+            <KpiCard title="주문 수" value={`${s.orderCount}건`} change={ch?.orderCount} />
             <KpiCard
               title="평균 주문가"
               value={formatWon(s.avgOrderValue)}
@@ -386,15 +380,11 @@ export default function BrandAnalyticsPage() {
           {/* Branch Breakdown */}
           {s.byBranch.length > 0 && (
             <div className="card p-4 mb-6">
-              <h2 className="text-sm font-bold text-foreground mb-3">
-                지점별 매출 비교
-              </h2>
+              <h2 className="text-sm font-bold text-foreground mb-3">지점별 매출 비교</h2>
               <div className="space-y-2">
                 {s.byBranch.map((branch) => {
                   const pct =
-                    s.totalRevenue > 0
-                      ? (branch.revenue / s.totalRevenue) * 100
-                      : 0;
+                    s.totalRevenue > 0 ? (branch.revenue / s.totalRevenue) * 100 : 0;
                   return (
                     <Link
                       key={branch.branchId}
@@ -426,19 +416,13 @@ export default function BrandAnalyticsPage() {
           {/* Revenue by Day */}
           {s.revenueByDay.length > 0 && (
             <div className="card p-4 mb-6">
-              <h2 className="text-sm font-bold text-foreground mb-3">
-                일별 매출 추이
-              </h2>
+              <h2 className="text-sm font-bold text-foreground mb-3">일별 매출 추이</h2>
               <div className="overflow-x-auto">
                 <div className="flex gap-1 min-w-fit">
                   {s.revenueByDay.map((day) => {
-                    const maxRevenue = Math.max(
-                      ...s.revenueByDay.map((d) => d.revenue),
-                    );
+                    const maxRevenue = Math.max(...s.revenueByDay.map((d) => d.revenue));
                     const height =
-                      maxRevenue > 0
-                        ? Math.max((day.revenue / maxRevenue) * 120, 4)
-                        : 4;
+                      maxRevenue > 0 ? Math.max((day.revenue / maxRevenue) * 120, 4) : 4;
                     return (
                       <div
                         key={day.date}
@@ -461,44 +445,37 @@ export default function BrandAnalyticsPage() {
           )}
 
           {/* Top Products */}
-          {products?.current.topProducts &&
-            products.current.topProducts.length > 0 && (
-              <div className="card p-4 mb-6">
-                <h2 className="text-sm font-bold text-foreground mb-3">
-                  인기 상품 Top 10
-                </h2>
-                <div className="space-y-1.5">
-                  {products.current.topProducts.map((p, i) => (
-                    <div
-                      key={p.productId}
-                      className="flex items-center gap-3 py-2 px-3 rounded bg-bg-secondary"
-                    >
-                      <span className="w-6 h-6 flex items-center justify-center rounded-full bg-bg-tertiary text-xs font-bold text-text-secondary">
-                        {i + 1}
-                      </span>
-                      <span className="flex-1 text-sm text-foreground truncate">
-                        {p.productName}
-                      </span>
-                      <span className="text-xs text-text-secondary">
-                        {p.soldQuantity}개
-                      </span>
-                      <span className="text-xs font-semibold text-foreground w-24 text-right">
-                        {formatWon(p.totalRevenue)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+          {products?.current.topProducts && products.current.topProducts.length > 0 && (
+            <div className="card p-4 mb-6">
+              <h2 className="text-sm font-bold text-foreground mb-3">판매 상품 Top 10</h2>
+              <div className="space-y-1.5">
+                {products.current.topProducts.map((p, i) => (
+                  <div
+                    key={p.productId}
+                    className="flex items-center gap-3 py-2 px-3 rounded bg-bg-secondary"
+                  >
+                    <span className="w-6 h-6 flex items-center justify-center rounded-full bg-bg-tertiary text-xs font-bold text-text-secondary">
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 text-sm text-foreground truncate">
+                      {p.productName}
+                    </span>
+                    <span className="text-xs text-text-secondary">{p.soldQuantity}개</span>
+                    <span className="text-xs font-semibold text-foreground w-24 text-right">
+                      {formatWon(p.totalRevenue)}
+                    </span>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
           {/* Order Status Distribution + Peak Hours */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
             {orders?.current.statusDistribution &&
               orders.current.statusDistribution.length > 0 && (
                 <div className="card p-4">
-                  <h2 className="text-sm font-bold text-foreground mb-3">
-                    주문 상태 분포
-                  </h2>
+                  <h2 className="text-sm font-bold text-foreground mb-3">주문 상태 분포</h2>
                   <div className="space-y-2">
                     {orders.current.statusDistribution.map((s) => (
                       <div key={s.status} className="flex items-center gap-2">
@@ -523,48 +500,43 @@ export default function BrandAnalyticsPage() {
                 </div>
               )}
 
-            {orders?.current.peakHours &&
-              orders.current.peakHours.length > 0 && (
-                <div className="card p-4">
-                  <h2 className="text-sm font-bold text-foreground mb-3">
-                    시간대별 주문
-                  </h2>
-                  <div className="flex items-end gap-0.5 h-[120px]">
-                    {orders.current.peakHours.map((ph) => {
-                      const maxCount = Math.max(
-                        ...orders.current.peakHours.map((h) => h.orderCount),
-                      );
-                      const height =
-                        maxCount > 0
-                          ? Math.max((ph.orderCount / maxCount) * 100, 2)
-                          : 2;
-                      return (
+            {orders?.current.peakHours && orders.current.peakHours.length > 0 && (
+              <div className="card p-4">
+                <h2 className="text-sm font-bold text-foreground mb-3">시간대별 주문</h2>
+                <div className="flex items-end gap-0.5 h-[120px]">
+                  {orders.current.peakHours.map((ph) => {
+                    const maxCount = Math.max(
+                      ...orders.current.peakHours.map((h) => h.orderCount),
+                    );
+                    const height =
+                      maxCount > 0
+                        ? Math.max((ph.orderCount / maxCount) * 100, 2)
+                        : 2;
+                    return (
+                      <div
+                        key={ph.hour}
+                        className="flex flex-col items-center flex-1"
+                        title={`${ph.hour}시 ${ph.orderCount}건`}
+                      >
                         <div
-                          key={ph.hour}
-                          className="flex flex-col items-center flex-1"
-                          title={`${ph.hour}시: ${ph.orderCount}건`}
-                        >
-                          <div
-                            className="w-full bg-primary-500/60 rounded-t"
-                            style={{ height: `${height}%` }}
-                          />
-                          <span className="text-[8px] text-text-tertiary mt-0.5">
-                            {ph.hour}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          className="w-full bg-primary-500/60 rounded-t"
+                          style={{ height: `${height}%` }}
+                        />
+                        <span className="text-[8px] text-text-tertiary mt-0.5">
+                          {ph.hour}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+            )}
           </div>
 
           {/* Customer KPIs */}
           {c && (
             <div className="card p-4 mb-6">
-              <h2 className="text-sm font-bold text-foreground mb-3">
-                고객 분석
-              </h2>
+              <h2 className="text-sm font-bold text-foreground mb-3">고객 분석</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <KpiCard
                   title="신규 고객"
@@ -572,34 +544,27 @@ export default function BrandAnalyticsPage() {
                   change={cch?.newCustomers}
                 />
                 <KpiCard
-                  title="재구매 고객"
+                  title="재방문 고객"
                   value={`${c.returningCustomers}명`}
                   change={cch?.returningCustomers}
                 />
                 <KpiCard
-                  title="재구매율"
+                  title="재방문율"
                   value={`${c.repeatCustomerRate}%`}
                   change={cch?.repeatCustomerRate}
                 />
-                <KpiCard
-                  title="고객 생애 가치"
-                  value={formatWon(c.clv)}
-                  change={cch?.clv}
-                />
-                <KpiCard
-                  title="평균 주문 수"
-                  value={`${c.avgOrdersPerCustomer}회`}
-                />
+                <KpiCard title="고객 생애 가치" value={formatWon(c.clv)} change={cch?.clv} />
+                <KpiCard title="평균 주문 수" value={`${c.avgOrdersPerCustomer}건`} />
               </div>
             </div>
           )}
 
           {(abcAnalysis || cohortAnalysis || rfmAnalysis) && (
             <div className="card p-4 mb-6 space-y-6">
-              <h2 className="text-sm font-bold text-foreground">?곹뭹/怨좉컼 遺꾩꽍 ?ы솕</h2>
+              <h2 className="text-sm font-bold text-foreground">상품/고객 심화 분석</h2>
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">ABC 遺꾩꽍</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-2">ABC 분석</h3>
                 {abcAnalysis && abcAnalysis.items.length > 0 ? (
                   <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
                     <ParetoChart
@@ -614,27 +579,27 @@ export default function BrandAnalyticsPage() {
                       <PieChart data={abcSummaryData} nameKey="grade" valueKey="value" />
                       <div className="mt-3 space-y-1 text-xs text-text-secondary">
                         <div>
-                          A 등급: {abcAnalysis.summary.gradeA.count}개 ·{" "}
+                          A 등급: {abcAnalysis.summary.gradeA.count}개,{" "}
                           {abcAnalysis.summary.gradeA.revenuePercentage.toFixed(1)}%
                         </div>
                         <div>
-                          B 등급: {abcAnalysis.summary.gradeB.count}개 ·{" "}
+                          B 등급: {abcAnalysis.summary.gradeB.count}개,{" "}
                           {abcAnalysis.summary.gradeB.revenuePercentage.toFixed(1)}%
                         </div>
                         <div>
-                          C 등급: {abcAnalysis.summary.gradeC.count}개 ·{" "}
+                          C 등급: {abcAnalysis.summary.gradeC.count}개,{" "}
                           {abcAnalysis.summary.gradeC.revenuePercentage.toFixed(1)}%
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                  <div className="text-xs text-text-secondary">데이터가 없습니다.</div>
                 )}
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">肄뷀샇??遺꾩꽍</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-2">코호트 분석</h3>
                 {cohortRows.length > 0 ? (
                   <HeatmapTable
                     rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
@@ -647,30 +612,32 @@ export default function BrandAnalyticsPage() {
                     baseColor="14,165,233"
                   />
                 ) : (
-                  <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                  <div className="text-xs text-text-secondary">데이터가 없습니다.</div>
                 )}
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">RFM 遺꾩꽍</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-2">RFM 분석</h3>
                 {rfmSummary.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {rfmSummary.map((segment) => (
                       <div key={segment.segment} className="card p-4">
-                        <div className="text-xs text-text-secondary mb-1">{segment.segment}</div>
+                        <div className="text-xs text-text-secondary mb-1">
+                          {segment.segment}
+                        </div>
                         <div className="text-xl font-extrabold text-foreground">
                           {segment.customerCount.toLocaleString()}명
                         </div>
                         <div className="mt-2 space-y-1 text-xs text-text-secondary">
-                          <div>?됯퇏 ?쒖꽌: {segment.avgRecency.toFixed(1)}일</div>
-                          <div>?됯퇏 鍮덈룄: {segment.avgFrequency.toFixed(1)}회</div>
-                          <div>?됯퇏 湲덉븸: {formatWon(segment.avgMonetary)}</div>
+                          <div>평균 최근성: {segment.avgRecency.toFixed(1)}일</div>
+                          <div>평균 빈도: {segment.avgFrequency.toFixed(1)}회</div>
+                          <div>평균 금액: {formatWon(segment.avgMonetary)}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                  <div className="text-xs text-text-secondary">데이터가 없습니다.</div>
                 )}
 
                 <div className="mt-4">
@@ -679,12 +646,12 @@ export default function BrandAnalyticsPage() {
                       <RfmScatterChart data={rfmPoints.slice(0, 500)} />
                       {rfmPoints.length > 500 && (
                         <div className="text-xs text-text-tertiary mt-2">
-                          ?꾨줈??500紐?留?異붿텧?⑸땲??
+                          최대 500개까지만 표시됩니다.
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                    <div className="text-xs text-text-secondary">데이터가 없습니다.</div>
                   )}
                 </div>
               </div>
@@ -694,9 +661,7 @@ export default function BrandAnalyticsPage() {
       )}
 
       {!loading && !s && selectedBrandId && !error && (
-        <div className="text-center py-12 text-text-tertiary">
-          데이터가 없습니다.
-        </div>
+        <div className="text-center py-12 text-text-tertiary">데이터가 없습니다.</div>
       )}
     </div>
   );

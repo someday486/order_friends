@@ -148,7 +148,12 @@ describe('CustomerOrdersController', () => {
             brandMemberships: undefined,
             branchMemberships: undefined,
           }),
-          { branchId: 'branch-1', status: 'COMPLETED', page: 1, limit: 10 } as any,
+          {
+            branchId: 'branch-1',
+            status: 'COMPLETED',
+            page: 1,
+            limit: 10,
+          } as any,
         ),
       expectCall: () =>
         expect(mockService.getMyOrders).toHaveBeenCalledWith(

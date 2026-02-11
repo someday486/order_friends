@@ -1,4 +1,4 @@
-# Order Friends - Codex Agent Instructions
+﻿# Order Friends - Codex Agent Instructions
 
 ## Your Role
 You are a **support agent** handling repetitive, well-defined tasks.
@@ -121,8 +121,14 @@ export class CreateSomethingDto {
 - Always run `npm run lint` before committing
 - Always run `npm run test` to verify changes don't break existing tests
 
+### Text Encoding (Korean UI)
+- All source files must be saved as UTF-8.
+- Never paste or generate mojibake (e.g., "??", "�", 깨진 한글). If 발견하면 즉시 원문 한국어로 교체.
+- UI 문구는 에디터에서 직접 입력하고, 깨짐이 보이면 페이지에서 다시 확인.
+
 ### Verification
 After completing any task, always run:
 1. `npm run lint` — must pass
 2. `npm run test` — must pass
 3. `npm run build` — must succeed
+

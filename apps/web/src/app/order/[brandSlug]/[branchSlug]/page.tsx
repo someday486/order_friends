@@ -42,6 +42,7 @@ export default async function OrderPage({ params }: PageProps) {
     price: p.price,
     discountPrice: p.discountPrice,
     imageUrl: p.imageUrl || p.image_url || null,
+    categoryId: p.categoryId ?? p.category_id ?? null,
     badges: p.badges,
     stock: p.stock,
     options: p.options,

@@ -341,7 +341,7 @@ function InventoryDetailPageContent() {
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
             <div className="text-xs text-text-secondary mb-2 font-semibold">재고 가능</div>
             <div className={`text-2xl font-extrabold ${isLowStock ? "text-danger-500" : "text-success"}`}>
@@ -374,7 +374,7 @@ function InventoryDetailPageContent() {
             </button>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-[13px] text-text-secondary mb-2 font-semibold">재고 가능 수량</label>
                   <input
@@ -421,7 +421,7 @@ function InventoryDetailPageContent() {
         <div className="card p-6 mb-6">
           <h3 className="text-lg font-bold mb-4 text-foreground">재고 수동 조정</h3>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-[13px] text-text-secondary mb-2 font-semibold">거래 유형</label>
               <select value={adjustmentType} onChange={(e) => setAdjustmentType(e.target.value)} className="input-field w-full">

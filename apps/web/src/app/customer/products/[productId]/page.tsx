@@ -550,7 +550,7 @@ function ProductDetailPageContent() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 mt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
                 <div>
                   <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
                   <div className="text-sm text-foreground">{new Date(product.created_at).toLocaleString()}</div>

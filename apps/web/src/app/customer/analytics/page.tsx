@@ -530,13 +530,15 @@ function AnalyticsContent() {
                   />
                 </h3>
                 {hourlyList.length > 0 && topHourlyProducts.length > 0 ? (
-                  <HeatmapTable
-                    rows={topHourlyProducts}
-                    columns={hours.map((hour) => `${hour}시`)}
-                    values={hourlyMatrix}
-                    valueFormatter={(value) => value.toLocaleString()}
-                    emptyLabel="-"
-                  />
+                  <div className="overflow-x-auto">
+                    <HeatmapTable
+                      rows={topHourlyProducts}
+                      columns={hours.map((hour) => `${hour}시`)}
+                      values={hourlyMatrix}
+                      valueFormatter={(value) => value.toLocaleString()}
+                      emptyLabel="-"
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
                 )}
@@ -691,16 +693,18 @@ function AnalyticsContent() {
                   />
                 </h3>
                 {cohortRows.length > 0 ? (
-                  <HeatmapTable
-                    rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
-                    columns={cohortPeriods.map((period) =>
-                      `${period}${cohortData?.granularity === "WEEK" ? "주" : "개월"}`
-                    )}
-                    values={cohortMatrix}
-                    valueFormatter={(value) => `${value.toFixed(1)}%`}
-                    emptyLabel="-"
-                    baseColor="14,165,233"
-                  />
+                  <div className="overflow-x-auto">
+                    <HeatmapTable
+                      rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
+                      columns={cohortPeriods.map((period) =>
+                        `${period}${cohortData?.granularity === "WEEK" ? "주" : "개월"}`
+                      )}
+                      values={cohortMatrix}
+                      valueFormatter={(value) => `${value.toFixed(1)}%`}
+                      emptyLabel="-"
+                      baseColor="14,165,233"
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
                 )}

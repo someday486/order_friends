@@ -103,7 +103,7 @@ export default function CustomerInventoryPage() {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">재고 관리</h1>
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
@@ -173,7 +173,7 @@ export default function CustomerInventoryPage() {
           <div className="text-[13px] text-text-tertiary">위에서 매장을 선택하면 재고 목록이 표시됩니다</div>
         </div>
       ) : loading ? (
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
@@ -198,8 +198,8 @@ export default function CustomerInventoryPage() {
           <div className="text-[13px] text-text-tertiary">상품을 추가하면 자동으로 재고가 생성됩니다</div>
         </div>
       ) : (
-        <div className="border border-border rounded-xl overflow-hidden">
-          <table className="w-full border-collapse">
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>

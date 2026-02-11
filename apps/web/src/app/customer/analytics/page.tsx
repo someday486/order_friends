@@ -131,8 +131,24 @@ function AnalyticsContent() {
   const [cohortData, setCohortData] = useState<CohortAnalysis | null>(null);
   const [rfmData, setRfmData] = useState<RfmAnalysis | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"sales" | "products" | "orders" | "customers">("sales");
+  const [tabLoading, setTabLoading] = useState({
+    sales: false,
+    products: false,
+    orders: false,
+    customers: false,
+  });
+  const [tabErrors, setTabErrors] = useState<{
+    sales: string | null;
+    products: string | null;
+    orders: string | null;
+    customers: string | null;
+  }>({
+    sales: null,
+    products: null,
+    orders: null,
+    customers: null,
+  });
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -174,11 +190,81 @@ function AnalyticsContent() {
   }, [branchId, selectedBranchId, selectBranch]);
 
   useEffect(() => {
-    if (!effectiveBranchId || !session) return;
+    if (!effectiveBranchId) {
+      setSalesData(null);
+      setProductData(null);
+      setOrderData(null);
+      setCustomerData(null);
+      setAbcData(null);
+      setHourlyData(null);
+      setCombinationData(null);
+      setCohortData(null);
+      setRfmData(null);
+    }
+  }, [effectiveBranchId]);
 
-    const fetchAnalytics = async () => {
-      setLoading(true);
-      setError(null);
+  useEffect(() => {
+    if (!effectiveBranchId || !session || activeTab !== "sales") return;
+    let cancelled = false;
+
+    const fetchSales = async () => {
+      setTabLoading((prev) => ({ ...prev, sales: true }));
+      setTabErrors((prev) => ({ ...prev, sales: null }));
+
+      try {
+        const params = new URLSearchParams({
+          branchId: effectiveBranchId,
+          startDate,
+          endDate,
+        });
+
+        if (compareEnabled) {
+          params.set("compare", "true");
+        }
+
+        const [salesResult] = await Promise.allSettled([
+          apiClient.get<MaybePeriodComparison<SalesAnalytics>>(
+            `/customer/analytics/sales?${params}`
+          ),
+        ]);
+
+        if (cancelled) return;
+
+        if (salesResult.status === "fulfilled") {
+          setSalesData(normalizeComparison(salesResult.value));
+        } else {
+          setSalesData(null);
+          const message =
+            salesResult.reason instanceof Error
+              ? salesResult.reason.message
+              : "매출 데이터를 불러오지 못했습니다";
+          setTabErrors((prev) => ({ ...prev, sales: message }));
+        }
+      } finally {
+        if (!cancelled) {
+          setTabLoading((prev) => ({ ...prev, sales: false }));
+        }
+      }
+    };
+
+    fetchSales();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveBranchId, session, startDate, endDate, compareEnabled, activeTab]);
+
+  useEffect(() => {
+    if (!effectiveBranchId || !session || activeTab !== "products") return;
+    let cancelled = false;
+
+    const fetchProducts = async () => {
+      setTabLoading((prev) => ({ ...prev, products: true }));
+      setTabErrors((prev) => ({ ...prev, products: null }));
+
+      setProductData(null);
+      setAbcData(null);
+      setHourlyData(null);
+      setCombinationData(null);
 
       try {
         const params = new URLSearchParams({
@@ -193,29 +279,151 @@ function AnalyticsContent() {
 
         const combinationParams = new URLSearchParams(params);
         combinationParams.set("minCount", "2");
-        const cohortParams = new URLSearchParams(params);
-        cohortParams.set("granularity", "MONTH");
 
-        const [sales, products, orders, customers, abc, hourly, combinations, cohort, rfm] =
-          await Promise.all([
-          apiClient.get<MaybePeriodComparison<SalesAnalytics>>(
-            `/customer/analytics/sales?${params}`
-          ),
-          apiClient.get<MaybePeriodComparison<ProductAnalytics>>(
-            `/customer/analytics/products?${params}`
-          ),
+        const [productsResult, abcResult, hourlyResult, combinationsResult] =
+          await Promise.allSettled([
+            apiClient.get<MaybePeriodComparison<ProductAnalytics>>(
+              `/customer/analytics/products?${params}`
+            ),
+            apiClient.get<AbcAnalysis>(`/customer/analytics/products/abc?${params}`),
+            apiClient.get<HourlyProductAnalysis>(
+              `/customer/analytics/products/hourly?${params}`
+            ),
+            apiClient.get<CombinationAnalysis>(
+              `/customer/analytics/products/combinations?${combinationParams}`
+            ),
+          ]);
+
+        if (cancelled) return;
+
+        const errors: string[] = [];
+
+        if (productsResult.status === "fulfilled") {
+          setProductData(normalizeComparison(productsResult.value));
+        } else {
+          setProductData(null);
+          errors.push("상품 분석");
+        }
+
+        if (abcResult.status === "fulfilled") {
+          setAbcData(abcResult.value);
+        } else {
+          setAbcData(null);
+          errors.push("ABC 분석");
+        }
+
+        if (hourlyResult.status === "fulfilled") {
+          setHourlyData(hourlyResult.value);
+        } else {
+          setHourlyData(null);
+          errors.push("시간대별 인기 상품");
+        }
+
+        if (combinationsResult.status === "fulfilled") {
+          setCombinationData(combinationsResult.value);
+        } else {
+          setCombinationData(null);
+          errors.push("조합 분석");
+        }
+
+        if (errors.length > 0) {
+          setTabErrors((prev) => ({
+            ...prev,
+            products: `일부 데이터를 불러오지 못했습니다. (${errors.join(", ")})`,
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setTabLoading((prev) => ({ ...prev, products: false }));
+        }
+      }
+    };
+
+    fetchProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveBranchId, session, startDate, endDate, compareEnabled, activeTab]);
+
+  useEffect(() => {
+    if (!effectiveBranchId || !session || activeTab !== "orders") return;
+    let cancelled = false;
+
+    const fetchOrders = async () => {
+      setTabLoading((prev) => ({ ...prev, orders: true }));
+      setTabErrors((prev) => ({ ...prev, orders: null }));
+
+      try {
+        const params = new URLSearchParams({
+          branchId: effectiveBranchId,
+          startDate,
+          endDate,
+        });
+
+        if (compareEnabled) {
+          params.set("compare", "true");
+        }
+
+        const [ordersResult] = await Promise.allSettled([
           apiClient.get<MaybePeriodComparison<OrderAnalytics>>(
             `/customer/analytics/orders?${params}`
           ),
+        ]);
+
+        if (cancelled) return;
+
+        if (ordersResult.status === "fulfilled") {
+          setOrderData(normalizeComparison(ordersResult.value));
+        } else {
+          setOrderData(null);
+          const message =
+            ordersResult.reason instanceof Error
+              ? ordersResult.reason.message
+              : "주문 데이터를 불러오지 못했습니다";
+          setTabErrors((prev) => ({ ...prev, orders: message }));
+        }
+      } finally {
+        if (!cancelled) {
+          setTabLoading((prev) => ({ ...prev, orders: false }));
+        }
+      }
+    };
+
+    fetchOrders();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveBranchId, session, startDate, endDate, compareEnabled, activeTab]);
+
+  useEffect(() => {
+    if (!effectiveBranchId || !session || activeTab !== "customers") return;
+    let cancelled = false;
+
+    const fetchCustomers = async () => {
+      setTabLoading((prev) => ({ ...prev, customers: true }));
+      setTabErrors((prev) => ({ ...prev, customers: null }));
+
+      setCustomerData(null);
+      setCohortData(null);
+      setRfmData(null);
+
+      try {
+        const params = new URLSearchParams({
+          branchId: effectiveBranchId,
+          startDate,
+          endDate,
+        });
+
+        if (compareEnabled) {
+          params.set("compare", "true");
+        }
+
+        const cohortParams = new URLSearchParams(params);
+        cohortParams.set("granularity", "MONTH");
+
+        const [customersResult, cohortResult, rfmResult] = await Promise.allSettled([
           apiClient.get<MaybePeriodComparison<CustomerAnalytics>>(
             `/customer/analytics/customers?${params}`
-          ),
-          apiClient.get<AbcAnalysis>(`/customer/analytics/products/abc?${params}`),
-          apiClient.get<HourlyProductAnalysis>(
-            `/customer/analytics/products/hourly?${params}`
-          ),
-          apiClient.get<CombinationAnalysis>(
-            `/customer/analytics/products/combinations?${combinationParams}`
           ),
           apiClient.get<CohortAnalysis>(
             `/customer/analytics/customers/cohort?${cohortParams}`
@@ -223,24 +431,49 @@ function AnalyticsContent() {
           apiClient.get<RfmAnalysis>(`/customer/analytics/customers/rfm?${params}`),
         ]);
 
-        setSalesData(normalizeComparison(sales));
-        setProductData(normalizeComparison(products));
-        setOrderData(normalizeComparison(orders));
-        setCustomerData(normalizeComparison(customers));
-        setAbcData(abc);
-        setHourlyData(hourly);
-        setCombinationData(combinations);
-        setCohortData(cohort);
-        setRfmData(rfm);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "분석 데이터를 불러오지 못했습니다");
+        if (cancelled) return;
+
+        const errors: string[] = [];
+
+        if (customersResult.status === "fulfilled") {
+          setCustomerData(normalizeComparison(customersResult.value));
+        } else {
+          setCustomerData(null);
+          errors.push("고객 분석");
+        }
+
+        if (cohortResult.status === "fulfilled") {
+          setCohortData(cohortResult.value);
+        } else {
+          setCohortData(null);
+          errors.push("코호트 분석");
+        }
+
+        if (rfmResult.status === "fulfilled") {
+          setRfmData(rfmResult.value);
+        } else {
+          setRfmData(null);
+          errors.push("RFM 분석");
+        }
+
+        if (errors.length > 0) {
+          setTabErrors((prev) => ({
+            ...prev,
+            customers: `일부 데이터를 불러오지 못했습니다. (${errors.join(", ")})`,
+          }));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setTabLoading((prev) => ({ ...prev, customers: false }));
+        }
       }
     };
 
-    fetchAnalytics();
-  }, [effectiveBranchId, session, startDate, endDate, compareEnabled]);
+    fetchCustomers();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveBranchId, session, startDate, endDate, compareEnabled, activeTab]);
 
   if (status === "loading") {
     return (
@@ -319,6 +552,8 @@ function AnalyticsContent() {
   );
   const rfmSummary = rfmData?.summary ?? [];
   const rfmPoints = rfmData?.customers ?? [];
+  const activeLoading = tabLoading[activeTab];
+  const activeError = tabErrors[activeTab];
 
   return (
     <div className="p-6 space-y-6">
@@ -383,19 +618,38 @@ function AnalyticsContent() {
         </div>
       </div>
 
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-6">
+        {[
+          { key: "sales", label: "매출" },
+          { key: "products", label: "상품" },
+          { key: "orders", label: "주문" },
+          { key: "customers", label: "고객" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() =>
+              setActiveTab(tab.key as "sales" | "products" | "orders" | "customers")
+            }
+            className={`category-tab ${activeTab === tab.key ? "category-tab-active" : ""}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {!effectiveBranchId && (
         <div className="rounded-md border border-border bg-bg-secondary p-4 text-sm text-text-secondary">
           지점을 선택하면 분석 데이터를 확인할 수 있습니다.
         </div>
       )}
 
-      {loading && <p className="text-text-secondary">분석 데이터를 불러오는 중...</p>}
-      {error && <p className="text-danger-500">오류: {error}</p>}
+      {activeLoading && <p className="text-text-secondary">분석 데이터를 불러오는 중...</p>}
+      {activeError && <p className="text-danger-500">오류: {activeError}</p>}
 
-      {!loading && !error && effectiveBranchId && (
+      {effectiveBranchId && (
         <>
           {/* 매출 분석 */}
-          {salesCurrent && (
+          {activeTab === "sales" && salesCurrent && (
             <div className="card p-6 space-y-6">
               <h2 className="text-xl font-semibold text-foreground">매출 분석</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -439,7 +693,7 @@ function AnalyticsContent() {
           )}
 
           {/* 상품 분석 */}
-          {productCurrent && (
+          {activeTab === "products" && productCurrent && (
             <div className="card p-6 space-y-6">
               <h2 className="text-xl font-semibold text-foreground">상품 분석</h2>
               <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
@@ -595,7 +849,7 @@ function AnalyticsContent() {
           )}
 
           {/* 주문 분석 */}
-          {orderCurrent && (
+          {activeTab === "orders" && orderCurrent && (
             <div className="card p-6 space-y-6">
               <h2 className="text-xl font-semibold text-foreground">주문 분석</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -638,7 +892,7 @@ function AnalyticsContent() {
           )}
 
           {/* 고객 분석 */}
-          {customerCurrent && (
+          {activeTab === "customers" && customerCurrent && (
             <div className="card p-6 space-y-6">
               <h2 className="text-xl font-semibold text-foreground">고객 분석</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -681,7 +935,7 @@ function AnalyticsContent() {
             </div>
           )}
 
-          {(cohortData || rfmData) && (
+          {activeTab === "customers" && (cohortData || rfmData) && (
             <div className="card p-6 space-y-8">
               <h2 className="text-xl font-semibold text-foreground">고객 분석 심화</h2>
 

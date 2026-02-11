@@ -84,7 +84,7 @@ export default function CustomerDashboardPage() {
         setStats(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "데이터를 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }

@@ -102,7 +102,7 @@ function ProductDetailPageContent() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
       }
     };
 
@@ -142,7 +142,7 @@ function ProductDetailPageContent() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "상품 정보를 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -215,22 +215,22 @@ function ProductDetailPageContent() {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert("???? ??????");
+      alert("상품명을 입력해주세요");
       return;
     }
 
     if (!formData.branchId) {
-      alert("??? ??????");
+      alert("매장을 선택해주세요");
       return;
     }
 
     if (!formData.categoryId) {
-      alert("????? ??????");
+      alert("카테고리를 선택해주세요");
       return;
     }
 
     if (formData.price < 0) {
-      alert("??? 0 ???? ??????");
+      alert("가격은 0 이상이어야 합니다");
       return;
     }
 
@@ -258,7 +258,7 @@ function ProductDetailPageContent() {
           }
         }
 
-        alert("??? ???????.");
+        alert("상품이 등록되었습니다.");
         router.push("/customer/products/" + data.id);
       } else {
         let uploadedUrl = formData.imageUrl;
@@ -287,28 +287,28 @@ function ProductDetailPageContent() {
         });
         setImagePreviewUrl(updated.image_url || null);
         setIsEditing(false);
-        alert("?? ??? ???????.");
+        alert("상품 정보가 수정되었습니다.");
       }
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ? ?? ??");
+      alert(e instanceof Error ? e.message : "저장에 실패했습니다");
     } finally {
       setSaveLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`"${product?.name}" ??? ?????????`)) return;
+    if (!confirm(`"${product?.name}" 상품을 삭제하시겠습니까?`)) return;
 
     try {
       setDeleteLoading(true);
       await apiClient.delete("/customer/products/" + productId);
 
-      alert("??? ???????.");
+      alert("상품이 삭제되었습니다.");
       router.push("/customer/products");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ? ?? ??");
+      alert(e instanceof Error ? e.message : "삭제에 실패했습니다");
     } finally {
       setDeleteLoading(false);
     }
@@ -455,7 +455,7 @@ function ProductDetailPageContent() {
               {imagePreviewUrl && (
                 <Image
                 src={imagePreviewUrl}
-                alt="?? ????"
+                alt="상품 미리보기"
                 width={240}
                 height={240}
                 className="mt-3 w-full max-w-[240px] rounded-xl h-auto"

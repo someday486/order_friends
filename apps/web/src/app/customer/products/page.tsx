@@ -70,7 +70,7 @@ export default function CustomerProductsPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
       }
     };
 
@@ -94,7 +94,7 @@ export default function CustomerProductsPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "상품 목록을 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -151,7 +151,7 @@ export default function CustomerProductsPage() {
       setReorderList([]);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      alert(e instanceof Error ? e.message : "순서 저장에 실패했습니다");
     } finally {
       setReorderSaving(false);
     }

@@ -131,7 +131,7 @@ function InventoryDetailPageContent() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
       }
     };
 
@@ -144,7 +144,7 @@ function InventoryDetailPageContent() {
       if (!productId || productId === "undefined" || !selectedBranchId) {
         setLoading(false);
         if (productId === "undefined") {
-          setError("??? ?? ID???. ?? ???? ?? ??????.");
+          setError("잘못된 상품 ID입니다. 재고 목록에서 다시 선택해주세요.");
         }
         return;
       }
@@ -171,7 +171,7 @@ function InventoryDetailPageContent() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "재고 정보를 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -203,7 +203,7 @@ function InventoryDetailPageContent() {
       }
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      setError(e instanceof Error ? e.message : "재고 수정에 실패했습니다");
     } finally {
       setSaving(false);
     }
@@ -214,7 +214,7 @@ function InventoryDetailPageContent() {
 
     const qtyChange = parseInt(adjustmentQty, 10);
     if (isNaN(qtyChange) || qtyChange === 0) {
-      setError("??? ??? ??????");
+      setError("유효한 수량을 입력해주세요");
       return;
     }
 
@@ -242,7 +242,7 @@ function InventoryDetailPageContent() {
       }
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      setError(e instanceof Error ? e.message : "재고 조정에 실패했습니다");
     } finally {
       setAdjusting(false);
     }
@@ -318,7 +318,7 @@ function InventoryDetailPageContent() {
           {inventory.product?.image_url && (
             <Image
               src={inventory.product.image_url}
-              alt={inventory.product?.name || "?? ???"}
+              alt={inventory.product?.name || "상품 이미지"}
               width={120}
               height={120}
               className="w-[120px] h-[120px] rounded-xl object-cover border border-border"

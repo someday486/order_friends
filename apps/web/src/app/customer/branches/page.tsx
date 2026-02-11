@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -53,7 +53,7 @@ export default function CustomerBranchesPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "??? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "브랜드 목록을 불러올 수 없습니다");
       }
     };
 
@@ -75,7 +75,7 @@ export default function CustomerBranchesPage() {
         setBranches(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -204,7 +204,7 @@ function AddBranchModal({
     e.preventDefault();
 
     if (!formData.name || !formData.slug) {
-      alert("?? ??? ??????");
+      alert("모든 필드를 입력해주세요");
       return;
     }
 
@@ -216,11 +216,11 @@ function AddBranchModal({
         slug: formData.slug,
       });
 
-      alert("??? ???????.");
+      alert("지점이 추가되었습니다.");
       onSuccess();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      alert(e instanceof Error ? e.message : "지점 추가에 실패했습니다");
     } finally {
       setSaving(false);
     }

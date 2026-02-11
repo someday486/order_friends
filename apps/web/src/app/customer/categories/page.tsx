@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -65,7 +65,7 @@ export default function CustomerCategoriesPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
       }
     };
     loadBranches();
@@ -90,7 +90,7 @@ export default function CustomerCategoriesPage() {
         if (branch) setUserRole(branch.myRole);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "???? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "카테고리를 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -119,7 +119,7 @@ export default function CustomerCategoriesPage() {
       setShowAddForm(false);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "???? ?? ??");
+      alert(e instanceof Error ? e.message : "카테고리 수정에 실패했습니다");
     } finally {
       setAddLoading(false);
     }
@@ -136,7 +136,7 @@ export default function CustomerCategoriesPage() {
       setEditingId(null);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "???? ?? ??");
+      alert(e instanceof Error ? e.message : "카테고리 추가에 실패했습니다");
     } finally {
       setEditLoading(false);
     }
@@ -150,18 +150,18 @@ export default function CustomerCategoriesPage() {
       setCategories((prev) => prev.map((c) => (c.id === category.id ? updated : c)));
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ?? ??");
+      alert(e instanceof Error ? e.message : "상태 변경에 실패했습니다");
     }
   };
 
   const handleDelete = async (categoryId: string) => {
-    if (!confirm("? ????? ?????????\n?? ????? ??? '???? ??' ??? ???.")) return;
+    if (!confirm("이 카테고리를 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.")) return;
     try {
       await apiClient.delete("/customer/products/categories/" + categoryId);
       setCategories((prev) => prev.filter((c) => c.id !== categoryId));
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "???? ?? ??");
+      alert(e instanceof Error ? e.message : "카테고리 삭제에 실패했습니다");
     }
   };
 
@@ -180,7 +180,7 @@ export default function CustomerCategoriesPage() {
         items,
       });
     } catch (e) {
-      console.error("?? ?? ??:", e);
+      console.error("순서 저장 실패:", e);
     }
   };
 

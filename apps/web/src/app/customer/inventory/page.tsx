@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -67,7 +67,7 @@ export default function CustomerInventoryPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
       }
     };
 
@@ -87,7 +87,7 @@ export default function CustomerInventoryPage() {
         setInventory(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "재고 목록을 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -185,7 +185,7 @@ export default function CustomerInventoryPage() {
                         {item.image_url && (
                           <Image
                             src={item.image_url}
-                            alt={item.product_name || "?? ???"}
+                            alt={item.product_name || "상품 이미지"}
                             width={48}
                             height={48}
                             className="w-12 h-12 rounded-lg object-cover border border-border"

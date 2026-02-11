@@ -9,7 +9,7 @@ import {
 } from "recharts";
 
 type PieChartProps = {
-  data: Array<Record<string, number | string>>;
+  data: Array<object>;
   nameKey: string;
   valueKey: string;
   height?: number;
@@ -46,9 +46,15 @@ export default function PieChart({
             outerRadius={100}
             paddingAngle={2}
           >
-            {data.map((entry, index) => (
-              <Cell key={`${entry[nameKey]}-${index}`} fill={colors[index % colors.length]} />
-            ))}
+            {data.map((entry, index) => {
+              const nameValue = (entry as Record<string, unknown>)[nameKey];
+              return (
+                <Cell
+                  key={`${String(nameValue)}-${index}`}
+                  fill={colors[index % colors.length]}
+                />
+              );
+            })}
           </Pie>
           <Tooltip />
         </RechartsPieChart>

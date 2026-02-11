@@ -18,18 +18,21 @@ export type LineSeries = {
 };
 
 type LineChartProps = {
-  data: Array<Record<string, number | string>>;
+  data: Array<object>;
   xKey: string;
   lines: LineSeries[];
   height?: number;
   tooltipFormatter?: (value: number, name?: string) => string;
 };
 
-const defaultFormatter = (value: number | string) => {
+const defaultFormatter = (value: number | string | undefined) => {
   if (typeof value === "number") {
     return value.toLocaleString();
   }
-  return value;
+  if (typeof value === "string") {
+    return value;
+  }
+  return "";
 };
 
 export default function LineChart({
@@ -39,7 +42,7 @@ export default function LineChart({
   height = 260,
   tooltipFormatter,
 }: LineChartProps) {
-  const formatter = (value: number | string, name?: string) => {
+  const formatter = (value: number | string | undefined, name?: string) => {
     if (tooltipFormatter && typeof value === "number") {
       return tooltipFormatter(value, name);
     }

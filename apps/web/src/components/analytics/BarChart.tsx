@@ -11,7 +11,7 @@ import {
 } from "recharts";
 
 type BarChartProps = {
-  data: Array<Record<string, number | string>>;
+  data: Array<object>;
   xKey: string;
   valueKey: string;
   layout?: "vertical" | "horizontal";
@@ -20,11 +20,14 @@ type BarChartProps = {
   valueFormatter?: (value: number) => string;
 };
 
-const defaultFormatter = (value: number | string) => {
+const defaultFormatter = (value: number | string | undefined) => {
   if (typeof value === "number") {
     return value.toLocaleString();
   }
-  return value;
+  if (typeof value === "string") {
+    return value;
+  }
+  return "";
 };
 
 export default function BarChart({
@@ -37,8 +40,8 @@ export default function BarChart({
   valueFormatter,
 }: BarChartProps) {
   const formatter = valueFormatter
-    ? (value: number | string) =>
-        typeof value === "number" ? valueFormatter(value) : value
+    ? (value: number | string | undefined) =>
+        typeof value === "number" ? valueFormatter(value) : value ?? ""
     : defaultFormatter;
 
   const isVertical = layout === "vertical";

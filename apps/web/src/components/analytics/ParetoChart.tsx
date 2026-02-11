@@ -12,7 +12,7 @@ import {
 } from "recharts";
 
 type ParetoChartProps = {
-  data: Array<Record<string, number | string>>;
+  data: Array<object>;
   xKey: string;
   barKey: string;
   lineKey: string;
@@ -23,11 +23,14 @@ type ParetoChartProps = {
   lineName?: string;
 };
 
-const formatNumber = (value: number | string) => {
+const formatNumber = (value: number | string | undefined) => {
   if (typeof value === "number") {
     return value.toLocaleString();
   }
-  return value;
+  if (typeof value === "string") {
+    return value;
+  }
+  return "";
 };
 
 export default function ParetoChart({
@@ -56,10 +59,14 @@ export default function ParetoChart({
           />
           <Tooltip
             formatter={(value, name) => {
+              const normalized = Array.isArray(value) ? value[0] : value;
               if (name === lineName || name === lineKey) {
-                return [`${Number(value).toFixed(1)}%`, lineName ?? "누적 비율"];
+                return [
+                  `${Number(normalized).toFixed(1)}%`,
+                  lineName ?? "누적 비율",
+                ];
               }
-              return [formatNumber(value), barName ?? "매출"];
+              return [formatNumber(normalized), barName ?? "매출"];
             }}
           />
           <Bar

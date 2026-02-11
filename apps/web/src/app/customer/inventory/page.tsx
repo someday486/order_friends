@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 
 // ============================================================
@@ -50,6 +51,7 @@ function isLowStock(item: InventoryItem): boolean {
 // ============================================================
 
 export default function CustomerInventoryPage() {
+  const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
@@ -178,7 +180,7 @@ export default function CustomerInventoryPage() {
                   <tr
                     key={item.id}
                     className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
-                    onClick={() => window.location.href = `/customer/inventory/${item.product_id}`}
+                    onClick={() => router.push(`/customer/inventory/${item.product_id}`)}
                   >
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <div className="flex items-center gap-3">

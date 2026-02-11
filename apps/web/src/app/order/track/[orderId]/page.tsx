@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
@@ -58,7 +58,7 @@ export default function TrackOrderPage() {
   const [error, setError] = useState<string | null>(null);
 
   // 주문 조회
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -79,24 +79,22 @@ export default function TrackOrderPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
 
   useEffect(() => {
     if (orderId) {
       fetchOrder();
     }
-  }, [orderId]);
+  }, [orderId, fetchOrder]);
 
   // 자동 새로고침 (30초마다)
   useEffect(() => {
     if (!orderId) return;
 
-    const interval = setInterval(() => {
-      fetchOrder();
-    }, 30000);
+    const interval = setInterval(fetchOrder, 30000);
 
     return () => clearInterval(interval);
-  }, [orderId]);
+  }, [orderId, fetchOrder]);
 
   // 현재 상태 인덱스
   const currentStepIndex = order ? STATUS_STEPS.indexOf(order.status) : -1;

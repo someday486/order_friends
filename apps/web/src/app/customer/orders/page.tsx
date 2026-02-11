@@ -231,20 +231,7 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const brands = await apiClient.get<any[]>("/customer/brands");
-        const branchList: Branch[] = [];
-
-        for (const brand of brands) {
-          try {
-            const branchData = await apiClient.get<Branch[]>(
-              `/customer/brands/${brand.id}/branches`,
-            );
-            branchList.push(...branchData);
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
+        const branchList = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(branchList);
       } catch (e) {
         console.error(e);

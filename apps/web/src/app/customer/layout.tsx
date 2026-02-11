@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { useState } from "react";
 
 type MenuItem = {
@@ -64,6 +65,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const { user, signOut } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isDark, toggle } = useDarkMode();
 
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
@@ -161,6 +163,12 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               {user.email}
             </div>
           )}
+          <button
+            onClick={toggle}
+            className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
+          >
+            {isDark ? "라이트 모드" : "다크 모드"}
+          </button>
           <button
             onClick={signOut}
             className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer"

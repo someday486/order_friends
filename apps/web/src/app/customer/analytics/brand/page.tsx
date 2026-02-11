@@ -99,6 +99,19 @@ function formatDate(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+const HelpLabel = ({ label, description }: { label: string; description: string }) => (
+  <span className="inline-flex items-center gap-1">
+    <span>{label}</span>
+    <span
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary cursor-help"
+      title={description}
+      aria-label={`${label} 도움말`}
+    >
+      ?
+    </span>
+  </span>
+);
+
 const STATUS_LABELS: Record<string, string> = {
   CREATED: "접수",
   CONFIRMED: "확인",
@@ -115,16 +128,29 @@ const STATUS_LABELS: Record<string, string> = {
 
 function KpiCard({
   title,
+  titleTooltip,
   value,
   change,
 }: {
   title: string;
+  titleTooltip?: string;
   value: string;
   change?: number;
 }) {
   return (
     <div className="card p-4">
-      <div className="text-xs text-text-secondary mb-1">{title}</div>
+      <div className="text-xs text-text-secondary mb-1 flex items-center gap-1">
+        <span>{title}</span>
+        {titleTooltip && (
+          <span
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary cursor-help"
+            title={titleTooltip}
+            aria-label={`${title} 도움말`}
+          >
+            ?
+          </span>
+        )}
+      </div>
       <div className="text-xl font-extrabold text-foreground">{value}</div>
       {change !== undefined && (
         <div
@@ -552,9 +578,19 @@ export default function BrandAnalyticsPage() {
                   title="재방문율"
                   value={`${c.repeatCustomerRate}%`}
                   change={cch?.repeatCustomerRate}
+                  titleTooltip="전체 고객 중 재구매 고객의 비율입니다."
                 />
-                <KpiCard title="고객 생애 가치" value={formatWon(c.clv)} change={cch?.clv} />
-                <KpiCard title="평균 주문 수" value={`${c.avgOrdersPerCustomer}건`} />
+                <KpiCard
+                  title="고객 생애 가치"
+                  value={formatWon(c.clv)}
+                  change={cch?.clv}
+                  titleTooltip="고객 1명이 평균적으로 가져오는 누적 매출(추정)입니다."
+                />
+                <KpiCard
+                  title="평균 주문 수"
+                  value={`${c.avgOrdersPerCustomer}건`}
+                  titleTooltip="고객 1인당 평균 주문 횟수입니다."
+                />
               </div>
             </div>
           )}
@@ -564,7 +600,12 @@ export default function BrandAnalyticsPage() {
               <h2 className="text-sm font-bold text-foreground">상품/고객 심화 분석</h2>
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">ABC 분석</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-2">
+                  <HelpLabel
+                    label="ABC 분석"
+                    description="매출 기여도 기준으로 상품을 A/B/C로 분류합니다."
+                  />
+                </h3>
                 {abcAnalysis && abcAnalysis.items.length > 0 ? (
                   <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
                     <ParetoChart
@@ -599,7 +640,12 @@ export default function BrandAnalyticsPage() {
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">코호트 분석</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-2">
+                  <HelpLabel
+                    label="코호트 분석"
+                    description="가입/첫 주문 시기별로 재구매율(유지율)을 비교합니다."
+                  />
+                </h3>
                 {cohortRows.length > 0 ? (
                   <HeatmapTable
                     rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
@@ -617,7 +663,12 @@ export default function BrandAnalyticsPage() {
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">RFM 분석</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-2">
+                  <HelpLabel
+                    label="RFM 분석"
+                    description="R=최근성, F=빈도, M=금액 기준으로 고객을 분류합니다."
+                  />
+                </h3>
                 {rfmSummary.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {rfmSummary.map((segment) => (

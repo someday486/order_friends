@@ -70,6 +70,19 @@ const normalizeComparison = <T,>(
   return { current: value as T };
 };
 
+const HelpLabel = ({ label, description }: { label: string; description: string }) => (
+  <span className="inline-flex items-center gap-1">
+    <span>{label}</span>
+    <span
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-tertiary text-[10px] text-text-tertiary cursor-help"
+      title={description}
+      aria-label={`${label} 도움말`}
+    >
+      ?
+    </span>
+  </span>
+);
+
 export default function AnalyticsPage() {
   return (
     <Suspense fallback={<div className="p-6"><p>로딩 중...</p></div>}>
@@ -448,6 +461,7 @@ function AnalyticsContent() {
                   <KpiCard
                     title="평균 회전율"
                     value={`${productCurrent.inventoryTurnover.averageTurnoverRate.toFixed(2)}배`}
+                    titleTooltip="기간 내 판매량을 평균 재고량으로 나눈 재고 소진 속도입니다."
                   />
                   <KpiCard
                     title="기간"
@@ -463,7 +477,12 @@ function AnalyticsContent() {
               <h2 className="text-xl font-semibold text-foreground">상품 분석 심화</h2>
 
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">ABC 분석</h3>
+                <h3 className="font-semibold mb-2 text-foreground">
+                  <HelpLabel
+                    label="ABC 분석"
+                    description="매출 기여도 기준으로 상품을 A/B/C로 분류합니다."
+                  />
+                </h3>
                 {abcData && abcData.items.length > 0 ? (
                   <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
                     <ParetoChart
@@ -501,7 +520,12 @@ function AnalyticsContent() {
               </div>
 
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">시간대별 인기 상품</h3>
+                <h3 className="font-semibold mb-2 text-foreground">
+                  <HelpLabel
+                    label="시간대별 인기 상품"
+                    description="시간대별 판매 상위 상품을 보여줍니다."
+                  />
+                </h3>
                 {hourlyList.length > 0 && topHourlyProducts.length > 0 ? (
                   <HeatmapTable
                     rows={topHourlyProducts}
@@ -516,7 +540,12 @@ function AnalyticsContent() {
               </div>
 
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">조합 분석</h3>
+                <h3 className="font-semibold mb-2 text-foreground">
+                  <HelpLabel
+                    label="조합 분석"
+                    description="함께 주문되는 상품 조합과 지지도를 확인합니다."
+                  />
+                </h3>
                 {combinationRows.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-sm">
@@ -529,7 +558,10 @@ function AnalyticsContent() {
                             동시 주문 수
                           </th>
                           <th className="text-right py-2 px-3 text-xs font-semibold text-text-secondary">
-                            지지도
+                            <HelpLabel
+                              label="지지도"
+                              description="전체 주문 중 해당 조합이 함께 포함된 비율입니다."
+                            />
                           </th>
                         </tr>
                       </thead>
@@ -625,17 +657,20 @@ function AnalyticsContent() {
                   value={customerCurrent.clv}
                   change={compareEnabled ? customerData?.changes?.clv : undefined}
                   formatter={formatCurrency}
+                  titleTooltip="고객 1명이 평균적으로 가져오는 누적 매출(추정)입니다."
                 />
                 <KpiCard
                   title="재방문율"
                   value={customerCurrent.repeatCustomerRate}
                   change={compareEnabled ? customerData?.changes?.repeatCustomerRate : undefined}
                   formatter={formatPercent}
+                  titleTooltip="전체 고객 중 재구매 고객의 비율입니다."
                 />
                 <KpiCard
                   title="고객당 평균 주문 수"
                   value={customerCurrent.avgOrdersPerCustomer}
                   formatter={formatDecimal}
+                  titleTooltip="고객 1인당 평균 주문 횟수입니다."
                 />
               </div>
             </div>
@@ -646,7 +681,12 @@ function AnalyticsContent() {
               <h2 className="text-xl font-semibold text-foreground">고객 분석 심화</h2>
 
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">코호트 분석</h3>
+                <h3 className="font-semibold mb-2 text-foreground">
+                  <HelpLabel
+                    label="코호트 분석"
+                    description="가입/첫 주문 시기별로 재구매율(유지율)을 비교합니다."
+                  />
+                </h3>
                 {cohortRows.length > 0 ? (
                   <HeatmapTable
                     rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
@@ -664,7 +704,12 @@ function AnalyticsContent() {
               </div>
 
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">RFM 분석</h3>
+                <h3 className="font-semibold mb-2 text-foreground">
+                  <HelpLabel
+                    label="RFM 분석"
+                    description="R=최근성, F=빈도, M=금액 기준으로 고객을 분류합니다."
+                  />
+                </h3>
                 {rfmSummary.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {rfmSummary.map((segment) => (

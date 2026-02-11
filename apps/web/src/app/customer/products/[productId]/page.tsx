@@ -316,7 +316,11 @@ function ProductDetailPageContent() {
     }
   };
 
-  const canEdit = userRole === "OWNER" || userRole === "ADMIN";
+  const canEdit =
+    userRole === "OWNER" ||
+    userRole === "ADMIN" ||
+    userRole === "BRANCH_OWNER" ||
+    userRole === "BRANCH_ADMIN";
 
   if (loading) {
     return (

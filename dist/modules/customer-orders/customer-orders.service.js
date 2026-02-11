@@ -14,6 +14,7 @@ exports.CustomerOrdersService = void 0;
 const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
 const pagination_util_1 = require("../../common/utils/pagination.util");
+const role_permission_util_1 = require("../../common/utils/role-permission.util");
 let CustomerOrdersService = CustomerOrdersService_1 = class CustomerOrdersService {
     supabase;
     logger = new common_1.Logger(CustomerOrdersService_1.name);
@@ -87,9 +88,9 @@ let CustomerOrdersService = CustomerOrdersService_1 = class CustomerOrdersServic
         throw new common_1.ForbiddenException('You do not have access to this order');
     }
     checkModificationPermission(role, action, userId) {
-        if (role !== 'OWNER' && role !== 'ADMIN') {
+        if (!(0, role_permission_util_1.canModifyOrder)(role)) {
             this.logger.warn(`User ${userId} with role ${role} attempted to ${action}`);
-            throw new common_1.ForbiddenException(`Only OWNER or ADMIN can ${action}`);
+            throw new common_1.ForbiddenException(`Only OWNER, ADMIN, BRANCH_ADMIN, or STAFF can ${action}`);
         }
     }
     async getAccessibleBranchIds(brandMemberships, branchMemberships) {

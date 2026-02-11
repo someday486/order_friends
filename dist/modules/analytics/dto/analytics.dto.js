@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BrandSalesAnalyticsResponse = exports.BranchBreakdownDto = exports.PeriodComparisonDto = exports.BrandAnalyticsQueryDto = exports.CustomerAnalyticsResponse = exports.OrderAnalyticsResponse = exports.PeakHoursDto = exports.OrdersByDayDto = exports.OrderStatusDistributionDto = exports.ProductAnalyticsResponse = exports.InventoryTurnoverDto = exports.SalesByProductDto = exports.TopProductDto = exports.SalesAnalyticsResponse = exports.RevenueByDayDto = exports.AnalyticsQueryDto = void 0;
+exports.RfmAnalysisResponse = exports.RfmSegmentSummaryDto = exports.RfmCustomerDto = exports.CohortAnalysisResponse = exports.CohortRowDto = exports.CohortRetentionDto = exports.CombinationAnalysisResponse = exports.ProductCombinationDto = exports.CombinationProductDto = exports.HourlyProductAnalysisResponse = exports.HourlyProductDto = exports.HourlyTopProductDto = exports.AbcAnalysisResponse = exports.AbcGradeSummaryDto = exports.AbcAnalysisItemDto = exports.BrandSalesAnalyticsResponse = exports.BranchBreakdownDto = exports.PeriodComparisonDto = exports.BrandAnalyticsQueryDto = exports.CustomerAnalyticsResponse = exports.OrderAnalyticsResponse = exports.PeakHoursDto = exports.OrdersByDayDto = exports.OrderStatusDistributionDto = exports.ProductAnalyticsResponse = exports.InventoryTurnoverDto = exports.SalesByProductDto = exports.TopProductDto = exports.SalesAnalyticsResponse = exports.RevenueByDayDto = exports.AnalyticsQueryDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
@@ -386,4 +386,292 @@ __decorate([
     }),
     __metadata("design:type", Array)
 ], BrandSalesAnalyticsResponse.prototype, "byBranch", void 0);
+class AbcAnalysisItemDto {
+    productId;
+    productName;
+    revenue;
+    revenuePercentage;
+    cumulativePercentage;
+    grade;
+}
+exports.AbcAnalysisItemDto = AbcAnalysisItemDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품 ID' }),
+    __metadata("design:type", String)
+], AbcAnalysisItemDto.prototype, "productId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품명' }),
+    __metadata("design:type", String)
+], AbcAnalysisItemDto.prototype, "productName", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '매출액' }),
+    __metadata("design:type", Number)
+], AbcAnalysisItemDto.prototype, "revenue", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '매출 비율 (%)' }),
+    __metadata("design:type", Number)
+], AbcAnalysisItemDto.prototype, "revenuePercentage", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '누적 매출 비율 (%)' }),
+    __metadata("design:type", Number)
+], AbcAnalysisItemDto.prototype, "cumulativePercentage", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'ABC 등급', enum: ['A', 'B', 'C'] }),
+    __metadata("design:type", String)
+], AbcAnalysisItemDto.prototype, "grade", void 0);
+class AbcGradeSummaryDto {
+    count;
+    revenuePercentage;
+}
+exports.AbcGradeSummaryDto = AbcGradeSummaryDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품 수' }),
+    __metadata("design:type", Number)
+], AbcGradeSummaryDto.prototype, "count", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '매출 비율 (%)' }),
+    __metadata("design:type", Number)
+], AbcGradeSummaryDto.prototype, "revenuePercentage", void 0);
+class AbcAnalysisResponse {
+    items;
+    summary;
+}
+exports.AbcAnalysisResponse = AbcAnalysisResponse;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'ABC 분석 항목', type: [AbcAnalysisItemDto] }),
+    __metadata("design:type", Array)
+], AbcAnalysisResponse.prototype, "items", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '등급별 요약' }),
+    __metadata("design:type", Object)
+], AbcAnalysisResponse.prototype, "summary", void 0);
+class HourlyTopProductDto {
+    productId;
+    productName;
+    quantity;
+    revenue;
+}
+exports.HourlyTopProductDto = HourlyTopProductDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품 ID' }),
+    __metadata("design:type", String)
+], HourlyTopProductDto.prototype, "productId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품명' }),
+    __metadata("design:type", String)
+], HourlyTopProductDto.prototype, "productName", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '판매 수량' }),
+    __metadata("design:type", Number)
+], HourlyTopProductDto.prototype, "quantity", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '매출액' }),
+    __metadata("design:type", Number)
+], HourlyTopProductDto.prototype, "revenue", void 0);
+class HourlyProductDto {
+    hour;
+    topProducts;
+    totalOrders;
+}
+exports.HourlyProductDto = HourlyProductDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '시간대 (0-23)' }),
+    __metadata("design:type", Number)
+], HourlyProductDto.prototype, "hour", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: '해당 시간대 인기 상품 (Top 5)',
+        type: [HourlyTopProductDto],
+    }),
+    __metadata("design:type", Array)
+], HourlyProductDto.prototype, "topProducts", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '해당 시간대 총 주문 수' }),
+    __metadata("design:type", Number)
+], HourlyProductDto.prototype, "totalOrders", void 0);
+class HourlyProductAnalysisResponse {
+    hourlyData;
+}
+exports.HourlyProductAnalysisResponse = HourlyProductAnalysisResponse;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '시간대별 데이터', type: [HourlyProductDto] }),
+    __metadata("design:type", Array)
+], HourlyProductAnalysisResponse.prototype, "hourlyData", void 0);
+class CombinationProductDto {
+    productId;
+    productName;
+}
+exports.CombinationProductDto = CombinationProductDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품 ID' }),
+    __metadata("design:type", String)
+], CombinationProductDto.prototype, "productId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품명' }),
+    __metadata("design:type", String)
+], CombinationProductDto.prototype, "productName", void 0);
+class ProductCombinationDto {
+    products;
+    coOrderCount;
+    supportRate;
+}
+exports.ProductCombinationDto = ProductCombinationDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: '함께 주문된 상품 쌍',
+        type: [CombinationProductDto],
+    }),
+    __metadata("design:type", Array)
+], ProductCombinationDto.prototype, "products", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '함께 주문된 횟수' }),
+    __metadata("design:type", Number)
+], ProductCombinationDto.prototype, "coOrderCount", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '전체 주문 대비 비율 (%)' }),
+    __metadata("design:type", Number)
+], ProductCombinationDto.prototype, "supportRate", void 0);
+class CombinationAnalysisResponse {
+    combinations;
+    totalOrdersAnalyzed;
+}
+exports.CombinationAnalysisResponse = CombinationAnalysisResponse;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '상품 조합 목록', type: [ProductCombinationDto] }),
+    __metadata("design:type", Array)
+], CombinationAnalysisResponse.prototype, "combinations", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '분석 대상 주문 수' }),
+    __metadata("design:type", Number)
+], CombinationAnalysisResponse.prototype, "totalOrdersAnalyzed", void 0);
+class CohortRetentionDto {
+    period;
+    activeCustomers;
+    retentionRate;
+}
+exports.CohortRetentionDto = CohortRetentionDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '경과 기간 (0 = 첫 주문 기간)' }),
+    __metadata("design:type", Number)
+], CohortRetentionDto.prototype, "period", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '해당 기간에 주문한 고객 수' }),
+    __metadata("design:type", Number)
+], CohortRetentionDto.prototype, "activeCustomers", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '잔존율 (%)' }),
+    __metadata("design:type", Number)
+], CohortRetentionDto.prototype, "retentionRate", void 0);
+class CohortRowDto {
+    cohort;
+    cohortSize;
+    retention;
+}
+exports.CohortRowDto = CohortRowDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '코호트 (예: 2026-01)', example: '2026-01' }),
+    __metadata("design:type", String)
+], CohortRowDto.prototype, "cohort", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '코호트 내 고객 수' }),
+    __metadata("design:type", Number)
+], CohortRowDto.prototype, "cohortSize", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: '기간별 잔존 데이터',
+        type: [CohortRetentionDto],
+    }),
+    __metadata("design:type", Array)
+], CohortRowDto.prototype, "retention", void 0);
+class CohortAnalysisResponse {
+    cohorts;
+    granularity;
+}
+exports.CohortAnalysisResponse = CohortAnalysisResponse;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '코호트 데이터', type: [CohortRowDto] }),
+    __metadata("design:type", Array)
+], CohortAnalysisResponse.prototype, "cohorts", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '집계 단위', enum: ['WEEK', 'MONTH'] }),
+    __metadata("design:type", String)
+], CohortAnalysisResponse.prototype, "granularity", void 0);
+class RfmCustomerDto {
+    customerPhone;
+    recency;
+    frequency;
+    monetary;
+    rfmScore;
+    segment;
+}
+exports.RfmCustomerDto = RfmCustomerDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '고객 전화번호' }),
+    __metadata("design:type", String)
+], RfmCustomerDto.prototype, "customerPhone", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '마지막 주문 이후 일수' }),
+    __metadata("design:type", Number)
+], RfmCustomerDto.prototype, "recency", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '주문 횟수' }),
+    __metadata("design:type", Number)
+], RfmCustomerDto.prototype, "frequency", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '총 결제 금액' }),
+    __metadata("design:type", Number)
+], RfmCustomerDto.prototype, "monetary", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'RFM 점수 (예: 5-4-5)', example: '5-4-5' }),
+    __metadata("design:type", String)
+], RfmCustomerDto.prototype, "rfmScore", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: '고객 세그먼트',
+        example: 'Champions',
+        enum: ['Champions', 'Loyal', 'Potential', 'New', 'At Risk', 'Lost'],
+    }),
+    __metadata("design:type", String)
+], RfmCustomerDto.prototype, "segment", void 0);
+class RfmSegmentSummaryDto {
+    segment;
+    customerCount;
+    avgRecency;
+    avgFrequency;
+    avgMonetary;
+}
+exports.RfmSegmentSummaryDto = RfmSegmentSummaryDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '세그먼트명' }),
+    __metadata("design:type", String)
+], RfmSegmentSummaryDto.prototype, "segment", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '고객 수' }),
+    __metadata("design:type", Number)
+], RfmSegmentSummaryDto.prototype, "customerCount", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '평균 Recency (일)' }),
+    __metadata("design:type", Number)
+], RfmSegmentSummaryDto.prototype, "avgRecency", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '평균 Frequency (횟수)' }),
+    __metadata("design:type", Number)
+], RfmSegmentSummaryDto.prototype, "avgFrequency", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '평균 Monetary (원)' }),
+    __metadata("design:type", Number)
+], RfmSegmentSummaryDto.prototype, "avgMonetary", void 0);
+class RfmAnalysisResponse {
+    customers;
+    summary;
+}
+exports.RfmAnalysisResponse = RfmAnalysisResponse;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '고객별 RFM 데이터', type: [RfmCustomerDto] }),
+    __metadata("design:type", Array)
+], RfmAnalysisResponse.prototype, "customers", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: '세그먼트별 요약', type: [RfmSegmentSummaryDto] }),
+    __metadata("design:type", Array)
+], RfmAnalysisResponse.prototype, "summary", void 0);
 //# sourceMappingURL=analytics.dto.js.map

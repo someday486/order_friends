@@ -88,3 +88,98 @@ export interface CustomerAnalytics {
   repeatCustomerRate: number;
   avgOrdersPerCustomer: number;
 }
+
+export interface AbcAnalysisItem {
+  productId: string;
+  productName: string;
+  revenue: number;
+  revenuePercentage: number;
+  cumulativePercentage: number;
+  grade: 'A' | 'B' | 'C';
+}
+
+export interface AbcGradeSummary {
+  count: number;
+  revenuePercentage: number;
+}
+
+export interface AbcAnalysis {
+  items: AbcAnalysisItem[];
+  summary: {
+    gradeA: AbcGradeSummary;
+    gradeB: AbcGradeSummary;
+    gradeC: AbcGradeSummary;
+  };
+}
+
+export interface HourlyTopProduct {
+  productId: string;
+  productName: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface HourlyProduct {
+  hour: number;
+  topProducts: HourlyTopProduct[];
+  totalOrders: number;
+}
+
+export interface HourlyProductAnalysis {
+  hourlyData: HourlyProduct[];
+}
+
+export interface CombinationProduct {
+  productId: string;
+  productName: string;
+}
+
+export interface ProductCombination {
+  products: CombinationProduct[];
+  coOrderCount: number;
+  supportRate: number;
+}
+
+export interface CombinationAnalysis {
+  combinations: ProductCombination[];
+  totalOrdersAnalyzed: number;
+}
+
+export interface CohortRetention {
+  period: number;
+  activeCustomers: number;
+  retentionRate: number;
+}
+
+export interface CohortRow {
+  cohort: string;
+  cohortSize: number;
+  retention: CohortRetention[];
+}
+
+export interface CohortAnalysis {
+  cohorts: CohortRow[];
+  granularity: 'WEEK' | 'MONTH';
+}
+
+export interface RfmCustomer {
+  customerPhone: string;
+  recency: number;
+  frequency: number;
+  monetary: number;
+  rfmScore: string;
+  segment: string;
+}
+
+export interface RfmSegmentSummary {
+  segment: string;
+  customerCount: number;
+  avgRecency: number;
+  avgFrequency: number;
+  avgMonetary: number;
+}
+
+export interface RfmAnalysis {
+  customers: RfmCustomer[];
+  summary: RfmSegmentSummary[];
+}

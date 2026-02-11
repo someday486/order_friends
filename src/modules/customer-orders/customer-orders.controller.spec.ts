@@ -44,12 +44,12 @@ describe('CustomerOrdersController', () => {
   it('getOrders should call service and return result', async () => {
     mockService.getMyOrders.mockResolvedValue([{ id: 'order-1' }]);
 
-    const result = await controller.getOrders(
-      makeReq(),
-      'branch-1',
-      'COMPLETED' as any,
-      { page: 1, limit: 10 } as any,
-    );
+    const result = await controller.getOrders(makeReq(), {
+      branchId: 'branch-1',
+      status: 'COMPLETED',
+      page: 1,
+      limit: 10,
+    } as any);
 
     expect(result).toEqual([{ id: 'order-1' }]);
     expect(mockService.getMyOrders).toHaveBeenCalledWith(
@@ -64,19 +64,19 @@ describe('CustomerOrdersController', () => {
 
   it('getOrders should throw when user is missing', async () => {
     await expect(
-      controller.getOrders(makeReq({ user: undefined }), 'branch-1'),
+      controller.getOrders(makeReq({ user: undefined }), {
+        branchId: 'branch-1',
+      } as any),
     ).rejects.toThrow('Missing user');
   });
 
   it('getOrders should allow missing branchId (all branches)', async () => {
     mockService.getMyOrders.mockResolvedValue([{ id: 'order-1' }]);
 
-    const result = await controller.getOrders(
-      makeReq(),
-      undefined as any,
-      undefined as any,
-      { page: 1, limit: 10 } as any,
-    );
+    const result = await controller.getOrders(makeReq(), {
+      page: 1,
+      limit: 10,
+    } as any);
 
     expect(result).toEqual([{ id: 'order-1' }]);
     expect(mockService.getMyOrders).toHaveBeenCalledWith(
@@ -148,9 +148,7 @@ describe('CustomerOrdersController', () => {
             brandMemberships: undefined,
             branchMemberships: undefined,
           }),
-          'branch-1',
-          'COMPLETED' as any,
-          { page: 1, limit: 10 } as any,
+          { branchId: 'branch-1', status: 'COMPLETED', page: 1, limit: 10 } as any,
         ),
       expectCall: () =>
         expect(mockService.getMyOrders).toHaveBeenCalledWith(

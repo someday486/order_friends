@@ -5,6 +5,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import ParetoChart from "@/components/analytics/ParetoChart";
+import PieChart from "@/components/analytics/PieChart";
+import HeatmapTable from "@/components/analytics/HeatmapTable";
+import RfmScatterChart from "@/components/analytics/RfmScatterChart";
+import type { AbcAnalysis, CohortAnalysis, RfmAnalysis } from "@/types/analytics";
 
 // ============================================================
 // Types
@@ -150,6 +155,9 @@ export default function BrandAnalyticsPage() {
   const [products, setProducts] = useState<PeriodComparison<ProductAnalytics> | null>(null);
   const [orders, setOrders] = useState<PeriodComparison<OrderAnalytics> | null>(null);
   const [customers, setCustomers] = useState<PeriodComparison<CustomerAnalytics> | null>(null);
+  const [abcAnalysis, setAbcAnalysis] = useState<AbcAnalysis | null>(null);
+  const [cohortAnalysis, setCohortAnalysis] = useState<CohortAnalysis | null>(null);
+  const [rfmAnalysis, setRfmAnalysis] = useState<RfmAnalysis | null>(null);
 
   // Load brands
   useEffect(() => {
@@ -184,7 +192,10 @@ export default function BrandAnalyticsPage() {
           compare: compare.toString(),
         });
 
-        const [salesRes, productsRes, ordersRes, customersRes] =
+        const cohortParams = new URLSearchParams(params);
+        cohortParams.set("granularity", "MONTH");
+
+        const [salesRes, productsRes, ordersRes, customersRes, abcRes, cohortRes, rfmRes] =
           await Promise.all([
             apiClient.get<PeriodComparison<BrandSalesAnalytics>>(
               `/customer/analytics/brand/sales?${params}`,
@@ -198,12 +209,24 @@ export default function BrandAnalyticsPage() {
             apiClient.get<PeriodComparison<CustomerAnalytics>>(
               `/customer/analytics/brand/customers?${params}`,
             ),
+            apiClient.get<AbcAnalysis>(
+              `/customer/analytics/brand/products/abc?${params}`,
+            ),
+            apiClient.get<CohortAnalysis>(
+              `/customer/analytics/brand/customers/cohort?${cohortParams}`,
+            ),
+            apiClient.get<RfmAnalysis>(
+              `/customer/analytics/brand/customers/rfm?${params}`,
+            ),
           ]);
 
         setSales(salesRes);
         setProducts(productsRes);
         setOrders(ordersRes);
         setCustomers(customersRes);
+        setAbcAnalysis(abcRes);
+        setCohortAnalysis(cohortRes);
+        setRfmAnalysis(rfmRes);
       } catch (e) {
         setError(e instanceof Error ? e.message : "분석 데이터를 불러오지 못했습니다");
       } finally {
@@ -226,6 +249,33 @@ export default function BrandAnalyticsPage() {
   const c = customers?.current;
   const ch = sales?.changes;
   const cch = customers?.changes;
+  const paretoItems = abcAnalysis?.items?.slice(0, 15) ?? [];
+  const paretoChartData = paretoItems.map((item) => ({
+    name: item.productName,
+    revenue: item.revenue,
+    cumulative: item.cumulativePercentage,
+  }));
+  const abcSummaryData = abcAnalysis
+    ? [
+        { grade: "A", value: abcAnalysis.summary.gradeA.revenuePercentage },
+        { grade: "B", value: abcAnalysis.summary.gradeB.revenuePercentage },
+        { grade: "C", value: abcAnalysis.summary.gradeC.revenuePercentage },
+      ]
+    : [];
+  const cohortRows = cohortAnalysis?.cohorts ?? [];
+  const cohortPeriods = Array.from(
+    new Set(
+      cohortRows.flatMap((row) => row.retention.map((retention) => retention.period)),
+    ),
+  ).sort((a, b) => a - b);
+  const cohortMatrix = cohortRows.map((row) =>
+    cohortPeriods.map((period) => {
+      const retention = row.retention.find((entry) => entry.period === period);
+      return retention?.retentionRate ?? 0;
+    }),
+  );
+  const rfmSummary = rfmAnalysis?.summary ?? [];
+  const rfmPoints = rfmAnalysis?.customers ?? [];
   const branchLinkId = selectedBranchId || s?.byBranch?.[0]?.branchId;
   const branchLink = branchLinkId
     ? `/customer/analytics?branchId=${encodeURIComponent(branchLinkId)}`
@@ -540,6 +590,103 @@ export default function BrandAnalyticsPage() {
                   title="평균 주문 수"
                   value={`${c.avgOrdersPerCustomer}회`}
                 />
+              </div>
+            </div>
+          )}
+
+          {(abcAnalysis || cohortAnalysis || rfmAnalysis) && (
+            <div className="card p-4 mb-6 space-y-6">
+              <h2 className="text-sm font-bold text-foreground">?곹뭹/怨좉컼 遺꾩꽍 ?ы솕</h2>
+
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2">ABC 遺꾩꽍</h3>
+                {abcAnalysis && abcAnalysis.items.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+                    <ParetoChart
+                      data={paretoChartData}
+                      xKey="name"
+                      barKey="revenue"
+                      lineKey="cumulative"
+                      barName="매출"
+                      lineName="누적 비율"
+                    />
+                    <div>
+                      <PieChart data={abcSummaryData} nameKey="grade" valueKey="value" />
+                      <div className="mt-3 space-y-1 text-xs text-text-secondary">
+                        <div>
+                          A 등급: {abcAnalysis.summary.gradeA.count}개 ·{" "}
+                          {abcAnalysis.summary.gradeA.revenuePercentage.toFixed(1)}%
+                        </div>
+                        <div>
+                          B 등급: {abcAnalysis.summary.gradeB.count}개 ·{" "}
+                          {abcAnalysis.summary.gradeB.revenuePercentage.toFixed(1)}%
+                        </div>
+                        <div>
+                          C 등급: {abcAnalysis.summary.gradeC.count}개 ·{" "}
+                          {abcAnalysis.summary.gradeC.revenuePercentage.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2">肄뷀샇??遺꾩꽍</h3>
+                {cohortRows.length > 0 ? (
+                  <HeatmapTable
+                    rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
+                    columns={cohortPeriods.map((period) =>
+                      `${period}${cohortAnalysis?.granularity === "WEEK" ? "주" : "개월"}`,
+                    )}
+                    values={cohortMatrix}
+                    valueFormatter={(value) => `${value.toFixed(1)}%`}
+                    emptyLabel="-"
+                    baseColor="14,165,233"
+                  />
+                ) : (
+                  <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2">RFM 遺꾩꽍</h3>
+                {rfmSummary.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {rfmSummary.map((segment) => (
+                      <div key={segment.segment} className="card p-4">
+                        <div className="text-xs text-text-secondary mb-1">{segment.segment}</div>
+                        <div className="text-xl font-extrabold text-foreground">
+                          {segment.customerCount.toLocaleString()}명
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-text-secondary">
+                          <div>?됯퇏 ?쒖꽌: {segment.avgRecency.toFixed(1)}일</div>
+                          <div>?됯퇏 鍮덈룄: {segment.avgFrequency.toFixed(1)}회</div>
+                          <div>?됯퇏 湲덉븸: {formatWon(segment.avgMonetary)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                )}
+
+                <div className="mt-4">
+                  {rfmPoints.length > 0 ? (
+                    <>
+                      <RfmScatterChart data={rfmPoints.slice(0, 500)} />
+                      {rfmPoints.length > 500 && (
+                        <div className="text-xs text-text-tertiary mt-2">
+                          ?꾨줈??500紐?留?異붿텧?⑸땲??
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-xs text-text-secondary">?곗씠?곌? ?놁뒿?덈떎.</div>
+                  )}
+                </div>
               </div>
             </div>
           )}

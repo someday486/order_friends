@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryService = void 0;
 const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
+const role_permission_util_1 = require("../../common/utils/role-permission.util");
 let InventoryService = InventoryService_1 = class InventoryService {
     supabase;
     logger = new common_1.Logger(InventoryService_1.name);
@@ -62,9 +63,9 @@ let InventoryService = InventoryService_1 = class InventoryService {
         throw new common_1.ForbiddenException('You do not have access to this product');
     }
     checkModificationPermission(role, action, userId) {
-        if (role !== 'OWNER' && role !== 'ADMIN') {
+        if (!(0, role_permission_util_1.canModifyProductOrInventory)(role)) {
             this.logger.warn(`User ${userId} with role ${role} attempted to ${action}`);
-            throw new common_1.ForbiddenException(`Only OWNER or ADMIN can ${action}`);
+            throw new common_1.ForbiddenException(`Only OWNER, ADMIN, or BRANCH_ADMIN can ${action}`);
         }
     }
     async createInventoryLog(productId, branchId, transactionType, qtyChange, qtyBefore, qtyAfter, userId, notes, referenceId, referenceType) {

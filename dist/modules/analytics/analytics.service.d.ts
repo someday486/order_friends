@@ -1,5 +1,5 @@
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import { SalesAnalyticsResponse, ProductAnalyticsResponse, OrderAnalyticsResponse, CustomerAnalyticsResponse, PeriodComparisonDto, BrandSalesAnalyticsResponse } from './dto/analytics.dto';
+import { SalesAnalyticsResponse, ProductAnalyticsResponse, OrderAnalyticsResponse, CustomerAnalyticsResponse, PeriodComparisonDto, BrandSalesAnalyticsResponse, AbcAnalysisResponse, HourlyProductAnalysisResponse, CombinationAnalysisResponse, CohortAnalysisResponse, RfmAnalysisResponse } from './dto/analytics.dto';
 export declare class AnalyticsService {
     private readonly supabase;
     private readonly logger;
@@ -16,4 +16,13 @@ export declare class AnalyticsService {
     getBrandProductAnalytics(accessToken: string, brandId: string, startDate?: string, endDate?: string, compare?: boolean): Promise<PeriodComparisonDto<ProductAnalyticsResponse>>;
     getBrandOrderAnalytics(accessToken: string, brandId: string, startDate?: string, endDate?: string, compare?: boolean): Promise<PeriodComparisonDto<OrderAnalyticsResponse>>;
     getBrandCustomerAnalytics(accessToken: string, brandId: string, startDate?: string, endDate?: string, compare?: boolean): Promise<PeriodComparisonDto<CustomerAnalyticsResponse>>;
+    getAbcAnalysis(branchId: string, startDate?: string, endDate?: string): Promise<AbcAnalysisResponse>;
+    getHourlyProductAnalysis(branchId: string, startDate?: string, endDate?: string): Promise<HourlyProductAnalysisResponse>;
+    getCombinationAnalysis(branchId: string, startDate?: string, endDate?: string, minCount?: number): Promise<CombinationAnalysisResponse>;
+    getCohortAnalysis(branchId: string, startDate?: string, endDate?: string, granularity?: 'WEEK' | 'MONTH'): Promise<CohortAnalysisResponse>;
+    getRfmAnalysis(branchId: string, startDate?: string, endDate?: string): Promise<RfmAnalysisResponse>;
+    private getRfmSegment;
+    getBrandAbcAnalysis(brandId: string, startDate?: string, endDate?: string): Promise<AbcAnalysisResponse>;
+    getBrandCohortAnalysis(brandId: string, startDate?: string, endDate?: string, granularity?: 'WEEK' | 'MONTH'): Promise<CohortAnalysisResponse>;
+    getBrandRfmAnalysis(brandId: string, startDate?: string, endDate?: string): Promise<RfmAnalysisResponse>;
 }

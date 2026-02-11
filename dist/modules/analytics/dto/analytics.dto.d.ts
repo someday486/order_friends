@@ -85,3 +85,83 @@ export declare class BranchBreakdownDto {
 export declare class BrandSalesAnalyticsResponse extends SalesAnalyticsResponse {
     byBranch: BranchBreakdownDto[];
 }
+export declare class AbcAnalysisItemDto {
+    productId: string;
+    productName: string;
+    revenue: number;
+    revenuePercentage: number;
+    cumulativePercentage: number;
+    grade: 'A' | 'B' | 'C';
+}
+export declare class AbcGradeSummaryDto {
+    count: number;
+    revenuePercentage: number;
+}
+export declare class AbcAnalysisResponse {
+    items: AbcAnalysisItemDto[];
+    summary: {
+        gradeA: AbcGradeSummaryDto;
+        gradeB: AbcGradeSummaryDto;
+        gradeC: AbcGradeSummaryDto;
+    };
+}
+export declare class HourlyTopProductDto {
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenue: number;
+}
+export declare class HourlyProductDto {
+    hour: number;
+    topProducts: HourlyTopProductDto[];
+    totalOrders: number;
+}
+export declare class HourlyProductAnalysisResponse {
+    hourlyData: HourlyProductDto[];
+}
+export declare class CombinationProductDto {
+    productId: string;
+    productName: string;
+}
+export declare class ProductCombinationDto {
+    products: CombinationProductDto[];
+    coOrderCount: number;
+    supportRate: number;
+}
+export declare class CombinationAnalysisResponse {
+    combinations: ProductCombinationDto[];
+    totalOrdersAnalyzed: number;
+}
+export declare class CohortRetentionDto {
+    period: number;
+    activeCustomers: number;
+    retentionRate: number;
+}
+export declare class CohortRowDto {
+    cohort: string;
+    cohortSize: number;
+    retention: CohortRetentionDto[];
+}
+export declare class CohortAnalysisResponse {
+    cohorts: CohortRowDto[];
+    granularity: 'WEEK' | 'MONTH';
+}
+export declare class RfmCustomerDto {
+    customerPhone: string;
+    recency: number;
+    frequency: number;
+    monetary: number;
+    rfmScore: string;
+    segment: string;
+}
+export declare class RfmSegmentSummaryDto {
+    segment: string;
+    customerCount: number;
+    avgRecency: number;
+    avgFrequency: number;
+    avgMonetary: number;
+}
+export declare class RfmAnalysisResponse {
+    customers: RfmCustomerDto[];
+    summary: RfmSegmentSummaryDto[];
+}

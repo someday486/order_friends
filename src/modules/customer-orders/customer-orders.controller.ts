@@ -24,7 +24,7 @@ import { CustomerGuard } from '../../common/guards/customer.guard';
 import { CustomerOrdersService } from './customer-orders.service';
 import { UpdateOrderStatusRequest } from '../../modules/orders/dto/update-order-status.request';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { OrderStatus } from '../../modules/orders/order-status.enum';
+import { GetCustomerOrdersQueryDto } from './dto/get-customer-orders-query.dto';
 
 @ApiTags('customer-orders')
 @ApiBearerAuth()
@@ -50,11 +50,12 @@ export class CustomerOrdersController {
   @ApiResponse({ status: 403, description: '권한 없음' })
   async getOrders(
     @Req() req: AuthRequest,
-    @Query('branchId') branchId?: string,
-    @Query('status') status?: OrderStatus,
-    @Query() paginationDto?: PaginationDto,
+    @Query() query?: GetCustomerOrdersQueryDto,
   ) {
     if (!req.user) throw new Error('Missing user');
+
+    const { branchId, status, page, limit } = query ?? {};
+    const paginationDto: PaginationDto = { page, limit };
 
     this.logger.log(
       `User ${req.user.id} fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'}`,

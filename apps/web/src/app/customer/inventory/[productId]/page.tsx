@@ -262,7 +262,11 @@ function InventoryDetailPageContent() {
     }
   };
 
-  const canEdit = userRole === "OWNER" || userRole === "ADMIN";
+  const canEdit =
+    userRole === "OWNER" ||
+    userRole === "ADMIN" ||
+    userRole === "BRANCH_OWNER" ||
+    userRole === "BRANCH_ADMIN";
   const isLowStock = inventory?.is_low_stock;
 
   if (loading) {
@@ -373,7 +377,7 @@ function InventoryDetailPageContent() {
         </div>
       </div>
 
-      {/* Edit Form (OWNER/ADMIN only) */}
+      {/* Edit Form (OWNER/ADMIN/BRANCH roles only) */}
       {canEdit && (
         <div className="card p-6 mb-6">
           <h3 className="text-lg font-bold mb-4 text-foreground">재고 정보 수정</h3>

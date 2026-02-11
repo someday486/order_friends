@@ -125,7 +125,12 @@ export default function CustomerOrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  const canUpdateStatus = order?.myRole === "OWNER" || order?.myRole === "ADMIN";
+  const canUpdateStatus =
+    order?.myRole === "OWNER" ||
+    order?.myRole === "ADMIN" ||
+    order?.myRole === "BRANCH_OWNER" ||
+    order?.myRole === "BRANCH_ADMIN" ||
+    order?.myRole === "STAFF";
 
   // Load order detail
   useEffect(() => {
@@ -153,7 +158,7 @@ export default function CustomerOrderDetailPage() {
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
     if (!order || !orderId) return;
     if (!canUpdateStatus) {
-      alert("??? ????. OWNER ?? ADMIN? ??? ??? ? ????.");
+      alert("권한이 없습니다. 주문 상태 변경은 매니저/스태프 이상만 가능합니다.");
       return;
     }
 
@@ -311,7 +316,7 @@ export default function CustomerOrderDetailPage() {
             <section className="card p-4">
               <div className="font-extrabold text-sm text-foreground">상태 변경</div>
               <div className="text-xs text-text-tertiary mt-1 mb-3">
-                OWNER/ADMIN만 변경 가능
+                매니저/스태프 변경 가능
               </div>
 
               <div className="flex flex-col gap-2">
@@ -347,7 +352,7 @@ export default function CustomerOrderDetailPage() {
                 현재 역할: {order.myRole || "VIEWER"}
               </div>
               <div className="mt-2 text-xs text-text-tertiary">
-                주문 상태를 변경하려면 OWNER 또는 ADMIN 권한이 필요합니다.
+                주문 상태를 변경하려면 매니저 또는 스태프 권한이 필요합니다.
               </div>
             </section>
           )}

@@ -98,7 +98,11 @@ export default function CustomerCategoriesPage() {
     loadCategories();
   }, [selectedBranchId, branches]);
 
-  const canManage = userRole === "OWNER" || userRole === "ADMIN";
+  const canManage =
+    userRole === "OWNER" ||
+    userRole === "ADMIN" ||
+    userRole === "BRANCH_OWNER" ||
+    userRole === "BRANCH_ADMIN";
 
   // Add category
   const handleAdd = async () => {

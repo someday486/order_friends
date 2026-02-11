@@ -9,12 +9,20 @@ import LineChart from "@/components/analytics/LineChart";
 import BarChart from "@/components/analytics/BarChart";
 import PieChart from "@/components/analytics/PieChart";
 import KpiCard from "@/components/analytics/KpiCard";
+import ParetoChart from "@/components/analytics/ParetoChart";
+import HeatmapTable from "@/components/analytics/HeatmapTable";
+import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import {
+  AbcAnalysis,
+  CohortAnalysis,
+  CombinationAnalysis,
   CustomerAnalytics,
+  HourlyProductAnalysis,
   MaybePeriodComparison,
   OrderAnalytics,
   PeriodComparison,
   ProductAnalytics,
+  RfmAnalysis,
   SalesAnalytics,
 } from "@/types/analytics";
 
@@ -101,6 +109,11 @@ function AnalyticsContent() {
   const [productData, setProductData] = useState<PeriodComparison<ProductAnalytics> | null>(null);
   const [orderData, setOrderData] = useState<PeriodComparison<OrderAnalytics> | null>(null);
   const [customerData, setCustomerData] = useState<PeriodComparison<CustomerAnalytics> | null>(null);
+  const [abcData, setAbcData] = useState<AbcAnalysis | null>(null);
+  const [hourlyData, setHourlyData] = useState<HourlyProductAnalysis | null>(null);
+  const [combinationData, setCombinationData] = useState<CombinationAnalysis | null>(null);
+  const [cohortData, setCohortData] = useState<CohortAnalysis | null>(null);
+  const [rfmData, setRfmData] = useState<RfmAnalysis | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +175,13 @@ function AnalyticsContent() {
           params.set("compare", "true");
         }
 
-        const [sales, products, orders, customers] = await Promise.all([
+        const combinationParams = new URLSearchParams(params);
+        combinationParams.set("minCount", "2");
+        const cohortParams = new URLSearchParams(params);
+        cohortParams.set("granularity", "MONTH");
+
+        const [sales, products, orders, customers, abc, hourly, combinations, cohort, rfm] =
+          await Promise.all([
           apiClient.get<MaybePeriodComparison<SalesAnalytics>>(
             `/customer/analytics/sales?${params}`
           ),
@@ -175,12 +194,28 @@ function AnalyticsContent() {
           apiClient.get<MaybePeriodComparison<CustomerAnalytics>>(
             `/customer/analytics/customers?${params}`
           ),
+          apiClient.get<AbcAnalysis>(`/customer/analytics/products/abc?${params}`),
+          apiClient.get<HourlyProductAnalysis>(
+            `/customer/analytics/products/hourly?${params}`
+          ),
+          apiClient.get<CombinationAnalysis>(
+            `/customer/analytics/products/combinations?${combinationParams}`
+          ),
+          apiClient.get<CohortAnalysis>(
+            `/customer/analytics/customers/cohort?${cohortParams}`
+          ),
+          apiClient.get<RfmAnalysis>(`/customer/analytics/customers/rfm?${params}`),
         ]);
 
         setSalesData(normalizeComparison(sales));
         setProductData(normalizeComparison(products));
         setOrderData(normalizeComparison(orders));
         setCustomerData(normalizeComparison(customers));
+        setAbcData(abc);
+        setHourlyData(hourly);
+        setCombinationData(combinations);
+        setCohortData(cohort);
+        setRfmData(rfm);
       } catch (err) {
         setError(err instanceof Error ? err.message : "분석 데이터를 불러오지 못했습니다");
       } finally {
@@ -218,6 +253,56 @@ function AnalyticsContent() {
     : branches.length === 0
       ? "지점 없음"
       : "지점 선택";
+  const paretoItems = abcData?.items?.slice(0, 15) ?? [];
+  const paretoChartData = paretoItems.map((item) => ({
+    name: item.productName,
+    revenue: item.revenue,
+    cumulative: item.cumulativePercentage,
+  }));
+  const abcSummaryData = abcData
+    ? [
+        { grade: "A", value: abcData.summary.gradeA.revenuePercentage },
+        { grade: "B", value: abcData.summary.gradeB.revenuePercentage },
+        { grade: "C", value: abcData.summary.gradeC.revenuePercentage },
+      ]
+    : [];
+  const hourlyList = hourlyData?.hourlyData ?? [];
+  const hourlyMap = new Map(hourlyList.map((item) => [item.hour, item]));
+  const hours = Array.from({ length: 24 }, (_, index) => index);
+  const hourlyTotals = hourlyList.reduce<Map<string, number>>((acc, item) => {
+    item.topProducts.forEach((product) => {
+      acc.set(product.productName, (acc.get(product.productName) ?? 0) + product.quantity);
+    });
+    return acc;
+  }, new Map());
+  const topHourlyProducts = Array.from(hourlyTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name]) => name);
+  const hourlyMatrix = topHourlyProducts.map((name) =>
+    hours.map((hour) => {
+      const hourData = hourlyMap.get(hour);
+      const product = hourData?.topProducts.find((item) => item.productName === name);
+      return product?.quantity ?? 0;
+    })
+  );
+  const combinationRows = combinationData?.combinations
+    ?.slice()
+    .sort((a, b) => b.supportRate - a.supportRate) ?? [];
+  const cohortRows = cohortData?.cohorts ?? [];
+  const cohortPeriods = Array.from(
+    new Set(
+      cohortRows.flatMap((row) => row.retention.map((retention) => retention.period))
+    )
+  ).sort((a, b) => a - b);
+  const cohortMatrix = cohortRows.map((row) =>
+    cohortPeriods.map((period) => {
+      const retention = row.retention.find((entry) => entry.period === period);
+      return retention?.retentionRate ?? 0;
+    })
+  );
+  const rfmSummary = rfmData?.summary ?? [];
+  const rfmPoints = rfmData?.customers ?? [];
 
   return (
     <div className="p-6 space-y-6">
@@ -373,6 +458,105 @@ function AnalyticsContent() {
             </div>
           )}
 
+          {(abcData || hourlyData || combinationData) && (
+            <div className="card p-6 space-y-8">
+              <h2 className="text-xl font-semibold text-foreground">상품 분석 심화</h2>
+
+              <div>
+                <h3 className="font-semibold mb-2 text-foreground">ABC 분석</h3>
+                {abcData && abcData.items.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+                    <ParetoChart
+                      data={paretoChartData}
+                      xKey="name"
+                      barKey="revenue"
+                      lineKey="cumulative"
+                      barName="매출"
+                      lineName="누적 비율"
+                    />
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">
+                        등급별 매출 비중
+                      </h4>
+                      <PieChart data={abcSummaryData} nameKey="grade" valueKey="value" />
+                      <div className="mt-3 space-y-1 text-xs text-text-secondary">
+                        <div>
+                          A 등급: {abcData.summary.gradeA.count}개 ·{" "}
+                          {formatPercent(abcData.summary.gradeA.revenuePercentage)}
+                        </div>
+                        <div>
+                          B 등급: {abcData.summary.gradeB.count}개 ·{" "}
+                          {formatPercent(abcData.summary.gradeB.revenuePercentage)}
+                        </div>
+                        <div>
+                          C 등급: {abcData.summary.gradeC.count}개 ·{" "}
+                          {formatPercent(abcData.summary.gradeC.revenuePercentage)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2 text-foreground">시간대별 인기 상품</h3>
+                {hourlyList.length > 0 && topHourlyProducts.length > 0 ? (
+                  <HeatmapTable
+                    rows={topHourlyProducts}
+                    columns={hours.map((hour) => `${hour}시`)}
+                    values={hourlyMatrix}
+                    valueFormatter={(value) => value.toLocaleString()}
+                    emptyLabel="-"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2 text-foreground">조합 분석</h3>
+                {combinationRows.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                      <thead className="bg-bg-tertiary">
+                        <tr>
+                          <th className="text-left py-2 px-3 text-xs font-semibold text-text-secondary">
+                            상품 조합
+                          </th>
+                          <th className="text-right py-2 px-3 text-xs font-semibold text-text-secondary">
+                            동시 주문 수
+                          </th>
+                          <th className="text-right py-2 px-3 text-xs font-semibold text-text-secondary">
+                            지지도
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {combinationRows.map((row, index) => (
+                          <tr key={`${row.products[0]?.productId ?? index}`} className="border-t border-border">
+                            <td className="py-2 px-3 text-foreground">
+                              {row.products.map((product) => product.productName).join(" + ")}
+                            </td>
+                            <td className="py-2 px-3 text-right text-text-secondary">
+                              {row.coOrderCount.toLocaleString()}
+                            </td>
+                            <td className="py-2 px-3 text-right text-text-secondary">
+                              {formatPercent(row.supportRate)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 주문 분석 */}
           {orderCurrent && (
             <div className="card p-6 space-y-6">
@@ -453,6 +637,68 @@ function AnalyticsContent() {
                   value={customerCurrent.avgOrdersPerCustomer}
                   formatter={formatDecimal}
                 />
+              </div>
+            </div>
+          )}
+
+          {(cohortData || rfmData) && (
+            <div className="card p-6 space-y-8">
+              <h2 className="text-xl font-semibold text-foreground">고객 분석 심화</h2>
+
+              <div>
+                <h3 className="font-semibold mb-2 text-foreground">코호트 분석</h3>
+                {cohortRows.length > 0 ? (
+                  <HeatmapTable
+                    rows={cohortRows.map((row) => `${row.cohort} (${row.cohortSize}명)`)}
+                    columns={cohortPeriods.map((period) =>
+                      `${period}${cohortData?.granularity === "WEEK" ? "주" : "개월"}`
+                    )}
+                    values={cohortMatrix}
+                    valueFormatter={(value) => `${value.toFixed(1)}%`}
+                    emptyLabel="-"
+                    baseColor="14,165,233"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2 text-foreground">RFM 분석</h3>
+                {rfmSummary.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {rfmSummary.map((segment) => (
+                      <div key={segment.segment} className="card p-4">
+                        <div className="text-xs text-text-secondary mb-1">{segment.segment}</div>
+                        <div className="text-2xl font-extrabold text-foreground">
+                          {segment.customerCount.toLocaleString()}명
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-text-secondary">
+                          <div>평균 최근성: {segment.avgRecency.toFixed(1)}일</div>
+                          <div>평균 빈도: {segment.avgFrequency.toFixed(1)}회</div>
+                          <div>평균 금액: {formatCurrency(segment.avgMonetary)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary">세그먼트 요약이 없습니다.</p>
+                )}
+
+                <div className="mt-4">
+                  {rfmPoints.length > 0 ? (
+                    <>
+                      <RfmScatterChart data={rfmPoints.slice(0, 500)} />
+                      {rfmPoints.length > 500 && (
+                        <p className="text-xs text-text-tertiary mt-2">
+                          표시 성능을 위해 상위 500명만 표시합니다.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -68,6 +68,7 @@ export default function CustomerProductsPage() {
         setBranches(data);
         if (data.length > 0) {
           setSelectedBranchId(data[0].id);
+          setUserRole(data[0].myRole);
         }
       } catch (e) {
         console.error(e);
@@ -89,6 +90,10 @@ export default function CustomerProductsPage() {
 
         const data = await apiClient.get<Product[]>(`/customer/products?branchId=${encodeURIComponent(selectedBranchId)}`);
         setProducts(data);
+        const branch = branches.find((item) => item.id === selectedBranchId);
+        if (branch) {
+          setUserRole(branch.myRole);
+        }
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "?? ?? ?? ? ?? ??");
@@ -100,7 +105,11 @@ export default function CustomerProductsPage() {
     loadProducts();
   }, [selectedBranchId, branches]);
 
-  const canManageProducts = userRole === "OWNER" || userRole === "ADMIN";
+  const canManageProducts =
+    userRole === "OWNER" ||
+    userRole === "ADMIN" ||
+    userRole === "BRANCH_OWNER" ||
+    userRole === "BRANCH_ADMIN";
 
   // Enter reorder mode
   const enterReorderMode = () => {

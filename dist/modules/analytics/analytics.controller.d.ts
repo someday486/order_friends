@@ -1,6 +1,6 @@
 import type { AuthRequest } from '../../common/types/auth-request';
 import { AnalyticsService } from './analytics.service';
-import { SalesAnalyticsResponse, ProductAnalyticsResponse, OrderAnalyticsResponse, CustomerAnalyticsResponse, PeriodComparisonDto, BrandSalesAnalyticsResponse } from './dto/analytics.dto';
+import { SalesAnalyticsResponse, ProductAnalyticsResponse, OrderAnalyticsResponse, CustomerAnalyticsResponse, PeriodComparisonDto, BrandSalesAnalyticsResponse, AbcAnalysisResponse, HourlyProductAnalysisResponse, CombinationAnalysisResponse, CohortAnalysisResponse, RfmAnalysisResponse } from './dto/analytics.dto';
 export declare class AnalyticsController {
     private readonly analyticsService;
     constructor(analyticsService: AnalyticsService);
@@ -13,4 +13,12 @@ export declare class AnalyticsController {
     getBrandProductAnalytics(req: AuthRequest, brandId: string, startDate?: string, endDate?: string, compare?: string): Promise<PeriodComparisonDto<ProductAnalyticsResponse>>;
     getBrandOrderAnalytics(req: AuthRequest, brandId: string, startDate?: string, endDate?: string, compare?: string): Promise<PeriodComparisonDto<OrderAnalyticsResponse>>;
     getBrandCustomerAnalytics(req: AuthRequest, brandId: string, startDate?: string, endDate?: string, compare?: string): Promise<PeriodComparisonDto<CustomerAnalyticsResponse>>;
+    getAbcAnalysis(req: AuthRequest, branchId: string, startDate?: string, endDate?: string): Promise<AbcAnalysisResponse>;
+    getHourlyProductAnalysis(req: AuthRequest, branchId: string, startDate?: string, endDate?: string): Promise<HourlyProductAnalysisResponse>;
+    getCombinationAnalysis(req: AuthRequest, branchId: string, startDate?: string, endDate?: string, minCount?: string): Promise<CombinationAnalysisResponse>;
+    getCohortAnalysis(req: AuthRequest, branchId: string, startDate?: string, endDate?: string, granularity?: string): Promise<CohortAnalysisResponse>;
+    getRfmAnalysis(req: AuthRequest, branchId: string, startDate?: string, endDate?: string): Promise<RfmAnalysisResponse>;
+    getBrandAbcAnalysis(req: AuthRequest, brandId: string, startDate?: string, endDate?: string): Promise<AbcAnalysisResponse>;
+    getBrandCohortAnalysis(req: AuthRequest, brandId: string, startDate?: string, endDate?: string, granularity?: string): Promise<CohortAnalysisResponse>;
+    getBrandRfmAnalysis(req: AuthRequest, brandId: string, startDate?: string, endDate?: string): Promise<RfmAnalysisResponse>;
 }

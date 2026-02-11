@@ -20,17 +20,18 @@ const auth_guard_1 = require("../../common/guards/auth.guard");
 const customer_guard_1 = require("../../common/guards/customer.guard");
 const customer_orders_service_1 = require("./customer-orders.service");
 const update_order_status_request_1 = require("../../modules/orders/dto/update-order-status.request");
-const pagination_dto_1 = require("../../common/dto/pagination.dto");
-const order_status_enum_1 = require("../../modules/orders/order-status.enum");
+const get_customer_orders_query_dto_1 = require("./dto/get-customer-orders-query.dto");
 let CustomerOrdersController = CustomerOrdersController_1 = class CustomerOrdersController {
     ordersService;
     logger = new common_1.Logger(CustomerOrdersController_1.name);
     constructor(ordersService) {
         this.ordersService = ordersService;
     }
-    async getOrders(req, branchId, status, paginationDto) {
+    async getOrders(req, query) {
         if (!req.user)
             throw new Error('Missing user');
+        const { branchId, status, page, limit } = query ?? {};
+        const paginationDto = { page, limit };
         this.logger.log(`User ${req.user.id} fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'}`);
         return this.ordersService.getMyOrders(req.user.id, branchId, req.brandMemberships || [], req.branchMemberships || [], paginationDto, status);
     }
@@ -62,11 +63,9 @@ __decorate([
     (0, swagger_1.ApiResponse)({ status: 400, description: '잘못된 요청' }),
     (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('branchId')),
-    __param(2, (0, common_1.Query)('status')),
-    __param(3, (0, common_1.Query)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String, pagination_dto_1.PaginationDto]),
+    __metadata("design:paramtypes", [Object, get_customer_orders_query_dto_1.GetCustomerOrdersQueryDto]),
     __metadata("design:returntype", Promise)
 ], CustomerOrdersController.prototype, "getOrders", null);
 __decorate([

@@ -99,6 +99,51 @@ let AnalyticsController = class AnalyticsController {
         this.validateBrandAccess(req, brandId);
         return this.analyticsService.getBrandCustomerAnalytics(req.accessToken, brandId, startDate, endDate, compare === 'true');
     }
+    async getAbcAnalysis(req, branchId, startDate, endDate) {
+        if (!branchId)
+            throw new common_1.BadRequestException('branchId is required');
+        return this.analyticsService.getAbcAnalysis(branchId, startDate, endDate);
+    }
+    async getHourlyProductAnalysis(req, branchId, startDate, endDate) {
+        if (!branchId)
+            throw new common_1.BadRequestException('branchId is required');
+        return this.analyticsService.getHourlyProductAnalysis(branchId, startDate, endDate);
+    }
+    async getCombinationAnalysis(req, branchId, startDate, endDate, minCount) {
+        if (!branchId)
+            throw new common_1.BadRequestException('branchId is required');
+        return this.analyticsService.getCombinationAnalysis(branchId, startDate, endDate, minCount ? parseInt(minCount, 10) : 2);
+    }
+    async getCohortAnalysis(req, branchId, startDate, endDate, granularity) {
+        if (!branchId)
+            throw new common_1.BadRequestException('branchId is required');
+        const g = granularity === 'WEEK' ? 'WEEK' : 'MONTH';
+        return this.analyticsService.getCohortAnalysis(branchId, startDate, endDate, g);
+    }
+    async getRfmAnalysis(req, branchId, startDate, endDate) {
+        if (!branchId)
+            throw new common_1.BadRequestException('branchId is required');
+        return this.analyticsService.getRfmAnalysis(branchId, startDate, endDate);
+    }
+    async getBrandAbcAnalysis(req, brandId, startDate, endDate) {
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        return this.analyticsService.getBrandAbcAnalysis(brandId, startDate, endDate);
+    }
+    async getBrandCohortAnalysis(req, brandId, startDate, endDate, granularity) {
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        const g = granularity === 'WEEK' ? 'WEEK' : 'MONTH';
+        return this.analyticsService.getBrandCohortAnalysis(brandId, startDate, endDate, g);
+    }
+    async getBrandRfmAnalysis(req, brandId, startDate, endDate) {
+        if (!brandId)
+            throw new common_1.BadRequestException('brandId is required');
+        this.validateBrandAccess(req, brandId);
+        return this.analyticsService.getBrandRfmAnalysis(brandId, startDate, endDate);
+    }
 };
 exports.AnalyticsController = AnalyticsController;
 __decorate([
@@ -421,6 +466,267 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], AnalyticsController.prototype, "getBrandCustomerAnalytics", null);
+__decorate([
+    (0, common_1.Get)('products/abc'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'ABC 분석 (상품 매출 기여도)',
+        description: '상품별 매출 기여도를 분석하여 A(~70%), B(~90%), C(나머지)로 분류합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'ABC 분석 조회 성공',
+        type: analytics_dto_1.AbcAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getAbcAnalysis", null);
+__decorate([
+    (0, common_1.Get)('products/hourly'),
+    (0, swagger_1.ApiOperation)({
+        summary: '시간대별 인기 상품',
+        description: '시간대(0-23시)별 인기 상품 Top 5를 조회합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: '시간대별 인기 상품 조회 성공',
+        type: analytics_dto_1.HourlyProductAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getHourlyProductAnalysis", null);
+__decorate([
+    (0, common_1.Get)('products/combinations'),
+    (0, swagger_1.ApiOperation)({
+        summary: '조합 분석 (함께 주문되는 상품)',
+        description: '함께 주문되는 상품 쌍을 분석합니다. 지지도(support rate) 포함.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'minCount',
+        description: '최소 동시 주문 횟수 (기본 2)',
+        required: false,
+        type: Number,
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: '조합 분석 조회 성공',
+        type: analytics_dto_1.CombinationAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('minCount')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getCombinationAnalysis", null);
+__decorate([
+    (0, common_1.Get)('customers/cohort'),
+    (0, swagger_1.ApiOperation)({
+        summary: '코호트 분석 (가입 시기별 재구매율)',
+        description: '고객의 첫 주문 시기 기준으로 코호트를 생성하고 기간별 잔존율을 분석합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'granularity',
+        description: '집계 단위 (WEEK 또는 MONTH, 기본 MONTH)',
+        required: false,
+        enum: ['WEEK', 'MONTH'],
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: '코호트 분석 조회 성공',
+        type: analytics_dto_1.CohortAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('granularity')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getCohortAnalysis", null);
+__decorate([
+    (0, common_1.Get)('customers/rfm'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'RFM 분석 (최근성/빈도/금액)',
+        description: '고객별 Recency, Frequency, Monetary 점수를 산출하고 세그먼트를 분류합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'branchId', description: '지점 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'RFM 분석 조회 성공',
+        type: analytics_dto_1.RfmAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('branchId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getRfmAnalysis", null);
+__decorate([
+    (0, common_1.Get)('brand/products/abc'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 ABC 분석',
+        description: '브랜드 전체 지점의 상품 매출 기여도를 ABC 등급으로 분류합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'brandId', description: '브랜드 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: '브랜드 ABC 분석 조회 성공',
+        type: analytics_dto_1.AbcAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandAbcAnalysis", null);
+__decorate([
+    (0, common_1.Get)('brand/customers/cohort'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 코호트 분석',
+        description: '브랜드 전체 고객의 코호트별 잔존율을 분석합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'brandId', description: '브랜드 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'granularity',
+        description: '집계 단위 (WEEK 또는 MONTH)',
+        required: false,
+        enum: ['WEEK', 'MONTH'],
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: '브랜드 코호트 분석 조회 성공',
+        type: analytics_dto_1.CohortAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('granularity')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandCohortAnalysis", null);
+__decorate([
+    (0, common_1.Get)('brand/customers/rfm'),
+    (0, swagger_1.ApiOperation)({
+        summary: '브랜드 RFM 분석',
+        description: '브랜드 전체 고객의 RFM 분석을 수행합니다.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'brandId', description: '브랜드 ID', required: true }),
+    (0, swagger_1.ApiQuery)({
+        name: 'startDate',
+        description: '시작 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiQuery)({
+        name: 'endDate',
+        description: '종료 날짜 (ISO 8601)',
+        required: false,
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: '브랜드 RFM 분석 조회 성공',
+        type: analytics_dto_1.RfmAnalysisResponse,
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('brandId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AnalyticsController.prototype, "getBrandRfmAnalysis", null);
 exports.AnalyticsController = AnalyticsController = __decorate([
     (0, swagger_1.ApiTags)('analytics'),
     (0, swagger_1.ApiBearerAuth)(),

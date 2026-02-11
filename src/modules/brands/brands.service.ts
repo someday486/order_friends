@@ -135,6 +135,7 @@ export class BrandsService {
     dto: CreateBrandRequest,
     _isAdmin?: boolean,
   ): Promise<BrandDetailResponse> {
+    void _isAdmin;
     const userSb = this.supabase.userClient(accessToken);
 
     // 0) 현재 사용자 확인

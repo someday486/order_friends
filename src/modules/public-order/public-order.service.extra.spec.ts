@@ -172,7 +172,7 @@ describe('PublicOrderService - Public Queries', () => {
       if (orderCalls === 2) {
         return Promise.resolve({
           data: null,
-          error: { message: 'column \"sort_order\" does not exist' },
+          error: { message: 'column "sort_order" does not exist' },
         });
       }
       return Promise.resolve({
@@ -187,10 +187,10 @@ describe('PublicOrderService - Public Queries', () => {
 
   it('getProducts should retry when flags are missing', async () => {
     const responses = [
-      { data: null, error: { message: 'column \"is_hidden\" does not exist' } },
+      { data: null, error: { message: 'column "is_hidden" does not exist' } },
       {
         data: null,
-        error: { message: 'column \"is_sold_out\" does not exist' },
+        error: { message: 'column "is_sold_out" does not exist' },
       },
       { data: [{ id: 'p1', name: 'P', price_amount: 8 }], error: null },
     ];

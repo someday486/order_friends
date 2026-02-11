@@ -90,11 +90,11 @@ describe('PublicService', () => {
     chains.products.order
       .mockResolvedValueOnce({
         data: null,
-        error: { message: 'column \"is_hidden\" does not exist' },
+        error: { message: 'column "is_hidden" does not exist' },
       })
       .mockResolvedValueOnce({
         data: null,
-        error: { message: 'column \"is_sold_out\" does not exist' },
+        error: { message: 'column "is_sold_out" does not exist' },
       })
       .mockResolvedValueOnce({
         data: [{ id: 'p1', name: 'P', price: 5 }],

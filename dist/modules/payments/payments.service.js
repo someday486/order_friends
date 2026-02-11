@@ -149,7 +149,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             orderNo: order.order_no || null,
             amount: order.total_amount,
             orderName,
-            customerName: order.customer_name || '怨좉컼',
+            customerName: order.customer_name || '고객',
             customerPhone: order.customer_phone || '',
         };
     }
@@ -579,7 +579,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 throw new payment_exception_1.WebhookSignatureVerificationException();
             }
         }
-        const { orderId, paymentKey, status, amount } = webhookData.data;
+        const { paymentKey } = webhookData.data;
         let paymentId = null;
         const { data: payment } = await sb
             .from('payments')
@@ -627,7 +627,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
     }
     async handlePaymentConfirmedWebhook(webhookData, payment) {
-        const { orderId, paymentKey, status, amount } = webhookData.data;
+        const { orderId, paymentKey, amount } = webhookData.data;
         const sb = this.supabase.adminClient();
         const resolvedId = await this.resolveOrderId(sb, orderId);
         if (!resolvedId) {

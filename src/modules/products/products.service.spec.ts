@@ -6,7 +6,6 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 
 describe('ProductsService', () => {
   let service: ProductsService;
-  let supabaseService: SupabaseService;
 
   const mockSupabaseClient = {
     from: jest.fn().mockReturnThis(),
@@ -43,8 +42,6 @@ describe('ProductsService', () => {
     }).compile();
 
     service = module.get<ProductsService>(ProductsService);
-    supabaseService = module.get<SupabaseService>(SupabaseService);
-
     jest.clearAllMocks();
   });
 

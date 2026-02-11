@@ -28,5 +28,5 @@ export declare class NotificationsService {
     private getOrderReadySMSTemplate;
     private getDeliveryCompleteSMSTemplate;
     retryNotification(notificationId: string): Promise<NotificationResult>;
-    getNotificationStatus(notificationId: string): Promise<any>;
+    getNotificationStatus(notificationId: string): Promise<unknown>;
 }

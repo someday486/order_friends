@@ -241,7 +241,7 @@ export class PaymentsService {
       orderNo: order.order_no || null,
       amount: order.total_amount,
       orderName,
-      customerName: order.customer_name || '怨좉컼',
+      customerName: order.customer_name || '고객',
       customerPhone: order.customer_phone || '',
     };
   }
@@ -278,7 +278,7 @@ export class PaymentsService {
     }
 
     // 4. idempotency key 기반 결제 중복 처리
-    let existingPayment: any | null = null;
+    let existingPayment: any = null;
 
     if (idempotencyKey) {
       const { data: idempotentPayment } = await sb
@@ -909,7 +909,7 @@ export class PaymentsService {
     }
 
     // 1. ?뱁썒 濡쒓렇 ???
-    const { orderId, paymentKey, status, amount } = webhookData.data;
+    const { paymentKey } = webhookData.data;
 
     let paymentId: string | null = null;
 
@@ -982,9 +982,9 @@ export class PaymentsService {
    */
   private async handlePaymentConfirmedWebhook(
     webhookData: TossWebhookRequest,
-    payment: any | null,
+    payment: any,
   ): Promise<void> {
-    const { orderId, paymentKey, status, amount } = webhookData.data;
+    const { orderId, paymentKey, amount } = webhookData.data;
 
     const sb = this.supabase.adminClient();
 
@@ -1117,7 +1117,7 @@ export class PaymentsService {
    */
   private async handlePaymentCancelledWebhook(
     webhookData: TossWebhookRequest,
-    payment: any | null,
+    payment: any,
   ): Promise<void> {
     const { orderId, paymentKey } = webhookData.data;
 

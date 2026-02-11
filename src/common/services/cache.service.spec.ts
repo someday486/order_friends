@@ -128,7 +128,11 @@ describe('CacheService', () => {
     const { service, cacheManager } = makeService();
     cacheManager.get.mockResolvedValueOnce('cached');
 
-    const result = await service.getOrSet('k', async () => 'fresh', 10);
+    const result = await service.getOrSet(
+      'k',
+      () => Promise.resolve('fresh'),
+      10,
+    );
 
     expect(result).toBe('cached');
     expect(cacheManager.set).not.toHaveBeenCalled();
@@ -138,7 +142,11 @@ describe('CacheService', () => {
     const { service, cacheManager } = makeService();
     cacheManager.get.mockResolvedValueOnce(undefined);
 
-    const result = await service.getOrSet('k', async () => 'fresh', 10);
+    const result = await service.getOrSet(
+      'k',
+      () => Promise.resolve('fresh'),
+      10,
+    );
 
     expect(result).toBe('fresh');
     expect(cacheManager.set).toHaveBeenCalledWith('k', 'fresh', 10);

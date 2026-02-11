@@ -173,7 +173,7 @@ let CustomerBranchesService = CustomerBranchesService_1 = class CustomerBranches
     }
     async updateMyBranch(userId, branchId, dto, brandMemberships, branchMemberships) {
         this.logger.log(`Updating branch ${branchId} by user ${userId}`);
-        const { branchMembership, brandMembership, branch } = await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+        const { branchMembership, brandMembership } = await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
         const role = branchMembership?.role || brandMembership?.role;
         if (!role) {
             throw new common_1.ForbiddenException('You do not have access to this branch');

@@ -213,7 +213,7 @@ export class NotificationsService {
    * ========================================
    */
 
-  private async sendEmail(
+  private sendEmail(
     to: string,
     subject: string,
     html: string,
@@ -273,7 +273,7 @@ export class NotificationsService {
       // TODO: Add to notification queue for later retry
     }
 
-    return result;
+    return Promise.resolve(result);
   }
 
   /**
@@ -282,10 +282,7 @@ export class NotificationsService {
    * ========================================
    */
 
-  private async sendSMS(
-    to: string,
-    message: string,
-  ): Promise<NotificationResult> {
+  private sendSMS(to: string, message: string): Promise<NotificationResult> {
     const result: NotificationResult = {
       success: false,
       type: NotificationType.SMS,
@@ -332,7 +329,7 @@ export class NotificationsService {
       // TODO: Add to notification queue for later retry
     }
 
-    return result;
+    return Promise.resolve(result);
   }
 
   /**
@@ -717,26 +714,26 @@ Alerted At: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
    * Retry failed notification
    * TODO: Implement with queue system
    */
-  async retryNotification(notificationId: string): Promise<NotificationResult> {
+  retryNotification(notificationId: string): Promise<NotificationResult> {
     this.logger.warn(
       `Retry notification not implemented yet: ${notificationId}`,
     );
-    return {
+    return Promise.resolve({
       success: false,
       type: NotificationType.EMAIL,
       recipient: 'unknown',
       errorMessage: 'Retry not implemented',
-    };
+    });
   }
 
   /**
    * Get notification status
    * TODO: Implement with database
    */
-  async getNotificationStatus(notificationId: string): Promise<any> {
+  getNotificationStatus(notificationId: string): Promise<unknown> {
     this.logger.warn(
       `Get notification status not implemented yet: ${notificationId}`,
     );
-    return null;
+    return Promise.resolve(null);
   }
 }

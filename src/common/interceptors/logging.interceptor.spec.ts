@@ -3,6 +3,10 @@ import { of, throwError, lastValueFrom } from 'rxjs';
 import { LoggingInterceptor } from './logging.interceptor';
 
 describe('LoggingInterceptor', () => {
+  let logSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
+  let errorSpy: jest.SpyInstance;
+
   const createContext = () =>
     ({
       switchToHttp: () => ({
@@ -11,9 +15,15 @@ describe('LoggingInterceptor', () => {
     }) as any;
 
   beforeEach(() => {
-    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    logSpy = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -30,7 +40,7 @@ describe('LoggingInterceptor', () => {
     const result = await lastValueFrom(interceptor.intercept(ctx, next));
 
     expect(result).toBe('ok');
-    expect(Logger.prototype.log).toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalled();
   });
 
   it('should warn on slow requests', async () => {
@@ -42,7 +52,7 @@ describe('LoggingInterceptor', () => {
 
     await lastValueFrom(interceptor.intercept(ctx, next));
 
-    expect(Logger.prototype.warn).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
   });
 
   it('should log errors', async () => {
@@ -55,6 +65,6 @@ describe('LoggingInterceptor', () => {
     await expect(
       lastValueFrom(interceptor.intercept(ctx, next)),
     ).rejects.toThrow('boom');
-    expect(Logger.prototype.error).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalled();
   });
 });

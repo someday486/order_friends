@@ -22,7 +22,6 @@ import {
 } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { CustomerGuard } from '../../common/guards/customer.guard';
-import type { AuthRequest } from '../../common/types/auth-request';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { Permission } from '../../modules/auth/authorization/permissions';
 import {
@@ -213,7 +212,6 @@ export class PaymentsCustomerController {
     @Param('paymentId') paymentId: string,
     @Query('branchId') branchId: string,
     @Body() dto: RefundPaymentRequest,
-    @Req() req: AuthRequest,
   ): Promise<RefundPaymentResponse> {
     return this.paymentsService.refundPayment(paymentId, branchId, dto);
   }

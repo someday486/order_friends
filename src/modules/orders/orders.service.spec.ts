@@ -7,7 +7,6 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 
 describe('OrdersService', () => {
   let service: OrdersService;
-  let supabaseService: SupabaseService;
 
   const mockSupabaseClient = {
     from: jest.fn().mockReturnThis(),
@@ -40,8 +39,6 @@ describe('OrdersService', () => {
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
-    supabaseService = module.get<SupabaseService>(SupabaseService);
-
     // Clear mock call history only, preserve mockReturnThis() implementations
     jest.clearAllMocks();
   });
@@ -854,7 +851,7 @@ describe('OrdersService', () => {
 
     test.each(validTransitions)(
       'transition from $from to $to should release inventory: $shouldRelease',
-      ({ from, to, shouldRelease }) => {
+      ({ to, shouldRelease }) => {
         expect(to === OrderStatus.CANCELLED).toBe(shouldRelease);
       },
     );

@@ -332,13 +332,12 @@ export class CustomerBranchesService {
     this.logger.log(`Updating branch ${branchId} by user ${userId}`);
 
     // 접근 권한 확인
-    const { branchMembership, brandMembership, branch } =
-      await this.checkBranchAccess(
-        branchId,
-        userId,
-        brandMemberships,
-        branchMemberships,
-      );
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
 
     const role = branchMembership?.role || brandMembership?.role;
     if (!role) {

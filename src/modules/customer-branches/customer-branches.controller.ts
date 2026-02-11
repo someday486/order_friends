@@ -10,7 +10,6 @@ import {
   UseGuards,
   Req,
   BadRequestException,
-  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import {

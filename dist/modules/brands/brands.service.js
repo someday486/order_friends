@@ -96,6 +96,7 @@ let BrandsService = class BrandsService {
         };
     }
     async createBrand(accessToken, dto, _isAdmin) {
+        void _isAdmin;
         const userSb = this.supabase.userClient(accessToken);
         const { data: userData, error: userError } = await userSb.auth.getUser();
         if (userError || !userData.user) {

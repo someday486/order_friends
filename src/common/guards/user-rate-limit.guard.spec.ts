@@ -2,14 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, HttpException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
 import { UserRateLimitGuard } from './user-rate-limit.guard';
-import { USER_RATE_LIMIT_KEY } from '../decorators/user-rate-limit.decorator';
 
 describe('UserRateLimitGuard', () => {
   let guard: UserRateLimitGuard;
-  let reflector: Reflector;
-  let cacheManager: Cache;
 
   const mockCacheManager = {
     get: jest.fn(),
@@ -36,9 +32,6 @@ describe('UserRateLimitGuard', () => {
     }).compile();
 
     guard = module.get<UserRateLimitGuard>(UserRateLimitGuard);
-    reflector = module.get<Reflector>(Reflector);
-    cacheManager = module.get<Cache>(CACHE_MANAGER);
-
     jest.clearAllMocks();
   });
 

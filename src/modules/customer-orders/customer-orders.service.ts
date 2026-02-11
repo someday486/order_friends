@@ -16,7 +16,6 @@ import {
   OrderDetailResponse,
   OrderItemResponse,
 } from '../../modules/orders/dto/order-detail.response';
-import { OrderListItemResponse } from '../../modules/orders/dto/order-list.response';
 import { canModifyOrder } from '../../common/utils/role-permission.util';
 
 @Injectable()

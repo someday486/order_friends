@@ -146,7 +146,7 @@ describe('NotificationsService', () => {
     expect(result.type).toBe(NotificationType.EMAIL);
   });
 
-  it('should render templates without optional fields', async () => {
+  it('should render templates without optional fields', () => {
     const service = new NotificationsService(makeConfig({}));
 
     const statusTemplate = (service as any).getOrderStatusUpdateEmailTemplate({

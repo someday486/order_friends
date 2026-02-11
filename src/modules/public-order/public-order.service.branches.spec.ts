@@ -316,14 +316,14 @@ describe('PublicOrderService - Branch Coverage', () => {
 
   it('getProducts should retry on missing columns and map categories', async () => {
     anonChains.products._results = [
-      { data: null, error: { message: 'column \"is_hidden\" does not exist' } },
+      { data: null, error: { message: 'column "is_hidden" does not exist' } },
       {
         data: null,
-        error: { message: 'column \"is_sold_out\" does not exist' },
+        error: { message: 'column "is_sold_out" does not exist' },
       },
       {
         data: null,
-        error: { message: 'column \"sort_order\" does not exist' },
+        error: { message: 'column "sort_order" does not exist' },
       },
       {
         data: [

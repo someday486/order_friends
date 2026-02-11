@@ -1,11 +1,4 @@
-﻿import {
-  IsString,
-  IsNumber,
-  IsOptional,
-  Min,
-  IsEnum,
-  IsUUID,
-} from 'class-validator';
+﻿import { IsString, IsNumber, IsOptional, Min, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Payment Status Enum

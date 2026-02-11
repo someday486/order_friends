@@ -1,4 +1,5 @@
-import { PaymentsService } from './payments.service';
+﻿import { PaymentsService } from './payments.service';
+import * as crypto from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   PaymentNotFoundException,
@@ -241,7 +242,7 @@ describe('PaymentsService', () => {
     } as any);
     expect(result.orderName).toBe('상품');
     expect(result.orderNo).toBeNull();
-    expect(result.customerName).toBe('怨좉컼');
+    expect(result.customerName).toBe('고객');
     expect(result.customerPhone).toBe('');
   });
 
@@ -940,7 +941,8 @@ describe('PaymentsService', () => {
     });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ paymentKey: 'pk', approvedAt: 't' }),
+      text: () =>
+        Promise.resolve(JSON.stringify({ paymentKey: 'pk', approvedAt: 't' })),
     });
 
     ordersChain.maybeSingle
@@ -983,7 +985,7 @@ describe('PaymentsService', () => {
     });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ approvedAt: 't' }),
+      text: () => Promise.resolve(JSON.stringify({ approvedAt: 't' })),
     });
 
     ordersChain.maybeSingle
@@ -1029,7 +1031,8 @@ describe('PaymentsService', () => {
     });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ paymentKey: 'pk', approvedAt: 't' }),
+      text: () =>
+        Promise.resolve(JSON.stringify({ paymentKey: 'pk', approvedAt: 't' })),
     });
 
     ordersChain.maybeSingle
@@ -1443,7 +1446,7 @@ describe('PaymentsService', () => {
     });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ ok: true }),
+      text: () => Promise.resolve(JSON.stringify({ ok: true })),
     });
 
     paymentsChain.maybeSingle.mockResolvedValueOnce({
@@ -1527,7 +1530,7 @@ describe('PaymentsService', () => {
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 400,
-      text: async () => JSON.stringify({ message: 'bad' }),
+      text: () => Promise.resolve(JSON.stringify({ message: 'bad' })),
     });
 
     await expect(
@@ -1562,7 +1565,7 @@ describe('PaymentsService', () => {
     });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => 'not-json',
+      text: () => Promise.resolve('not-json'),
     });
 
     const result = await (service as any).callTossApi('/payments/confirm', {
@@ -1579,7 +1582,7 @@ describe('PaymentsService', () => {
     });
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => '',
+      text: () => Promise.resolve(''),
     });
 
     const result = await (service as any).callTossApi('/payments/confirm', {
@@ -1597,7 +1600,7 @@ describe('PaymentsService', () => {
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 500,
-      text: async () => '',
+      text: () => Promise.resolve(''),
     });
 
     await expect(
@@ -1657,7 +1660,6 @@ describe('PaymentsService', () => {
       TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
     });
     const body = Buffer.from('payload');
-    const crypto = require('crypto');
     const sig = crypto
       .createHmac('sha256', 'secret')
       .update(body)
@@ -2258,7 +2260,6 @@ describe('PaymentsService', () => {
       TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
     });
     const body = Buffer.from('test');
-    const crypto = require('crypto');
     const sig = crypto
       .createHmac('sha256', 'secret')
       .update(body)
@@ -2281,7 +2282,6 @@ describe('PaymentsService', () => {
       TOSS_WEBHOOK_SIGNATURE_HEADER: 'toss-signature',
     });
     const body = Buffer.from('test');
-    const crypto = require('crypto');
     const sig = crypto
       .createHmac('sha256', 'secret')
       .update(body)
@@ -2969,7 +2969,7 @@ describe('PaymentsService', () => {
       const fetchSpy = jest.spyOn(global, 'fetch' as any).mockResolvedValue({
         ok: true,
         status: 200,
-        text: async () => 'not-json',
+        text: () => Promise.resolve('not-json'),
       } as any);
 
       const result = await (service as any).callTossApi('/payments/confirm', {

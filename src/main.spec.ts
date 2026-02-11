@@ -71,13 +71,13 @@ describe('main bootstrap', () => {
     let helmetMock: any;
 
     jest.isolateModules(() => {
-      nestFactoryMock = require('@nestjs/core').NestFactory;
-      swaggerMock = require('@nestjs/swagger').SwaggerModule;
-      sentryMock = require('@sentry/nestjs');
-      helmetMock = require('helmet');
+      nestFactoryMock = jest.requireMock('@nestjs/core').NestFactory;
+      swaggerMock = jest.requireMock('@nestjs/swagger').SwaggerModule;
+      sentryMock = jest.requireMock('@sentry/nestjs');
+      helmetMock = jest.requireMock('helmet');
 
       nestFactoryMock.create.mockResolvedValue(app);
-      require('./main');
+      void jest.requireActual('./main');
     });
 
     await flushPromises();
@@ -112,7 +112,9 @@ describe('main bootstrap', () => {
       app,
       expect.any(Object),
     );
-    expect(app.listen).toHaveBeenCalledWith('4001');
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const listenMock = app.listen as jest.Mock;
+    expect(listenMock).toHaveBeenCalledWith('4001');
   });
 
   it('should allow and block cors origins', async () => {

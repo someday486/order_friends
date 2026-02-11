@@ -134,7 +134,7 @@ let PaymentsCustomerController = class PaymentsCustomerController {
     async getPaymentDetail(paymentId, branchId) {
         return this.paymentsService.getPaymentDetail(paymentId, branchId);
     }
-    async refundPayment(paymentId, branchId, dto, req) {
+    async refundPayment(paymentId, branchId, dto) {
         return this.paymentsService.refundPayment(paymentId, branchId, dto);
     }
 };
@@ -207,9 +207,8 @@ __decorate([
     __param(0, (0, common_1.Param)('paymentId')),
     __param(1, (0, common_1.Query)('branchId')),
     __param(2, (0, common_1.Body)()),
-    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, payment_dto_1.RefundPaymentRequest, Object]),
+    __metadata("design:paramtypes", [String, String, payment_dto_1.RefundPaymentRequest]),
     __metadata("design:returntype", Promise)
 ], PaymentsCustomerController.prototype, "refundPayment", null);
 exports.PaymentsCustomerController = PaymentsCustomerController = __decorate([

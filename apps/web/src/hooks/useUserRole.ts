@@ -58,7 +58,7 @@ export function useUserRole() {
       }
     };
 
-    fetchUserRole();
+    void fetchUserRole();
   }, [session, status]);
 
   return {

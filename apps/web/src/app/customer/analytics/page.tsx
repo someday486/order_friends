@@ -13,6 +13,7 @@ import ParetoChart from "@/components/analytics/ParetoChart";
 import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import Tooltip from "@/components/ui/Tooltip";
+import { CardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import {
   AbcAnalysis,
   CohortAnalysis,
@@ -85,6 +86,81 @@ const HelpLabel = ({ label, description }: { label: string; description: string 
     </Tooltip>
   </span>
 );
+
+const EmptyState = ({ title, description }: { title: string; description: string }) => (
+  <div className="rounded-md border border-border bg-bg-secondary p-6 text-center">
+    <div className="text-base font-semibold text-foreground mb-2">{title}</div>
+    <div className="text-sm text-text-secondary">{description}</div>
+  </div>
+);
+
+const AnalyticsSkeleton = ({ tab }: { tab: "sales" | "products" | "orders" | "customers" }) => {
+  if (tab === "sales") {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
+        <div className="card p-6">
+          <Skeleton className="h-5 w-28 mb-4" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (tab === "products") {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
+        <div className="card p-6">
+          <Skeleton className="h-5 w-32 mb-4" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+        <div className="card p-6">
+          <Skeleton className="h-5 w-28 mb-4" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (tab === "orders") {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
+        <div className="card p-6">
+          <Skeleton className="h-5 w-24 mb-4" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <CardSkeleton key={index} />
+        ))}
+      </div>
+      <div className="card p-6">
+        <Skeleton className="h-5 w-28 mb-4" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+    </div>
+  );
+};
 
 export default function AnalyticsPage() {
   return (
@@ -210,6 +286,7 @@ function AnalyticsContent() {
     const fetchSales = async () => {
       setTabLoading((prev) => ({ ...prev, sales: true }));
       setTabErrors((prev) => ({ ...prev, sales: null }));
+      setSalesData(null);
 
       try {
         const params = new URLSearchParams({
@@ -352,6 +429,7 @@ function AnalyticsContent() {
     const fetchOrders = async () => {
       setTabLoading((prev) => ({ ...prev, orders: true }));
       setTabErrors((prev) => ({ ...prev, orders: null }));
+      setOrderData(null);
 
       try {
         const params = new URLSearchParams({
@@ -554,6 +632,33 @@ function AnalyticsContent() {
   const rfmPoints = rfmData?.customers ?? [];
   const activeLoading = tabLoading[activeTab];
   const activeError = tabErrors[activeTab];
+  const tabHasData: Record<"sales" | "products" | "orders" | "customers", boolean> = {
+    sales: Boolean(salesCurrent),
+    products: Boolean(productCurrent || abcData || hourlyData || combinationData),
+    orders: Boolean(orderCurrent),
+    customers: Boolean(customerCurrent || cohortData || rfmData),
+  };
+  const emptyStateContent: Record<
+    "sales" | "products" | "orders" | "customers",
+    { title: string; description: string }
+  > = {
+    sales: {
+      title: "매출 데이터가 없습니다",
+      description: "선택한 기간에 매출/주문 기록이 없습니다.",
+    },
+    products: {
+      title: "상품 데이터가 없습니다",
+      description: "선택한 기간에 판매된 상품 기록이 없습니다.",
+    },
+    orders: {
+      title: "주문 데이터가 없습니다",
+      description: "선택한 기간에 주문 기록이 없습니다.",
+    },
+    customers: {
+      title: "고객 데이터가 없습니다",
+      description: "선택한 기간에 고객 활동 기록이 없습니다.",
+    },
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -643,11 +748,22 @@ function AnalyticsContent() {
         </div>
       )}
 
-      {activeLoading && <p className="text-text-secondary">분석 데이터를 불러오는 중...</p>}
-      {activeError && <p className="text-danger-500">오류: {activeError}</p>}
+      {effectiveBranchId && activeLoading && <AnalyticsSkeleton tab={activeTab} />}
+      {effectiveBranchId && activeError && (
+        <p className="text-danger-500">오류: {activeError}</p>
+      )}
 
       {effectiveBranchId && (
         <>
+          {!activeLoading && !activeError && !tabHasData[activeTab] && (
+            <EmptyState
+              title={emptyStateContent[activeTab].title}
+              description={emptyStateContent[activeTab].description}
+            />
+          )}
+
+          {!activeLoading && tabHasData[activeTab] && (
+            <>
           {/* 매출 분석 */}
           {activeTab === "sales" && salesCurrent && (
             <div className="card p-6 space-y-6">
@@ -729,7 +845,7 @@ function AnalyticsContent() {
             </div>
           )}
 
-          {(abcData || hourlyData || combinationData) && (
+          {activeTab === "products" && (abcData || hourlyData || combinationData) && (
             <div className="card p-6 space-y-8">
               <h2 className="text-xl font-semibold text-foreground">상품 분석 심화</h2>
 
@@ -1007,6 +1123,8 @@ function AnalyticsContent() {
                 </div>
               </div>
             </div>
+          )}
+            </>
           )}
         </>
       )}

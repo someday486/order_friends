@@ -433,7 +433,7 @@ export class PublicOrderService {
     adminClient: any,
     branchId: string,
     idempotencyKey?: string,
-  ): Promise<any | null> {
+  ): Promise<any> {
     if (!idempotencyKey) return null;
 
     const { data, error } = await adminClient

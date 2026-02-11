@@ -43,7 +43,6 @@ let MembersService = class MembersService {
         if (error) {
             throw new Error(`[members.getBrandMembers] ${error.message}`);
         }
-        const userIds = (data ?? []).map((row) => row.user_id);
         const emailMap = {};
         return (data ?? []).map((row) => ({
             id: `${row.brand_id}-${row.user_id}`,
@@ -57,8 +56,10 @@ let MembersService = class MembersService {
         }));
     }
     async inviteBrandMember(accessToken, dto, _isAdmin) {
-        const sb = this.supabase.userClient(accessToken);
-        throw new common_1.BadRequestException('이메일 초대 기능은 추후 구현 예정입니다. 현재는 사용자 ID로 직접 추가해주세요.');
+        void accessToken;
+        void dto;
+        void _isAdmin;
+        throw new common_1.BadRequestException('?대찓??珥덈? 湲곕뒫? 異뷀썑 援ы쁽 ?덉젙?낅땲?? ?꾩옱???ъ슜??ID濡?吏곸젒 異붽??댁＜?몄슂.');
     }
     async addBrandMember(accessToken, brandId, userId, role = member_dto_1.BrandRole.MEMBER, isAdmin) {
         const sb = this.getClient(accessToken, isAdmin);
@@ -69,7 +70,7 @@ let MembersService = class MembersService {
             .eq('user_id', userId)
             .maybeSingle();
         if (existing) {
-            throw new common_1.BadRequestException('이미 브랜드 멤버입니다.');
+            throw new common_1.BadRequestException('?대? 釉뚮옖??硫ㅻ쾭?낅땲??');
         }
         const { data, error } = await sb
             .from('brand_members')
@@ -103,7 +104,7 @@ let MembersService = class MembersService {
         if (dto.status !== undefined)
             updateData.status = dto.status;
         if (Object.keys(updateData).length === 0) {
-            throw new common_1.BadRequestException('수정할 내용이 없습니다.');
+            throw new common_1.BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
         }
         const { data, error } = await sb
             .from('brand_members')
@@ -116,7 +117,7 @@ let MembersService = class MembersService {
             throw new Error(`[members.updateBrandMember] ${error.message}`);
         }
         if (!data) {
-            throw new common_1.NotFoundException('멤버를 찾을 수 없습니다.');
+            throw new common_1.NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
         }
         return {
             id: `${data.brand_id}-${data.user_id}`,
@@ -181,7 +182,7 @@ let MembersService = class MembersService {
             .eq('user_id', dto.userId)
             .maybeSingle();
         if (existing) {
-            throw new common_1.BadRequestException('이미 가게 멤버입니다.');
+            throw new common_1.BadRequestException('?대? 媛寃?硫ㅻ쾭?낅땲??');
         }
         const { data, error } = await sb
             .from('branch_members')
@@ -215,7 +216,7 @@ let MembersService = class MembersService {
         if (dto.status !== undefined)
             updateData.status = dto.status;
         if (Object.keys(updateData).length === 0) {
-            throw new common_1.BadRequestException('수정할 내용이 없습니다.');
+            throw new common_1.BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
         }
         const { data, error } = await sb
             .from('branch_members')
@@ -228,7 +229,7 @@ let MembersService = class MembersService {
             throw new Error(`[members.updateBranchMember] ${error.message}`);
         }
         if (!data) {
-            throw new common_1.NotFoundException('멤버를 찾을 수 없습니다.');
+            throw new common_1.NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
         }
         return {
             id: `${data.branch_id}-${data.user_id}`,

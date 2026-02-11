@@ -101,5 +101,5 @@ async function bootstrap() {
     console.log(`Application is running on: http://localhost:${process.env.PORT ?? 4000}`);
     console.log(`API Documentation: http://localhost:${process.env.PORT ?? 4000}/api-docs`);
 }
-bootstrap();
+void bootstrap();
 //# sourceMappingURL=main.js.map

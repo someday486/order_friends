@@ -80,7 +80,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
         const message = this.getDeliveryCompleteSMSTemplate(smsData);
         return this.sendSMS(phone, message);
     }
-    async sendEmail(to, subject, html, text) {
+    sendEmail(to, subject, html, text) {
         const result = {
             success: false,
             type: notification_dto_1.NotificationType.EMAIL,
@@ -111,9 +111,9 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             result.success = false;
             result.errorMessage = error.message;
         }
-        return result;
+        return Promise.resolve(result);
     }
-    async sendSMS(to, message) {
+    sendSMS(to, message) {
         const result = {
             success: false,
             type: notification_dto_1.NotificationType.SMS,
@@ -140,7 +140,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             result.success = false;
             result.errorMessage = error.message;
         }
-        return result;
+        return Promise.resolve(result);
     }
     getOrderConfirmationEmailTemplate(data) {
         const subject = `Order Confirmation - ${data.orderNo}`;
@@ -457,18 +457,18 @@ Alerted At: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
     getDeliveryCompleteSMSTemplate(data) {
         return `[OrderFriends] Order ${data.orderNo} has been delivered. Thank you.`;
     }
-    async retryNotification(notificationId) {
+    retryNotification(notificationId) {
         this.logger.warn(`Retry notification not implemented yet: ${notificationId}`);
-        return {
+        return Promise.resolve({
             success: false,
             type: notification_dto_1.NotificationType.EMAIL,
             recipient: 'unknown',
             errorMessage: 'Retry not implemented',
-        };
+        });
     }
-    async getNotificationStatus(notificationId) {
+    getNotificationStatus(notificationId) {
         this.logger.warn(`Get notification status not implemented yet: ${notificationId}`);
-        return null;
+        return Promise.resolve(null);
     }
 };
 exports.NotificationsService = NotificationsService;

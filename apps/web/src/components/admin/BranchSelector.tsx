@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
@@ -23,8 +23,7 @@ type Branch = {
 // ============================================================
 
 async function getAccessToken() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await supabaseBrowser.auth.getSession();
   if (error) throw error;
 
   const token = data.session?.access_token;

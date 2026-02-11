@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabaseClient';
+import { supabaseBrowser } from '@/lib/supabase/client';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -7,8 +7,7 @@ if (!API_BASE) {
 }
 
 async function getAccessToken(): Promise<string> {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await supabaseBrowser.auth.getSession();
   if (error) throw error;
   const token = data.session?.access_token;
   if (!token) throw new Error('No access_token (로그인 필요)');

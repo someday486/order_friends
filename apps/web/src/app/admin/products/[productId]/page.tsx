@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
@@ -148,7 +148,7 @@ function ProductDetailPageContent() {
     setUploadingImage(true);
 
     try {
-      const supabase = createClient();
+      const supabase = supabaseBrowser;
       const timestamp = Date.now();
       const extension = imageFile.name.split(".").pop() || "png";
       const filePath = `${branchId}/${productIdForUpload}/main-${timestamp}.${extension}`;

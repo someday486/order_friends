@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
-import { createClient } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import toast from "react-hot-toast";
 
 // ============================================================
@@ -194,7 +194,7 @@ function ProductDetailPageContent() {
     setUploadingImage(true);
 
     try {
-      const supabase = createClient();
+      const supabase = supabaseBrowser;
       const timestamp = Date.now();
       const extension = imageFile.name.split(".").pop() || "png";
       const filePath = `${formData.branchId}/${productIdForUpload}/main-${timestamp}.${extension}`;

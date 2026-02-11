@@ -8,6 +8,7 @@ import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { formatWon } from "@/lib/format";
+import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/common";
 
 // ============================================================
 // Types
@@ -189,7 +190,7 @@ export default function CustomerDashboardPage() {
                         {formatWon(order.total_amount)}
                       </div>
                       <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
+                        {ORDER_STATUS_LABEL[order.status as OrderStatus] ?? order.status}
                       </Badge>
                     </div>
                   </div>

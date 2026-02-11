@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { formatWon } from "@/lib/format";
 
 // ============================================================
 // Types
@@ -185,7 +186,7 @@ export default function CustomerDashboardPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-base font-bold mb-1">
-                        {order.total_amount.toLocaleString()}원
+                        {formatWon(order.total_amount)}
                       </div>
                       <Badge variant={getStatusVariant(order.status)}>
                         {order.status}

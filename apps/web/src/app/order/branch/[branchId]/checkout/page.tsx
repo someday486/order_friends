@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { formatWon } from "@/lib/format";
 
 // ============================================================
 // Types
@@ -39,9 +40,6 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
 // Helpers
 // ============================================================
 
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
 
 // ============================================================
 // Component

@@ -1,8 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { formatDateTimeFull, formatWon } from "@/lib/format";
+import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 
 // ============================================================
 // Types
@@ -11,7 +13,7 @@ import Link from "next/link";
 type OrderResult = {
   id: string;
   orderNo: string;
-  status: string;
+  status: OrderStatus;
   totalAmount: number;
   createdAt: string;
   items: {
@@ -24,32 +26,6 @@ type OrderResult = {
 // ============================================================
 // Helpers
 // ============================================================
-
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
-
-function formatDateTime(iso: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-const statusLabel: Record<string, string> = {
-  CREATED: "주문 접수",
-  CONFIRMED: "주문 확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
-};
 
 // ============================================================
 // Component
@@ -106,13 +82,13 @@ export default function CompletePage() {
         <div className="flex justify-between items-center py-2">
           <span className="text-text-secondary">주문상태</span>
           <span className="text-success font-semibold">
-            {statusLabel[order.status] ?? order.status}
+            {ORDER_STATUS_LABEL_LONG[order.status as OrderStatus] ?? order.status}
           </span>
         </div>
 
         <div className="flex justify-between items-center py-2">
           <span className="text-text-secondary">주문일시</span>
-          <span>{formatDateTime(order.createdAt)}</span>
+          <span>{formatDateTimeFull(order.createdAt)}</span>
         </div>
 
         <div className="flex justify-between items-center py-2 border-t border-border pt-3 mt-1">

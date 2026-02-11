@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
+import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 
@@ -87,21 +88,6 @@ const TRANSACTION_BADGE_CLASSES: Record<string, string> = {
 // Helpers
 // ============================================================
 
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
-
-function formatDateTime(iso: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 // ============================================================
 // Component
@@ -509,7 +495,7 @@ function InventoryDetailPageContent() {
                     <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{log.qty_before}</td>
                     <td className="py-3 px-3.5 text-[13px] text-right text-foreground">{log.qty_after}</td>
                     <td className="py-3 px-3.5 text-xs text-text-secondary">{log.notes || "-"}</td>
-                    <td className="py-3 px-3.5 text-xs text-text-secondary">{formatDateTime(log.created_at)}</td>
+                    <td className="py-3 px-3.5 text-xs text-text-secondary">{formatDateTimeFull(log.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

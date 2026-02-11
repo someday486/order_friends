@@ -1,8 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { formatDateTimeFull, formatWon } from "@/lib/format";
+import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 
 // ============================================================
 // Types
@@ -11,7 +13,7 @@ import Link from "next/link";
 type OrderInfo = {
   id: string;
   orderNo: string;
-  status: string;
+  status: OrderStatus;
   totalAmount: number;
   createdAt: string;
   items: {
@@ -26,16 +28,6 @@ type OrderInfo = {
 // ============================================================
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
-const statusLabel: Record<string, string> = {
-  CREATED: "주문 접수",
-  CONFIRMED: "주문 확인",
-  PREPARING: "준비 중",
-  READY: "준비 완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소됨",
-  REFUNDED: "환불됨",
-};
 
 const statusBadgeClasses: Record<string, string> = {
   CREATED: "bg-primary-500/30 text-primary-500",
@@ -52,22 +44,6 @@ const STATUS_STEPS = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"]
 // ============================================================
 // Helpers
 // ============================================================
-
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
-
-function formatDateTime(iso: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 // ============================================================
 // Component
@@ -184,7 +160,7 @@ export default function TrackOrderPage() {
           <div className="p-5 rounded-xl bg-danger-500/20 text-center">
             <div className="text-[32px]">❌</div>
             <div className="mt-2 text-lg font-bold text-danger-500">
-              {statusLabel[order.status]}
+              {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
             </div>
           </div>
         ) : (
@@ -209,7 +185,7 @@ export default function TrackOrderPage() {
                         isActive ? "text-foreground" : "text-text-tertiary"
                       } ${isCurrent ? "font-bold" : "font-normal"}`}
                     >
-                      {statusLabel[step]}
+                      {ORDER_STATUS_LABEL_LONG[step as OrderStatus] ?? step}
                     </div>
                   </div>
                 );
@@ -227,7 +203,7 @@ export default function TrackOrderPage() {
             {/* Current Status Message */}
             <div className="mt-6 p-4 rounded-xl bg-bg-secondary text-center">
               <span className={`inline-block py-1.5 px-4 rounded-full font-bold ${statusBadgeClasses[order.status] || "bg-bg-tertiary text-foreground"}`}>
-                {statusLabel[order.status]}
+                {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
               </span>
               <div className="mt-3 text-[13px] text-text-tertiary">
                 {order.status === "CREATED" && "주문이 접수되었습니다. 곧 확인해드릴게요!"}
@@ -260,7 +236,7 @@ export default function TrackOrderPage() {
         </div>
 
         <div className="mt-3 text-xs text-text-tertiary">
-          주문일시: {formatDateTime(order.createdAt)}
+          주문일시: {formatDateTimeFull(order.createdAt)}
         </div>
       </div>
     </div>

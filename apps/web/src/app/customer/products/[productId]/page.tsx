@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
+import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
 import { createClient } from "@/lib/supabaseClient";
 
@@ -50,9 +51,6 @@ type Branch = {
 // Helpers
 // ============================================================
 
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
 
 // ============================================================
 // Component

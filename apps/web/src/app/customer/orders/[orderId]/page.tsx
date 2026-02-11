@@ -1,22 +1,15 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { formatDateTime, formatPhone, formatWon } from "@/lib/format";
+import { PAYMENT_METHOD_LABEL, type OrderStatus } from "@/types/common";
 
 // ============================================================
 // Types
 // ============================================================
-
-type OrderStatus =
-  | "CREATED"
-  | "CONFIRMED"
-  | "PREPARING"
-  | "READY"
-  | "COMPLETED"
-  | "CANCELLED"
-  | "REFUNDED";
 
 type OrderItem = {
   id: string;
@@ -53,67 +46,272 @@ type OrderDetail = {
 // Constants
 // ============================================================
 
-const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "주문접수",
-  CONFIRMED: "확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
-};
-
-const statusBadgeClasses: Record<OrderStatus, string> = {
-  CREATED: "bg-warning-500/20 text-warning-500",
-  CONFIRMED: "bg-primary-500/20 text-primary-500",
-  PREPARING: "bg-primary-500/20 text-primary-500",
-  READY: "bg-success/20 text-success",
-  COMPLETED: "bg-neutral-500/20 text-neutral-500",
-  CANCELLED: "bg-danger-500/20 text-danger-500",
-  REFUNDED: "bg-pink-500/20 text-pink-400",
-};
-
-const statusBtnActiveClasses: Record<OrderStatus, string> = {
-  CREATED: "bg-warning-500/30 border-warning-500 text-warning-500",
-  CONFIRMED: "bg-primary-500/30 border-primary-500 text-primary-500",
-  PREPARING: "bg-primary-500/30 border-primary-500 text-primary-500",
-  READY: "bg-success/30 border-success text-success",
-  COMPLETED: "bg-neutral-500/30 border-neutral-500 text-neutral-500",
-  CANCELLED: "bg-danger-500/30 border-danger-500 text-danger-500",
-  REFUNDED: "bg-pink-500/30 border-pink-400 text-pink-400",
-};
-
-const STATUS_OPTIONS: OrderStatus[] = [
+const STATUS_FLOW: OrderStatus[] = [
   "CREATED",
   "CONFIRMED",
   "PREPARING",
   "READY",
   "COMPLETED",
-  "CANCELLED",
 ];
+
+const statusConfig: Record<
+  OrderStatus,
+  { label: string; bg: string; text: string; dot: string; icon: string }
+> = {
+  CREATED: {
+    label: "주문접수",
+    bg: "bg-warning-500/15",
+    text: "text-warning-600",
+    dot: "bg-warning-500",
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+  },
+  CONFIRMED: {
+    label: "확인",
+    bg: "bg-primary-500/15",
+    text: "text-primary-600",
+    dot: "bg-primary-500",
+    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  PREPARING: {
+    label: "준비중",
+    bg: "bg-secondary-500/15",
+    text: "text-secondary-600",
+    dot: "bg-secondary-500",
+    icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  READY: {
+    label: "준비완료",
+    bg: "bg-success/15",
+    text: "text-success-600",
+    dot: "bg-success",
+    icon: "M5 13l4 4L19 7",
+  },
+  COMPLETED: {
+    label: "완료",
+    bg: "bg-neutral-200",
+    text: "text-neutral-600",
+    dot: "bg-neutral-500",
+    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  CANCELLED: {
+    label: "취소",
+    bg: "bg-danger-500/15",
+    text: "text-danger-600",
+    dot: "bg-danger-500",
+    icon: "M6 18L18 6M6 6l12 12",
+  },
+  REFUNDED: {
+    label: "환불",
+    bg: "bg-pink-500/15",
+    text: "text-pink-500",
+    dot: "bg-pink-500",
+    icon: "M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6",
+  },
+};
 
 // ============================================================
 // Helpers
 // ============================================================
 
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
+// ============================================================
+// Sub-components
+// ============================================================
+
+/** Status progress stepper */
+function StatusStepper({ currentStatus }: { currentStatus: OrderStatus }) {
+  if (currentStatus === "CANCELLED" || currentStatus === "REFUNDED") {
+    const cfg = statusConfig[currentStatus];
+    return (
+      <div className={`flex items-center gap-2 px-4 py-3 rounded-md ${cfg.bg}`}>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={cfg.text}
+        >
+          <path d={cfg.icon} />
+        </svg>
+        <span className={`text-sm font-bold ${cfg.text}`}>{cfg.label}</span>
+      </div>
+    );
+  }
+
+  const currentIdx = STATUS_FLOW.indexOf(currentStatus);
+
+  return (
+    <div className="flex items-center gap-0 w-full">
+      {STATUS_FLOW.map((status, idx) => {
+        const cfg = statusConfig[status];
+        const isDone = idx < currentIdx;
+        const isCurrent = idx === currentIdx;
+        const isUpcoming = idx > currentIdx;
+
+        return (
+          <div key={status} className="flex items-center flex-1 last:flex-none">
+            {/* Step circle */}
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={`
+                  w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
+                  transition-all duration-300
+                  ${isDone ? "bg-success text-white" : ""}
+                  ${isCurrent ? `${cfg.dot} text-white animate-pulse-slow` : ""}
+                  ${isUpcoming ? "bg-bg-tertiary text-text-tertiary" : ""}
+                `}
+              >
+                {isDone ? (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  idx + 1
+                )}
+              </div>
+              <span
+                className={`text-2xs font-medium whitespace-nowrap ${
+                  isCurrent ? "text-foreground font-bold" : "text-text-tertiary"
+                }`}
+              >
+                {cfg.label}
+              </span>
+            </div>
+
+            {/* Connector line */}
+            {idx < STATUS_FLOW.length - 1 && (
+              <div className="flex-1 mx-1 mt-[-16px]">
+                <div
+                  className={`h-0.5 w-full rounded-full transition-all duration-300 ${
+                    idx < currentIdx ? "bg-success" : "bg-bg-tertiary"
+                  }`}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
-function formatDateTime(iso: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** Single order item row */
+function OrderItemRow({ item }: { item: OrderItem }) {
+  return (
+    <div className="flex items-center gap-3 py-3">
+      {/* Item icon placeholder */}
+      <div className="w-12 h-12 rounded-md bg-bg-tertiary flex items-center justify-center shrink-0">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="text-text-tertiary"
+        >
+          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      </div>
+
+      {/* Name + option */}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-foreground truncate">
+          {item.name}
+        </div>
+        {item.option && (
+          <div className="text-xs text-text-tertiary mt-0.5 truncate">
+            {item.option}
+          </div>
+        )}
+      </div>
+
+      {/* Qty */}
+      <div className="text-sm text-text-secondary shrink-0">
+        {item.qty}개
+      </div>
+
+      {/* Price */}
+      <div className="text-sm font-bold text-foreground shrink-0 text-right min-w-[80px]">
+        {formatWon(item.unitPrice * item.qty)}
+      </div>
+    </div>
+  );
+}
+
+/** Info row for customer/payment section */
+function InfoRow({
+  label,
+  value,
+  bold,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-text-secondary">{label}</span>
+      <span
+        className={`text-sm ${bold ? "font-extrabold text-foreground" : "text-foreground"}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/** Status change button */
+function StatusActionButton({
+  status,
+  currentStatus,
+  loading,
+  onClick,
+}: {
+  status: OrderStatus;
+  currentStatus: OrderStatus;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  const cfg = statusConfig[status];
+  const isCurrent = currentStatus === status;
+
+  if (isCurrent) {
+    return (
+      <div
+        className={`flex items-center justify-center gap-2 h-10 rounded-md ${cfg.bg} ${cfg.text} text-sm font-bold`}
+      >
+        <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+        {cfg.label} (현재)
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="h-10 w-full rounded-md border border-border bg-bg-secondary text-foreground text-sm font-medium cursor-pointer hover:bg-bg-tertiary active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {cfg.label}
+    </button>
+  );
 }
 
 // ============================================================
-// Component
+// Main Component
 // ============================================================
 
 export default function CustomerOrderDetailPage() {
@@ -140,12 +338,15 @@ export default function CustomerOrderDetailPage() {
       try {
         setLoading(true);
         setError(null);
-
-        const data = await apiClient.get<OrderDetail>(`/customer/orders/${orderId}`);
+        const data = await apiClient.get<OrderDetail>(
+          `/customer/orders/${orderId}`,
+        );
         setOrder(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+        setError(
+          e instanceof Error ? e.message : "주문을 불러올 수 없습니다",
+        );
       } finally {
         setLoading(false);
       }
@@ -156,208 +357,305 @@ export default function CustomerOrderDetailPage() {
 
   // Update order status
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
-    if (!order || !orderId) return;
-    if (!canUpdateStatus) {
-      alert("권한이 없습니다. 주문 상태 변경은 매니저/스태프 이상만 가능합니다.");
-      return;
-    }
+    if (!order || !orderId || !canUpdateStatus) return;
 
     try {
       setStatusLoading(true);
       setError(null);
-
-      const data = await apiClient.patch<{ status: OrderStatus }>(`/customer/orders/${orderId}/status`, {
-        status: newStatus,
-      });
+      const data = await apiClient.patch<{ status: OrderStatus }>(
+        `/customer/orders/${orderId}/status`,
+        { status: newStatus },
+      );
       setOrder((prev) => (prev ? { ...prev, status: data.status } : null));
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      setError(
+        e instanceof Error ? e.message : "상태 변경에 실패했습니다",
+      );
     } finally {
       setStatusLoading(false);
     }
   };
 
+  // Loading state
   if (loading) {
     return (
-      <div>
-        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
-          ← 주문 목록
-        </Link>
-        <div className="mt-6 text-text-secondary">로딩 중...</div>
+      <div className="max-w-2xl mx-auto">
+        <BackButton />
+        <div className="mt-6 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="bg-card rounded-md border border-border p-4 animate-pulse"
+            >
+              <div className="h-5 w-32 bg-bg-tertiary rounded mb-3" />
+              <div className="h-4 w-48 bg-bg-tertiary rounded mb-2" />
+              <div className="h-4 w-24 bg-bg-tertiary rounded" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
+  // Error state
   if (error && !order) {
     return (
-      <div>
-        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
-          ← 주문 목록
-        </Link>
-        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500 mt-4 mb-4">
+      <div className="max-w-2xl mx-auto">
+        <BackButton />
+        <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mt-4 text-sm">
           {error}
         </div>
       </div>
     );
   }
 
+  // Not found
   if (!order) {
     return (
-      <div>
-        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
-          ← 주문 목록
-        </Link>
-        <div className="mt-6 text-text-tertiary">주문을 찾을 수 없습니다.</div>
+      <div className="max-w-2xl mx-auto">
+        <BackButton />
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mb-4">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-tertiary"
+            >
+              <path d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-foreground font-semibold">
+            주문을 찾을 수 없습니다
+          </p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="mb-6">
-        <Link href="/customer/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
-          ← 주문 목록
-        </Link>
+  const itemCount = order.items.reduce((sum, item) => sum + item.qty, 0);
 
-        <div className="flex items-center gap-2.5 mt-4">
-          <h1 className="m-0 text-2xl font-extrabold text-foreground">주문 상세</h1>
-          <span className={`inline-flex items-center h-7 px-3 rounded-full text-[13px] font-semibold ${statusBadgeClasses[order.status]}`}>
-            {statusLabel[order.status]}
-          </span>
+  return (
+    <div className="max-w-2xl mx-auto animate-fade-in">
+      {/* Back button */}
+      <BackButton />
+
+      {/* Order header card */}
+      <div className="bg-card rounded-md border border-border p-4 mt-3 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <span className="font-mono text-lg font-extrabold text-foreground">
+              {order.orderNo ?? order.id.slice(0, 8)}
+            </span>
+            <div className="text-xs text-text-tertiary mt-0.5">
+              {formatDateTime(order.orderedAt)}
+            </div>
+          </div>
+          <StatusBadgeLarge status={order.status} />
         </div>
 
-        <div className="mt-2 text-text-secondary text-[13px]">
-          주문번호{" "}
-          <span className="font-mono text-foreground">
-            {order.orderNo ?? order.id}
-          </span>{" "}
-          · {formatDateTime(order.orderedAt)}
+        {/* Status stepper */}
+        <div className="mt-4 pt-4 border-t border-border-light">
+          <StatusStepper currentStatus={order.status} />
         </div>
       </div>
 
+      {/* Error message */}
       {error && (
-        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500 mb-4">
+        <div className="border border-danger-500 rounded-md p-3 bg-danger-500/10 text-danger-500 mb-3 text-sm">
           {error}
         </div>
       )}
 
-      {/* Content */}
-      <div className="grid grid-cols-[1.5fr_1fr] gap-4">
-        {/* Left: Items */}
-        <section className="card p-4">
-          <div className="font-extrabold text-sm text-foreground">주문 상품</div>
+      {/* Order items */}
+      <div className="bg-card rounded-md border border-border p-4 mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-extrabold text-foreground">
+            주문 상품
+          </h2>
+          <span className="text-xs text-text-tertiary">{itemCount}개</span>
+        </div>
 
-          <div className="mt-3 border border-border rounded-xl overflow-hidden">
-            <table className="w-full border-collapse">
-              <thead className="bg-bg-tertiary">
-                <tr>
-                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">상품명</th>
-                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">옵션</th>
-                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">수량</th>
-                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">단가</th>
-                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">합계</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.items.map((item) => (
-                  <tr key={item.id} className="border-t border-border">
-                    <td className="py-2.5 px-3 text-[13px] text-foreground">{item.name}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">{item.option ?? "-"}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{item.qty}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(item.unitPrice)}</td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">
-                      {formatWon(item.unitPrice * item.qty)}
-                    </td>
-                  </tr>
-                ))}
-                {order.items.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-2.5 px-3 text-[13px] text-text-tertiary text-center">
-                      상품 없음
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-4 flex justify-between items-center">
-            <div className="text-sm text-text-secondary">총 결제금액</div>
-            <div className="text-xl font-extrabold text-foreground">{formatWon(order.payment.total)}</div>
-          </div>
-        </section>
-
-        {/* Right: Customer Info & Status Update */}
-        <div className="flex flex-col gap-4">
-          <section className="card p-4">
-            <div className="font-extrabold text-sm text-foreground">고객 정보</div>
-
-            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">이름</div>
-              <div className="text-foreground text-[13px]">{order.customer.name || "-"}</div>
+        <div className="divide-y divide-border-light">
+          {order.items.map((item) => (
+            <OrderItemRow key={item.id} item={item} />
+          ))}
+          {order.items.length === 0 && (
+            <div className="py-6 text-center text-sm text-text-tertiary">
+              상품 정보 없음
             </div>
-            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">연락처</div>
-              <div className="text-foreground text-[13px]">{order.customer.phone || "-"}</div>
-            </div>
-            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">주소</div>
-              <div className="text-foreground text-[13px]">{order.customer.address1 || "-"}</div>
-            </div>
-            <div className="grid grid-cols-[80px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">메모</div>
-              <div className="text-foreground text-[13px]">{order.customer.memo || "-"}</div>
-            </div>
-          </section>
-
-          {canUpdateStatus && (
-            <section className="card p-4">
-              <div className="font-extrabold text-sm text-foreground">상태 변경</div>
-              <div className="text-xs text-text-tertiary mt-1 mb-3">
-                매니저/스태프 변경 가능
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {STATUS_OPTIONS.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => handleStatusUpdate(status)}
-                    disabled={statusLoading || order.status === status}
-                    className={`h-9 px-4 rounded-[10px] border text-[13px] font-semibold transition-all ${
-                      order.status === status
-                        ? `${statusBtnActiveClasses[status]} cursor-default`
-                        : "border-border bg-transparent text-foreground opacity-70 cursor-pointer hover:bg-bg-tertiary"
-                    }`}
-                  >
-                    {statusLabel[status]}
-                    {order.status === status && " (현재)"}
-                  </button>
-                ))}
-              </div>
-
-              {statusLoading && (
-                <div className="mt-3 text-xs text-text-tertiary text-center">
-                  변경 중...
-                </div>
-              )}
-            </section>
           )}
+        </div>
 
-          {!canUpdateStatus && (
-            <section className="card p-4">
-              <div className="font-extrabold text-sm text-foreground">권한 정보</div>
-              <div className="mt-3 text-[13px] text-text-secondary">
-                현재 역할: {order.myRole || "VIEWER"}
+        {/* Price breakdown */}
+        <div className="mt-3 pt-3 border-t border-border space-y-1">
+          <InfoRow label="상품 금액" value={formatWon(order.payment.subtotal)} />
+          {order.payment.shippingFee > 0 && (
+            <InfoRow
+              label="배달비"
+              value={formatWon(order.payment.shippingFee)}
+            />
+          )}
+          {order.payment.discount > 0 && (
+            <InfoRow
+              label="할인"
+              value={`-${formatWon(order.payment.discount)}`}
+            />
+          )}
+          <div className="pt-2 border-t border-border-light">
+            <InfoRow
+              label="총 결제금액"
+              value={formatWon(order.payment.total)}
+              bold
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Customer info */}
+      <div className="bg-card rounded-md border border-border p-4 mb-3">
+        <h2 className="text-sm font-extrabold text-foreground mb-3">
+          고객 정보
+        </h2>
+        <div className="space-y-0 divide-y divide-border-light">
+          <InfoRow label="이름" value={order.customer.name || "-"} />
+          <InfoRow
+            label="연락처"
+            value={formatPhone(order.customer.phone)}
+          />
+          <InfoRow label="주소" value={order.customer.address1 || "-"} />
+          {order.customer.memo && (
+            <div className="pt-2">
+              <div className="text-xs text-text-tertiary mb-1">
+                요청사항
               </div>
-              <div className="mt-2 text-xs text-text-tertiary">
-                주문 상태를 변경하려면 매니저 또는 스태프 권한이 필요합니다.
+              <div className="text-sm text-foreground bg-bg-tertiary rounded-md px-3 py-2">
+                {order.customer.memo}
               </div>
-            </section>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Payment info */}
+      <div className="bg-card rounded-md border border-border p-4 mb-3">
+        <h2 className="text-sm font-extrabold text-foreground mb-3">
+          결제 정보
+        </h2>
+        <InfoRow
+          label="결제 방법"
+          value={PAYMENT_METHOD_LABEL[order.payment.method] || order.payment.method || "-"}
+        />
+      </div>
+
+      {/* Status actions */}
+      {canUpdateStatus && (
+        <div className="bg-card rounded-md border border-border p-4 mb-3">
+          <h2 className="text-sm font-extrabold text-foreground mb-1">
+            상태 변경
+          </h2>
+          <p className="text-xs text-text-tertiary mb-3">
+            주문 상태를 변경할 수 있습니다
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                "CREATED",
+                "CONFIRMED",
+                "PREPARING",
+                "READY",
+                "COMPLETED",
+                "CANCELLED",
+              ] as OrderStatus[]
+            ).map((status) => (
+              <StatusActionButton
+                key={status}
+                status={status}
+                currentStatus={order.status}
+                loading={statusLoading}
+                onClick={() => handleStatusUpdate(status)}
+              />
+            ))}
+          </div>
+
+          {statusLoading && (
+            <div className="mt-3 text-xs text-text-tertiary text-center animate-pulse-slow">
+              상태 변경 중...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Role info for non-privileged users */}
+      {!canUpdateStatus && (
+        <div className="bg-card rounded-md border border-border p-4 mb-3">
+          <div className="flex items-center gap-2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-text-tertiary"
+            >
+              <path d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-6V4" />
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            <span className="text-sm text-text-secondary">
+              현재 역할: <span className="font-semibold">{order.myRole || "VIEWER"}</span>
+            </span>
+          </div>
+          <p className="text-xs text-text-tertiary mt-1">
+            주문 상태를 변경하려면 매니저 또는 스태프 권한이 필요합니다
+          </p>
+        </div>
+      )}
     </div>
   );
 }
+
+// ============================================================
+// Shared small components
+// ============================================================
+
+function BackButton() {
+  return (
+    <Link
+      href="/customer/orders"
+      className="inline-flex items-center gap-1 text-sm text-text-secondary no-underline hover:text-foreground transition-colors"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+      주문 목록
+    </Link>
+  );
+}
+
+function StatusBadgeLarge({ status }: { status: OrderStatus }) {
+  const cfg = statusConfig[status];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-sm font-bold ${cfg.bg} ${cfg.text}`}
+    >
+      <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  );
+}
+

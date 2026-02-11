@@ -24,7 +24,11 @@ type Product = {
   is_active?: boolean;
   is_hidden?: boolean;
   sort_order?: number;
-  options?: any[];
+  options?: Array<{
+    id: string;
+    name: string;
+    priceDelta: number;
+  }>;
   created_at: string;
   updated_at: string;
 };

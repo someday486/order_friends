@@ -17,8 +17,15 @@ export interface UserData {
     email?: string;
     role: UserRole;
   };
-  memberships: any[];
-  ownedBrands: any[];
+  memberships: Array<{
+    brandId: string;
+    branchId?: string;
+    role: string;
+  }>;
+  ownedBrands: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 export function useUserRole() {

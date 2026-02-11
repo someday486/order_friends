@@ -24,6 +24,15 @@ type Order = {
   items?: { name: string; qty: number }[];
 };
 
+type OrderListResponse = {
+  data?: Order[];
+  items?: Order[];
+  pagination?: {
+    total?: number;
+  };
+  total?: number;
+};
+
 // ============================================================
 // Constants
 // ============================================================
@@ -261,11 +270,16 @@ export default function CustomerOrdersPage() {
           params.append("status", statusFilter);
         }
 
-        const data = await apiClient.get<any>(
+        const data = await apiClient.get<OrderListResponse | Order[]>(
           `/customer/orders?${params.toString()}`,
         );
-        setOrders(data.data || data.items || data);
-        setTotal(data.pagination?.total || data.total || 0);
+        const orderItems = Array.isArray(data) ? data : data.data || data.items || [];
+        setOrders(orderItems);
+        setTotal(
+          Array.isArray(data)
+            ? data.length
+            : data.pagination?.total || data.total || orderItems.length || 0,
+        );
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "주문을 불러올 수 없습니다");

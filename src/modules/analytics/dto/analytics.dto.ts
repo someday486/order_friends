@@ -300,3 +300,207 @@ export class BrandSalesAnalyticsResponse extends SalesAnalyticsResponse {
   })
   byBranch: BranchBreakdownDto[];
 }
+
+// ============================================================
+// 심화 분석 DTOs
+// ============================================================
+
+/**
+ * ABC 분석 항목
+ */
+export class AbcAnalysisItemDto {
+  @ApiProperty({ description: '상품 ID' })
+  productId: string;
+
+  @ApiProperty({ description: '상품명' })
+  productName: string;
+
+  @ApiProperty({ description: '매출액' })
+  revenue: number;
+
+  @ApiProperty({ description: '매출 비율 (%)' })
+  revenuePercentage: number;
+
+  @ApiProperty({ description: '누적 매출 비율 (%)' })
+  cumulativePercentage: number;
+
+  @ApiProperty({ description: 'ABC 등급', enum: ['A', 'B', 'C'] })
+  grade: 'A' | 'B' | 'C';
+}
+
+export class AbcGradeSummaryDto {
+  @ApiProperty({ description: '상품 수' })
+  count: number;
+
+  @ApiProperty({ description: '매출 비율 (%)' })
+  revenuePercentage: number;
+}
+
+export class AbcAnalysisResponse {
+  @ApiProperty({ description: 'ABC 분석 항목', type: [AbcAnalysisItemDto] })
+  items: AbcAnalysisItemDto[];
+
+  @ApiProperty({ description: '등급별 요약' })
+  summary: {
+    gradeA: AbcGradeSummaryDto;
+    gradeB: AbcGradeSummaryDto;
+    gradeC: AbcGradeSummaryDto;
+  };
+}
+
+/**
+ * 시간대별 인기 상품
+ */
+export class HourlyTopProductDto {
+  @ApiProperty({ description: '상품 ID' })
+  productId: string;
+
+  @ApiProperty({ description: '상품명' })
+  productName: string;
+
+  @ApiProperty({ description: '판매 수량' })
+  quantity: number;
+
+  @ApiProperty({ description: '매출액' })
+  revenue: number;
+}
+
+export class HourlyProductDto {
+  @ApiProperty({ description: '시간대 (0-23)' })
+  hour: number;
+
+  @ApiProperty({
+    description: '해당 시간대 인기 상품 (Top 5)',
+    type: [HourlyTopProductDto],
+  })
+  topProducts: HourlyTopProductDto[];
+
+  @ApiProperty({ description: '해당 시간대 총 주문 수' })
+  totalOrders: number;
+}
+
+export class HourlyProductAnalysisResponse {
+  @ApiProperty({ description: '시간대별 데이터', type: [HourlyProductDto] })
+  hourlyData: HourlyProductDto[];
+}
+
+/**
+ * 조합 분석
+ */
+export class CombinationProductDto {
+  @ApiProperty({ description: '상품 ID' })
+  productId: string;
+
+  @ApiProperty({ description: '상품명' })
+  productName: string;
+}
+
+export class ProductCombinationDto {
+  @ApiProperty({
+    description: '함께 주문된 상품 쌍',
+    type: [CombinationProductDto],
+  })
+  products: CombinationProductDto[];
+
+  @ApiProperty({ description: '함께 주문된 횟수' })
+  coOrderCount: number;
+
+  @ApiProperty({ description: '전체 주문 대비 비율 (%)' })
+  supportRate: number;
+}
+
+export class CombinationAnalysisResponse {
+  @ApiProperty({ description: '상품 조합 목록', type: [ProductCombinationDto] })
+  combinations: ProductCombinationDto[];
+
+  @ApiProperty({ description: '분석 대상 주문 수' })
+  totalOrdersAnalyzed: number;
+}
+
+/**
+ * 코호트 분석
+ */
+export class CohortRetentionDto {
+  @ApiProperty({ description: '경과 기간 (0 = 첫 주문 기간)' })
+  period: number;
+
+  @ApiProperty({ description: '해당 기간에 주문한 고객 수' })
+  activeCustomers: number;
+
+  @ApiProperty({ description: '잔존율 (%)' })
+  retentionRate: number;
+}
+
+export class CohortRowDto {
+  @ApiProperty({ description: '코호트 (예: 2026-01)', example: '2026-01' })
+  cohort: string;
+
+  @ApiProperty({ description: '코호트 내 고객 수' })
+  cohortSize: number;
+
+  @ApiProperty({
+    description: '기간별 잔존 데이터',
+    type: [CohortRetentionDto],
+  })
+  retention: CohortRetentionDto[];
+}
+
+export class CohortAnalysisResponse {
+  @ApiProperty({ description: '코호트 데이터', type: [CohortRowDto] })
+  cohorts: CohortRowDto[];
+
+  @ApiProperty({ description: '집계 단위', enum: ['WEEK', 'MONTH'] })
+  granularity: 'WEEK' | 'MONTH';
+}
+
+/**
+ * RFM 분석
+ */
+export class RfmCustomerDto {
+  @ApiProperty({ description: '고객 전화번호' })
+  customerPhone: string;
+
+  @ApiProperty({ description: '마지막 주문 이후 일수' })
+  recency: number;
+
+  @ApiProperty({ description: '주문 횟수' })
+  frequency: number;
+
+  @ApiProperty({ description: '총 결제 금액' })
+  monetary: number;
+
+  @ApiProperty({ description: 'RFM 점수 (예: 5-4-5)', example: '5-4-5' })
+  rfmScore: string;
+
+  @ApiProperty({
+    description: '고객 세그먼트',
+    example: 'Champions',
+    enum: ['Champions', 'Loyal', 'Potential', 'New', 'At Risk', 'Lost'],
+  })
+  segment: string;
+}
+
+export class RfmSegmentSummaryDto {
+  @ApiProperty({ description: '세그먼트명' })
+  segment: string;
+
+  @ApiProperty({ description: '고객 수' })
+  customerCount: number;
+
+  @ApiProperty({ description: '평균 Recency (일)' })
+  avgRecency: number;
+
+  @ApiProperty({ description: '평균 Frequency (횟수)' })
+  avgFrequency: number;
+
+  @ApiProperty({ description: '평균 Monetary (원)' })
+  avgMonetary: number;
+}
+
+export class RfmAnalysisResponse {
+  @ApiProperty({ description: '고객별 RFM 데이터', type: [RfmCustomerDto] })
+  customers: RfmCustomerDto[];
+
+  @ApiProperty({ description: '세그먼트별 요약', type: [RfmSegmentSummaryDto] })
+  summary: RfmSegmentSummaryDto[];
+}

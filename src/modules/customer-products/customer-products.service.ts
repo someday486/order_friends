@@ -11,6 +11,7 @@ import type {
 } from '../../common/types/auth-request';
 import { CreateProductRequest } from '../../modules/products/dto/create-product.request';
 import { UpdateProductRequest } from '../../modules/products/dto/update-product.request';
+import { canModifyProductOrInventory } from '../../common/utils/role-permission.util';
 
 @Injectable()
 export class CustomerProductsService {
@@ -108,18 +109,20 @@ export class CustomerProductsService {
   }
 
   /**
-   * 수정/삭제 권한 확인 (OWNER 또는 ADMIN만 가능)
+   * 수정/삭제 권한 확인 (OWNER/ADMIN/BRANCH_OWNER/BRANCH_ADMIN 가능)
    */
   private checkModificationPermission(
     role: string,
     action: string,
     userId: string,
   ) {
-    if (role !== 'OWNER' && role !== 'ADMIN') {
+    if (!canModifyProductOrInventory(role)) {
       this.logger.warn(
         `User ${userId} with role ${role} attempted to ${action}`,
       );
-      throw new ForbiddenException(`Only OWNER or ADMIN can ${action}`);
+      throw new ForbiddenException(
+        `Only OWNER, ADMIN, or BRANCH_ADMIN can ${action}`,
+      );
     }
   }
 

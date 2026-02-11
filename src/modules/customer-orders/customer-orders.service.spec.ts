@@ -804,7 +804,7 @@ describe('CustomerOrdersService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('updateMyOrderStatus should throw for insufficient role', async () => {
+  it('updateMyOrderStatus should throw for insufficient role (VIEWER)', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'o1' },
       error: null,
@@ -820,7 +820,7 @@ describe('CustomerOrdersService', () => {
         'o1',
         OrderStatus.READY,
         [],
-        [{ branch_id: 'b1', role: 'STAFF' }],
+        [{ branch_id: 'b1', role: 'VIEWER' }],
       ),
     ).rejects.toThrow(ForbiddenException);
   });

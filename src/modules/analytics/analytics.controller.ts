@@ -26,6 +26,11 @@ import {
   AnalyticsQueryDto,
   PeriodComparisonDto,
   BrandSalesAnalyticsResponse,
+  AbcAnalysisResponse,
+  HourlyProductAnalysisResponse,
+  CombinationAnalysisResponse,
+  CohortAnalysisResponse,
+  RfmAnalysisResponse,
 } from './dto/analytics.dto';
 
 @ApiTags('analytics')
@@ -455,6 +460,324 @@ export class AnalyticsController {
       startDate,
       endDate,
       compare === 'true',
+    );
+  }
+
+  // ============================================================
+  // 심화 분석: 상품
+  // ============================================================
+
+  @Get('products/abc')
+  @ApiOperation({
+    summary: 'ABC 분석 (상품 매출 기여도)',
+    description:
+      '상품별 매출 기여도를 분석하여 A(~70%), B(~90%), C(나머지)로 분류합니다.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ABC 분석 조회 성공',
+    type: AbcAnalysisResponse,
+  })
+  async getAbcAnalysis(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<AbcAnalysisResponse> {
+    if (!branchId) throw new BadRequestException('branchId is required');
+    return this.analyticsService.getAbcAnalysis(branchId, startDate, endDate);
+  }
+
+  @Get('products/hourly')
+  @ApiOperation({
+    summary: '시간대별 인기 상품',
+    description: '시간대(0-23시)별 인기 상품 Top 5를 조회합니다.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '시간대별 인기 상품 조회 성공',
+    type: HourlyProductAnalysisResponse,
+  })
+  async getHourlyProductAnalysis(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<HourlyProductAnalysisResponse> {
+    if (!branchId) throw new BadRequestException('branchId is required');
+    return this.analyticsService.getHourlyProductAnalysis(
+      branchId,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('products/combinations')
+  @ApiOperation({
+    summary: '조합 분석 (함께 주문되는 상품)',
+    description:
+      '함께 주문되는 상품 쌍을 분석합니다. 지지도(support rate) 포함.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'minCount',
+    description: '최소 동시 주문 횟수 (기본 2)',
+    required: false,
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '조합 분석 조회 성공',
+    type: CombinationAnalysisResponse,
+  })
+  async getCombinationAnalysis(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('minCount') minCount?: string,
+  ): Promise<CombinationAnalysisResponse> {
+    if (!branchId) throw new BadRequestException('branchId is required');
+    return this.analyticsService.getCombinationAnalysis(
+      branchId,
+      startDate,
+      endDate,
+      minCount ? parseInt(minCount, 10) : 2,
+    );
+  }
+
+  // ============================================================
+  // 심화 분석: 고객
+  // ============================================================
+
+  @Get('customers/cohort')
+  @ApiOperation({
+    summary: '코호트 분석 (가입 시기별 재구매율)',
+    description:
+      '고객의 첫 주문 시기 기준으로 코호트를 생성하고 기간별 잔존율을 분석합니다.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'granularity',
+    description: '집계 단위 (WEEK 또는 MONTH, 기본 MONTH)',
+    required: false,
+    enum: ['WEEK', 'MONTH'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: '코호트 분석 조회 성공',
+    type: CohortAnalysisResponse,
+  })
+  async getCohortAnalysis(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('granularity') granularity?: string,
+  ): Promise<CohortAnalysisResponse> {
+    if (!branchId) throw new BadRequestException('branchId is required');
+    const g = granularity === 'WEEK' ? 'WEEK' : 'MONTH';
+    return this.analyticsService.getCohortAnalysis(
+      branchId,
+      startDate,
+      endDate,
+      g,
+    );
+  }
+
+  @Get('customers/rfm')
+  @ApiOperation({
+    summary: 'RFM 분석 (최근성/빈도/금액)',
+    description:
+      '고객별 Recency, Frequency, Monetary 점수를 산출하고 세그먼트를 분류합니다.',
+  })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'RFM 분석 조회 성공',
+    type: RfmAnalysisResponse,
+  })
+  async getRfmAnalysis(
+    @Req() req: AuthRequest,
+    @Query('branchId') branchId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<RfmAnalysisResponse> {
+    if (!branchId) throw new BadRequestException('branchId is required');
+    return this.analyticsService.getRfmAnalysis(branchId, startDate, endDate);
+  }
+
+  // ============================================================
+  // 브랜드 레벨 심화 분석
+  // ============================================================
+
+  @Get('brand/products/abc')
+  @ApiOperation({
+    summary: '브랜드 ABC 분석',
+    description:
+      '브랜드 전체 지점의 상품 매출 기여도를 ABC 등급으로 분류합니다.',
+  })
+  @ApiQuery({ name: 'brandId', description: '브랜드 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '브랜드 ABC 분석 조회 성공',
+    type: AbcAnalysisResponse,
+  })
+  async getBrandAbcAnalysis(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<AbcAnalysisResponse> {
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+    return this.analyticsService.getBrandAbcAnalysis(
+      brandId,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('brand/customers/cohort')
+  @ApiOperation({
+    summary: '브랜드 코호트 분석',
+    description: '브랜드 전체 고객의 코호트별 잔존율을 분석합니다.',
+  })
+  @ApiQuery({ name: 'brandId', description: '브랜드 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'granularity',
+    description: '집계 단위 (WEEK 또는 MONTH)',
+    required: false,
+    enum: ['WEEK', 'MONTH'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: '브랜드 코호트 분석 조회 성공',
+    type: CohortAnalysisResponse,
+  })
+  async getBrandCohortAnalysis(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('granularity') granularity?: string,
+  ): Promise<CohortAnalysisResponse> {
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+    const g = granularity === 'WEEK' ? 'WEEK' : 'MONTH';
+    return this.analyticsService.getBrandCohortAnalysis(
+      brandId,
+      startDate,
+      endDate,
+      g,
+    );
+  }
+
+  @Get('brand/customers/rfm')
+  @ApiOperation({
+    summary: '브랜드 RFM 분석',
+    description: '브랜드 전체 고객의 RFM 분석을 수행합니다.',
+  })
+  @ApiQuery({ name: 'brandId', description: '브랜드 ID', required: true })
+  @ApiQuery({
+    name: 'startDate',
+    description: '시작 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: '종료 날짜 (ISO 8601)',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '브랜드 RFM 분석 조회 성공',
+    type: RfmAnalysisResponse,
+  })
+  async getBrandRfmAnalysis(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<RfmAnalysisResponse> {
+    if (!brandId) throw new BadRequestException('brandId is required');
+    this.validateBrandAccess(req, brandId);
+    return this.analyticsService.getBrandRfmAnalysis(
+      brandId,
+      startDate,
+      endDate,
     );
   }
 }

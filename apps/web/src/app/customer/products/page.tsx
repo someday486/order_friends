@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
+import toast from "react-hot-toast";
 
 // ============================================================
 // Types
@@ -151,7 +152,7 @@ export default function CustomerProductsPage() {
       setReorderList([]);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "순서 저장에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "순서 저장에 실패했습니다");
     } finally {
       setReorderSaving(false);
     }

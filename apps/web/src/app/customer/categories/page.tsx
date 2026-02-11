@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import toast from "react-hot-toast";
 
 // ============================================================
 // Types
@@ -119,7 +120,7 @@ export default function CustomerCategoriesPage() {
       setShowAddForm(false);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "카테고리 수정에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "카테고리 수정에 실패했습니다");
     } finally {
       setAddLoading(false);
     }
@@ -136,7 +137,7 @@ export default function CustomerCategoriesPage() {
       setEditingId(null);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "카테고리 추가에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "카테고리 추가에 실패했습니다");
     } finally {
       setEditLoading(false);
     }
@@ -150,7 +151,7 @@ export default function CustomerCategoriesPage() {
       setCategories((prev) => prev.map((c) => (c.id === category.id ? updated : c)));
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "상태 변경에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "상태 변경에 실패했습니다");
     }
   };
 
@@ -161,7 +162,7 @@ export default function CustomerCategoriesPage() {
       setCategories((prev) => prev.filter((c) => c.id !== categoryId));
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "카테고리 삭제에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "카테고리 삭제에 실패했습니다");
     }
   };
 

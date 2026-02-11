@@ -6,6 +6,7 @@ import Image from "next/image";
 import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
 import { createClient } from "@/lib/supabaseClient";
+import toast from "react-hot-toast";
 
 // ============================================================
 // Types
@@ -215,22 +216,22 @@ function ProductDetailPageContent() {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert("상품명을 입력해주세요");
+      toast.error("상품명을 입력해주세요");
       return;
     }
 
     if (!formData.branchId) {
-      alert("매장을 선택해주세요");
+      toast.error("매장을 선택해주세요");
       return;
     }
 
     if (!formData.categoryId) {
-      alert("카테고리를 선택해주세요");
+      toast.error("카테고리를 선택해주세요");
       return;
     }
 
     if (formData.price < 0) {
-      alert("가격은 0 이상이어야 합니다");
+      toast.error("가격은 0 이상이어야 합니다");
       return;
     }
 
@@ -258,7 +259,7 @@ function ProductDetailPageContent() {
           }
         }
 
-        alert("상품이 등록되었습니다.");
+        toast.success("상품이 등록되었습니다.");
         router.push("/customer/products/" + data.id);
       } else {
         let uploadedUrl = formData.imageUrl;
@@ -287,11 +288,11 @@ function ProductDetailPageContent() {
         });
         setImagePreviewUrl(updated.image_url || null);
         setIsEditing(false);
-        alert("상품 정보가 수정되었습니다.");
+        toast.success("상품 정보가 수정되었습니다.");
       }
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "저장에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "저장에 실패했습니다");
     } finally {
       setSaveLoading(false);
     }
@@ -304,11 +305,11 @@ function ProductDetailPageContent() {
       setDeleteLoading(true);
       await apiClient.delete("/customer/products/" + productId);
 
-      alert("상품이 삭제되었습니다.");
+      toast.success("상품이 삭제되었습니다.");
       router.push("/customer/products");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "삭제에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다");
     } finally {
       setDeleteLoading(false);
     }

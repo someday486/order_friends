@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatWon } from "@/lib/format";
+import toast from "react-hot-toast";
 
 // ============================================================
 // Types
@@ -71,6 +72,7 @@ export default function OrderPage() {
 
   // 장바구니
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
 
   // 상품 선택 모달
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -154,11 +156,12 @@ export default function OrderPage() {
 
   // 총액 계산
   const totalAmount = cart.reduce((sum, item) => sum + item.itemPrice * item.qty, 0);
+  const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
 
   // 주문하기
   const goToCheckout = () => {
     if (cart.length === 0) {
-      alert("장바구니에 상품을 추가해주세요.");
+      toast.error("장바구니에 상품을 추가해주세요.");
       return;
     }
 
@@ -225,18 +228,84 @@ export default function OrderPage() {
             ))}
           </div>
         )}
+
       </main>
 
-      {/* Cart Summary (Fixed Bottom) */}
+      {/* Floating Cart Bar with expandable cart */}
       {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between p-3 px-4 bg-bg-secondary border-t border-border">
-          <div>
-            <div className="text-[13px] text-text-secondary">장바구니 {cart.length}개</div>
-            <div className="font-bold text-lg text-foreground">{formatWon(totalAmount)}</div>
+        <div className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)]">
+          <div className="max-w-lg mx-auto">
+            {/* Expandable Cart Items */}
+            {cartOpen && (
+              <>
+                <div className="fixed inset-0 bg-black/40 -z-10" onClick={() => setCartOpen(false)} />
+                <div className="bg-background border border-border border-b-0 rounded-t-xl max-h-[50vh] overflow-y-auto shadow-2xl">
+                  <div className="sticky top-0 bg-background px-4 py-3 border-b border-border flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-foreground">장바구니 ({totalItems})</h3>
+                    <button
+                      onClick={() => setCartOpen(false)}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-bg-tertiary text-text-secondary"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {cart.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-bg-secondary border border-border">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">{item.product.name}</div>
+                          {item.selectedOptions.length > 0 && (
+                            <div className="text-2xs text-text-tertiary">
+                              {item.selectedOptions.map((o) => o.name).join(", ")}
+                            </div>
+                          )}
+                          <div className="text-xs text-text-secondary mt-0.5">
+                            {formatWon(item.itemPrice)} × {item.qty}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-sm font-bold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
+                          <button className="text-2xs text-danger-500 font-medium mt-0.5 bg-transparent border-none cursor-pointer" onClick={() => removeFromCart(idx)}>
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Bottom Bar */}
+            <div className="flex items-center gap-2 px-4 py-3 bg-foreground text-background shadow-2xl">
+              <button
+                onClick={() => setCartOpen((v) => !v)}
+                className="flex items-center gap-2 flex-1 min-w-0 text-background"
+              >
+                <div className="relative">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                  </svg>
+                  <span className="absolute -top-2 -right-2 bg-primary-500 text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center leading-none">
+                    {totalItems}
+                  </span>
+                </div>
+                <div className="ml-1 text-left">
+                  <div className="text-lg font-extrabold leading-tight">{formatWon(totalAmount)}</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`ml-1 opacity-60 transition-transform ${cartOpen ? "rotate-180" : ""}`}>
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </button>
+              <button
+                onClick={goToCheckout}
+                className="px-6 py-3 rounded-lg bg-primary-500 text-white font-bold text-sm cursor-pointer flex-shrink-0"
+              >
+                주문하기
+              </button>
+            </div>
           </div>
-          <button className="py-3 px-6 rounded-[10px] border-none bg-foreground text-background font-bold text-sm cursor-pointer" onClick={goToCheckout}>
-            주문하기
-          </button>
         </div>
       )}
 
@@ -298,37 +367,6 @@ export default function OrderPage() {
               장바구니에 담기
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Cart Detail (if needed) */}
-      {cart.length > 0 && (
-        <div className="px-4 pb-4">
-          <h3 className="text-sm font-semibold mb-2 text-foreground">장바구니</h3>
-          {cart.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-3 p-3 mb-2 rounded-[10px] bg-bg-secondary border border-border">
-              <div className="flex-1">
-                <div className="text-foreground">{item.product.name}</div>
-                {item.selectedOptions.length > 0 && (
-                  <div className="text-xs text-text-tertiary">
-                    옵션: {item.selectedOptions.map((o) => o.name).join(", ")}
-                  </div>
-                )}
-                <div className="text-[13px] text-text-secondary mt-1">
-                  {formatWon(item.itemPrice)} × {item.qty}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-semibold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
-                <button
-                  className="text-xs text-danger-500 bg-transparent border-none cursor-pointer"
-                  onClick={() => removeFromCart(idx)}
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          ))}
         </div>
       )}
     </div>

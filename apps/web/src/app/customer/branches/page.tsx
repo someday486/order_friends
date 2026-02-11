@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import toast from "react-hot-toast";
 
 // ============================================================
 // Types
@@ -204,7 +205,7 @@ function AddBranchModal({
     e.preventDefault();
 
     if (!formData.name || !formData.slug) {
-      alert("모든 필드를 입력해주세요");
+      toast.error("모든 필드를 입력해주세요");
       return;
     }
 
@@ -216,11 +217,11 @@ function AddBranchModal({
         slug: formData.slug,
       });
 
-      alert("지점이 추가되었습니다.");
+      toast.success("지점이 추가되었습니다.");
       onSuccess();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "지점 추가에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "지점 추가에 실패했습니다");
     } finally {
       setSaving(false);
     }

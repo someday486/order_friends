@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 
 // ============================================================
 // Types
@@ -128,7 +129,11 @@ export default function CustomerBranchesPage() {
       </div>
 
       {loading ? (
-        <div className="text-text-secondary">로딩 중...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
       ) : error ? (
         <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500">{error}</div>
       ) : branches.length === 0 ? (

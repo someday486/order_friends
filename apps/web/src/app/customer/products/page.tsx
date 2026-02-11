@@ -6,6 +6,7 @@ import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import toast from "react-hot-toast";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 
 // ============================================================
 // Types
@@ -163,7 +164,11 @@ export default function CustomerProductsPage() {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">상품 관리</h1>
-        <div className="text-text-secondary">로딩 중...</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -307,7 +312,11 @@ export default function CustomerProductsPage() {
           <div className="text-sm">위에서 매장을 선택하면 상품 목록이 표시됩니다</div>
         </div>
       ) : loading ? (
-        <div className="card p-12 text-center text-text-secondary">로딩 중...</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
       ) : products.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base mb-2">등록된 상품이 없습니다</div>

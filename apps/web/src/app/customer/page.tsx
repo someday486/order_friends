@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 import { formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/common";
 
@@ -97,7 +98,12 @@ export default function CustomerDashboardPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8">로딩 중...</h1>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">대시보드</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
       </div>
     );
   }

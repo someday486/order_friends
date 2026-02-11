@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 // ============================================================
 // Types
@@ -189,7 +190,11 @@ export default function CustomerCategoriesPage() {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">카테고리 관리</h1>
-        <div className="text-text-secondary">로딩 중...</div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
       </div>
     );
   }
@@ -266,7 +271,13 @@ export default function CustomerCategoriesPage() {
           <div className="text-base mb-2">매장을 선택하세요</div>
         </div>
       ) : loading ? (
-        <div className="card p-12 text-center text-text-secondary">로딩 중...</div>
+        <div className="card p-6">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        </div>
       ) : categories.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base mb-2">등록된 카테고리가 없습니다</div>

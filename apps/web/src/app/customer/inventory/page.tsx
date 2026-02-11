@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { TableRowSkeleton } from "@/components/ui/Skeleton";
 
 // ============================================================
 // Types
@@ -102,7 +103,25 @@ export default function CustomerInventoryPage() {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">재고 관리</h1>
-        <div className="text-text-secondary">로딩 중...</div>
+        <div className="border border-border rounded-xl overflow-hidden">
+          <table className="w-full border-collapse min-w-[640px]">
+            <thead className="bg-bg-tertiary">
+              <tr>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">판매됨</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">최소 재고</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <TableRowSkeleton key={index} cols={6} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -154,7 +173,25 @@ export default function CustomerInventoryPage() {
           <div className="text-[13px] text-text-tertiary">위에서 매장을 선택하면 재고 목록이 표시됩니다</div>
         </div>
       ) : loading ? (
-        <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">로딩 중...</div>
+        <div className="border border-border rounded-xl overflow-hidden">
+          <table className="w-full border-collapse min-w-[640px]">
+            <thead className="bg-bg-tertiary">
+              <tr>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">판매됨</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">최소 재고</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <TableRowSkeleton key={index} cols={6} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : inventory.length === 0 ? (
         <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">
           <div className="text-base mb-2">재고 정보가 없습니다</div>

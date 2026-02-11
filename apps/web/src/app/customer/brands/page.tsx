@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 
 // ============================================================
 // Types
@@ -58,7 +59,11 @@ export default function CustomerBrandsPage() {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">브랜드 관리</h1>
-        <div className="text-text-secondary">로딩 중...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <CardSkeleton key={index} />
+          ))}
+        </div>
       </div>
     );
   }

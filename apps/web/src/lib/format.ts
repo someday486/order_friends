@@ -1,11 +1,21 @@
+/** 원화 포맷 (예: 15,000원) */
 export function formatWon(amount: number): string {
+  if (!Number.isFinite(amount)) return '0원';
   return amount.toLocaleString('ko-KR') + '원';
 }
 
+function parseValidDate(iso: string): Date | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+/** 날짜+시간 포맷 (예: 01. 15. 오후 2:30) */
 export function formatDateTime(iso: string): string {
   if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleString('ko-KR', {
+  const date = parseValidDate(iso);
+  if (!date) return '-';
+  return date.toLocaleString('ko-KR', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -13,10 +23,12 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/** 날짜+시간 전체 포맷 (예: 2026. 01. 15. 오후 2:30) */
 export function formatDateTimeFull(iso: string): string {
   if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleString('ko-KR', {
+  const date = parseValidDate(iso);
+  if (!date) return '-';
+  return date.toLocaleString('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -25,11 +37,14 @@ export function formatDateTimeFull(iso: string): string {
   });
 }
 
+/** 상대 시간 (예: 3분 전, 2시간 전) */
 export function formatRelativeTime(iso: string): string {
   if (!iso) return '-';
+  const date = parseValidDate(iso);
+  if (!date) return '-';
+
   const now = new Date();
-  const d = new Date(iso);
-  const diffMs = now.getTime() - d.getTime();
+  const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
@@ -39,13 +54,21 @@ export function formatRelativeTime(iso: string): string {
   if (diffHour < 24) return `${diffHour}시간 전`;
   if (diffDay < 7) return `${diffDay}일 전`;
 
-  return d.toLocaleDateString('ko-KR', {
+  return date.toLocaleDateString('ko-KR', {
     month: 'short',
     day: 'numeric',
   });
 }
 
+/** 전화번호 포맷 (예: 010-1234-5678) */
 export function formatPhone(phone: string): string {
   if (!phone) return '-';
-  return phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11) {
+    return cleaned.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+  }
+  if (cleaned.length === 10) {
+    return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+  }
+  return phone;
 }

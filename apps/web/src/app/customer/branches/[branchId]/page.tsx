@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
@@ -70,7 +71,7 @@ export default function BranchDetailPage() {
         });
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "지점 정보를 불러올 수 없습니다.");
       } finally {
         setLoading(false);
       }
@@ -88,10 +89,10 @@ export default function BranchDetailPage() {
       const updatedBranch = await apiClient.patch<Branch>(`/customer/branches/${branchId}`, formData);
       setBranch(updatedBranch);
       setIsEditing(false);
-      alert("?? ??? ???????.");
+      toast.success("지점 정보가 저장되었습니다.");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      toast.error(e instanceof Error ? e.message : "지점 저장에 실패했습니다.");
     } finally {
       setSaveLoading(false);
     }
@@ -104,7 +105,7 @@ export default function BranchDetailPage() {
       router.replace("/customer/branches");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "?? ?? ? ?? ??");
+      toast.error(e instanceof Error ? e.message : "지점 삭제에 실패했습니다.");
     }
   };
 
@@ -235,7 +236,7 @@ export default function BranchDetailPage() {
               <div className="mb-6">
                 <Image
                   src={branch.coverImageUrl}
-                  alt="?? ???"
+                  alt="커버 이미지"
                   width={1200}
                   height={675}
                   className="w-full rounded-lg object-cover"
@@ -281,7 +282,7 @@ export default function BranchDetailPage() {
                 <div className="text-[13px] text-text-secondary mb-2">썸네일</div>
                 <Image
                   src={branch.thumbnailUrl}
-                  alt="???"
+                  alt="썸네일"
                   width={120}
                   height={120}
                   className="w-[120px] h-[120px] object-cover rounded-lg border border-border"

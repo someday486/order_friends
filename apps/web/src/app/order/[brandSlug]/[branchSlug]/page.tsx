@@ -8,6 +8,21 @@ type PageProps = {
   params: Promise<{ brandSlug: string; branchSlug: string }>;
 };
 
+type PublicProductResponse = {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  discountPrice?: number | null;
+  imageUrl?: string | null;
+  image_url?: string | null;
+  categoryId?: string | null;
+  category_id?: string | null;
+  badges?: ProductCardProduct["badges"];
+  stock?: ProductCardProduct["stock"];
+  options?: ProductCardProduct["options"];
+};
+
 export default async function OrderPage({ params }: PageProps) {
   const { brandSlug, branchSlug } = await params;
 
@@ -33,14 +48,16 @@ export default async function OrderPage({ params }: PageProps) {
     { cache: "no-store" },
   );
 
-  const productsData = productsRes.ok ? await productsRes.json() : [];
+  const productsData: PublicProductResponse[] = productsRes.ok
+    ? await productsRes.json()
+    : [];
 
-  const products: ProductCardProduct[] = productsData.map((p: any) => ({
+  const products: ProductCardProduct[] = productsData.map((p) => ({
     id: p.id,
     name: p.name,
     description: p.description,
     price: p.price,
-    discountPrice: p.discountPrice,
+    discountPrice: p.discountPrice ?? undefined,
     imageUrl: p.imageUrl || p.image_url || null,
     categoryId: p.categoryId ?? p.category_id ?? null,
     badges: p.badges,

@@ -5,22 +5,17 @@ import {
   getSelectedBrandId,
   setSelectedBrandId,
   clearSelectedBrandId,
+  subscribeSelectedBrandIdChanged,
 } from '@/lib/brandSelection';
 
 export function useSelectedBrand() {
-  const [brandId, setBrandIdState] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+  const [brandId, setBrandIdState] = useState<string | null>(() =>
+    getSelectedBrandId(),
+  );
+  const ready = true;
 
   useEffect(() => {
-    setBrandIdState(getSelectedBrandId());
-    setReady(true);
-
-    // 다른 탭에서 변경 시 동기화
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'of:selectedBrandId') setBrandIdState(e.newValue);
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return subscribeSelectedBrandIdChanged(setBrandIdState);
   }, []);
 
   return {

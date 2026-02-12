@@ -127,8 +127,8 @@ function InventoryDetailPageContent() {
         const data = await apiClient.get<Branch[]>("/customer/branches");
         setBranches(data);
 
-        if (!selectedBranchId && data.length > 0) {
-          setSelectedBranchId(data[0].id);
+        if (data.length > 0) {
+          setSelectedBranchId((prev) => prev || data[0].id);
         }
       } catch (e) {
         console.error(e);

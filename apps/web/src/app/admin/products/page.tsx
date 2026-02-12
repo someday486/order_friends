@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
@@ -61,14 +62,14 @@ function ProductsPageContent() {
       setProducts(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "?? ??");
+      setError(err?.message ?? "상품 조회에 실패했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (productId: string, productName: string) => {
-    if (!confirm(`"${productName}" ??? ?????????`)) return;
+    if (!confirm(`"${productName}" 상품을 삭제하시겠습니까?`)) return;
 
     try {
       await apiClient.delete("/admin/products/" + productId);
@@ -77,7 +78,7 @@ function ProductsPageContent() {
       setProducts((prev) => prev.filter((p) => p.id !== productId));
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "상품 삭제에 실패했습니다.");
     }
   };
 
@@ -93,7 +94,7 @@ function ProductsPageContent() {
       );
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ?? ??");
+      toast.error(err?.message ?? "상품 상태 변경에 실패했습니다.");
     }
   };
 

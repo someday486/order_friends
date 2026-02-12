@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
@@ -84,7 +85,7 @@ export default function StoreDetailPage() {
       setMembers(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setMembersError(err?.message ?? "?? ??");
+      setMembersError(err?.message ?? "멤버 목록을 불러오지 못했습니다.");
     } finally {
       setMembersLoading(false);
     }
@@ -110,7 +111,7 @@ export default function StoreDetailPage() {
         fetchMembers(data.id);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "?? ??");
+        setError(err?.message ?? "매장 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -122,15 +123,15 @@ export default function StoreDetailPage() {
   const handleSave = async () => {
     if (!branch) return;
     if (!name.trim()) {
-      alert("가게명을 입력하세요.");
+      toast.error("가게명을 입력하세요.");
       return;
     }
     if (!slug.trim()) {
-      alert("가게 URL을 입력하세요.");
+      toast.error("가게 URL을 입력하세요.");
       return;
     }
     if (!isValidSlug(slug.trim())) {
-      alert("가게 URL은 영문/숫자/하이픈(-)만 가능합니다.");
+      toast.error("가게 URL은 영문/숫자/하이픈(-)만 가능합니다.");
       return;
     }
 
@@ -147,7 +148,7 @@ export default function StoreDetailPage() {
       setSlug(data.slug ?? "");
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "매장 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -168,7 +169,7 @@ export default function StoreDetailPage() {
       router.replace("/admin/stores");
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "매장 삭제에 실패했습니다.");
     } finally {
       setDeleting(false);
     }

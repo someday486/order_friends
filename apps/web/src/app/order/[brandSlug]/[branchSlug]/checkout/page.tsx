@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import toast from "react-hot-toast";
 
 // ============================================================
 // Types
@@ -89,7 +90,7 @@ export default function CheckoutPage() {
 
   const handleSubmit = async () => {
     if (!customerName.trim()) {
-      alert("이름을 입력해 주세요.");
+      toast.error("이름을 입력해 주세요.");
       return;
     }
 

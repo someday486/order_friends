@@ -98,8 +98,8 @@ function StatusActionsContent({
 
       setStatus(data.status);
       onStatusChange(data.status);
-    } catch (e: any) {
-      setErr(e?.message ?? "요청 실패");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "요청 실패");
     } finally {
       setLoading(false);
     }

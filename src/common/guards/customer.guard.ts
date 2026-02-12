@@ -122,14 +122,10 @@ export class CustomerGuard implements CanActivate {
       }
     }
 
-    const allBranchMemberships: BranchMembership[] =
-      branchResult.data || [];
+    const allBranchMemberships: BranchMembership[] = branchResult.data || [];
 
     // 5. 최소 하나 이상의 멤버십 필요
-    if (
-      allBrandMemberships.length === 0 &&
-      allBranchMemberships.length === 0
-    ) {
+    if (allBrandMemberships.length === 0 && allBranchMemberships.length === 0) {
       this.logger.warn(
         `CustomerGuard: User ${user.id} has no active memberships`,
       );

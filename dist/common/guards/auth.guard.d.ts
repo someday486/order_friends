@@ -8,8 +8,10 @@ export declare class AuthGuard implements CanActivate {
     private readonly adminUserIds;
     private readonly adminEmailDomains;
     private readonly adminBypassAll;
+    private readonly authCache;
     constructor(supabase: SupabaseService, config: ConfigService);
     canActivate(ctx: ExecutionContext): Promise<boolean>;
+    private evictExpiredEntries;
     private parseList;
     private parseBoolean;
     private normalizeDomains;

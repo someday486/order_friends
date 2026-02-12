@@ -13,6 +13,8 @@ exports.AuthGuard = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
+const AUTH_CACHE_TTL_MS = 60 * 1000;
+const AUTH_CACHE_MAX_SIZE = 200;
 let AuthGuard = class AuthGuard {
     supabase;
     config;
@@ -20,6 +22,7 @@ let AuthGuard = class AuthGuard {
     adminUserIds;
     adminEmailDomains;
     adminBypassAll;
+    authCache = new Map();
     constructor(supabase, config) {
         this.supabase = supabase;
         this.config = config;
@@ -38,9 +41,18 @@ let AuthGuard = class AuthGuard {
             throw new common_1.UnauthorizedException('Missing Bearer token');
         }
         const token = auth.slice('Bearer '.length).trim();
+        const now = Date.now();
+        const cached = this.authCache.get(token);
+        if (cached && now < cached.expiresAt) {
+            req.user = cached.user;
+            req.accessToken = token;
+            req.isAdmin = cached.isAdmin;
+            return true;
+        }
         const sb = this.supabase.userClient(token);
         const { data, error } = await sb.auth.getUser();
         if (error || !data?.user) {
+            this.authCache.delete(token);
             throw new common_1.UnauthorizedException('Invalid token');
         }
         const user = {
@@ -53,10 +65,29 @@ let AuthGuard = class AuthGuard {
             (email ? this.adminEmails.has(email) : false) ||
             (email ? this.isAllowedDomain(email) : false) ||
             this.isAdminFromMetadata(data.user);
+        this.evictExpiredEntries(now);
+        this.authCache.set(token, {
+            user,
+            isAdmin,
+            expiresAt: now + AUTH_CACHE_TTL_MS,
+        });
         req.user = user;
         req.accessToken = token;
         req.isAdmin = isAdmin;
         return true;
+    }
+    evictExpiredEntries(now) {
+        if (this.authCache.size < AUTH_CACHE_MAX_SIZE)
+            return;
+        for (const [key, entry] of this.authCache) {
+            if (now >= entry.expiresAt) {
+                this.authCache.delete(key);
+            }
+        }
+        if (this.authCache.size >= AUTH_CACHE_MAX_SIZE) {
+            const firstKey = this.authCache.keys().next().value;
+            this.authCache.delete(firstKey);
+        }
     }
     parseList(value) {
         if (!value)

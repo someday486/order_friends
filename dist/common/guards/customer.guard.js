@@ -13,9 +13,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomerGuard = void 0;
 const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
+const MEMBERSHIP_CACHE_TTL_MS = 30 * 1000;
 let CustomerGuard = CustomerGuard_1 = class CustomerGuard {
     supabase;
     logger = new common_1.Logger(CustomerGuard_1.name);
+    membershipCache = new Map();
     constructor(supabase) {
         this.supabase = supabase;
     }
@@ -30,27 +32,44 @@ let CustomerGuard = CustomerGuard_1 = class CustomerGuard {
             this.logger.warn(`CustomerGuard: Admin user ${user.id} attempted to access customer area`);
             throw new common_1.UnauthorizedException('Admin users cannot access customer area');
         }
+        const now = Date.now();
+        const cached = this.membershipCache.get(user.id);
+        if (cached && now < cached.expiresAt) {
+            request.brandMemberships = cached.brandMemberships;
+            request.branchMemberships = cached.branchMemberships;
+            return true;
+        }
         const sb = this.supabase.adminClient();
-        const { data: brandMemberships, error: brandError } = await sb
-            .from('brand_members')
-            .select('brand_id, role, status')
-            .eq('user_id', user.id)
-            .eq('status', 'ACTIVE');
-        if (brandError) {
-            this.logger.error(`CustomerGuard: Failed to check brand memberships for user ${user.id}`, brandError);
+        const [brandResult, ownedResult, branchResult] = await Promise.all([
+            sb
+                .from('brand_members')
+                .select('brand_id, role, status')
+                .eq('user_id', user.id)
+                .eq('status', 'ACTIVE'),
+            sb.from('brands').select('id').eq('owner_user_id', user.id),
+            sb
+                .from('branch_members')
+                .select('branch_id, role, status')
+                .eq('user_id', user.id)
+                .eq('status', 'ACTIVE'),
+        ]);
+        if (brandResult.error) {
+            this.logger.error(`CustomerGuard: Failed to check brand memberships for user ${user.id}`, brandResult.error);
             throw new common_1.UnauthorizedException('Failed to verify memberships');
         }
-        const { data: ownedBrands, error: ownedError } = await sb
-            .from('brands')
-            .select('id')
-            .eq('owner_user_id', user.id);
-        if (ownedError) {
-            this.logger.error(`CustomerGuard: Failed to check owned brands for user ${user.id}`, ownedError);
+        if (branchResult.error) {
+            this.logger.error(`CustomerGuard: Failed to check branch memberships for user ${user.id}`, branchResult.error);
+            throw new common_1.UnauthorizedException('Failed to verify memberships');
         }
-        const allBrandMemberships = [...(brandMemberships || [])];
-        if (ownedBrands && ownedBrands.length > 0) {
+        if (ownedResult.error) {
+            this.logger.error(`CustomerGuard: Failed to check owned brands for user ${user.id}`, ownedResult.error);
+        }
+        const allBrandMemberships = [
+            ...(brandResult.data || []),
+        ];
+        if (ownedResult.data && ownedResult.data.length > 0) {
             const memberBrandIds = new Set(allBrandMemberships.map((m) => m.brand_id));
-            for (const brand of ownedBrands) {
+            for (const brand of ownedResult.data) {
                 if (!memberBrandIds.has(brand.id)) {
                     allBrandMemberships.push({
                         brand_id: brand.id,
@@ -60,25 +79,31 @@ let CustomerGuard = CustomerGuard_1 = class CustomerGuard {
                 }
             }
         }
-        const { data: branchMemberships, error: branchError } = await sb
-            .from('branch_members')
-            .select('branch_id, role, status')
-            .eq('user_id', user.id)
-            .eq('status', 'ACTIVE');
-        if (branchError) {
-            this.logger.error(`CustomerGuard: Failed to check branch memberships for user ${user.id}`, branchError);
-            throw new common_1.UnauthorizedException('Failed to verify memberships');
-        }
-        const hasBrandMembership = allBrandMemberships.length > 0;
-        const hasBranchMembership = branchMemberships && branchMemberships.length > 0;
-        if (!hasBrandMembership && !hasBranchMembership) {
+        const allBranchMemberships = branchResult.data || [];
+        if (allBrandMemberships.length === 0 &&
+            allBranchMemberships.length === 0) {
             this.logger.warn(`CustomerGuard: User ${user.id} has no active memberships`);
             throw new common_1.UnauthorizedException('No active brand or branch memberships found');
         }
+        this.evictExpired(now);
+        this.membershipCache.set(user.id, {
+            brandMemberships: allBrandMemberships,
+            branchMemberships: allBranchMemberships,
+            expiresAt: now + MEMBERSHIP_CACHE_TTL_MS,
+        });
         request.brandMemberships = allBrandMemberships;
-        request.branchMemberships = branchMemberships || [];
-        this.logger.log(`CustomerGuard: User ${user.id} authorized with ${brandMemberships?.length || 0} brand(s) and ${branchMemberships?.length || 0} branch(es)`);
+        request.branchMemberships = allBranchMemberships;
+        this.logger.log(`CustomerGuard: User ${user.id} authorized with ${allBrandMemberships.length} brand(s) and ${allBranchMemberships.length} branch(es)`);
         return true;
+    }
+    evictExpired(now) {
+        if (this.membershipCache.size < 200)
+            return;
+        for (const [key, entry] of this.membershipCache) {
+            if (now >= entry.expiresAt) {
+                this.membershipCache.delete(key);
+            }
+        }
     }
 };
 exports.CustomerGuard = CustomerGuard;

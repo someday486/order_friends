@@ -7,6 +7,8 @@ export declare class SupabaseService {
     private anonKey;
     private serviceRoleKey;
     private admin;
+    private anon;
+    private readonly userClients;
     constructor(config: ConfigService);
     adminClient(): SupabaseClient;
     userClient(userAccessToken: string): SupabaseClient;

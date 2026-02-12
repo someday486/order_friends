@@ -38,6 +38,56 @@ export class AnalyticsService {
   constructor(private readonly supabase: SupabaseService) {}
 
   /**
+   * Resolve latest product names by id.
+   * Falls back to snapshot names when product row no longer exists.
+   */
+  private async getLatestProductNames(
+    productIds: string[],
+  ): Promise<Map<string, string>> {
+    const idMap = new Map<string, string>();
+    const ids = Array.from(
+      new Set(productIds.filter((id) => Boolean(id) && id !== 'unknown')),
+    );
+
+    if (ids.length === 0) return idMap;
+
+    const sb = this.supabase.adminClient();
+    const chunkSize = 100;
+    const concurrency = 4;
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      chunks.push(ids.slice(i, i + chunkSize));
+    }
+
+    for (let i = 0; i < chunks.length; i += concurrency) {
+      const chunkGroup = chunks.slice(i, i + concurrency);
+      const results = await Promise.all(
+        chunkGroup.map((chunk) =>
+          sb.from('products').select('id, name').in('id', chunk),
+        ),
+      );
+
+      results.forEach(({ data, error }) => {
+        if (error) {
+          this.logger.warn(
+            `Failed to resolve product names: ${error.message}`,
+            error,
+          );
+          return;
+        }
+
+        (data || []).forEach((row: { id: string; name: string | null }) => {
+          if (row.id && row.name) {
+            idMap.set(row.id, row.name);
+          }
+        });
+      });
+    }
+
+    return idMap;
+  }
+
+  /**
    * Parse date range from query parameters
    */
   private getDateRange(startDate?: string, endDate?: string) {
@@ -784,40 +834,89 @@ export class AnalyticsService {
         (new Date(end).getTime() - new Date(start).getTime()) /
           (1000 * 60 * 60 * 24),
       );
+      const targetStatuses = ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED'];
+      // Keep URL/query length safe for PostgREST `.in(...)` calls.
+      const batchSize = 100;
+      const batchConcurrency = 4;
 
-      const { data: orderItems, error } = await sb
-        .from('order_items')
-        .select(
-          `
-          id,
-          product_id,
-          product_name_snapshot,
-          qty,
-          unit_price_snapshot,
-          order:orders!inner(id, status, created_at, brand_id)
-        `,
-        )
-        .eq('order.brand_id', brandId)
-        .gte('order.created_at', start)
-        .lte('order.created_at', end)
-        .in('order.status', ['COMPLETED', 'READY', 'PREPARING', 'CONFIRMED']);
+      // 1) Fetch order ids first (indexed by brand_id + created_at + status)
+      const { data: orders, error: ordersError } = await sb
+        .from('orders')
+        .select('id')
+        .eq('brand_id', brandId)
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .in('status', targetStatuses);
 
-      if (error) {
+      if (ordersError) {
         throw new BusinessException(
           'Failed to fetch brand product analytics',
           'BRAND_PRODUCT_ANALYTICS_FAILED',
           500,
-          { brandId, error: error.message },
+          { brandId, error: ordersError.message },
         );
       }
 
-      const items = orderItems || [];
+      const orderIds = (orders || []).map((order) => order.id);
+      if (orderIds.length === 0) {
+        return {
+          topProducts: [],
+          salesByProduct: [],
+          inventoryTurnover: {
+            averageTurnoverRate: 0,
+            periodDays: days,
+          },
+        };
+      }
+
+      // 2) Fetch order_items in batches by order_id (uses order_items.order_id index)
+      const items: Array<{
+        product_id: string | null;
+        product_name_snapshot: string | null;
+        qty: number | null;
+        unit_price_snapshot: number | null;
+      }> = [];
+
+      const orderIdBatches: string[][] = [];
+      for (let i = 0; i < orderIds.length; i += batchSize) {
+        orderIdBatches.push(orderIds.slice(i, i + batchSize));
+      }
+
+      for (let i = 0; i < orderIdBatches.length; i += batchConcurrency) {
+        const batchGroup = orderIdBatches.slice(i, i + batchConcurrency);
+        const batchResults = await Promise.all(
+          batchGroup.map((batchIds) =>
+            sb
+              .from('order_items')
+              .select(
+                'product_id, product_name_snapshot, qty, unit_price_snapshot',
+              )
+              .in('order_id', batchIds),
+          ),
+        );
+
+        batchResults.forEach(({ data: batchItems, error: batchError }) => {
+          if (batchError) {
+            throw new BusinessException(
+              'Failed to fetch brand product analytics',
+              'BRAND_PRODUCT_ANALYTICS_FAILED',
+              500,
+              { brandId, error: batchError.message },
+            );
+          }
+
+          if (batchItems?.length) {
+            items.push(...batchItems);
+          }
+        });
+      }
+
       const productMap = new Map<
         string,
         { name: string; qty: number; revenue: number }
       >();
 
-      items.forEach((item: any) => {
+      items.forEach((item) => {
         const productId = item.product_id || 'unknown';
         const productName = item.product_name_snapshot || 'Unknown Product';
         const qty = item.qty || 0;
@@ -836,11 +935,14 @@ export class AnalyticsService {
         (sum, p) => sum + p.revenue,
         0,
       );
+      const latestNames = await this.getLatestProductNames(
+        Array.from(productMap.keys()),
+      );
 
       const topProducts: TopProductDto[] = Array.from(productMap.entries())
         .map(([productId, data]) => ({
           productId,
-          productName: data.name,
+          productName: latestNames.get(productId) || data.name,
           soldQuantity: data.qty,
           totalRevenue: data.revenue,
         }))
@@ -852,7 +954,7 @@ export class AnalyticsService {
       )
         .map(([productId, data]) => ({
           productId,
-          productName: data.name,
+          productName: latestNames.get(productId) || data.name,
           quantity: data.qty,
           revenue: data.revenue,
           revenuePercentage:
@@ -880,17 +982,25 @@ export class AnalyticsService {
 
     try {
       const dateRange = this.getDateRange(startDate, endDate);
-      const currentData = await fetchForPeriod(dateRange.start, dateRange.end);
+      if (!compare) {
+        const currentData = await fetchForPeriod(
+          dateRange.start,
+          dateRange.end,
+        );
+        return { current: currentData };
+      }
 
-      return this.withComparison(
-        compare,
-        currentData,
-        async () => {
-          const prev = this.getPreviousPeriod(startDate, endDate);
-          return fetchForPeriod(prev.start, prev.end);
-        },
-        [],
-      );
+      const prev = this.getPreviousPeriod(startDate, endDate);
+      const [currentData, previousData] = await Promise.all([
+        fetchForPeriod(dateRange.start, dateRange.end),
+        fetchForPeriod(prev.start, prev.end),
+      ]);
+
+      return {
+        current: currentData,
+        previous: previousData,
+        changes: {},
+      };
     } catch (error) {
       if (error instanceof BusinessException) throw error;
       this.logger.error('Unexpected error in getBrandProductAnalytics', error);
@@ -1220,11 +1330,14 @@ export class AnalyticsService {
         (s, p) => s + p.revenue,
         0,
       );
+      const latestNames = await this.getLatestProductNames(
+        Array.from(productMap.keys()),
+      );
 
       const sorted = Array.from(productMap.entries())
         .map(([productId, data]) => ({
           productId,
-          productName: data.name,
+          productName: latestNames.get(productId) || data.name,
           revenue: data.revenue,
           revenuePercentage:
             totalRevenue > 0

@@ -90,13 +90,19 @@ export default function CustomerDashboardPage() {
         const data = await apiClient.get<DashboardStats>("/customer/dashboard");
         setStats(data);
       } catch (e) {
-        console.error(e);
-        setError(e instanceof Error ? e.message : "데이터를 불러올 수 없습니다");
+        console.warn("dashboard stats fetch failed", e);
+        setError(
+          e instanceof Error ? e.message : "대시보드 데이터를 불러오지 못했습니다",
+        );
       } finally {
         setLoading(false);
       }
     };
-    loadStats();
+    loadStats().catch((error) => {
+      console.warn("dashboard stats fetch unhandled", error);
+      setError("대시보드 데이터를 불러오지 못했습니다");
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => {

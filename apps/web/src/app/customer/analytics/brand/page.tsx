@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import LineChart from "@/components/analytics/LineChart";
 import ParetoChart from "@/components/analytics/ParetoChart";
 import PieChart from "@/components/analytics/PieChart";
 import HeatmapTable from "@/components/analytics/HeatmapTable";
@@ -97,6 +98,7 @@ function formatWon(amount: number) {
 
 function formatDate(iso: string) {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
@@ -448,30 +450,18 @@ export default function BrandAnalyticsPage() {
           {s.revenueByDay.length > 0 && (
             <div className="card p-4 mb-6">
               <h2 className="text-sm font-bold text-foreground mb-3">일별 매출 추이</h2>
-              <div className="overflow-x-auto">
-                <div className="flex gap-1 min-w-fit">
-                  {s.revenueByDay.map((day) => {
-                    const maxRevenue = Math.max(...s.revenueByDay.map((d) => d.revenue));
-                    const height =
-                      maxRevenue > 0 ? Math.max((day.revenue / maxRevenue) * 120, 4) : 4;
-                    return (
-                      <div
-                        key={day.date}
-                        className="flex flex-col items-center gap-1"
-                        title={`${day.date}: ${formatWon(day.revenue)} (${day.orderCount}건)`}
-                      >
-                        <div
-                          className="w-4 bg-primary-500 rounded-t transition-all duration-300"
-                          style={{ height: `${height}px` }}
-                        />
-                        <span className="text-[9px] text-text-tertiary -rotate-45 origin-top-left whitespace-nowrap">
-                          {formatDate(day.date)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <LineChart
+                data={s.revenueByDay}
+                xKey="date"
+                lines={[
+                  { dataKey: "revenue", name: "매출", color: "#2563eb" },
+                  { dataKey: "orderCount", name: "주문 수", color: "#22c55e" },
+                ]}
+                xTickFormatter={(value) => formatDate(String(value))}
+                tooltipFormatter={(value, name) =>
+                  name === "매출" ? formatWon(value) : `${value.toLocaleString()}건`
+                }
+              />
             </div>
           )}
 

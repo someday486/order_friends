@@ -57,6 +57,14 @@ const formatDecimal = (value: number | string) => {
   return numericValue.toFixed(1);
 };
 
+const formatShortDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+};
+
 const isPeriodComparison = <T,>(
   value: MaybePeriodComparison<T>
 ): value is PeriodComparison<T> => {
@@ -794,9 +802,22 @@ function AnalyticsContent() {
                     data={salesCurrent.revenueByDay}
                     xKey="date"
                     lines={[
-                      { dataKey: "revenue", name: "매출", color: "#2563eb" },
-                      { dataKey: "orderCount", name: "주문 수", color: "#22c55e" },
+                      {
+                        dataKey: "revenue",
+                        name: "매출",
+                        color: "#2563eb",
+                        yAxisId: "left",
+                      },
+                      {
+                        dataKey: "orderCount",
+                        name: "주문 수",
+                        color: "#22c55e",
+                        yAxisId: "right",
+                      },
                     ]}
+                    xTickFormatter={(value) => formatShortDate(String(value))}
+                    leftTickFormatter={(value) => Number(value).toLocaleString()}
+                    rightTickFormatter={(value) => Number(value).toLocaleString()}
                     tooltipFormatter={(value, name) =>
                       name === "매출" ? formatCurrency(value) : value.toLocaleString()
                     }

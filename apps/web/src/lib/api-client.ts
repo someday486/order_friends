@@ -39,7 +39,13 @@ async function request<T = unknown>(
     headers['Authorization'] = `Bearer ${await getAccessToken()}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'unknown error';
+    throw new Error(`API Network Error: ${path} (${reason})`);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');

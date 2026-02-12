@@ -46,7 +46,7 @@ export default function CustomerBrandsPage() {
         setBrands(data);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "??? ?? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "브랜드 정보를 불러올 수 없습니다.");
       } finally {
         setLoading(false);
       }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import AddStoreModal from "./AddStoreModal";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
@@ -69,7 +70,7 @@ export default function StoresPage() {
       setBranches(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "?? ??");
+      setError(err?.message ?? "매장 목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ export default function StoresPage() {
   const handleDelete = async (branchId: string, branchName: string) => {
     if (
       !confirm(
-        `"${branchName}" ??? ?????????\n?? ??? ?? ???? ?? ?????.`
+        `"${branchName}" 가게를 삭제하시겠습니까?\n관련 데이터가 모두 삭제되며 복구할 수 없습니다.`
       )
     )
       return;
@@ -88,7 +89,7 @@ export default function StoresPage() {
       setBranches((prev) => prev.filter((b) => b.id !== branchId));
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "매장 삭제에 실패했습니다.");
     }
   };
 
@@ -127,6 +128,7 @@ export default function StoresPage() {
 
       {/* 신규 가게 등록 모달 */}
       <AddStoreModal
+        key={showAddForm ? "store-modal-open" : "store-modal-closed"}
         open={showAddForm}
         brandId={brandId}
         adding={adding}
@@ -146,7 +148,7 @@ export default function StoresPage() {
             setShowAddForm(false);
           } catch (e: unknown) {
             const err = e as Error;
-            alert(err?.message ?? "추가 실패");
+            toast.error(err?.message ?? "매장 추가에 실패했습니다.");
           } finally {
             setAdding(false);
           }

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
@@ -102,7 +103,7 @@ function ProductDetailPageContent() {
         setIsActive(data.isActive);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "?? ??");
+        setError(err?.message ?? "상품 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -125,7 +126,7 @@ function ProductDetailPageContent() {
         setCategories(data.filter((item) => item.isActive));
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "???? ?? ??");
+        setError(err?.message ?? "카테고리를 불러오지 못했습니다.");
       }
     };
 
@@ -171,27 +172,27 @@ function ProductDetailPageContent() {
   // 저장
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("???? ??????");
+      toast.error("상품명을 입력해주세요.");
       return;
     }
 
     if (isNew && !branchId.trim()) {
-      alert("??? ??????");
+      toast.error("매장을 선택해주세요.");
       return;
     }
 
     if (!categoryId.trim()) {
-      alert("????? ??????");
+      toast.error("카테고리를 선택해주세요.");
       return;
     }
 
     if (price < 0) {
-      alert("??? 0 ???? ??????");
+      toast.error("가격은 0 이상이어야 합니다.");
       return;
     }
 
     if (!imageFile && !imageUrl) {
-      alert("?? ???? ???????.");
+      toast.error("상품 이미지를 업로드해주세요.");
       return;
     }
 
@@ -234,11 +235,11 @@ function ProductDetailPageContent() {
           isActive,
         });
 
-        alert("???????.");
+        toast.success("상품이 수정되었습니다.");
       }
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "?? ??");
+      setError(err?.message ?? "저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -343,7 +344,7 @@ function ProductDetailPageContent() {
           {imagePreviewUrl && (
             <Image
               src={imagePreviewUrl}
-              alt="?? ????"
+              alt="상품 이미지"
               width={240}
               height={240}
               className="mt-3 w-full max-w-[240px] rounded-xl h-auto"

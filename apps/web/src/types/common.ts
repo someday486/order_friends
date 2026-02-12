@@ -1,3 +1,4 @@
+// 주문 상태
 export type OrderStatus =
   | 'CREATED'
   | 'CONFIRMED'
@@ -7,6 +8,7 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
+// 주문 상태 한글 라벨 (관리자용 - 짧은 형태)
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
   CONFIRMED: '확인',
@@ -17,6 +19,7 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   REFUNDED: '환불',
 };
 
+// 주문 상태 한글 라벨 (고객용 - 긴 형태)
 export const ORDER_STATUS_LABEL_LONG: Record<OrderStatus, string> = {
   CREATED: '주문 접수',
   CONFIRMED: '주문 확인',
@@ -27,6 +30,7 @@ export const ORDER_STATUS_LABEL_LONG: Record<OrderStatus, string> = {
   REFUNDED: '환불됨',
 };
 
+// 상태 뱃지 스타일
 export const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   CREATED: 'bg-warning-500/20 text-warning-500',
   CONFIRMED: 'bg-primary-500/20 text-primary-500',
@@ -37,6 +41,7 @@ export const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   REFUNDED: 'bg-pink-500/20 text-pink-400',
 };
 
+// 지점
 export type Branch = {
   id: string;
   name: string;
@@ -46,6 +51,7 @@ export type Branch = {
   createdAt?: string;
 };
 
+// 브랜드
 export type Brand = {
   id: string;
   name: string;
@@ -55,6 +61,7 @@ export type Brand = {
   created_at?: string;
 };
 
+// 결제 수단 라벨
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CARD: '카드결제',
   CASH: '현금',

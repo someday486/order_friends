@@ -5,21 +5,17 @@ import {
   getSelectedBranchId,
   setSelectedBranchId,
   clearSelectedBranchId,
+  subscribeSelectedBranchIdChanged,
 } from '@/lib/branchSelection';
 
 export function useSelectedBranch() {
-  const [branchId, setBranchIdState] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+  const [branchId, setBranchIdState] = useState<string | null>(() =>
+    getSelectedBranchId(),
+  );
+  const ready = true;
 
   useEffect(() => {
-    setBranchIdState(getSelectedBranchId());
-    setReady(true);
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'of:selectedBranchId') setBranchIdState(e.newValue);
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return subscribeSelectedBranchIdChanged(setBranchIdState);
   }, []);
 
   return {

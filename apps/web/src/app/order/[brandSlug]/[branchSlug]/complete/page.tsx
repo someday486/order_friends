@@ -1,14 +1,10 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
-
-// ============================================================
-// Types
-// ============================================================
 
 type OrderResult = {
   id: string;
@@ -16,38 +12,28 @@ type OrderResult = {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
-  items: {
+  items: Array<{
     name: string;
     qty: number;
     unitPrice: number;
-  }[];
+  }>;
 };
-
-// ============================================================
-// Helpers
-// ============================================================
-
-// ============================================================
-// Component
-// ============================================================
 
 export default function CompletePage() {
   const params = useParams();
   const brandSlug = params?.brandSlug as string;
   const branchSlug = params?.branchSlug as string;
 
-  const [order, setOrder] = useState<OrderResult | null>(null);
-
-  useEffect(() => {
+  const [order] = useState<OrderResult | null>(() => {
+    if (typeof window === "undefined") return null;
     const saved = sessionStorage.getItem("lastOrder");
-    if (saved) {
-      try {
-        setOrder(JSON.parse(saved));
-      } catch {
-        // ignore
-      }
+    if (!saved) return null;
+    try {
+      return JSON.parse(saved) as OrderResult;
+    } catch {
+      return null;
     }
-  }, []);
+  });
 
   if (!order) {
     return (
@@ -82,7 +68,7 @@ export default function CompletePage() {
         <div className="flex justify-between items-center py-2">
           <span className="text-text-secondary">주문상태</span>
           <span className="text-success font-semibold">
-            {ORDER_STATUS_LABEL_LONG[order.status as OrderStatus] ?? order.status}
+            {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
           </span>
         </div>
 

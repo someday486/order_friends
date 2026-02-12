@@ -10,10 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiClient } from "@/lib/api-client";
-
-// ============================================================
-// Types
-// ============================================================
+import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 
 export type NotificationType = "LOW_STOCK" | "NEW_ORDER" | "ORDER_STATUS";
 
@@ -36,9 +33,26 @@ type NotificationContextValue = {
   refresh: () => void;
 };
 
-// ============================================================
-// Context
-// ============================================================
+type InventoryAlertRow = {
+  product_id: string;
+  product_name: string;
+  branch_name?: string;
+  qty_available: number;
+  low_stock_threshold: number;
+  is_low_stock: boolean;
+};
+
+type OrderNotificationRow = {
+  id: string;
+  orderNo?: string | null;
+  order_no?: string | null;
+  status: string;
+  orderedAt?: string;
+  created_at?: string;
+  branchName?: string;
+  branchId?: string;
+  branch_id?: string;
+};
 
 const NotificationContext = createContext<NotificationContextValue>({
   notifications: [],
@@ -53,11 +67,7 @@ export function useNotifications() {
   return useContext(NotificationContext);
 }
 
-// ============================================================
-// Provider
-// ============================================================
-
-const POLL_INTERVAL = 60_000; // 60초
+const POLL_INTERVAL = 60_000;
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -79,20 +89,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       await Promise.all(
         branches.map(async (branch) => {
           const inventory = await apiClient
-            .get<
-              Array<{
-                product_id: string;
-                product_name: string;
-                branch_name?: string;
-                qty_available: number;
-                low_stock_threshold: number;
-                is_low_stock: boolean;
-              }>
-            >(`/customer/inventory/alerts?branchId=${encodeURIComponent(branch.id)}`)
+            .get<InventoryAlertRow[]>(
+              `/customer/inventory/alerts?branchId=${encodeURIComponent(branch.id)}`,
+            )
             .catch(() => []);
 
           for (const item of inventory) {
             if (!item.is_low_stock) continue;
+
             alerts.push({
               id: `low-stock-${branch.id}-${item.product_id}`,
               type: "LOW_STOCK",
@@ -100,7 +104,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               message: `${item.product_name} (${item.branch_name || branch.name}) - 현재 ${item.qty_available}개 (최소 ${item.low_stock_threshold}개)`,
               isRead: false,
               createdAt: now.toISOString(),
-              link: `/customer/inventory/${item.product_id}`,
+              link: `/customer/inventory/${item.product_id}?branchId=${encodeURIComponent(branch.id)}`,
             });
           }
         }),
@@ -108,34 +112,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       const orderResponse = await apiClient
         .get<
-          | Array<{
-              id: string;
-              orderNo?: string | null;
-              order_no?: string | null;
-              status: string;
-              orderedAt?: string;
-              created_at?: string;
-              branchName?: string;
-            }>
+          | OrderNotificationRow[]
           | {
-              data?: Array<{
-                id: string;
-                orderNo?: string | null;
-                order_no?: string | null;
-                status: string;
-                orderedAt?: string;
-                created_at?: string;
-                branchName?: string;
-              }>;
-              items?: Array<{
-                id: string;
-                orderNo?: string | null;
-                order_no?: string | null;
-                status: string;
-                orderedAt?: string;
-                created_at?: string;
-                branchName?: string;
-              }>;
+              data?: OrderNotificationRow[];
+              items?: OrderNotificationRow[];
             }
         >("/customer/orders?page=1&limit=20")
         .catch(() => []);
@@ -144,12 +124,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         : orderResponse.data || orderResponse.items || [];
 
       const nextStatusMap: Record<string, string> = {};
+
       for (const order of orders) {
         const orderNo = order.orderNo || order.order_no || order.id.slice(0, 8);
         const createdAt = order.orderedAt || order.created_at || now.toISOString();
         const createdAtMs = new Date(createdAt).getTime();
         const branchText = order.branchName ? ` (${order.branchName})` : "";
+        const branchId = order.branchId || order.branch_id || null;
+        const orderLink = branchId
+          ? `/customer/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`
+          : `/customer/orders/${order.id}`;
         const prevStatus = lastOrderStatusRef.current[order.id];
+
         nextStatusMap[order.id] = order.status;
 
         if (createdAtMs >= tenMinutesAgo) {
@@ -160,32 +146,34 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             message: `주문 #${orderNo}${branchText}이 접수되었습니다.`,
             isRead: false,
             createdAt,
-            link: `/customer/orders/${order.id}`,
+            link: orderLink,
           });
         }
 
         if (prevStatus && prevStatus !== order.status) {
+          const nextStatusLabel =
+            ORDER_STATUS_LABEL_LONG[order.status as OrderStatus] || order.status;
+
           alerts.push({
             id: `order-status-${order.id}-${order.status}`,
             type: "ORDER_STATUS",
             title: "주문 상태 변경",
-            message: `주문 #${orderNo} 상태가 ${order.status}(으)로 변경되었습니다.`,
+            message: `주문 #${orderNo} 상태가 ${nextStatusLabel}(으)로 변경되었습니다.`,
             isRead: false,
             createdAt: now.toISOString(),
-            link: `/customer/orders/${order.id}`,
+            link: orderLink,
           });
         }
       }
+
       lastOrderStatusRef.current = nextStatusMap;
 
       setNotifications((prev) => {
-        const readIds = new Set(
-          prev.filter((n) => n.isRead).map((n) => n.id),
-        );
+        const readIds = new Set(prev.filter((n) => n.isRead).map((n) => n.id));
         return alerts
-          .map((a) => ({
-            ...a,
-            isRead: readIds.has(a.id),
+          .map((alert) => ({
+            ...alert,
+            isRead: readIds.has(alert.id),
           }))
           .sort(
             (a, b) =>
@@ -202,6 +190,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchNotifications();
     intervalRef.current = setInterval(fetchNotifications, POLL_INTERVAL);
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -209,15 +198,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markAsRead = useCallback((id: string) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+      prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)),
     );
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = notifications.filter((item) => !item.isRead).length;
 
   return (
     <NotificationContext.Provider

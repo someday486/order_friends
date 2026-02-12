@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
@@ -119,7 +120,7 @@ function MembersPageContent() {
       const data = await apiClient.get<BrandMember[]>("/admin/members/brand/" + brandId);
       setBrandMembers(data);
     } catch (e: unknown) {
-      setBrandError((e as Error)?.message ?? "?? ??");
+      setBrandError((e as Error)?.message ?? "브랜드 멤버 조회에 실패했습니다.");
     } finally {
       setBrandLoading(false);
     }
@@ -140,7 +141,7 @@ function MembersPageContent() {
       setNewUserId("");
       setNewRole("");
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "?? ??");
+      toast.error((e as Error)?.message ?? "멤버 추가에 실패했습니다.");
     } finally {
       setAdding(false);
     }
@@ -154,18 +155,18 @@ function MembersPageContent() {
         prev.map((m) => (m.userId === userId ? { ...m, role } : m))
       );
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "?? ??");
+      toast.error((e as Error)?.message ?? "권한 변경에 실패했습니다.");
     }
   };
 
   const removeBrandMember = async (userId: string) => {
-    if (!confirm("?? ? ??? ?????????")) return;
+    if (!confirm("해당 멤버를 삭제하시겠습니까?")) return;
 
     try {
       await apiClient.delete("/admin/members/brand/" + brandId + "/" + userId);
       setBrandMembers((prev) => prev.filter((m) => m.userId !== userId));
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "?? ??");
+      toast.error((e as Error)?.message ?? "멤버 삭제에 실패했습니다.");
     }
   };
 
@@ -185,7 +186,7 @@ function MembersPageContent() {
       const data = await apiClient.get<BranchMember[]>("/admin/members/branch/" + branchId);
       setBranchMembers(data);
     } catch (e: unknown) {
-      setBranchError((e as Error)?.message ?? "?? ??");
+      setBranchError((e as Error)?.message ?? "매장 멤버 조회에 실패했습니다.");
     } finally {
       setBranchLoading(false);
     }
@@ -207,7 +208,7 @@ function MembersPageContent() {
       setNewUserId("");
       setNewRole("");
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "?? ??");
+      toast.error((e as Error)?.message ?? "멤버 추가에 실패했습니다.");
     } finally {
       setAdding(false);
     }
@@ -221,18 +222,18 @@ function MembersPageContent() {
         prev.map((m) => (m.userId === userId ? { ...m, role } : m))
       );
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "?? ??");
+      toast.error((e as Error)?.message ?? "권한 변경에 실패했습니다.");
     }
   };
 
   const removeBranchMember = async (userId: string) => {
-    if (!confirm("?? ? ??? ?????????")) return;
+    if (!confirm("해당 멤버를 삭제하시겠습니까?")) return;
 
     try {
       await apiClient.delete("/admin/members/branch/" + branchId + "/" + userId);
       setBranchMembers((prev) => prev.filter((m) => m.userId !== userId));
     } catch (e: unknown) {
-      alert((e as Error)?.message ?? "?? ??");
+      toast.error((e as Error)?.message ?? "멤버 삭제에 실패했습니다.");
     }
   };
 

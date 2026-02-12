@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 
 type Props = {
@@ -24,13 +24,6 @@ function normalizeSlug(v: string) {
 export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding }: Props) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setSlug("");
-    }
-  }, [open]);
 
   const disabled = useMemo(
     () => adding || !brandId || !name.trim() || !slug.trim(),

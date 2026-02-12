@@ -1,6 +1,4 @@
 "use client";
-
-import { useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -88,8 +86,6 @@ export function SortableList<T>({
   onReorder,
   className = "",
 }: SortableListProps<T>) {
-  const [activeId, setActiveId] = useState<string | null>(null);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
@@ -102,7 +98,6 @@ export function SortableList<T>({
   const ids = items.map(keyExtractor);
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -116,7 +111,6 @@ export function SortableList<T>({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={(e) => setActiveId(e.active.id as string)}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>

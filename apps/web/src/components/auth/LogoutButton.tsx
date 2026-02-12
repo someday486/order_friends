@@ -1,12 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 
 export function LogoutButton() {
-  const router = useRouter();
   const { refresh } = useAuth();
 
   const [loading, setLoading] = useState(false);

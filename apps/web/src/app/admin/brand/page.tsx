@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 
@@ -85,7 +85,7 @@ export default function BrandPage() {
       setBrands(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "?? ??");
+      setError(err?.message ?? "오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ export default function BrandPage() {
       setShowAddForm(false);
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "브랜드 추가에 실패했습니다.");
     } finally {
       setAdding(false);
     }
@@ -193,7 +193,7 @@ export default function BrandPage() {
       setEditingId(null);
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "브랜드 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -201,14 +201,14 @@ export default function BrandPage() {
 
   // ??
   const handleDelete = async (brandId: string, brandName: string) => {
-    if (!confirm(`"${brandName}" ???? ?????????\n?? ??, ??, ??? ?????.`)) return;
+    if (!confirm(`"${brandName}" 브랜드를 삭제하시겠습니까?\n관련 매장, 상품, 주문이 함께 삭제됩니다.`)) return;
 
     try {
       await apiClient.delete("/admin/brands/" + brandId);
       setBrands((prev) => prev.filter((b) => b.id !== brandId));
     } catch (e: unknown) {
       const err = e as Error;
-      alert(err?.message ?? "?? ??");
+      toast.error(err?.message ?? "브랜드 삭제에 실패했습니다.");
     }
   };
 

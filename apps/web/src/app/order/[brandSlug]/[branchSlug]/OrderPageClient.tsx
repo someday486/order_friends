@@ -2,7 +2,9 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
+import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { formatWon } from "@/lib/format";
 import {
   ProductCard,
   type ProductCardProduct,
@@ -46,14 +48,6 @@ type OrderPageClientProps = {
   branchSlug: string;
 };
 
-// ============================================================
-// Helpers
-// ============================================================
-
-function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
-
 function calculateItemPrice(
   product: ProductCardProduct,
   selectedOptions: ProductOption[],
@@ -88,10 +82,7 @@ export default function OrderPageClient({
 
   const filteredProducts = useMemo(() => {
     if (!selectedCategory) return products;
-    return products.filter((p: any) => {
-      const catId = p.categoryId || p.category_id;
-      return catId === selectedCategory;
-    });
+    return products.filter((p) => p.categoryId === selectedCategory);
   }, [products, selectedCategory]);
 
   const handleQuantityChange = (productId: string, quantity: number) => {
@@ -174,7 +165,7 @@ export default function OrderPageClient({
 
   const goToCheckout = () => {
     if (cart.length === 0) {
-      alert("장바구니에 상품을 추가해 주세요.");
+      toast.error("장바구니에 상품을 추가해 주세요.");
       return;
     }
 
@@ -192,7 +183,14 @@ export default function OrderPageClient({
         <header className="sticky top-0 z-30 bg-background border-b border-border">
           {branch?.coverImageUrl && (
             <div className="h-32 -mb-4 relative">
-              <img src={branch.coverImageUrl} alt="" className="w-full h-full object-cover" />
+              <Image
+                src={branch.coverImageUrl}
+                alt=""
+                fill
+                sizes="100vw"
+                className="object-cover"
+                unoptimized
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
             </div>
           )}

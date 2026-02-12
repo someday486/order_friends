@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
 
@@ -80,7 +81,7 @@ export default function CheckoutPage() {
   // 주문 제출
   const handleSubmit = async () => {
     if (!customerName.trim()) {
-      alert("이름을 입력해주세요.");
+      toast.error("이름을 입력해주세요.");
       return;
     }
 

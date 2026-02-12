@@ -84,17 +84,13 @@ describe('CustomerGuard', () => {
   it('should throw when user or accessToken is missing', async () => {
     const ctx = createContext({ user: undefined });
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
   it('should throw for admin users', async () => {
     const ctx = createContext({ isAdmin: true });
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
   it('should throw when brand membership query fails', async () => {
@@ -102,9 +98,7 @@ describe('CustomerGuard', () => {
 
     const ctx = createContext();
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
   it('should throw when branch membership query fails', async () => {
@@ -114,9 +108,7 @@ describe('CustomerGuard', () => {
 
     const ctx = createContext();
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
   it('should throw when no memberships exist', async () => {
@@ -126,9 +118,7 @@ describe('CustomerGuard', () => {
 
     const ctx = createContext();
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
   it('should allow access and attach memberships', async () => {

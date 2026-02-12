@@ -1,13 +1,14 @@
-"use client";
-
 type SkeletonProps = {
   className?: string;
 };
 
 export function Skeleton({ className = "" }: SkeletonProps) {
-  return <div className={`bg-bg-tertiary rounded animate-pulse ${className}`} />;
+  return (
+    <div className={`bg-bg-tertiary rounded animate-pulse ${className}`} />
+  );
 }
 
+/** 카드 형태 스켈레톤 */
 export function CardSkeleton({ lines = 3 }: { lines?: number }) {
   return (
     <div className="bg-card rounded-md border border-border p-4 animate-pulse">
@@ -22,6 +23,7 @@ export function CardSkeleton({ lines = 3 }: { lines?: number }) {
   );
 }
 
+/** 테이블 행 스켈레톤 */
 export function TableRowSkeleton({ cols = 5 }: { cols?: number }) {
   return (
     <tr className="border-t border-border animate-pulse">

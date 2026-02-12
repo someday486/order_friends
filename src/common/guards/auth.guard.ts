@@ -8,12 +8,22 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
 
+const AUTH_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const AUTH_CACHE_MAX_SIZE = 200;
+
+type CachedAuth = {
+  user: RequestUser;
+  isAdmin: boolean;
+  expiresAt: number;
+};
+
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly adminEmails: Set<string>;
   private readonly adminUserIds: Set<string>;
   private readonly adminEmailDomains: Set<string>;
   private readonly adminBypassAll: boolean;
+  private readonly authCache = new Map<string, CachedAuth>();
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -44,10 +54,23 @@ export class AuthGuard implements CanActivate {
     }
 
     const token = auth.slice('Bearer '.length).trim();
+
+    // Check auth cache first
+    const now = Date.now();
+    const cached = this.authCache.get(token);
+    if (cached && now < cached.expiresAt) {
+      req.user = cached.user;
+      req.accessToken = token;
+      req.isAdmin = cached.isAdmin;
+      return true;
+    }
+
+    // Cache miss — validate with Supabase
     const sb = this.supabase.userClient(token);
 
     const { data, error } = await sb.auth.getUser();
     if (error || !data?.user) {
+      this.authCache.delete(token);
       throw new UnauthorizedException('Invalid token');
     }
 
@@ -64,10 +87,32 @@ export class AuthGuard implements CanActivate {
       (email ? this.isAllowedDomain(email) : false) ||
       this.isAdminFromMetadata(data.user as any);
 
+    // Store in cache
+    this.evictExpiredEntries(now);
+    this.authCache.set(token, {
+      user,
+      isAdmin,
+      expiresAt: now + AUTH_CACHE_TTL_MS,
+    });
+
     req.user = user;
     req.accessToken = token;
     req.isAdmin = isAdmin;
     return true;
+  }
+
+  private evictExpiredEntries(now: number): void {
+    if (this.authCache.size < AUTH_CACHE_MAX_SIZE) return;
+    for (const [key, entry] of this.authCache) {
+      if (now >= entry.expiresAt) {
+        this.authCache.delete(key);
+      }
+    }
+    // Still over limit — remove oldest
+    if (this.authCache.size >= AUTH_CACHE_MAX_SIZE) {
+      const firstKey = this.authCache.keys().next().value as string;
+      this.authCache.delete(firstKey);
+    }
   }
 
   private parseList(value?: string): string[] {

@@ -56,7 +56,6 @@ describe('BrandsService', () => {
           biz_name: null,
           biz_reg_no: null,
           logo_url: null,
-          thumbnail_url: null,
           created_at: null,
         },
       ],
@@ -333,7 +332,6 @@ describe('BrandsService', () => {
         biz_reg_no: 'reg',
         logo_url: 'l',
         cover_image_url: 'c',
-        thumbnail_url: 't',
       },
       error: null,
     });
@@ -345,7 +343,6 @@ describe('BrandsService', () => {
       bizRegNo: 'reg',
       logoUrl: 'l',
       coverImageUrl: 'c',
-      thumbnailUrl: 't',
     } as any;
 
     const result = await service.updateBrand('token', 'b1', dto, true);
@@ -358,7 +355,6 @@ describe('BrandsService', () => {
         biz_reg_no: 'reg',
         logo_url: 'l',
         cover_image_url: 'c',
-        thumbnail_url: 't',
       }),
     );
   });
@@ -426,7 +422,6 @@ describe('BrandsService', () => {
     expect(result.createdAt).toBe('');
     expect(result.logoUrl).toBeNull();
     expect(result.coverImageUrl).toBeNull();
-    expect(result.thumbnailUrl).toBeNull();
   });
 
   it('updateBrand should throw when membership invalid', async () => {

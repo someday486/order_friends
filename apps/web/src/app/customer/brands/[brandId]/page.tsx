@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
@@ -81,7 +82,7 @@ export default function BrandDetailPage() {
         });
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "??? ?? ? ?? ??");
+        setError(e instanceof Error ? e.message : "브랜드 정보를 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -133,10 +134,10 @@ export default function BrandDetailPage() {
       const updatedBrand = await apiClient.patch<Brand>(`/customer/brands/${brandId}`, formData);
       setBrand(updatedBrand);
       setIsEditing(false);
-      alert("??? ??? ???????.");
+      toast.success("브랜드 정보가 저장되었습니다.");
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "??? ?? ? ?? ??");
+      toast.error(e instanceof Error ? e.message : "브랜드 수정에 실패했습니다");
     } finally {
       setSaveLoading(false);
     }
@@ -337,14 +338,16 @@ export default function BrandDetailPage() {
             {/* Cover image banner */}
             {brand.cover_image_url && (
               <div className="mb-6">
-                <Image
-                  src={brand.cover_image_url}
-                  alt="?? ???"
-                  width={1200}
-                  height={675}
-                  className="w-full rounded-lg object-cover"
-                  style={{ aspectRatio: "16/9" }}
-                />
+                <div className="w-full max-w-[560px]">
+                  <Image
+                    src={brand.cover_image_url}
+                    alt="커버 이미지"
+                    width={1200}
+                    height={675}
+                    className="w-full rounded-lg object-cover border border-border"
+                    style={{ aspectRatio: "16/9" }}
+                  />
+                </div>
               </div>
             )}
 

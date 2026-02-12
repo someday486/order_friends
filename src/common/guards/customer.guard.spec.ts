@@ -6,10 +6,27 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 describe('CustomerGuard', () => {
   let guard: CustomerGuard;
 
-  const createChain = () => {
+  /**
+   * Creates a Supabase chain mock that supports `.select().eq().eq()` (brand/branch_members)
+   * and `.select().eq()` (brands owner lookup).
+   * The final `.eq()` call resolves with the provided result.
+   */
+  const createChainMock = (result: { data: any; error: any }) => {
     const chain: any = {};
     chain.select = jest.fn().mockReturnValue(chain);
-    chain.eq = jest.fn();
+    // Each .eq() returns chain, but the *last* .eq() resolves with result.
+    // For brand_members/branch_members: select -> eq(user_id) -> eq(status) => resolves
+    // For brands: select -> eq(owner_user_id) => resolves
+    // We make eq always return a thenable chain that also has .eq()
+    chain.eq = jest.fn().mockImplementation(() => {
+      // Return an object that is both thenable and chainable
+      const thenable: any = {
+        eq: jest.fn().mockResolvedValue(result),
+        then: (resolve: any, reject: any) =>
+          Promise.resolve(result).then(resolve, reject),
+      };
+      return thenable;
+    });
     return chain;
   };
 
@@ -26,21 +43,24 @@ describe('CustomerGuard', () => {
     } as any;
   };
 
-  let brandMembersChain: any;
-  let brandsChain: any;
-  let branchMembersChain: any;
   let mockSb: any;
+  let brandMembersResult: { data: any; error: any };
+  let brandsResult: { data: any; error: any };
+  let branchMembersResult: { data: any; error: any };
 
   beforeEach(async () => {
-    brandMembersChain = createChain();
-    brandsChain = createChain();
-    branchMembersChain = createChain();
+    // Default: empty results, no errors
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [], error: null };
+    branchMembersResult = { data: [], error: null };
 
     mockSb = {
       from: jest.fn((table: string) => {
-        if (table === 'brand_members') return brandMembersChain;
-        if (table === 'brands') return brandsChain;
-        if (table === 'branch_members') return branchMembersChain;
+        if (table === 'brand_members')
+          return createChainMock(brandMembersResult);
+        if (table === 'brands') return createChainMock(brandsResult);
+        if (table === 'branch_members')
+          return createChainMock(branchMembersResult);
         return {} as any;
       }),
     };
@@ -56,76 +76,65 @@ describe('CustomerGuard', () => {
     }).compile();
 
     guard = module.get<CustomerGuard>(CustomerGuard);
-    jest.clearAllMocks();
+
+    // Clear membership cache between tests
+    (guard as any).membershipCache.clear();
   });
 
   it('should throw when user or accessToken is missing', async () => {
     const ctx = createContext({ user: undefined });
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should throw for admin users', async () => {
     const ctx = createContext({ isAdmin: true });
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should throw when brand membership query fails', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    brandMembersResult = { data: null, error: { message: 'fail' } };
 
     const ctx = createContext();
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should throw when branch membership query fails', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: [], error: null });
-
-    brandsChain.eq.mockResolvedValueOnce({ data: [], error: null });
-
-    branchMembersChain.eq
-      .mockReturnValueOnce(branchMembersChain)
-      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [], error: null };
+    branchMembersResult = { data: null, error: { message: 'fail' } };
 
     const ctx = createContext();
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should throw when no memberships exist', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: [], error: null });
-
-    brandsChain.eq.mockResolvedValueOnce({ data: [], error: null });
-
-    branchMembersChain.eq
-      .mockReturnValueOnce(branchMembersChain)
-      .mockResolvedValueOnce({ data: [], error: null });
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [], error: null };
+    branchMembersResult = { data: [], error: null };
 
     const ctx = createContext();
 
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should allow access and attach memberships', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: [], error: null });
-
-    brandsChain.eq.mockResolvedValueOnce({
-      data: [{ id: 'brand-1' }],
-      error: null,
-    });
-
-    branchMembersChain.eq
-      .mockReturnValueOnce(branchMembersChain)
-      .mockResolvedValueOnce({ data: [], error: null });
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [{ id: 'brand-1' }], error: null };
+    branchMembersResult = { data: [], error: null };
 
     const ctx = createContext();
 
@@ -139,24 +148,15 @@ describe('CustomerGuard', () => {
   });
 
   it('should allow access even when owned brand lookup fails', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({
-        data: [{ brand_id: 'brand-1', role: 'STAFF', status: 'ACTIVE' }],
-        error: null,
-      });
-
-    brandsChain.eq.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'fail' },
-    });
-
-    branchMembersChain.eq
-      .mockReturnValueOnce(branchMembersChain)
-      .mockResolvedValueOnce({
-        data: [{ branch_id: 'branch-1', role: 'STAFF', status: 'ACTIVE' }],
-        error: null,
-      });
+    brandMembersResult = {
+      data: [{ brand_id: 'brand-1', role: 'STAFF', status: 'ACTIVE' }],
+      error: null,
+    };
+    brandsResult = { data: null, error: { message: 'fail' } };
+    branchMembersResult = {
+      data: [{ branch_id: 'branch-1', role: 'STAFF', status: 'ACTIVE' }],
+      error: null,
+    };
 
     const ctx = createContext();
 
@@ -166,21 +166,15 @@ describe('CustomerGuard', () => {
   });
 
   it('should avoid duplicating owned brands', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({
-        data: [{ brand_id: 'brand-1', role: 'STAFF', status: 'ACTIVE' }],
-        error: null,
-      });
-
-    brandsChain.eq.mockResolvedValueOnce({
+    brandMembersResult = {
+      data: [{ brand_id: 'brand-1', role: 'STAFF', status: 'ACTIVE' }],
+      error: null,
+    };
+    brandsResult = {
       data: [{ id: 'brand-1' }, { id: 'brand-2' }],
       error: null,
-    });
-
-    branchMembersChain.eq
-      .mockReturnValueOnce(branchMembersChain)
-      .mockResolvedValueOnce({ data: [], error: null });
+    };
+    branchMembersResult = { data: [], error: null };
 
     const ctx = createContext();
 
@@ -194,18 +188,9 @@ describe('CustomerGuard', () => {
   });
 
   it('should allow access when branch memberships are null', async () => {
-    brandMembersChain.eq
-      .mockReturnValueOnce(brandMembersChain)
-      .mockResolvedValueOnce({ data: null, error: null });
-
-    brandsChain.eq.mockResolvedValueOnce({
-      data: [{ id: 'brand-1' }],
-      error: null,
-    });
-
-    branchMembersChain.eq
-      .mockReturnValueOnce(branchMembersChain)
-      .mockResolvedValueOnce({ data: null, error: null });
+    brandMembersResult = { data: null, error: null };
+    brandsResult = { data: [{ id: 'brand-1' }], error: null };
+    branchMembersResult = { data: null, error: null };
 
     const ctx = createContext();
 
@@ -213,5 +198,29 @@ describe('CustomerGuard', () => {
 
     expect(result).toBe(true);
     expect(ctx._req.branchMemberships).toEqual([]);
+  });
+
+  it('should use cached membership on second call', async () => {
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [{ id: 'brand-1' }], error: null };
+    branchMembersResult = {
+      data: [{ branch_id: 'branch-1', role: 'STAFF', status: 'ACTIVE' }],
+      error: null,
+    };
+
+    const ctx1 = createContext();
+    await guard.canActivate(ctx1);
+
+    // Reset mock call count
+    mockSb.from.mockClear();
+
+    const ctx2 = createContext();
+    await guard.canActivate(ctx2);
+
+    // Should not have called DB again (cache hit)
+    expect(mockSb.from).not.toHaveBeenCalled();
+    expect(ctx2._req.brandMemberships).toEqual([
+      { brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' },
+    ]);
   });
 });

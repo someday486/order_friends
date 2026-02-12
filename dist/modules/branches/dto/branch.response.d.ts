@@ -3,6 +3,8 @@ export declare class BranchListItemResponse {
     brandId: string;
     name: string;
     slug?: string;
+    logoUrl?: string | null;
+    thumbnailUrl?: string | null;
     createdAt: string;
 }
 export declare class BranchDetailResponse {
@@ -10,5 +12,8 @@ export declare class BranchDetailResponse {
     brandId: string;
     name: string;
     slug?: string;
+    logoUrl?: string | null;
+    coverImageUrl?: string | null;
+    thumbnailUrl?: string | null;
     createdAt: string;
 }

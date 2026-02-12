@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -7,25 +7,27 @@ import {
   Param,
   Body,
   UseGuards,
-  Headers,
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { AdminGuard } from '../../common/guards/admin.guard';
+import type { AuthRequest } from '../../common/types/auth-request';
 import { BrandsService } from './brands.service';
 import { CreateBrandRequest, UpdateBrandRequest } from './dto/brand.dto';
 
 @Controller('admin/brands')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, AdminGuard)
 export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}
 
   /**
-   * 내 브랜드 목록 조회
+   * 브랜드 목록 조회
    * GET /admin/brands
    */
   @Get()
-  async getMyBrands(@Headers('authorization') authHeader: string) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.brandsService.getMyBrands(token);
+  async getMyBrands(@Req() req: AuthRequest) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.brandsService.getMyBrands(req.accessToken, req.isAdmin);
   }
 
   /**
@@ -33,12 +35,9 @@ export class BrandsController {
    * GET /admin/brands/:brandId
    */
   @Get(':brandId')
-  async getBrand(
-    @Headers('authorization') authHeader: string,
-    @Param('brandId') brandId: string,
-  ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.brandsService.getBrand(token, brandId);
+  async getBrand(@Req() req: AuthRequest, @Param('brandId') brandId: string) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.brandsService.getBrand(req.accessToken, brandId, req.isAdmin);
   }
 
   /**
@@ -46,12 +45,9 @@ export class BrandsController {
    * POST /admin/brands
    */
   @Post()
-  async createBrand(
-    @Headers('authorization') authHeader: string,
-    @Body() dto: CreateBrandRequest,
-  ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.brandsService.createBrand(token, dto);
+  async createBrand(@Req() req: AuthRequest, @Body() dto: CreateBrandRequest) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.brandsService.createBrand(req.accessToken, dto, req.isAdmin);
   }
 
   /**
@@ -60,12 +56,17 @@ export class BrandsController {
    */
   @Patch(':brandId')
   async updateBrand(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
     @Body() dto: UpdateBrandRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.brandsService.updateBrand(token, brandId, dto);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.brandsService.updateBrand(
+      req.accessToken,
+      brandId,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -74,10 +75,14 @@ export class BrandsController {
    */
   @Delete(':brandId')
   async deleteBrand(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.brandsService.deleteBrand(token, brandId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.brandsService.deleteBrand(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 }

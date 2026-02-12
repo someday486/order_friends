@@ -1,14 +1,18 @@
+import type { AuthRequest } from '../../common/types/auth-request';
 import { ProductsService } from './products.service';
 import { CreateProductRequest } from './dto/create-product.request';
 import { UpdateProductRequest } from './dto/update-product.request';
+import { ProductSearchDto } from '../../common/dto/search.dto';
 export declare class ProductsController {
     private readonly productsService;
     constructor(productsService: ProductsService);
-    getProducts(authHeader: string, branchId: string): Promise<import("./dto/product-list.response").ProductListItemResponse[]>;
-    getProduct(authHeader: string, productId: string): Promise<import("./dto/product-detail.response").ProductDetailResponse>;
-    createProduct(authHeader: string, dto: CreateProductRequest): Promise<import("./dto/product-detail.response").ProductDetailResponse>;
-    updateProduct(authHeader: string, productId: string, dto: UpdateProductRequest): Promise<import("./dto/product-detail.response").ProductDetailResponse>;
-    deleteProduct(authHeader: string, productId: string): Promise<{
+    getProducts(req: AuthRequest, branchId: string): Promise<import("./dto/product-list.response").ProductListItemResponse[]>;
+    searchProducts(req: AuthRequest, branchId: string, searchDto: ProductSearchDto): Promise<import("../../common/dto/pagination.dto").PaginatedResponse<import("./dto/product-list.response").ProductListItemResponse>>;
+    getCategories(req: AuthRequest, branchId: string): Promise<import("./dto/product-category.response").ProductCategoryResponse[]>;
+    getProduct(req: AuthRequest, productId: string): Promise<import("./dto/product-detail.response").ProductDetailResponse>;
+    createProduct(req: AuthRequest, dto: CreateProductRequest): Promise<import("./dto/product-detail.response").ProductDetailResponse>;
+    updateProduct(req: AuthRequest, productId: string, dto: UpdateProductRequest): Promise<import("./dto/product-detail.response").ProductDetailResponse>;
+    deleteProduct(req: AuthRequest, productId: string): Promise<{
         deleted: boolean;
     }>;
 }

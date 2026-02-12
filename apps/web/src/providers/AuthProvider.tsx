@@ -10,12 +10,15 @@ import React, {
 } from "react";
 import type { AuthState } from "@/lib/auth/types";
 import { getInitialSession, subscribeAuth } from "@/lib/auth/client";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 type AuthContextValue = AuthState & {
   /** 호환용: 기존 코드가 loading을 쓰면 그대로 동작 */
   loading: boolean;
   /** 로그인/로그아웃 직후 등, 세션을 강제로 재동기화할 때 사용 */
   refresh: () => Promise<void>;
+  /** 로그아웃 함수 */
+  signOut: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,6 +39,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const session = await getInitialSession();
     setState(derive(session));
   }, []);
+
+  const signOut = useCallback(async () => {
+    await supabaseBrowser.auth.signOut();
+    await refresh();
+    window.location.assign("/login");
+  }, [refresh]);
 
   useEffect(() => {
     let mounted = true;
@@ -63,8 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...state,
       loading: state.status === "loading",
       refresh,
+      signOut,
     };
-  }, [state, refresh]);
+  }, [state, refresh, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

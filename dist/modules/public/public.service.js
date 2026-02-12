@@ -17,6 +17,17 @@ let PublicService = class PublicService {
     constructor(supabase) {
         this.supabase = supabase;
     }
+    getPriceFromRow(row) {
+        if (!row)
+            return 0;
+        if (row.base_price !== undefined && row.base_price !== null)
+            return row.base_price;
+        if (row.price !== undefined && row.price !== null)
+            return row.price;
+        if (row.price_amount !== undefined && row.price_amount !== null)
+            return row.price_amount;
+        return 0;
+    }
     async getBranch(branchId) {
         const sb = this.supabase.anonClient();
         const { data, error } = await sb
@@ -41,56 +52,62 @@ let PublicService = class PublicService {
     }
     async getProducts(branchId) {
         const sb = this.supabase.anonClient();
-        const { data, error } = await sb
-            .from('products')
-            .select(`
-        id,
-        name,
-        description,
-        price,
-        product_options (
-          id,
-          name,
-          price_delta,
-          is_active
-        )
-      `)
-            .eq('branch_id', branchId)
-            .eq('is_active', true)
-            .order('sort_order', { ascending: true });
+        const selectFields = '*';
+        const buildBaseQuery = (includeIsHidden, includeIsSoldOut) => {
+            let query = sb
+                .from('products')
+                .select(selectFields)
+                .eq('branch_id', branchId);
+            if (includeIsHidden) {
+                query = query.eq('is_hidden', false);
+            }
+            if (includeIsSoldOut) {
+                query = query.eq('is_sold_out', false);
+            }
+            return query;
+        };
+        let data;
+        let error;
+        let includeIsHidden = true;
+        let includeIsSoldOut = true;
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+            const query = buildBaseQuery(includeIsHidden, includeIsSoldOut);
+            const orderedQuery = query.order('created_at', { ascending: false });
+            ({ data, error } = await orderedQuery);
+            if (!error)
+                break;
+            const message = error.message ?? '';
+            let retried = false;
+            if (message.includes('is_hidden')) {
+                includeIsHidden = false;
+                retried = true;
+            }
+            if (message.includes('is_sold_out')) {
+                includeIsSoldOut = false;
+                retried = true;
+            }
+            if (!retried)
+                break;
+        }
         if (error) {
             throw new Error(`[public.getProducts] ${error.message}`);
         }
-        return (data ?? []).map((product) => ({
+        const products = data ?? [];
+        return products.map((product) => ({
             id: product.id,
             name: product.name,
             description: product.description ?? null,
-            price: product.price ?? 0,
-            options: (product.product_options ?? [])
-                .filter((opt) => opt.is_active)
-                .map((opt) => ({
-                id: opt.id,
-                name: opt.name,
-                priceDelta: opt.price_delta ?? 0,
-            })),
+            price: this.getPriceFromRow(product),
+            options: [],
         }));
     }
     async createOrder(dto) {
         const sb = this.supabase.anonClient();
         const productIds = dto.items.map((item) => item.productId);
+        const selectProductFields = '*';
         const { data: products, error: productsError } = await sb
             .from('products')
-            .select(`
-        id,
-        name,
-        price,
-        branch_id,
-        product_options (
-          id,
-          name,
-          price_delta
-        )
-      `)
+            .select(selectProductFields)
             .in('id', productIds);
         if (productsError) {
             throw new Error(`상품 조회 실패: ${productsError.message}`);
@@ -100,6 +117,12 @@ let PublicService = class PublicService {
             if (product.branch_id !== dto.branchId) {
                 throw new common_1.BadRequestException('다른 가게의 상품이 포함되어 있습니다.');
             }
+            if (product.is_hidden === true || product.is_sold_out === true) {
+                throw new common_1.BadRequestException('판매 중지된 상품이 포함되어 있습니다.');
+            }
+        }
+        if (dto.items.some((item) => item.options && item.options.length > 0)) {
+            throw new common_1.BadRequestException('옵션 기능이 비활성화되어 있습니다.');
         }
         let subtotalAmount = 0;
         const orderItemsData = [];
@@ -108,22 +131,8 @@ let PublicService = class PublicService {
             if (!product) {
                 throw new common_1.BadRequestException(`상품을 찾을 수 없습니다: ${item.productId}`);
             }
-            let itemPrice = product.price;
+            const itemPrice = this.getPriceFromRow(product);
             const optionSnapshots = [];
-            if (item.options && item.options.length > 0) {
-                const optionMap = new Map((product.product_options ?? []).map((o) => [o.id, o]));
-                for (const opt of item.options) {
-                    const optionData = optionMap.get(opt.optionId);
-                    if (optionData) {
-                        itemPrice += optionData.price_delta ?? 0;
-                        optionSnapshots.push({
-                            product_option_id: optionData.id,
-                            option_name_snapshot: optionData.name,
-                            price_delta_snapshot: optionData.price_delta ?? 0,
-                        });
-                    }
-                }
-            }
             subtotalAmount += itemPrice * item.qty;
             orderItemsData.push({
                 product_id: product.id,

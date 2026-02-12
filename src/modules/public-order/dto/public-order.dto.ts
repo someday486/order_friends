@@ -1,4 +1,12 @@
-import { IsString, IsNumber, IsArray, IsOptional, ValidateNested, Min, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+  Min,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 // ============================================================
@@ -9,6 +17,8 @@ export class PublicBranchResponse {
   id: string;
   name: string;
   brandName?: string;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
 }
 
 export class PublicProductOptionResponse {
@@ -22,7 +32,17 @@ export class PublicProductResponse {
   name: string;
   description?: string | null;
   price: number;
+  imageUrl?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  sortOrder?: number;
   options: PublicProductOptionResponse[];
+}
+
+export class PublicCategoryResponse {
+  id: string;
+  name: string;
+  sortOrder: number;
 }
 
 export class PublicOrderResponse {
@@ -72,6 +92,10 @@ export enum PaymentMethod {
 export class CreatePublicOrderRequest {
   @IsString()
   branchId: string;
+
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
 
   @IsString()
   customerName: string;

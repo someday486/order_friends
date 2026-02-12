@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   BrandMemberResponse,
@@ -16,19 +20,30 @@ import {
 export class MembersService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private getClient(accessToken: string, isAdmin?: boolean) {
+    return isAdmin
+      ? this.supabase.adminClient()
+      : this.supabase.userClient(accessToken);
+  }
+
   // ============================================================
   // Brand Members
   // ============================================================
 
   /**
-   * 브랜드 멤버 목록 조회
+   * 釉뚮옖??硫ㅻ쾭 紐⑸줉 議고쉶
    */
-  async getBrandMembers(accessToken: string, brandId: string): Promise<BrandMemberResponse[]> {
-    const sb = this.supabase.userClient(accessToken);
+  async getBrandMembers(
+    accessToken: string,
+    brandId: string,
+    isAdmin?: boolean,
+  ): Promise<BrandMemberResponse[]> {
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { data, error } = await sb
       .from('brand_members')
-      .select(`
+      .select(
+        `
         brand_id,
         user_id,
         role,
@@ -38,7 +53,8 @@ export class MembersService {
           id,
           display_name
         )
-      `)
+      `,
+      )
       .eq('brand_id', brandId)
       .order('created_at', { ascending: true });
 
@@ -46,10 +62,9 @@ export class MembersService {
       throw new Error(`[members.getBrandMembers] ${error.message}`);
     }
 
-    // 이메일 조회를 위해 user_id 목록 수집
-    const userIds = (data ?? []).map((row: any) => row.user_id);
-    
-    // auth.users에서 이메일 조회 (service role 필요, 없으면 스킵)
+    // ?대찓??議고쉶瑜??꾪빐 user_id 紐⑸줉 ?섏쭛
+
+    // auth.users?먯꽌 ?대찓??議고쉶 (service role ?꾩슂, ?놁쑝硫??ㅽ궢)
     const emailMap: Record<string, string> = {};
 
     return (data ?? []).map((row: any) => ({
@@ -65,38 +80,43 @@ export class MembersService {
   }
 
   /**
-   * 브랜드 멤버 초대 (이메일로)
+   * 釉뚮옖??硫ㅻ쾭 珥덈? (?대찓?쇰줈)
    */
+  // eslint-disable-next-line @typescript-eslint/require-await
   async inviteBrandMember(
     accessToken: string,
     dto: InviteBrandMemberRequest,
+    _isAdmin?: boolean,
   ): Promise<BrandMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    void accessToken;
+    void dto;
+    void _isAdmin;
 
-    // 1. 이메일로 사용자 찾기 (profiles 테이블에 없으면 초대 불가)
-    // 실제로는 auth.users를 조회해야 하지만 RLS 제한으로 profiles 기준
-    // 또는 초대 이메일 발송 로직 필요 - 여기서는 간단히 처리
-    
-    // profiles에서 이메일로 사용자 찾기 (phone 필드를 임시로 사용하거나 별도 로직 필요)
-    // 현재는 userId를 직접 입력받는 방식으로 우회
+    // 1. ?대찓?쇰줈 ?ъ슜??李얘린 (profiles ?뚯씠釉붿뿉 ?놁쑝硫?珥덈? 遺덇?)
+    // ?ㅼ젣濡쒕뒗 auth.users瑜?議고쉶?댁빞 ?섏?留?RLS ?쒗븳?쇰줈 profiles 湲곗?
+    // ?먮뒗 珥덈? ?대찓??諛쒖넚 濡쒖쭅 ?꾩슂 - ?ш린?쒕뒗 媛꾨떒??泥섎━
+
+    // profiles?먯꽌 ?대찓?쇰줈 ?ъ슜??李얘린 (phone ?꾨뱶瑜??꾩떆濡??ъ슜?섍굅??蹂꾨룄 濡쒖쭅 ?꾩슂)
+    // ?꾩옱??userId瑜?吏곸젒 ?낅젰諛쏅뒗 諛⑹떇?쇰줈 ?고쉶
 
     throw new BadRequestException(
-      '이메일 초대 기능은 추후 구현 예정입니다. 현재는 사용자 ID로 직접 추가해주세요.',
+      '?대찓??珥덈? 湲곕뒫? 異뷀썑 援ы쁽 ?덉젙?낅땲?? ?꾩옱???ъ슜??ID濡?吏곸젒 異붽??댁＜?몄슂.',
     );
   }
 
   /**
-   * 브랜드 멤버 추가 (userId로 직접)
+   * 釉뚮옖??硫ㅻ쾭 異붽? (userId濡?吏곸젒)
    */
   async addBrandMember(
     accessToken: string,
     brandId: string,
     userId: string,
     role: BrandRole = BrandRole.MEMBER,
+    isAdmin?: boolean,
   ): Promise<BrandMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
-    // 이미 멤버인지 확인
+    // ?대? 硫ㅻ쾭?몄? ?뺤씤
     const { data: existing } = await sb
       .from('brand_members')
       .select('user_id')
@@ -105,10 +125,10 @@ export class MembersService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('이미 브랜드 멤버입니다.');
+      throw new BadRequestException('?대? 釉뚮옖??硫ㅻ쾭?낅땲??');
     }
 
-    // 멤버 추가
+    // 硫ㅻ쾭 異붽?
     const { data, error } = await sb
       .from('brand_members')
       .insert({
@@ -137,22 +157,23 @@ export class MembersService {
   }
 
   /**
-   * 브랜드 멤버 수정 (역할/상태)
+   * 釉뚮옖??硫ㅻ쾭 ?섏젙 (??븷/?곹깭)
    */
   async updateBrandMember(
     accessToken: string,
     brandId: string,
     userId: string,
     dto: UpdateBrandMemberRequest,
+    isAdmin?: boolean,
   ): Promise<BrandMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const updateData: any = {};
     if (dto.role !== undefined) updateData.role = dto.role;
     if (dto.status !== undefined) updateData.status = dto.status;
 
     if (Object.keys(updateData).length === 0) {
-      throw new BadRequestException('수정할 내용이 없습니다.');
+      throw new BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
     }
 
     const { data, error } = await sb
@@ -168,7 +189,7 @@ export class MembersService {
     }
 
     if (!data) {
-      throw new NotFoundException('멤버를 찾을 수 없습니다.');
+      throw new NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
     }
 
     return {
@@ -184,14 +205,15 @@ export class MembersService {
   }
 
   /**
-   * 브랜드 멤버 삭제
+   * 釉뚮옖??硫ㅻ쾭 ??젣
    */
   async removeBrandMember(
     accessToken: string,
     brandId: string,
     userId: string,
+    isAdmin?: boolean,
   ): Promise<{ deleted: boolean }> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { error } = await sb
       .from('brand_members')
@@ -211,14 +233,19 @@ export class MembersService {
   // ============================================================
 
   /**
-   * 가게 멤버 목록 조회
+   * 媛寃?硫ㅻ쾭 紐⑸줉 議고쉶
    */
-  async getBranchMembers(accessToken: string, branchId: string): Promise<BranchMemberResponse[]> {
-    const sb = this.supabase.userClient(accessToken);
+  async getBranchMembers(
+    accessToken: string,
+    branchId: string,
+    isAdmin?: boolean,
+  ): Promise<BranchMemberResponse[]> {
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { data, error } = await sb
       .from('branch_members')
-      .select(`
+      .select(
+        `
         branch_id,
         user_id,
         role,
@@ -228,7 +255,8 @@ export class MembersService {
           id,
           display_name
         )
-      `)
+      `,
+      )
       .eq('branch_id', branchId)
       .order('created_at', { ascending: true });
 
@@ -249,15 +277,16 @@ export class MembersService {
   }
 
   /**
-   * 가게 멤버 추가
+   * 媛寃?硫ㅻ쾭 異붽?
    */
   async addBranchMember(
     accessToken: string,
     dto: AddBranchMemberRequest,
+    isAdmin?: boolean,
   ): Promise<BranchMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
-    // 이미 멤버인지 확인
+    // ?대? 硫ㅻ쾭?몄? ?뺤씤
     const { data: existing } = await sb
       .from('branch_members')
       .select('user_id')
@@ -266,10 +295,10 @@ export class MembersService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('이미 가게 멤버입니다.');
+      throw new BadRequestException('?대? 媛寃?硫ㅻ쾭?낅땲??');
     }
 
-    // 멤버 추가
+    // 硫ㅻ쾭 異붽?
     const { data, error } = await sb
       .from('branch_members')
       .insert({
@@ -298,22 +327,23 @@ export class MembersService {
   }
 
   /**
-   * 가게 멤버 수정
+   * 媛寃?硫ㅻ쾭 ?섏젙
    */
   async updateBranchMember(
     accessToken: string,
     branchId: string,
     userId: string,
     dto: UpdateBranchMemberRequest,
+    isAdmin?: boolean,
   ): Promise<BranchMemberResponse> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const updateData: any = {};
     if (dto.role !== undefined) updateData.role = dto.role;
     if (dto.status !== undefined) updateData.status = dto.status;
 
     if (Object.keys(updateData).length === 0) {
-      throw new BadRequestException('수정할 내용이 없습니다.');
+      throw new BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
     }
 
     const { data, error } = await sb
@@ -329,7 +359,7 @@ export class MembersService {
     }
 
     if (!data) {
-      throw new NotFoundException('멤버를 찾을 수 없습니다.');
+      throw new NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
     }
 
     return {
@@ -345,14 +375,15 @@ export class MembersService {
   }
 
   /**
-   * 가게 멤버 삭제
+   * 媛寃?硫ㅻ쾭 ??젣
    */
   async removeBranchMember(
     accessToken: string,
     branchId: string,
     userId: string,
+    isAdmin?: boolean,
   ): Promise<{ deleted: boolean }> {
-    const sb = this.supabase.userClient(accessToken);
+    const sb = this.getClient(accessToken, isAdmin);
 
     const { error } = await sb
       .from('branch_members')

@@ -14,24 +14,38 @@ const class_validator_1 = require("class-validator");
 class BrandListItemResponse {
     id;
     name;
+    slug;
     bizName;
     bizRegNo;
+    logoUrl;
     createdAt;
 }
 exports.BrandListItemResponse = BrandListItemResponse;
 class BrandDetailResponse {
     id;
     name;
+    slug;
     ownerUserId;
     bizName;
     bizRegNo;
+    repName;
+    address;
+    bizCertUrl;
+    logoUrl;
+    coverImageUrl;
     createdAt;
 }
 exports.BrandDetailResponse = BrandDetailResponse;
 class CreateBrandRequest {
     name;
+    slug;
     bizName;
     bizRegNo;
+    repName;
+    address;
+    bizCertUrl;
+    logoUrl;
+    coverImageUrl;
 }
 exports.CreateBrandRequest = CreateBrandRequest;
 __decorate([
@@ -42,16 +56,52 @@ __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
+], CreateBrandRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
 ], CreateBrandRequest.prototype, "bizName", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateBrandRequest.prototype, "bizRegNo", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "repName", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "address", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "bizCertUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBrandRequest.prototype, "coverImageUrl", void 0);
 class UpdateBrandRequest {
     name;
+    slug;
     bizName;
     bizRegNo;
+    repName;
+    address;
+    bizCertUrl;
+    logoUrl;
+    coverImageUrl;
 }
 exports.UpdateBrandRequest = UpdateBrandRequest;
 __decorate([
@@ -63,10 +113,40 @@ __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
 ], UpdateBrandRequest.prototype, "bizName", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateBrandRequest.prototype, "bizRegNo", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "repName", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "address", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "bizCertUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBrandRequest.prototype, "coverImageUrl", void 0);
 //# sourceMappingURL=brand.dto.js.map

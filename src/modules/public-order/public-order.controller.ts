@@ -1,19 +1,15 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Param,
-  Body,
-} from '@nestjs/common';
+﻿import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { CreatePublicOrderRequest } from './dto/public-order.dto';
+import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
+import { UserRateLimitGuard } from '../../common/guards/user-rate-limit.guard';
 
 @Controller('public')
 export class PublicOrderController {
   constructor(private readonly publicOrderService: PublicOrderService) {}
 
   /**
-   * 가게 정보 조회
+   * 媛寃??뺣낫 議고쉶
    * GET /public/branches/:branchId
    */
   @Get('branches/:branchId')
@@ -22,25 +18,75 @@ export class PublicOrderController {
   }
 
   /**
-   * 가게 상품 목록 조회
+   * Backward-compatible route
+   * GET /public/branch/:branchId
+   */
+  @Get('branch/:branchId')
+  async getBranchLegacy(@Param('branchId') branchId: string) {
+    return this.publicOrderService.getBranch(branchId);
+  }
+
+  /**
+   * 媛寃??뺣낫 議고쉶 (slug)
+   * GET /public/branches/slug/:slug
+   */
+  @Get('branches/slug/:slug')
+  async getBranchBySlug(@Param('slug') slug: string) {
+    return this.publicOrderService.getBranchBySlug(slug);
+  }
+
+  /**
+   * 가게 정보 조회 (brand slug + branch slug)
+   * GET /public/brands/:brandSlug/branches/:branchSlug
+   */
+  @Get('brands/:brandSlug/branches/:branchSlug')
+  async getBranchByBrandSlug(
+    @Param('brandSlug') brandSlug: string,
+    @Param('branchSlug') branchSlug: string,
+  ) {
+    return this.publicOrderService.getBranchByBrandSlug(brandSlug, branchSlug);
+  }
+  /**
+   * 媛寃??곹뭹 紐⑸줉 議고쉶
    * GET /public/branches/:branchId/products
    */
+  /**
+   * 가게 카테고리 목록 조회
+   * GET /public/branches/:branchId/categories
+   */
+  @Get('branches/:branchId/categories')
+  async getCategories(@Param('branchId') branchId: string) {
+    return this.publicOrderService.getCategories(branchId);
+  }
+
   @Get('branches/:branchId/products')
   async getProducts(@Param('branchId') branchId: string) {
     return this.publicOrderService.getProducts(branchId);
   }
 
   /**
-   * 주문 생성
+   * Backward-compatible route
+   * GET /public/branch/:branchId/products
+   */
+  @Get('branch/:branchId/products')
+  async getProductsLegacy(@Param('branchId') branchId: string) {
+    return this.publicOrderService.getProducts(branchId);
+  }
+
+  /**
+   * 二쇰Ц ?앹꽦
    * POST /public/orders
+   * Rate limit: 10 orders per minute (to prevent order spam)
    */
   @Post('orders')
+  @UseGuards(UserRateLimitGuard)
+  @UserRateLimit({ points: 10, duration: 60, blockDuration: 300 })
   async createOrder(@Body() dto: CreatePublicOrderRequest) {
     return this.publicOrderService.createOrder(dto);
   }
 
   /**
-   * 주문 조회 (ID 또는 주문번호)
+   * 二쇰Ц 議고쉶 (ID ?먮뒗 二쇰Ц踰덊샇)
    * GET /public/orders/:orderIdOrNo
    */
   @Get('orders/:orderIdOrNo')

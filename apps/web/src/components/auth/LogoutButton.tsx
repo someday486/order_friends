@@ -21,7 +21,7 @@ export function LogoutButton() {
       // ✅ 로그아웃 직후 상태 동기화
       await refresh();
 
-      window.location.assign("/login");
+      window.location.assign("/");
     } finally {
       setLoading(false);
     }
@@ -31,12 +31,7 @@ export function LogoutButton() {
     <button
       onClick={onLogout}
       disabled={loading}
-      style={{
-        padding: "8px 12px",
-        borderRadius: 8,
-        border: "1px solid #ccc",
-        cursor: loading ? "not-allowed" : "pointer",
-      }}
+      className="py-2 px-3 rounded border border-border bg-transparent text-foreground cursor-pointer hover:bg-bg-tertiary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
     >
       {loading ? "Signing out..." : "Logout"}
     </button>

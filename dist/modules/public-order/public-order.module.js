@@ -11,12 +11,13 @@ const common_1 = require("@nestjs/common");
 const public_order_controller_1 = require("./public-order.controller");
 const public_order_service_1 = require("./public-order.service");
 const supabase_module_1 = require("../../infra/supabase/supabase.module");
+const inventory_module_1 = require("../inventory/inventory.module");
 let PublicOrderModule = class PublicOrderModule {
 };
 exports.PublicOrderModule = PublicOrderModule;
 exports.PublicOrderModule = PublicOrderModule = __decorate([
     (0, common_1.Module)({
-        imports: [supabase_module_1.SupabaseModule],
+        imports: [supabase_module_1.SupabaseModule, inventory_module_1.InventoryModule],
         controllers: [public_order_controller_1.PublicOrderController],
         providers: [public_order_service_1.PublicOrderService],
     })

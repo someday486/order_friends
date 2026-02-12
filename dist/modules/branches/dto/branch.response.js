@@ -6,6 +6,8 @@ class BranchListItemResponse {
     brandId;
     name;
     slug;
+    logoUrl;
+    thumbnailUrl;
     createdAt;
 }
 exports.BranchListItemResponse = BranchListItemResponse;
@@ -14,6 +16,9 @@ class BranchDetailResponse {
     brandId;
     name;
     slug;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
     createdAt;
 }
 exports.BranchDetailResponse = BranchDetailResponse;

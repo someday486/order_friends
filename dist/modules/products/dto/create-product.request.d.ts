@@ -7,9 +7,11 @@ export declare class CreateProductOptionDto {
 export declare class CreateProductRequest {
     branchId: string;
     name: string;
+    categoryId: string;
     description?: string;
     price: number;
     isActive?: boolean;
     sortOrder?: number;
     options?: CreateProductOptionDto[];
+    imageUrl?: string;
 }

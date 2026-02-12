@@ -15,6 +15,9 @@ class CreateBranchRequest {
     brandId;
     name;
     slug;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
 }
 exports.CreateBranchRequest = CreateBranchRequest;
 __decorate([
@@ -32,8 +35,27 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], CreateBranchRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBranchRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBranchRequest.prototype, "coverImageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBranchRequest.prototype, "thumbnailUrl", void 0);
 class UpdateBranchRequest {
     name;
+    slug;
+    logoUrl;
+    coverImageUrl;
+    thumbnailUrl;
 }
 exports.UpdateBranchRequest = UpdateBranchRequest;
 __decorate([
@@ -41,4 +63,27 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateBranchRequest.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^[a-z0-9-]+$/, {
+        message: 'slug는 소문자, 숫자, 하이픈(-)만 허용합니다.',
+    }),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "slug", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "logoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "coverImageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBranchRequest.prototype, "thumbnailUrl", void 0);
 //# sourceMappingURL=branch.request.js.map

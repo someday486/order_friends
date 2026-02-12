@@ -14,6 +14,8 @@ exports.SupabaseService = void 0;
 const common_1 = require("@nestjs/common");
 const supabase_js_1 = require("@supabase/supabase-js");
 const config_1 = require("@nestjs/config");
+const USER_CLIENT_MAX_SIZE = 50;
+const USER_CLIENT_TTL_MS = 5 * 60 * 1000;
 let SupabaseService = SupabaseService_1 = class SupabaseService {
     config;
     logger = new common_1.Logger(SupabaseService_1.name);
@@ -21,6 +23,8 @@ let SupabaseService = SupabaseService_1 = class SupabaseService {
     anonKey = null;
     serviceRoleKey = null;
     admin = null;
+    anon = null;
+    userClients = new Map();
     constructor(config) {
         this.config = config;
         const url = this.config.get('SUPABASE_URL');
@@ -53,19 +57,40 @@ let SupabaseService = SupabaseService_1 = class SupabaseService {
         if (!this.supabaseUrl || !this.anonKey) {
             throw new Error('Supabase user client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
         }
-        return (0, supabase_js_1.createClient)(this.supabaseUrl, this.anonKey, {
+        const now = Date.now();
+        const cached = this.userClients.get(userAccessToken);
+        if (cached && now - cached.createdAt < USER_CLIENT_TTL_MS) {
+            return cached.client;
+        }
+        if (this.userClients.size >= USER_CLIENT_MAX_SIZE) {
+            for (const [key, entry] of this.userClients) {
+                if (now - entry.createdAt >= USER_CLIENT_TTL_MS) {
+                    this.userClients.delete(key);
+                }
+            }
+            if (this.userClients.size >= USER_CLIENT_MAX_SIZE) {
+                const firstKey = this.userClients.keys().next().value;
+                this.userClients.delete(firstKey);
+            }
+        }
+        const client = (0, supabase_js_1.createClient)(this.supabaseUrl, this.anonKey, {
             global: {
                 headers: {
                     Authorization: `Bearer ${userAccessToken}`,
                 },
             },
         });
+        this.userClients.set(userAccessToken, { client, createdAt: now });
+        return client;
     }
     anonClient() {
         if (!this.supabaseUrl || !this.anonKey) {
             throw new Error('Supabase anon client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
         }
-        return (0, supabase_js_1.createClient)(this.supabaseUrl, this.anonKey);
+        if (!this.anon) {
+            this.anon = (0, supabase_js_1.createClient)(this.supabaseUrl, this.anonKey);
+        }
+        return this.anon;
     }
 };
 exports.SupabaseService = SupabaseService;

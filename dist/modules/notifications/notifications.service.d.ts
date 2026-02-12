@@ -1,0 +1,32 @@
+import { ConfigService } from '@nestjs/config';
+import { NotificationResult, OrderConfirmationEmailData, OrderStatusUpdateEmailData, PaymentConfirmationEmailData, RefundConfirmationEmailData, LowStockAlertEmailData, OrderConfirmationSMSData, OrderReadySMSData, DeliveryCompleteSMSData } from './dto/notification.dto';
+export declare class NotificationsService {
+    private readonly configService;
+    private readonly logger;
+    private readonly sendGridApiKey;
+    private readonly smsApiKey;
+    private readonly fromEmail;
+    private readonly fromName;
+    private readonly mockMode;
+    constructor(configService: ConfigService);
+    sendOrderConfirmation(orderId: string, orderData: OrderConfirmationEmailData, recipientEmail: string): Promise<NotificationResult>;
+    sendOrderStatusUpdate(orderId: string, orderData: OrderStatusUpdateEmailData, recipientEmail: string): Promise<NotificationResult>;
+    sendPaymentConfirmation(orderId: string, paymentData: PaymentConfirmationEmailData, recipientEmail: string): Promise<NotificationResult>;
+    sendRefundConfirmation(orderId: string, refundData: RefundConfirmationEmailData, recipientEmail: string): Promise<NotificationResult>;
+    sendLowStockAlert(productId: string, branchId: string, stockData: LowStockAlertEmailData, recipientEmail: string): Promise<NotificationResult>;
+    sendOrderConfirmationSMS(orderId: string, smsData: OrderConfirmationSMSData, phone: string): Promise<NotificationResult>;
+    sendOrderReadySMS(orderId: string, smsData: OrderReadySMSData, phone: string): Promise<NotificationResult>;
+    sendDeliveryCompleteSMS(orderId: string, smsData: DeliveryCompleteSMSData, phone: string): Promise<NotificationResult>;
+    private sendEmail;
+    private sendSMS;
+    private getOrderConfirmationEmailTemplate;
+    private getOrderStatusUpdateEmailTemplate;
+    private getPaymentConfirmationEmailTemplate;
+    private getRefundConfirmationEmailTemplate;
+    private getLowStockAlertEmailTemplate;
+    private getOrderConfirmationSMSTemplate;
+    private getOrderReadySMSTemplate;
+    private getDeliveryCompleteSMSTemplate;
+    retryNotification(notificationId: string): Promise<NotificationResult>;
+    getNotificationStatus(notificationId: string): Promise<unknown>;
+}

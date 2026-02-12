@@ -1,16 +1,17 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
   Patch,
   Delete,
   Param,
-  Query,
   Body,
   UseGuards,
-  Headers,
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { AdminGuard } from '../../common/guards/admin.guard';
+import type { AuthRequest } from '../../common/types/auth-request';
 import { MembersService } from './members.service';
 import {
   BrandRole,
@@ -20,7 +21,7 @@ import {
 } from './dto/member.dto';
 
 @Controller('admin/members')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, AdminGuard)
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
@@ -34,11 +35,15 @@ export class MembersController {
    */
   @Get('brand/:brandId')
   async getBrandMembers(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.getBrandMembers(token, brandId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.getBrandMembers(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -47,12 +52,18 @@ export class MembersController {
    */
   @Post('brand/:brandId')
   async addBrandMember(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
     @Body() body: { userId: string; role?: BrandRole },
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.addBrandMember(token, brandId, body.userId, body.role);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.addBrandMember(
+      req.accessToken,
+      brandId,
+      body.userId,
+      body.role,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -61,13 +72,19 @@ export class MembersController {
    */
   @Patch('brand/:brandId/:userId')
   async updateBrandMember(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
     @Param('userId') userId: string,
     @Body() dto: UpdateBrandMemberRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.updateBrandMember(token, brandId, userId, dto);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.updateBrandMember(
+      req.accessToken,
+      brandId,
+      userId,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -76,12 +93,17 @@ export class MembersController {
    */
   @Delete('brand/:brandId/:userId')
   async removeBrandMember(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
     @Param('userId') userId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.removeBrandMember(token, brandId, userId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.removeBrandMember(
+      req.accessToken,
+      brandId,
+      userId,
+      req.isAdmin,
+    );
   }
 
   // ============================================================
@@ -94,11 +116,15 @@ export class MembersController {
    */
   @Get('branch/:branchId')
   async getBranchMembers(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('branchId') branchId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.getBranchMembers(token, branchId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.getBranchMembers(
+      req.accessToken,
+      branchId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -107,11 +133,15 @@ export class MembersController {
    */
   @Post('branch')
   async addBranchMember(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Body() dto: AddBranchMemberRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.addBranchMember(token, dto);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.addBranchMember(
+      req.accessToken,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -120,13 +150,19 @@ export class MembersController {
    */
   @Patch('branch/:branchId/:userId')
   async updateBranchMember(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('branchId') branchId: string,
     @Param('userId') userId: string,
     @Body() dto: UpdateBranchMemberRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.updateBranchMember(token, branchId, userId, dto);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.updateBranchMember(
+      req.accessToken,
+      branchId,
+      userId,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -135,11 +171,16 @@ export class MembersController {
    */
   @Delete('branch/:branchId/:userId')
   async removeBranchMember(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('branchId') branchId: string,
     @Param('userId') userId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.membersService.removeBranchMember(token, branchId, userId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.removeBranchMember(
+      req.accessToken,
+      branchId,
+      userId,
+      req.isAdmin,
+    );
   }
 }

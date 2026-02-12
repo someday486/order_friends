@@ -8,152 +8,222 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var ProductsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductsService = void 0;
 const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../../infra/supabase/supabase.service");
-let ProductsService = class ProductsService {
+const product_exception_1 = require("../../common/exceptions/product.exception");
+const business_exception_1 = require("../../common/exceptions/business.exception");
+const query_builder_util_1 = require("../../common/utils/query-builder.util");
+let ProductsService = ProductsService_1 = class ProductsService {
     supabase;
+    logger = new common_1.Logger(ProductsService_1.name);
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getProducts(accessToken, branchId) {
-        const sb = this.supabase.userClient(accessToken);
+    getClient(accessToken, isAdmin) {
+        return isAdmin
+            ? this.supabase.adminClient()
+            : this.supabase.userClient(accessToken);
+    }
+    getPriceFromRow(row) {
+        if (!row)
+            return 0;
+        if (row.base_price !== undefined && row.base_price !== null)
+            return row.base_price;
+        if (row.price !== undefined && row.price !== null)
+            return row.price;
+        if (row.price_amount !== undefined && row.price_amount !== null)
+            return row.price_amount;
+        return 0;
+    }
+    emptyOptions() {
+        return [];
+    }
+    async getProducts(accessToken, branchId, isAdmin) {
+        this.logger.log(`Fetching products for branch: ${branchId}`);
+        const sb = this.getClient(accessToken, isAdmin);
+        const selectFields = '*';
         const { data, error } = await sb
             .from('products')
-            .select('id, name, price, is_active, sort_order, created_at')
+            .select(selectFields)
             .eq('branch_id', branchId)
-            .order('sort_order', { ascending: true })
             .order('created_at', { ascending: false });
         if (error) {
-            throw new Error(`[products.getProducts] ${error.message}`);
+            this.logger.error(`Failed to fetch products: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to fetch products', 'PRODUCT_FETCH_FAILED', 500, { branchId, error: error.message });
         }
+        this.logger.log(`Fetched ${data?.length || 0} products for branch: ${branchId}`);
         return (data ?? []).map((row) => ({
             id: row.id,
             name: row.name,
-            price: row.price ?? 0,
-            isActive: row.is_active ?? true,
-            sortOrder: row.sort_order ?? 0,
+            price: this.getPriceFromRow(row),
+            isActive: !(row.is_hidden ?? false),
+            sortOrder: 0,
             createdAt: row.created_at ?? '',
         }));
     }
-    async getProduct(accessToken, productId) {
-        const sb = this.supabase.userClient(accessToken);
+    async searchProducts(accessToken, branchId, searchDto, isAdmin) {
+        this.logger.log(`Searching products for branch: ${branchId} with filters: ${JSON.stringify(searchDto)}`);
+        const sb = this.getClient(accessToken, isAdmin);
+        const query = query_builder_util_1.QueryBuilder.buildProductSearchQuery(sb, branchId, searchDto);
+        const { data, error, count } = await query;
+        if (error) {
+            this.logger.error(`Failed to search products: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to search products', 'PRODUCT_SEARCH_FAILED', 500, { branchId, searchDto, error: error.message });
+        }
+        const items = (data ?? []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            price: this.getPriceFromRow(row),
+            isActive: !(row.is_hidden ?? false),
+            sortOrder: 0,
+            createdAt: row.created_at ?? '',
+        }));
+        const page = searchDto.page || 1;
+        const limit = searchDto.limit || 20;
+        const totalPages = count ? Math.ceil(count / limit) : 0;
+        return {
+            data: items,
+            pagination: {
+                page,
+                limit,
+                total: count || 0,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1,
+            },
+        };
+    }
+    async getCategories(accessToken, branchId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const { data, error } = await sb
+            .from('product_categories')
+            .select('*')
+            .eq('branch_id', branchId)
+            .order('sort_order', { ascending: true })
+            .order('created_at', { ascending: true });
+        if (error) {
+            throw new Error(`[products.getCategories] ${error.message}`);
+        }
+        return (data ?? []).map((row) => ({
+            id: row.id,
+            branchId: row.branch_id,
+            name: row.name,
+            sortOrder: row.sort_order ?? 0,
+            isActive: row.is_active ?? true,
+            createdAt: row.created_at ?? '',
+        }));
+    }
+    async getProduct(accessToken, productId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const selectDetail = '*';
         const { data, error } = await sb
             .from('products')
-            .select(`
-        id, branch_id, name, description, price, is_active, sort_order, created_at, updated_at,
-        product_options (
-          id, name, price_delta, is_active, sort_order
-        )
-      `)
+            .select(selectDetail)
             .eq('id', productId)
             .single();
         if (error) {
-            throw new common_1.NotFoundException(`[products.getProduct] ${error.message}`);
+            this.logger.error(`Failed to fetch product: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to fetch product', 'PRODUCT_FETCH_FAILED', 500, { productId, error: error.message });
         }
         if (!data) {
-            throw new common_1.NotFoundException('상품을 찾을 수 없습니다.');
+            this.logger.warn(`Product not found: ${productId}`);
+            throw new product_exception_1.ProductNotFoundException(productId);
         }
-        const options = (data.product_options ?? []).map((opt) => ({
-            id: opt.id,
-            name: opt.name,
-            priceDelta: opt.price_delta ?? 0,
-            isActive: opt.is_active ?? true,
-            sortOrder: opt.sort_order ?? 0,
-        }));
+        const options = this.emptyOptions();
         return {
             id: data.id,
             branchId: data.branch_id,
             name: data.name,
+            categoryId: data.category_id ?? null,
             description: data.description ?? null,
-            price: data.price ?? 0,
-            isActive: data.is_active ?? true,
-            sortOrder: data.sort_order ?? 0,
+            price: this.getPriceFromRow(data),
+            imageUrl: data.image_url ?? null,
+            isActive: !(data.is_hidden ?? false),
+            sortOrder: 0,
             createdAt: data.created_at ?? '',
             updatedAt: data.updated_at ?? '',
             options,
         };
     }
-    async createProduct(accessToken, dto) {
-        const sb = this.supabase.userClient(accessToken);
-        const { data: productData, error: productError } = await sb
-            .from('products')
-            .insert({
+    async createProduct(accessToken, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const insertPayload = {
             branch_id: dto.branchId,
             name: dto.name,
+            category_id: dto.categoryId,
             description: dto.description ?? null,
-            price: dto.price,
-            is_active: dto.isActive ?? true,
-            sort_order: dto.sortOrder ?? 0,
-        })
+            base_price: dto.price,
+            image_url: dto.imageUrl ?? null,
+            is_hidden: !(dto.isActive ?? true),
+            is_sold_out: false,
+        };
+        const { data: productData, error: productError } = await sb
+            .from('products')
+            .insert(insertPayload)
             .select('id')
             .single();
         if (productError) {
-            throw new Error(`[products.createProduct] ${productError.message}`);
+            this.logger.error(`Failed to create product: ${productError.message}`, productError);
+            throw new business_exception_1.BusinessException('Failed to create product', 'PRODUCT_CREATE_FAILED', 500, { error: productError.message });
         }
         const productId = productData.id;
+        this.logger.log(`Product created successfully: ${productId}`);
         if (dto.options && dto.options.length > 0) {
-            const optionsToInsert = dto.options.map((opt) => ({
-                product_id: productId,
-                name: opt.name,
-                price_delta: opt.priceDelta ?? 0,
-                is_active: opt.isActive ?? true,
-                sort_order: opt.sortOrder ?? 0,
-            }));
-            const { error: optError } = await sb
-                .from('product_options')
-                .insert(optionsToInsert);
-            if (optError) {
-                console.error('[products.createProduct] options insert error:', optError);
-            }
+            this.logger.warn('[products.createProduct] product_options table not available; options ignored');
         }
-        return this.getProduct(accessToken, productId);
+        return this.getProduct(accessToken, productId, isAdmin);
     }
-    async updateProduct(accessToken, productId, dto) {
-        const sb = this.supabase.userClient(accessToken);
-        const updateData = {};
+    async updateProduct(accessToken, productId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const baseUpdate = {};
         if (dto.name !== undefined)
-            updateData.name = dto.name;
+            baseUpdate.name = dto.name;
         if (dto.description !== undefined)
-            updateData.description = dto.description;
-        if (dto.price !== undefined)
-            updateData.price = dto.price;
+            baseUpdate.description = dto.description;
         if (dto.isActive !== undefined)
-            updateData.is_active = dto.isActive;
-        if (dto.sortOrder !== undefined)
-            updateData.sort_order = dto.sortOrder;
-        if (Object.keys(updateData).length === 0) {
-            return this.getProduct(accessToken, productId);
+            baseUpdate.is_hidden = !dto.isActive;
+        if (dto.price !== undefined)
+            baseUpdate.base_price = dto.price;
+        if (dto.categoryId !== undefined)
+            baseUpdate.category_id = dto.categoryId;
+        if (dto.imageUrl !== undefined)
+            baseUpdate.image_url = dto.imageUrl;
+        if (Object.keys(baseUpdate).length === 0) {
+            return this.getProduct(accessToken, productId, isAdmin);
         }
         const { data, error } = await sb
             .from('products')
-            .update(updateData)
+            .update(baseUpdate)
             .eq('id', productId)
             .select('id')
             .maybeSingle();
         if (error) {
-            throw new Error(`[products.updateProduct] ${error.message}`);
+            this.logger.error(`Failed to update product: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to update product', 'PRODUCT_UPDATE_FAILED', 500, { productId, error: error.message });
         }
         if (!data) {
-            throw new common_1.NotFoundException('상품을 찾을 수 없거나 권한이 없습니다.');
+            this.logger.warn(`Product not found for update: ${productId}`);
+            throw new product_exception_1.ProductNotFoundException(productId);
         }
-        return this.getProduct(accessToken, productId);
+        this.logger.log(`Product updated successfully: ${productId}`);
+        return this.getProduct(accessToken, productId, isAdmin);
     }
-    async deleteProduct(accessToken, productId) {
-        const sb = this.supabase.userClient(accessToken);
-        const { error } = await sb
-            .from('products')
-            .delete()
-            .eq('id', productId);
+    async deleteProduct(accessToken, productId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
+        const { error } = await sb.from('products').delete().eq('id', productId);
         if (error) {
-            throw new Error(`[products.deleteProduct] ${error.message}`);
+            this.logger.error(`Failed to delete product: ${error.message}`, error);
+            throw new business_exception_1.BusinessException('Failed to delete product', 'PRODUCT_DELETE_FAILED', 500, { productId, error: error.message });
         }
+        this.logger.log(`Product deleted successfully: ${productId}`);
         return { deleted: true };
     }
 };
 exports.ProductsService = ProductsService;
-exports.ProductsService = ProductsService = __decorate([
+exports.ProductsService = ProductsService = ProductsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [supabase_service_1.SupabaseService])
 ], ProductsService);

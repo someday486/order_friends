@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useSearchParams } from "next/navigation";
+
+// Types
 
 type OrderStatus =
   | "CREATED"
@@ -14,12 +17,12 @@ type OrderStatus =
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
-// ✅ CREATED를 시작 상태로 포함
+// CREATED를 시작 상태로 포함
 const FLOW: OrderStatus[] = ["CREATED", "PAID", "PREPARING", "SHIPPED", "DONE"];
 
 export const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "신규",
-  NEW: "신규",
+  CREATED: "접수",
+  NEW: "접수",
   PAID: "결제완료",
   PREPARING: "준비중",
   SHIPPED: "배송중",
@@ -42,20 +45,25 @@ async function getAccessToken() {
   return token;
 }
 
-export default function StatusActions({
+function StatusActionsContent({
   orderId,
   initialStatus,
   onStatusChange,
+  branchId,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
   onStatusChange: (status: OrderStatus) => void;
+  branchId?: string | null;
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const searchParams = useSearchParams();
 
-  // ✅ 부모에서 내려오는 initialStatus가 바뀌면 내부 상태도 동기화
+  const resolvedBranchId = branchId ?? searchParams?.get("branchId") ?? "";
+
+  // 부모에서 내려오는 initialStatus가 바뀌면 상태 업데이트
   useEffect(() => {
     setStatus(initialStatus);
   }, [initialStatus]);
@@ -70,8 +78,9 @@ export default function StatusActions({
 
     try {
       const token = await getAccessToken();
+      const query = resolvedBranchId ? `?branchId=${encodeURIComponent(resolvedBranchId)}` : "";
 
-      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status`, {
+      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status${query}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -97,41 +106,49 @@ export default function StatusActions({
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <button style={btnGhost} disabled={loading}>
+    <div className="flex gap-2 items-center">
+      <button
+        className="h-9 px-3 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer hover:bg-bg-tertiary transition-colors"
+        disabled={loading}
+      >
         취소
       </button>
 
-      <button style={btnPrimary} onClick={onAdvance} disabled={!next || loading}>
+      <button
+        className="btn-primary h-9 px-3"
+        onClick={onAdvance}
+        disabled={!next || loading}
+      >
         {loading ? "변경 중..." : next ? `${statusLabel[next]}로 변경` : "상태 변경 완료"}
       </button>
 
-      <div style={{ color: "#aaa", fontSize: 12 }}>
-        현재: <b style={{ color: "white" }}>{statusLabel[status]}</b>
-        {err ? <span style={{ marginLeft: 8, color: "#ff8a8a" }}>({err})</span> : null}
+      <div className="text-text-secondary text-xs">
+        현재: <b className="text-foreground">{statusLabel[status]}</b>
+        {err ? <span className="ml-2 text-danger-500">({err})</span> : null}
       </div>
     </div>
   );
 }
 
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+export default function StatusActions({
+  orderId,
+  initialStatus,
+  onStatusChange,
+  branchId,
+}: {
+  orderId: string;
+  initialStatus: OrderStatus;
+  onStatusChange: (status: OrderStatus) => void;
+  branchId?: string | null;
+}) {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <StatusActionsContent
+        orderId={orderId}
+        initialStatus={initialStatus}
+        onStatusChange={onStatusChange}
+        branchId={branchId}
+      />
+    </Suspense>
+  );
+}

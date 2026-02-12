@@ -3,11 +3,12 @@ import { BrandListItemResponse, BrandDetailResponse, CreateBrandRequest, UpdateB
 export declare class BrandsService {
     private readonly supabase;
     constructor(supabase: SupabaseService);
-    getMyBrands(accessToken: string): Promise<BrandListItemResponse[]>;
-    getBrand(accessToken: string, brandId: string): Promise<BrandDetailResponse>;
-    createBrand(accessToken: string, dto: CreateBrandRequest): Promise<BrandDetailResponse>;
-    updateBrand(accessToken: string, brandId: string, dto: UpdateBrandRequest): Promise<BrandDetailResponse>;
-    deleteBrand(accessToken: string, brandId: string): Promise<{
+    private getClient;
+    getMyBrands(accessToken: string, isAdmin?: boolean): Promise<BrandListItemResponse[]>;
+    getBrand(accessToken: string, brandId: string, isAdmin?: boolean): Promise<BrandDetailResponse>;
+    createBrand(accessToken: string, dto: CreateBrandRequest, _isAdmin?: boolean): Promise<BrandDetailResponse>;
+    updateBrand(accessToken: string, brandId: string, dto: UpdateBrandRequest, isAdmin?: boolean): Promise<BrandDetailResponse>;
+    deleteBrand(accessToken: string, brandId: string, isAdmin?: boolean): Promise<{
         deleted: boolean;
     }>;
 }

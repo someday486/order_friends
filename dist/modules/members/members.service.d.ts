@@ -3,17 +3,18 @@ import { BrandMemberResponse, BranchMemberResponse, BrandRole, InviteBrandMember
 export declare class MembersService {
     private readonly supabase;
     constructor(supabase: SupabaseService);
-    getBrandMembers(accessToken: string, brandId: string): Promise<BrandMemberResponse[]>;
-    inviteBrandMember(accessToken: string, dto: InviteBrandMemberRequest): Promise<BrandMemberResponse>;
-    addBrandMember(accessToken: string, brandId: string, userId: string, role?: BrandRole): Promise<BrandMemberResponse>;
-    updateBrandMember(accessToken: string, brandId: string, userId: string, dto: UpdateBrandMemberRequest): Promise<BrandMemberResponse>;
-    removeBrandMember(accessToken: string, brandId: string, userId: string): Promise<{
+    private getClient;
+    getBrandMembers(accessToken: string, brandId: string, isAdmin?: boolean): Promise<BrandMemberResponse[]>;
+    inviteBrandMember(accessToken: string, dto: InviteBrandMemberRequest, _isAdmin?: boolean): Promise<BrandMemberResponse>;
+    addBrandMember(accessToken: string, brandId: string, userId: string, role?: BrandRole, isAdmin?: boolean): Promise<BrandMemberResponse>;
+    updateBrandMember(accessToken: string, brandId: string, userId: string, dto: UpdateBrandMemberRequest, isAdmin?: boolean): Promise<BrandMemberResponse>;
+    removeBrandMember(accessToken: string, brandId: string, userId: string, isAdmin?: boolean): Promise<{
         deleted: boolean;
     }>;
-    getBranchMembers(accessToken: string, branchId: string): Promise<BranchMemberResponse[]>;
-    addBranchMember(accessToken: string, dto: AddBranchMemberRequest): Promise<BranchMemberResponse>;
-    updateBranchMember(accessToken: string, branchId: string, userId: string, dto: UpdateBranchMemberRequest): Promise<BranchMemberResponse>;
-    removeBranchMember(accessToken: string, branchId: string, userId: string): Promise<{
+    getBranchMembers(accessToken: string, branchId: string, isAdmin?: boolean): Promise<BranchMemberResponse[]>;
+    addBranchMember(accessToken: string, dto: AddBranchMemberRequest, isAdmin?: boolean): Promise<BranchMemberResponse>;
+    updateBranchMember(accessToken: string, branchId: string, userId: string, dto: UpdateBranchMemberRequest, isAdmin?: boolean): Promise<BranchMemberResponse>;
+    removeBranchMember(accessToken: string, branchId: string, userId: string, isAdmin?: boolean): Promise<{
         deleted: boolean;
     }>;
 }

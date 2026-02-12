@@ -4,10 +4,10 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export default function AppPage() {
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Protected App Area</h1>
+    <div className="p-6">
+      <h1 className="text-foreground">Protected App Area</h1>
 
-      <div style={{ marginTop: 16 }}>
+      <div className="mt-4">
         <LogoutButton />
       </div>
     </div>

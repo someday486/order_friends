@@ -1,11 +1,11 @@
-"use client";
+﻿'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   getSelectedBrandId,
   setSelectedBrandId,
   clearSelectedBrandId,
-} from "@/lib/brandSelection";
+} from '@/lib/brandSelection';
 
 export function useSelectedBrand() {
   const [brandId, setBrandIdState] = useState<string | null>(null);
@@ -15,12 +15,12 @@ export function useSelectedBrand() {
     setBrandIdState(getSelectedBrandId());
     setReady(true);
 
-    // 다른 탭/창에서 바뀐 경우 동기화
+    // 다른 탭에서 변경 시 동기화
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "of:selectedBrandId") setBrandIdState(e.newValue);
+      if (e.key === 'of:selectedBrandId') setBrandIdState(e.newValue);
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   return {

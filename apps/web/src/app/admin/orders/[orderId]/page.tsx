@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api-client";
+import { useSelectedBranch } from "@/hooks/useSelectedBranch";
+import BranchSelector from "@/components/admin/BranchSelector";
 
 // ============================================================
 // Types
@@ -52,18 +54,16 @@ type OrderDetail = {
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
 const STATUS_FLOW: OrderStatus[] = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
 
 const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "신규",
-  CONFIRMED: "확인됨",
+  CREATED: "접수",
+  CONFIRMED: "확인",
   PREPARING: "준비중",
   READY: "준비완료",
   COMPLETED: "완료",
-  CANCELLED: "취소됨",
-  REFUNDED: "환불됨",
+  CANCELLED: "취소",
+  REFUNDED: "환불",
 };
 
 const paymentMethodLabel: Record<string, string> = {
@@ -98,38 +98,26 @@ function nextStatus(current: OrderStatus): OrderStatus | null {
   return STATUS_FLOW[idx + 1] ?? null;
 }
 
-async function getAccessToken() {
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-
-  const token = data.session?.access_token;
-  if (!token) throw new Error("No access_token (로그인 필요)");
-  return token;
-}
-
-async function readErrorText(res: Response) {
-  // JSON으로 떨어질 수도, 텍스트로 떨어질 수도 있어서 둘 다 처리
-  const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const j = await res.json().catch(() => null);
-    return j ? JSON.stringify(j) : "";
-  }
-  return await res.text().catch(() => "");
-}
-
 // ============================================================
 // Component
 // ============================================================
 
-export default function OrderDetailPage() {
+function OrderDetailPageContent() {
   const params = useParams<{ orderId: string }>();
+  const searchParams = useSearchParams();
   const orderId = params?.orderId;
+
+  const initialBranchId = useMemo(() => searchParams?.get("branchId") ?? "", [searchParams]);
+  const { branchId, selectBranch } = useSelectedBranch();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialBranchId) selectBranch(initialBranchId);
+  }, [initialBranchId, selectBranch]);
 
   const isCancellable = useMemo(() => {
     if (!order) return false;
@@ -139,26 +127,14 @@ export default function OrderDetailPage() {
   // 주문 상세 조회
   useEffect(() => {
     if (!orderId) return;
+    if (!branchId) return;
 
     const fetchOrder = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const token = await getAccessToken();
-
-        const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          const text = await readErrorText(res);
-          throw new Error(`주문 조회 실패: ${res.status} ${text}`);
-        }
-
-        const data = (await res.json()) as OrderDetail;
+        const data = await apiClient.get<OrderDetail>(`/admin/orders/${encodeURIComponent(orderId)}?branchId=${encodeURIComponent(branchId)}`);
         setOrder(data);
       } catch (e: unknown) {
         const err = e as Error;
@@ -169,33 +145,18 @@ export default function OrderDetailPage() {
     };
 
     fetchOrder();
-  }, [orderId]);
+  }, [orderId, branchId]);
 
   // 상태 변경
   const handleStatusChange = async (newStatus: OrderStatus) => {
     if (!order) return;
+    if (!branchId) return;
 
     try {
       setStatusLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-
-      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(order.id)}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (!res.ok) {
-        const text = await readErrorText(res);
-        throw new Error(`상태 변경 실패: ${res.status} ${text}`);
-      }
-
-      const data = (await res.json()) as { id: string; status: OrderStatus };
+      const data = await apiClient.patch<{ id: string; status: OrderStatus }>(`/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(branchId)}`, { status: newStatus });
       setOrder((prev) => (prev ? { ...prev, status: data.status } : null));
     } catch (e: unknown) {
       const err = e as Error;
@@ -208,7 +169,7 @@ export default function OrderDetailPage() {
   // 취소 처리
   const handleCancel = async () => {
     if (!order) return;
-    if (!confirm("정말 이 주문을 취소하시겠습니까?")) return;
+    if (!confirm("정말 주문을 취소하시겠습니까?")) return;
     await handleStatusChange("CANCELLED");
   };
 
@@ -216,32 +177,46 @@ export default function OrderDetailPage() {
   // Render
   // ============================================================
 
+  if (!branchId) {
+    return (
+      <div>
+        <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
+          ← 주문 목록
+        </Link>
+        <div className="mt-3">
+          <BranchSelector />
+        </div>
+        <p className="text-text-secondary mt-3">가게를 선택해주세요.</p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        <p style={{ color: "#aaa" }}>불러오는 중...</p>
+      <div>
+        <p className="text-text-secondary">불러오는 중...</p>
       </div>
     );
   }
 
   if (error && !order) {
     return (
-      <div style={{ padding: 24 }}>
-        <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+      <div>
+        <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <p style={{ color: "#ff8a8a", marginTop: 16 }}>{error}</p>
+        <p className="text-danger-500 mt-4">{error}</p>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div style={{ padding: 24 }}>
-        <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+      <div>
+        <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
           ← 주문 목록
         </Link>
-        <p style={{ color: "#aaa", marginTop: 16 }}>주문을 찾을 수 없습니다.</p>
+        <p className="text-text-secondary mt-4">주문을 찾을 수 없습니다.</p>
       </div>
     );
   }
@@ -251,94 +226,82 @@ export default function OrderDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <Link href="/admin/orders" style={{ color: "white", textDecoration: "none" }}>
+          <Link href="/admin/orders" className="text-foreground no-underline hover:text-primary-500 transition-colors">
             ← 주문 목록
           </Link>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>주문 상세</h1>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: 26,
-                padding: "0 10px",
-                borderRadius: 999,
-                border: "1px solid #333",
-                background: "#121212",
-                color: "#fff",
-                fontSize: 12,
-              }}
-            >
+          <div className="flex items-center gap-2.5 mt-2.5">
+            <h1 className="m-0 text-[22px] font-extrabold text-foreground">주문 상세</h1>
+            <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border border-border bg-bg-tertiary text-foreground text-xs">
               {statusLabel[order.status]}
             </span>
           </div>
 
-          <div style={{ marginTop: 6, color: "#aaa", fontSize: 13 }}>
+          <div className="mt-1.5 text-text-secondary text-[13px]">
             주문번호{" "}
-            <span style={{ fontFamily: "monospace", color: "#fff" }}>{order.orderNo ?? order.id}</span>{" "}
+            <span className="font-mono text-foreground">{order.orderNo ?? order.id}</span>{" "}
             · {formatDateTime(order.orderedAt)}
           </div>
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="flex gap-2 items-center">
           {isCancellable && (
-            <button style={btnGhost} onClick={handleCancel} disabled={statusLoading}>
+            <button
+              className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer hover:bg-bg-tertiary transition-colors"
+              onClick={handleCancel}
+              disabled={statusLoading}
+            >
               취소
             </button>
           )}
 
           {next && (
-            <button style={btnPrimary} onClick={() => handleStatusChange(next)} disabled={statusLoading}>
+            <button
+              className="btn-primary h-9 px-4"
+              onClick={() => handleStatusChange(next)}
+              disabled={statusLoading}
+            >
               {statusLoading ? "변경 중..." : `${statusLabel[next]}로 변경`}
             </button>
           )}
 
-          {error && <span style={{ color: "#ff8a8a", fontSize: 12 }}>{error}</span>}
+          {error && <span className="text-danger-500 text-xs">{error}</span>}
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>
-        {/* 왼쪽: 상품/요약 */}
-        <section style={card}>
-          <div style={cardTitle}>주문 상품</div>
+      <div className="mt-[18px] grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-3.5">
+        {/* Left: Items */}
+        <section className="card p-3.5">
+          <div className="font-extrabold text-sm text-foreground">주문 상품</div>
 
-          <div style={{ marginTop: 10, border: "1px solid #222", borderRadius: 12, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#0f0f0f" }}>
+          <div className="mt-2.5 border border-border rounded-xl overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="bg-bg-tertiary">
                 <tr>
-                  <th style={th}>상품</th>
-                  <th style={th}>옵션</th>
-                  <th style={{ ...th, textAlign: "right" }}>수량</th>
-                  <th style={{ ...th, textAlign: "right" }}>단가</th>
-                  <th style={{ ...th, textAlign: "right" }}>합계</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">상품</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">옵션</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">수량</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">단가</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">합계</th>
                 </tr>
               </thead>
               <tbody>
                 {order.items.map((it) => (
-                  <tr key={it.id} style={{ borderTop: "1px solid #222" }}>
-                    <td style={td}>{it.name}</td>
-                    <td style={{ ...td, color: "#aaa" }}>{it.option ?? "-"}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{it.qty}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{formatWon(it.unitPrice)}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{formatWon(it.unitPrice * it.qty)}</td>
+                  <tr key={it.id} className="border-t border-border">
+                    <td className="py-2.5 px-3 text-[13px] text-foreground">{it.name}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">{it.option ?? "-"}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{it.qty}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(it.unitPrice)}</td>
+                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">{formatWon(it.unitPrice * it.qty)}</td>
                   </tr>
                 ))}
                 {order.items.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ ...td, textAlign: "center", color: "#666" }}>
+                    <td colSpan={5} className="py-2.5 px-3 text-[13px] text-center text-text-tertiary">
                       상품 없음
                     </td>
                   </tr>
@@ -347,75 +310,67 @@ export default function OrderDetailPage() {
             </table>
           </div>
 
-          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={miniCard}>
-              <div style={miniLabel}>상품 소계</div>
-              <div style={miniValue}>{formatWon(order.payment.subtotal)}</div>
+          <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+            <div className="border border-border rounded-xl p-3 bg-bg-secondary">
+              <div className="text-text-secondary text-xs">상품 합계</div>
+              <div className="mt-1.5 font-extrabold text-foreground">{formatWon(order.payment.subtotal)}</div>
             </div>
-            <div style={miniCard}>
-              <div style={miniLabel}>총 결제금액</div>
-              <div style={miniValue}>{formatWon(order.payment.total)}</div>
+            <div className="border border-border rounded-xl p-3 bg-bg-secondary">
+              <div className="text-text-secondary text-xs">총 결제금액</div>
+              <div className="mt-1.5 font-extrabold text-foreground">{formatWon(order.payment.total)}</div>
             </div>
           </div>
         </section>
 
-        {/* 오른쪽: 고객/결제 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <section style={card}>
-            <div style={cardTitle}>고객 정보</div>
+        {/* Right: Customer & Payment */}
+        <div className="flex flex-col gap-3.5">
+          <section className="card p-3.5">
+            <div className="font-extrabold text-sm text-foreground">고객 정보</div>
 
-            <div style={kv}>
-              <div style={k}>이름</div>
-              <div style={v}>{order.customer.name || "-"}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">이름</div>
+              <div className="text-foreground text-[13px]">{order.customer.name || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>연락처</div>
-              <div style={v}>{order.customer.phone || "-"}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">연락처</div>
+              <div className="text-foreground text-[13px]">{order.customer.phone || "-"}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>주소</div>
-              <div style={v}>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">주소</div>
+              <div className="text-foreground text-[13px]">
                 {order.customer.address1 || "-"}
                 {order.customer.address2 ? `, ${order.customer.address2}` : ""}
               </div>
             </div>
-            <div style={kv}>
-              <div style={k}>메모</div>
-              <div style={v}>{order.customer.memo ?? "-"}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">메모</div>
+              <div className="text-foreground text-[13px]">{order.customer.memo ?? "-"}</div>
             </div>
           </section>
 
-          <section style={card}>
-            <div style={cardTitle}>결제 정보</div>
+          <section className="card p-3.5">
+            <div className="font-extrabold text-sm text-foreground">결제 정보</div>
 
-            <div style={kv}>
-              <div style={k}>결제수단</div>
-              <div style={v}>{paymentMethodLabel[order.payment.method] ?? order.payment.method}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">결제수단</div>
+              <div className="text-foreground text-[13px]">{paymentMethodLabel[order.payment.method] ?? order.payment.method}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>상품금액</div>
-              <div style={v}>{formatWon(order.payment.subtotal)}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">상품금액</div>
+              <div className="text-foreground text-[13px]">{formatWon(order.payment.subtotal)}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>배송비</div>
-              <div style={v}>{formatWon(order.payment.shippingFee)}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">배송비</div>
+              <div className="text-foreground text-[13px]">{formatWon(order.payment.shippingFee)}</div>
             </div>
-            <div style={kv}>
-              <div style={k}>할인</div>
-              <div style={v}>{formatWon(order.payment.discount)}</div>
+            <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+              <div className="text-text-secondary text-[13px]">할인</div>
+              <div className="text-foreground text-[13px]">{formatWon(order.payment.discount)}</div>
             </div>
 
-            <div
-              style={{
-                borderTop: "1px solid #222",
-                marginTop: 10,
-                paddingTop: 10,
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={{ color: "#aaa" }}>총 결제금액</div>
-              <div style={{ fontWeight: 800 }}>{formatWon(order.payment.total)}</div>
+            <div className="border-t border-border mt-2.5 pt-2.5 flex justify-between">
+              <div className="text-text-secondary">총 결제금액</div>
+              <div className="font-extrabold text-foreground">{formatWon(order.payment.total)}</div>
             </div>
           </section>
         </div>
@@ -424,74 +379,10 @@ export default function OrderDetailPage() {
   );
 }
 
-// ============================================================
-// Styles
-// ============================================================
-
-const card: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 14,
-  padding: 14,
-  background: "#0b0b0b",
-};
-
-const cardTitle: React.CSSProperties = {
-  fontWeight: 800,
-  fontSize: 14,
-};
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 12px",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#aaa",
-};
-
-const td: React.CSSProperties = {
-  padding: "10px 12px",
-  fontSize: 13,
-  color: "white",
-};
-
-const kv: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "90px 1fr",
-  gap: 10,
-  padding: "8px 0",
-};
-
-const k: React.CSSProperties = { color: "#aaa", fontSize: 13 };
-const v: React.CSSProperties = { color: "white", fontSize: 13 };
-
-const miniCard: React.CSSProperties = {
-  border: "1px solid #222",
-  borderRadius: 12,
-  padding: 12,
-  background: "#090909",
-};
-
-const miniLabel: React.CSSProperties = { color: "#aaa", fontSize: 12 };
-const miniValue: React.CSSProperties = { marginTop: 6, fontWeight: 800 };
-
-const btnPrimary: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "white",
-  color: "#000",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const btnGhost: React.CSSProperties = {
-  height: 36,
-  padding: "0 16px",
-  borderRadius: 10,
-  border: "1px solid #333",
-  background: "transparent",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+export default function OrderDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">로딩 중...</div>}>
+      <OrderDetailPageContent />
+    </Suspense>
+  );
+}

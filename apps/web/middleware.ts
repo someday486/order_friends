@@ -1,12 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
-const PROTECTED_PREFIXES = ["/app"];
-const AUTH_PAGES = new Set(["/login"]);
+const PROTECTED_PREFIXES = ['/app', '/admin', '/customer'];
+const AUTH_PAGES = new Set(['/login']);
 
 function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
+    (p) => pathname === p || pathname.startsWith(p + '/'),
   );
 }
 
@@ -42,8 +42,8 @@ export async function middleware(request: NextRequest) {
   // 1) /app 접근: 비로그인 -> /login?next=/app
   if (isProtectedPath(pathname) && !isAuthed) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    url.pathname = '/login';
+    url.searchParams.set('next', pathname);
 
     // ✅ redirect 응답을 만들되, response의 쿠키 헤더를 그대로 복사
     const redirect = NextResponse.redirect(url);
@@ -53,10 +53,10 @@ export async function middleware(request: NextRequest) {
     return redirect;
   }
 
-  // 2) /login 접근: 로그인 -> /app
+  // 2) /login 접근: 로그인 -> / (역할 기반 라우팅)
   if (AUTH_PAGES.has(pathname) && isAuthed) {
     const url = request.nextUrl.clone();
-    url.pathname = "/app";
+    url.pathname = '/';
 
     const redirect = NextResponse.redirect(url);
     response.cookies.getAll().forEach((c) => {
@@ -69,5 +69,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

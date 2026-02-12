@@ -9,13 +9,15 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreatePublicOrderRequest = exports.PaymentMethod = exports.OrderItemDto = exports.OrderItemOptionDto = exports.PublicOrderResponse = exports.PublicProductResponse = exports.PublicProductOptionResponse = exports.PublicBranchResponse = void 0;
+exports.CreatePublicOrderRequest = exports.PaymentMethod = exports.OrderItemDto = exports.OrderItemOptionDto = exports.PublicOrderResponse = exports.PublicCategoryResponse = exports.PublicProductResponse = exports.PublicProductOptionResponse = exports.PublicBranchResponse = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 class PublicBranchResponse {
     id;
     name;
     brandName;
+    logoUrl;
+    coverImageUrl;
 }
 exports.PublicBranchResponse = PublicBranchResponse;
 class PublicProductOptionResponse {
@@ -29,9 +31,19 @@ class PublicProductResponse {
     name;
     description;
     price;
+    imageUrl;
+    categoryId;
+    categoryName;
+    sortOrder;
     options;
 }
 exports.PublicProductResponse = PublicProductResponse;
+class PublicCategoryResponse {
+    id;
+    name;
+    sortOrder;
+}
+exports.PublicCategoryResponse = PublicCategoryResponse;
 class PublicOrderResponse {
     id;
     orderNo;
@@ -79,6 +91,7 @@ var PaymentMethod;
 })(PaymentMethod || (exports.PaymentMethod = PaymentMethod = {}));
 class CreatePublicOrderRequest {
     branchId;
+    idempotencyKey;
     customerName;
     customerPhone;
     customerAddress1;
@@ -92,6 +105,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreatePublicOrderRequest.prototype, "branchId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreatePublicOrderRequest.prototype, "idempotencyKey", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)

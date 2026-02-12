@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -8,14 +8,17 @@ import {
   Query,
   Body,
   UseGuards,
-  Headers,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { AdminGuard } from '../../common/guards/admin.guard';
 import { BranchesService } from './branches.service';
 import { CreateBranchRequest, UpdateBranchRequest } from './dto/branch.request';
+import type { AuthRequest } from '../../common/types/auth-request';
 
 @Controller('admin/branches')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, AdminGuard)
 export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
@@ -25,11 +28,15 @@ export class BranchesController {
    */
   @Get()
   async getBranches(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Query('brandId') brandId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.branchesService.getBranches(token, brandId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.branchesService.getBranches(
+      req.accessToken,
+      brandId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -38,11 +45,15 @@ export class BranchesController {
    */
   @Get(':branchId')
   async getBranch(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('branchId') branchId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.branchesService.getBranch(token, branchId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.branchesService.getBranch(
+      req.accessToken,
+      branchId,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -51,11 +62,25 @@ export class BranchesController {
    */
   @Post()
   async createBranch(
-    @Headers('authorization') authHeader: string,
     @Body() dto: CreateBranchRequest,
+    @Req() req: AuthRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.branchesService.createBranch(token, dto);
+    const brandId =
+      dto.brandId ?? req.brandId ?? (req.query?.brandId as string | undefined);
+
+    if (!brandId) {
+      throw new BadRequestException('brandId is required');
+    }
+    if (!dto?.name || !dto?.slug) {
+      throw new BadRequestException('name and slug are required');
+    }
+
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.branchesService.createBranch(
+      req.accessToken,
+      { ...dto, brandId },
+      req.isAdmin,
+    );
   }
 
   /**
@@ -64,12 +89,17 @@ export class BranchesController {
    */
   @Patch(':branchId')
   async updateBranch(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('branchId') branchId: string,
     @Body() dto: UpdateBranchRequest,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.branchesService.updateBranch(token, branchId, dto);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.branchesService.updateBranch(
+      req.accessToken,
+      branchId,
+      dto,
+      req.isAdmin,
+    );
   }
 
   /**
@@ -78,10 +108,14 @@ export class BranchesController {
    */
   @Delete(':branchId')
   async deleteBranch(
-    @Headers('authorization') authHeader: string,
+    @Req() req: AuthRequest,
     @Param('branchId') branchId: string,
   ) {
-    const token = authHeader?.replace('Bearer ', '');
-    return this.branchesService.deleteBranch(token, branchId);
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.branchesService.deleteBranch(
+      req.accessToken,
+      branchId,
+      req.isAdmin,
+    );
   }
 }

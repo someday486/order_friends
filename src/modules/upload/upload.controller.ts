@@ -1,0 +1,184 @@
+import {
+  Controller,
+  Post,
+  Delete,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  UploadedFiles,
+  Body,
+  BadRequestException,
+} from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+  ApiResponse,
+} from '@nestjs/swagger';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { UploadService } from './upload.service';
+import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
+
+@ApiTags('upload')
+@ApiBearerAuth()
+@Controller('upload')
+@UseGuards(AuthGuard)
+export class UploadController {
+  constructor(private readonly uploadService: UploadService) {}
+
+  @Post('image')
+  @UserRateLimit({ points: 20, duration: 60 }) // 20 uploads per minute
+  @ApiOperation({
+    summary: '이미지 업로드',
+    description: '단일 이미지를 업로드합니다.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        folder: {
+          type: 'string',
+          description: '저장할 폴더 (선택사항)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: '이미지 업로드 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        path: { type: 'string' },
+        bucket: { type: 'string' },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    return this.uploadService.uploadImage(file, folder || 'general');
+  }
+
+  @Post('images')
+  @UserRateLimit({ points: 10, duration: 60 }) // 10 batch uploads per minute
+  @ApiOperation({
+    summary: '다중 이미지 업로드',
+    description: '여러 이미지를 한번에 업로드합니다.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+        folder: {
+          type: 'string',
+          description: '저장할 폴더 (선택사항)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: '이미지 업로드 성공',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string' },
+          path: { type: 'string' },
+          bucket: { type: 'string' },
+        },
+      },
+    },
+  })
+  @UseInterceptors(FilesInterceptor('files', 10))
+  async uploadMultipleImages(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('folder') folder?: string,
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
+    }
+
+    return this.uploadService.uploadMultipleImages(files, folder || 'general');
+  }
+
+  @Delete('image')
+  @UserRateLimit({ points: 30, duration: 60 }) // 30 deletes per minute
+  @ApiOperation({
+    summary: '이미지 삭제',
+    description: '업로드된 이미지를 삭제합니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '삭제할 이미지 경로',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: '이미지 삭제 성공' })
+  async deleteImage(@Body('path') path: string) {
+    if (!path) {
+      throw new BadRequestException('Image path is required');
+    }
+
+    await this.uploadService.deleteImage(path);
+    return { message: 'Image deleted successfully' };
+  }
+
+  @Delete('images')
+  @UserRateLimit({ points: 10, duration: 60 }) // 10 batch deletes per minute
+  @ApiOperation({
+    summary: '다중 이미지 삭제',
+    description: '여러 이미지를 한번에 삭제합니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '삭제할 이미지 경로 배열',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: '이미지 삭제 성공' })
+  async deleteMultipleImages(@Body('paths') paths: string[]) {
+    if (!paths || paths.length === 0) {
+      throw new BadRequestException('Image paths are required');
+    }
+
+    await this.uploadService.deleteMultipleImages(paths);
+    return { message: `${paths.length} images deleted successfully` };
+  }
+}

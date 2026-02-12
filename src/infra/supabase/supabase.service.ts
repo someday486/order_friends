@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
 
+const USER_CLIENT_MAX_SIZE = 50;
+const USER_CLIENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+type CachedClient = { client: SupabaseClient; createdAt: number };
+
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
@@ -11,6 +16,8 @@ export class SupabaseService {
   private serviceRoleKey: string | null = null;
 
   private admin: SupabaseClient | null = null;
+  private anon: SupabaseClient | null = null;
+  private readonly userClients = new Map<string, CachedClient>();
 
   constructor(private readonly config: ConfigService) {
     const url = this.config.get<string>('SUPABASE_URL');
@@ -19,7 +26,9 @@ export class SupabaseService {
 
     // ✅ dev 초기에는 env 없어도 서버 뜨게
     if (!url) {
-      this.logger.warn('Supabase env missing: SUPABASE_URL. Supabase is disabled.');
+      this.logger.warn(
+        'Supabase env missing: SUPABASE_URL. Supabase is disabled.',
+      );
       return;
     }
 
@@ -31,12 +40,16 @@ export class SupabaseService {
     if (this.serviceRoleKey) {
       this.admin = createClient(this.supabaseUrl, this.serviceRoleKey);
     } else {
-      this.logger.warn('Supabase env missing: SUPABASE_SERVICE_ROLE_KEY. admin client disabled.');
+      this.logger.warn(
+        'Supabase env missing: SUPABASE_SERVICE_ROLE_KEY. admin client disabled.',
+      );
     }
 
     // anonKey 없어도 서버는 뜨게 두되(가드/유저클라 호출 시에만 필요)
     if (!this.anonKey) {
-      this.logger.warn('Supabase env missing: SUPABASE_ANON_KEY. user client may be limited.');
+      this.logger.warn(
+        'Supabase env missing: SUPABASE_ANON_KEY. user client may be limited.',
+      );
     }
   }
 
@@ -45,7 +58,9 @@ export class SupabaseService {
    */
   adminClient(): SupabaseClient {
     if (!this.admin) {
-      throw new Error('Supabase admin client is not initialized. Check SUPABASE_SERVICE_ROLE_KEY.');
+      throw new Error(
+        'Supabase admin client is not initialized. Check SUPABASE_SERVICE_ROLE_KEY.',
+      );
     }
     return this.admin;
   }
@@ -57,27 +72,57 @@ export class SupabaseService {
    */
   userClient(userAccessToken: string): SupabaseClient {
     if (!this.supabaseUrl || !this.anonKey) {
-      throw new Error('Supabase user client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
+      throw new Error(
+        'Supabase user client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.',
+      );
     }
 
-    return createClient(this.supabaseUrl, this.anonKey, {
+    const now = Date.now();
+    const cached = this.userClients.get(userAccessToken);
+    if (cached && now - cached.createdAt < USER_CLIENT_TTL_MS) {
+      return cached.client;
+    }
+
+    // Evict expired entries and enforce max size
+    if (this.userClients.size >= USER_CLIENT_MAX_SIZE) {
+      for (const [key, entry] of this.userClients) {
+        if (now - entry.createdAt >= USER_CLIENT_TTL_MS) {
+          this.userClients.delete(key);
+        }
+      }
+      // Still over limit — remove oldest
+      if (this.userClients.size >= USER_CLIENT_MAX_SIZE) {
+        const firstKey = this.userClients.keys().next().value as string;
+        this.userClients.delete(firstKey);
+      }
+    }
+
+    const client = createClient(this.supabaseUrl, this.anonKey, {
       global: {
         headers: {
           Authorization: `Bearer ${userAccessToken}`,
         },
       },
     });
+    this.userClients.set(userAccessToken, { client, createdAt: now });
+    return client;
   }
 
   /**
    * 퍼블릭 클라이언트 (인증 없이 사용)
    * - anon key만으로 호출 (RLS 정책에 따라 접근 제한)
+   * - 싱글턴 재사용
    */
   anonClient(): SupabaseClient {
     if (!this.supabaseUrl || !this.anonKey) {
-      throw new Error('Supabase anon client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.');
+      throw new Error(
+        'Supabase anon client is not initialized. Check SUPABASE_URL / SUPABASE_ANON_KEY.',
+      );
     }
 
-    return createClient(this.supabaseUrl, this.anonKey);
+    if (!this.anon) {
+      this.anon = createClient(this.supabaseUrl, this.anonKey);
+    }
+    return this.anon;
   }
 }

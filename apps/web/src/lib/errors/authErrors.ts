@@ -1,5 +1,5 @@
 // apps/web/src/lib/errors/authErrors.ts
-import type { AuthError } from "@supabase/supabase-js";
+import type { AuthError } from '@supabase/supabase-js';
 
 /**
  * Auth Error Code
@@ -10,28 +10,28 @@ import type { AuthError } from "@supabase/supabase-js";
  * - UNKNOWN: 분류 불가
  */
 export type AuthErrorCode =
-  | "UNAUTHENTICATED"
-  | "FORBIDDEN"
-  | "SESSION_EXPIRED"
-  | "UNKNOWN";
+  | 'UNAUTHENTICATED'
+  | 'FORBIDDEN'
+  | 'SESSION_EXPIRED'
+  | 'UNKNOWN';
 
 /**
  * Supabase AuthError -> App AuthErrorCode
  */
 export function mapAuthError(error: AuthError | null): AuthErrorCode {
-  if (!error) return "UNKNOWN";
+  if (!error) return 'UNKNOWN';
 
-  if (error.status === 401) return "UNAUTHENTICATED";
-  if (error.status === 403) return "FORBIDDEN";
+  if (error.status === 401) return 'UNAUTHENTICATED';
+  if (error.status === 403) return 'FORBIDDEN';
 
   if (
-    error.message?.includes("JWT expired") ||
-    error.message?.includes("session")
+    error.message?.includes('JWT expired') ||
+    error.message?.includes('session')
   ) {
-    return "SESSION_EXPIRED";
+    return 'SESSION_EXPIRED';
   }
 
-  return "UNKNOWN";
+  return 'UNKNOWN';
 }
 
 /**

@@ -18,8 +18,13 @@ let MembersService = class MembersService {
     constructor(supabase) {
         this.supabase = supabase;
     }
-    async getBrandMembers(accessToken, brandId) {
-        const sb = this.supabase.userClient(accessToken);
+    getClient(accessToken, isAdmin) {
+        return isAdmin
+            ? this.supabase.adminClient()
+            : this.supabase.userClient(accessToken);
+    }
+    async getBrandMembers(accessToken, brandId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('brand_members')
             .select(`
@@ -38,7 +43,6 @@ let MembersService = class MembersService {
         if (error) {
             throw new Error(`[members.getBrandMembers] ${error.message}`);
         }
-        const userIds = (data ?? []).map((row) => row.user_id);
         const emailMap = {};
         return (data ?? []).map((row) => ({
             id: `${row.brand_id}-${row.user_id}`,
@@ -51,12 +55,14 @@ let MembersService = class MembersService {
             createdAt: row.created_at ?? '',
         }));
     }
-    async inviteBrandMember(accessToken, dto) {
-        const sb = this.supabase.userClient(accessToken);
-        throw new common_1.BadRequestException('이메일 초대 기능은 추후 구현 예정입니다. 현재는 사용자 ID로 직접 추가해주세요.');
+    async inviteBrandMember(accessToken, dto, _isAdmin) {
+        void accessToken;
+        void dto;
+        void _isAdmin;
+        throw new common_1.BadRequestException('?대찓??珥덈? 湲곕뒫? 異뷀썑 援ы쁽 ?덉젙?낅땲?? ?꾩옱???ъ슜??ID濡?吏곸젒 異붽??댁＜?몄슂.');
     }
-    async addBrandMember(accessToken, brandId, userId, role = member_dto_1.BrandRole.MEMBER) {
-        const sb = this.supabase.userClient(accessToken);
+    async addBrandMember(accessToken, brandId, userId, role = member_dto_1.BrandRole.MEMBER, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data: existing } = await sb
             .from('brand_members')
             .select('user_id')
@@ -64,7 +70,7 @@ let MembersService = class MembersService {
             .eq('user_id', userId)
             .maybeSingle();
         if (existing) {
-            throw new common_1.BadRequestException('이미 브랜드 멤버입니다.');
+            throw new common_1.BadRequestException('?대? 釉뚮옖??硫ㅻ쾭?낅땲??');
         }
         const { data, error } = await sb
             .from('brand_members')
@@ -90,15 +96,15 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async updateBrandMember(accessToken, brandId, userId, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async updateBrandMember(accessToken, brandId, userId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const updateData = {};
         if (dto.role !== undefined)
             updateData.role = dto.role;
         if (dto.status !== undefined)
             updateData.status = dto.status;
         if (Object.keys(updateData).length === 0) {
-            throw new common_1.BadRequestException('수정할 내용이 없습니다.');
+            throw new common_1.BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
         }
         const { data, error } = await sb
             .from('brand_members')
@@ -111,7 +117,7 @@ let MembersService = class MembersService {
             throw new Error(`[members.updateBrandMember] ${error.message}`);
         }
         if (!data) {
-            throw new common_1.NotFoundException('멤버를 찾을 수 없습니다.');
+            throw new common_1.NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
         }
         return {
             id: `${data.brand_id}-${data.user_id}`,
@@ -124,8 +130,8 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async removeBrandMember(accessToken, brandId, userId) {
-        const sb = this.supabase.userClient(accessToken);
+    async removeBrandMember(accessToken, brandId, userId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { error } = await sb
             .from('brand_members')
             .delete()
@@ -136,8 +142,8 @@ let MembersService = class MembersService {
         }
         return { deleted: true };
     }
-    async getBranchMembers(accessToken, branchId) {
-        const sb = this.supabase.userClient(accessToken);
+    async getBranchMembers(accessToken, branchId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data, error } = await sb
             .from('branch_members')
             .select(`
@@ -167,8 +173,8 @@ let MembersService = class MembersService {
             createdAt: row.created_at ?? '',
         }));
     }
-    async addBranchMember(accessToken, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async addBranchMember(accessToken, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { data: existing } = await sb
             .from('branch_members')
             .select('user_id')
@@ -176,7 +182,7 @@ let MembersService = class MembersService {
             .eq('user_id', dto.userId)
             .maybeSingle();
         if (existing) {
-            throw new common_1.BadRequestException('이미 가게 멤버입니다.');
+            throw new common_1.BadRequestException('?대? 媛寃?硫ㅻ쾭?낅땲??');
         }
         const { data, error } = await sb
             .from('branch_members')
@@ -202,15 +208,15 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async updateBranchMember(accessToken, branchId, userId, dto) {
-        const sb = this.supabase.userClient(accessToken);
+    async updateBranchMember(accessToken, branchId, userId, dto, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const updateData = {};
         if (dto.role !== undefined)
             updateData.role = dto.role;
         if (dto.status !== undefined)
             updateData.status = dto.status;
         if (Object.keys(updateData).length === 0) {
-            throw new common_1.BadRequestException('수정할 내용이 없습니다.');
+            throw new common_1.BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
         }
         const { data, error } = await sb
             .from('branch_members')
@@ -223,7 +229,7 @@ let MembersService = class MembersService {
             throw new Error(`[members.updateBranchMember] ${error.message}`);
         }
         if (!data) {
-            throw new common_1.NotFoundException('멤버를 찾을 수 없습니다.');
+            throw new common_1.NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
         }
         return {
             id: `${data.branch_id}-${data.user_id}`,
@@ -236,8 +242,8 @@ let MembersService = class MembersService {
             createdAt: data.created_at ?? '',
         };
     }
-    async removeBranchMember(accessToken, branchId, userId) {
-        const sb = this.supabase.userClient(accessToken);
+    async removeBranchMember(accessToken, branchId, userId, isAdmin) {
+        const sb = this.getClient(accessToken, isAdmin);
         const { error } = await sb
             .from('branch_members')
             .delete()

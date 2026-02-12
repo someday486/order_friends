@@ -74,6 +74,24 @@ let CustomerProductsController = CustomerProductsController_1 = class CustomerPr
         this.logger.log(`User ${req.user.id} deleting category ${categoryId}`);
         return this.productsService.deleteCategory(req.user.id, categoryId, req.brandMemberships || [], req.branchMemberships || []);
     }
+    async bulkUpdateProductStatus(req, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        if (!dto.branchId || !dto.productIds?.length) {
+            throw new common_1.BadRequestException('branchId and productIds are required');
+        }
+        this.logger.log(`User ${req.user.id} bulk updating ${dto.productIds.length} products status`);
+        return this.productsService.bulkUpdateProductStatus(req.user.id, dto.branchId, dto.productIds, dto.isActive, req.brandMemberships || [], req.branchMemberships || []);
+    }
+    async bulkUpdateCategoryStatus(req, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        if (!dto.branchId || !dto.categoryIds?.length) {
+            throw new common_1.BadRequestException('branchId and categoryIds are required');
+        }
+        this.logger.log(`User ${req.user.id} bulk updating ${dto.categoryIds.length} categories status`);
+        return this.productsService.bulkUpdateCategoryStatus(req.user.id, dto.branchId, dto.categoryIds, dto.isActive, req.brandMemberships || [], req.branchMemberships || []);
+    }
     async reorderProducts(req, dto) {
         if (!req.user)
             throw new Error('Missing user');
@@ -202,6 +220,56 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], CustomerProductsController.prototype, "deleteCategory", null);
+__decorate([
+    (0, common_1.Patch)('bulk-status'),
+    (0, swagger_1.ApiOperation)({
+        summary: '상품 일괄 상태 변경',
+        description: '여러 상품의 판매 상태를 일괄 변경합니다.',
+    }),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                branchId: { type: 'string' },
+                productIds: { type: 'array', items: { type: 'string' } },
+                isActive: { type: 'boolean' },
+            },
+            required: ['branchId', 'productIds', 'isActive'],
+        },
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '상품 상태 일괄 변경 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "bulkUpdateProductStatus", null);
+__decorate([
+    (0, common_1.Patch)('categories/bulk-status'),
+    (0, swagger_1.ApiOperation)({
+        summary: '카테고리 일괄 활성화/비활성화',
+        description: '여러 카테고리의 활성 상태를 일괄 변경합니다.',
+    }),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                branchId: { type: 'string' },
+                categoryIds: { type: 'array', items: { type: 'string' } },
+                isActive: { type: 'boolean' },
+            },
+            required: ['branchId', 'categoryIds', 'isActive'],
+        },
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '카테고리 상태 일괄 변경 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], CustomerProductsController.prototype, "bulkUpdateCategoryStatus", null);
 __decorate([
     (0, common_1.Patch)('reorder'),
     (0, swagger_1.ApiOperation)({

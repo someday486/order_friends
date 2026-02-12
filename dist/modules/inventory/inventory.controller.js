@@ -50,6 +50,12 @@ let InventoryController = InventoryController_1 = class InventoryController {
         this.logger.log(`User ${req.user.id} fetching inventory logs (branch: ${branchId}, product: ${productId})`);
         return this.inventoryService.getInventoryLogs(req.user.id, branchId, productId, req.brandMemberships || [], req.branchMemberships || []);
     }
+    async bulkAdjustInventory(req, dto) {
+        if (!req.user)
+            throw new Error('Missing user');
+        this.logger.log(`User ${req.user.id} bulk adjusting ${dto.adjustments.length} inventory items`);
+        return this.inventoryService.bulkAdjustInventory(req.user.id, dto, req.brandMemberships || [], req.branchMemberships || []);
+    }
     async getInventoryByProduct(req, productId) {
         if (!req.user)
             throw new Error('Missing user');
@@ -132,6 +138,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], InventoryController.prototype, "getInventoryLogs", null);
+__decorate([
+    (0, common_1.Post)('bulk-adjust'),
+    (0, swagger_1.ApiOperation)({
+        summary: '재고 일괄 조정',
+        description: 'OWNER 또는 ADMIN만 여러 상품의 재고를 한번에 조정할 수 있습니다.',
+    }),
+    (0, swagger_1.ApiBody)({ type: inventory_dto_1.BulkAdjustInventoryRequest }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: '재고 일괄 조정 성공' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: '잘못된 요청' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: '권한 없음 (OWNER/ADMIN만 가능)' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, inventory_dto_1.BulkAdjustInventoryRequest]),
+    __metadata("design:returntype", Promise)
+], InventoryController.prototype, "bulkAdjustInventory", null);
 __decorate([
     (0, common_1.Get)(':productId'),
     (0, swagger_1.ApiOperation)({

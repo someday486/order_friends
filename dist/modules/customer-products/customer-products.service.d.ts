@@ -24,6 +24,21 @@ export declare class CustomerProductsService {
     deleteMyProduct(userId: string, productId: string, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[]): Promise<{
         deleted: boolean;
     }>;
+    bulkUpdateProductStatus(userId: string, branchId: string, productIds: string[], isActive: boolean, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[]): Promise<{
+        updated: number;
+        products: any[];
+    }>;
+    bulkUpdateCategoryStatus(userId: string, branchId: string, categoryIds: string[], isActive: boolean, brandMemberships: BrandMembership[], branchMemberships: BranchMembership[]): Promise<{
+        updated: number;
+        categories: {
+            id: any;
+            branchId: any;
+            name: any;
+            sortOrder: any;
+            isActive: any;
+            createdAt: any;
+        }[];
+    }>;
     reorderProducts(userId: string, branchId: string, items: {
         id: string;
         sortOrder: number;

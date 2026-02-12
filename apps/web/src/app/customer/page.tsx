@@ -1,23 +1,27 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiClient } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
-import { useUserRole, type UserRole } from "@/hooks/useUserRole";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/common";
-
-// ============================================================
-// Types
-// ============================================================
+import { useAuth } from "@/hooks/useAuth";
+import {
+  BrandIcon,
+  InventoryIcon,
+  OrderIcon,
+  ProductIcon,
+  TrendIcon,
+} from "@/components/ui/icons";
 
 type DashboardStats = {
-  myBrands: number;
-  myBranches: number;
+  myBrands?: number;
+  myBranches?: number;
+  myBrandsCount?: number;
+  myBranchesCount?: number;
   totalOrders: number;
   todayOrders: number;
   pendingOrders: number;
@@ -25,11 +29,11 @@ type DashboardStats = {
   brands: Array<{
     id: string;
     name: string;
-    myRole: string;
+    myRole?: string;
   }>;
   recentOrders: Array<{
     id: string;
-    order_no: string;
+    order_no?: string;
     status: string;
     total_amount: number;
     created_at: string;
@@ -39,13 +43,19 @@ type DashboardStats = {
   }>;
 };
 
-// ============================================================
-// Constants
-// ============================================================
+type Branch = {
+  id: string;
+  name: string;
+};
 
-// ============================================================
-// Helpers
-// ============================================================
+type LowStockAlert = {
+  product_id: string;
+  product_name: string;
+  branch_name?: string;
+  qty_available: number;
+  low_stock_threshold: number;
+  is_low_stock: boolean;
+};
 
 function getStatusVariant(status: string): "info" | "success" | "warning" | "danger" | "default" {
   switch (status) {
@@ -65,14 +75,10 @@ function getStatusVariant(status: string): "info" | "success" | "warning" | "dan
   }
 }
 
-// ============================================================
-// Component
-// ============================================================
-
 export default function CustomerDashboardPage() {
   const { user } = useAuth();
-  const { role, loading: roleLoading } = useUserRole();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [alerts, setAlerts] = useState<LowStockAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +87,6 @@ export default function CustomerDashboardPage() {
       try {
         setLoading(true);
         setError(null);
-
         const data = await apiClient.get<DashboardStats>("/customer/dashboard");
         setStats(data);
       } catch (e) {
@@ -91,16 +96,47 @@ export default function CustomerDashboardPage() {
         setLoading(false);
       }
     };
-
     loadStats();
   }, []);
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      try {
+        const branches = await apiClient.get<Branch[]>("/customer/branches");
+        const results = await Promise.all(
+          branches.map((branch) =>
+            apiClient
+              .get<LowStockAlert[]>(
+                `/customer/inventory/alerts?branchId=${encodeURIComponent(branch.id)}`,
+              )
+              .catch(() => []),
+          ),
+        );
+        const merged = results
+          .flat()
+          .filter((item) => item.is_low_stock)
+          .sort((a, b) => a.qty_available - b.qty_available);
+        setAlerts(merged);
+      } catch (e) {
+        console.warn("low stock alerts fetch failed", e);
+      }
+    };
+    loadAlerts();
+  }, []);
+
+  const myBrands = stats?.myBrands ?? stats?.myBrandsCount ?? 0;
+  const myBranches = stats?.myBranches ?? stats?.myBranchesCount ?? 0;
+  const recentRevenue = useMemo(
+    () => (stats?.recentOrders ?? []).reduce((sum, order) => sum + (order.total_amount || 0), 0),
+    [stats?.recentOrders],
+  );
 
   if (loading) {
     return (
       <div>
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">대시보드</h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, index) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, index) => (
             <CardSkeleton key={index} />
           ))}
         </div>
@@ -111,7 +147,7 @@ export default function CustomerDashboardPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-4">오류 발생</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">대시보드</h1>
         <Card className="border-danger bg-danger/10">
           <CardContent className="p-4">
             <p className="text-danger">{error}</p>
@@ -122,206 +158,119 @@ export default function CustomerDashboardPage() {
   }
 
   return (
-    <div>
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold m-0">
-          안녕하세요{user?.email ? `, ${user.email.split("@")[0]}님` : ""}!
-        </h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          고객 대시보드에 오신 것을 환영합니다.
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        <StatCard title="내 브랜드" value={stats?.myBrands ?? 0} icon="🏢" />
-        <StatCard title="내 매장" value={stats?.myBranches ?? 0} icon="🏪" />
-        <StatCard title="총 주문" value={stats?.totalOrders ?? 0} icon="📋" />
-        <StatCard title="처리 대기" value={stats?.pendingOrders ?? 0} icon="⏳" highlight />
-        <StatCard title="오늘 주문" value={stats?.todayOrders ?? 0} icon="📅" />
-        <StatCard title="등록 상품" value={stats?.totalProducts ?? 0} icon="📦" />
-      </div>
-
-      {/* My Brands */}
-      <div className="mb-8">
-        <h2 className="text-lg font-bold mb-4">내 브랜드</h2>
-        {stats?.brands && stats.brands.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {stats.brands.map((brand) => (
-              <Link key={brand.id} href={`/customer/brands/${brand.id}`}>
-                <Card hover className="p-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="font-bold mb-1">{brand.name}</div>
-                      <div className="text-xs text-muted-foreground">역할: {brand.myRole}</div>
-                    </div>
-                    <div className="text-lg">→</div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-border bg-gradient-to-r from-bg-secondary to-bg-tertiary p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-extrabold text-foreground">
+              운영 대시보드{user?.email ? ` · ${user.email.split("@")[0]}` : ""}
+            </h1>
+            <p className="text-sm text-text-secondary mt-1">
+              주문/재고 중심 핵심 지표를 한 화면에서 확인합니다.
+            </p>
           </div>
-        ) : (
-          <Card className="bg-background">
-            <CardContent className="p-6 text-center text-muted">
-              등록된 브랜드가 없습니다.
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Recent Orders */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold m-0">최근 주문</h2>
-          <Link href="/customer/orders" className="text-foreground text-sm hover:underline">
-            전체 보기 →
-          </Link>
+          <div className="text-right">
+            <div className="text-xs text-text-tertiary">최근 주문 매출 합계</div>
+            <div className="text-2xl font-extrabold text-foreground">{formatWon(recentRevenue)}</div>
+          </div>
         </div>
-        {stats?.recentOrders && stats.recentOrders.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {stats.recentOrders.map((order) => (
-              <Link key={order.id} href={`/customer/orders/${order.id}`}>
-                <Card hover className="p-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <div className="font-semibold mb-1">주문 #{order.order_no}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {order.branch?.name} • {new Date(order.created_at).toLocaleDateString()}
+      </section>
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard title="내 브랜드" value={myBrands} icon={<BrandIcon size={18} />} />
+        <MetricCard title="내 매장" value={myBranches} icon={<TrendIcon size={18} />} />
+        <MetricCard title="총 주문" value={stats?.totalOrders ?? 0} icon={<OrderIcon size={18} />} />
+        <MetricCard title="등록 상품" value={stats?.totalProducts ?? 0} icon={<ProductIcon size={18} />} />
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-foreground">최근 주문</h2>
+            <Link href="/customer/orders" className="text-sm text-primary-500 hover:underline">
+              전체 보기
+            </Link>
+          </div>
+          {(stats?.recentOrders ?? []).length === 0 ? (
+            <div className="text-sm text-text-tertiary py-8 text-center">최근 주문이 없습니다.</div>
+          ) : (
+            <div className="space-y-2">
+              {(stats?.recentOrders ?? []).map((order) => (
+                <Link
+                  key={order.id}
+                  href={`/customer/orders/${order.id}`}
+                  className="block no-underline rounded-lg border border-border p-3 hover:bg-bg-tertiary transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-foreground truncate">
+                        주문 #{order.order_no || order.id.slice(0, 8)}
+                      </div>
+                      <div className="text-xs text-text-tertiary">
+                        {order.branch?.name || "매장 미상"} · {new Date(order.created_at).toLocaleString()}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-base font-bold mb-1">
-                        {formatWon(order.total_amount)}
-                      </div>
+                      <div className="text-sm font-bold text-foreground">{formatWon(order.total_amount)}</div>
                       <Badge variant={getStatusVariant(order.status)}>
                         {ORDER_STATUS_LABEL[order.status as OrderStatus] ?? order.status}
                       </Badge>
                     </div>
                   </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Card className="bg-background">
-            <CardContent className="p-6 text-center text-muted">
-              최근 주문이 없습니다.
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Quick Links */}
-      <div className="mb-8">
-        <h2 className="text-lg font-bold mb-4">빠른 이동</h2>
-        {roleLoading ? (
-          <div className="text-sm text-muted-foreground">빠른 이동 로딩 중...</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              {
-                href: "/customer/brands",
-                title: "브랜드 관리",
-                description: "브랜드 정보 수정",
-                icon: "🏢",
-                allowedRoles: ["system_admin", "brand_owner"],
-              },
-              {
-                href: "/customer/branches",
-                title: "매장 관리",
-                description: "매장 추가 및 수정",
-                icon: "🏪",
-                allowedRoles: ["system_admin", "brand_owner"],
-              },
-              {
-                href: "/customer/products",
-                title: "상품 관리",
-                description: "상품 등록 및 관리",
-                icon: "📦",
-                allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
-              },
-              {
-                href: "/customer/orders",
-                title: "주문 관리",
-                description: "주문 처리 및 조회",
-                icon: "📋",
-                allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
-              },
-              {
-                href: "/customer/analytics/brand",
-                title: "브랜드 분석",
-                description: "지점 통합 리포트",
-                icon: "📈",
-                allowedRoles: ["system_admin", "brand_owner"],
-              },
-            ]
-              .filter((item) => !item.allowedRoles || item.allowedRoles.includes(role as UserRole))
-              .map((item) => (
-                <QuickLinkCard
-                  key={item.href}
-                  href={item.href}
-                  title={item.title}
-                  description={item.description}
-                  icon={item.icon}
-                />
+                </Link>
               ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <InventoryIcon size={18} />
+            <h2 className="text-lg font-bold text-foreground">재고 부족 알림</h2>
           </div>
-        )}
-      </div>
+          <div className="mb-3 text-sm text-text-secondary">
+            현재 <span className="font-bold text-danger-500">{alerts.length}</span>개 상품이 부족 상태입니다.
+          </div>
+          {alerts.length === 0 ? (
+            <div className="text-sm text-text-tertiary py-4">모든 상품의 재고가 정상입니다.</div>
+          ) : (
+            <div className="space-y-2">
+              {alerts.slice(0, 6).map((alert) => (
+                <Link
+                  key={`${alert.product_id}-${alert.branch_name || ""}`}
+                  href={`/customer/inventory/${alert.product_id}`}
+                  className="block no-underline rounded-lg border border-danger-500/20 bg-danger-500/5 p-2.5 hover:bg-danger-500/10 transition-colors"
+                >
+                  <div className="text-sm font-semibold text-foreground truncate">{alert.product_name}</div>
+                  <div className="text-xs text-text-secondary mt-0.5">
+                    {alert.branch_name || "-"} · {alert.qty_available}/{alert.low_stock_threshold}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+      </section>
     </div>
   );
 }
 
-// ============================================================
-// Sub Components
-// ============================================================
-
-function StatCard({
+function MetricCard({
   title,
   value,
   icon,
-  highlight,
 }: {
   title: string;
-  value: number | string;
-  icon: string;
-  highlight?: boolean;
+  value: number;
+  icon: ReactNode;
 }) {
   return (
-    <Card className={highlight ? "border-warning" : ""} padding="lg">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-xl">{icon}</span>
-        <span className="text-muted-foreground text-sm">{title}</span>
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm text-text-secondary">{title}</div>
+        <div className="text-text-tertiary">{icon}</div>
       </div>
-      <div className="text-3xl font-extrabold">{value}</div>
+      <div className="text-3xl font-extrabold text-foreground">{value}</div>
     </Card>
-  );
-}
-
-function QuickLinkCard({
-  href,
-  title,
-  description,
-  icon,
-}: {
-  href: string;
-  title: string;
-  description: string;
-  icon: string;
-}) {
-  return (
-    <Link href={href}>
-      <Card hover className="p-3">
-        <div className="flex items-center gap-3">
-          <div className="text-lg">{icon}</div>
-          <div>
-            <div className="font-bold mb-0.5">{title}</div>
-            <div className="text-xs text-muted-foreground">{description}</div>
-          </div>
-        </div>
-      </Card>
-    </Link>
   );
 }

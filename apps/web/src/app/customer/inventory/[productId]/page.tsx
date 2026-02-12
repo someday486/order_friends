@@ -6,6 +6,7 @@ import Image from "next/image";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { exportToExcel } from "@/lib/excel-export";
 
 // ============================================================
 // Types
@@ -255,6 +256,25 @@ function InventoryDetailPageContent() {
     userRole === "BRANCH_ADMIN";
   const isLowStock = inventory?.is_low_stock;
 
+  const handleExportLogs = () => {
+    if (logs.length === 0) return;
+    const filename = inventory
+      ? `inventory-logs-${inventory.product_name || inventory.product_id}`
+      : "inventory-logs";
+    exportToExcel(
+      logs.map((log) => ({
+        일시: formatDateTimeFull(log.created_at),
+        거래유형: TRANSACTION_LABELS[log.transaction_type] || log.transaction_type,
+        수량변경: log.qty_change,
+        변경전: log.qty_before,
+        변경후: log.qty_after,
+        메모: log.notes || "",
+      })),
+      filename,
+      "재고변경이력",
+    );
+  };
+
   if (loading) {
     return (
       <div>
@@ -463,7 +483,16 @@ function InventoryDetailPageContent() {
 
       {/* Inventory Logs */}
       <div className="card p-6 mb-6">
-        <h3 className="text-lg font-bold mb-4 text-foreground">재고 변경 이력</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-foreground">재고 변경 이력</h3>
+          <button
+            onClick={handleExportLogs}
+            disabled={logs.length === 0}
+            className="py-2 px-3 text-xs rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            엑셀 다운로드
+          </button>
+        </div>
 
         {logs.length === 0 ? (
           <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">재고 변경 이력이 없습니다</div>

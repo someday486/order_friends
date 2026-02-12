@@ -6,56 +6,68 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useState } from "react";
+import { NotificationBell } from "@/components/ui/NotificationBell";
+import { NotificationProvider } from "@/providers/NotificationProvider";
+import {
+  HomeIcon,
+  TrendIcon,
+  BrandIcon,
+  StoreIcon,
+  ProductIcon,
+  TagIcon,
+  InventoryIcon,
+  OrderIcon,
+} from "@/components/ui/icons";
 
 type MenuItem = {
   href: string;
   label: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
   allowedRoles?: UserRole[];
 };
 
 const menuItems: MenuItem[] = [
-  { href: "/customer", label: "대시보드", icon: "📊" },
+  { href: "/customer", label: "대시보드", icon: HomeIcon },
   {
     href: "/customer/analytics/brand",
     label: "브랜드 분석",
-    icon: "📈",
+    icon: TrendIcon,
     allowedRoles: ["system_admin", "brand_owner"],
   },
   {
     href: "/customer/brands",
     label: "브랜드 관리",
-    icon: "🏢",
+    icon: BrandIcon,
     allowedRoles: ["system_admin", "brand_owner"],
   },
   {
     href: "/customer/branches",
     label: "매장 관리",
-    icon: "🏪",
+    icon: StoreIcon,
     allowedRoles: ["system_admin", "brand_owner"],
   },
   {
     href: "/customer/products",
     label: "상품 관리",
-    icon: "📦",
+    icon: ProductIcon,
     allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
   },
   {
     href: "/customer/categories",
     label: "카테고리 관리",
-    icon: "🏷",
+    icon: TagIcon,
     allowedRoles: ["system_admin", "brand_owner"],
   },
   {
     href: "/customer/inventory",
     label: "재고 관리",
-    icon: "📊",
+    icon: InventoryIcon,
     allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
   },
   {
     href: "/customer/orders",
     label: "주문 관리",
-    icon: "📋",
+    icon: OrderIcon,
     allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
   },
 ];
@@ -79,21 +91,25 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       );
 
   return (
+    <NotificationProvider>
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">
       {/* Mobile Header */}
       <div className="md:hidden sticky top-0 z-40 bg-bg-secondary border-b border-border px-4 py-3 flex items-center justify-between">
         <Link href="/customer" className="no-underline text-foreground font-extrabold text-base">
           🍽️ OrderFriends
         </Link>
-        <button
-          onClick={() => setSidebarOpen(true)}
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            onClick={() => setSidebarOpen(true)}
           className="w-10 h-10 flex items-center justify-center rounded border border-border bg-transparent text-foreground cursor-pointer hover:bg-bg-tertiary transition-colors"
           aria-label="메뉴 열기"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M3 5h14M3 10h14M3 15h14" />
           </svg>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Sidebar Overlay (mobile) */}
@@ -107,7 +123,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       {/* Sidebar */}
       <aside
         className={`
-          fixed md:sticky top-0 left-0 z-50 h-screen w-[240px]
+          fixed md:sticky md:self-start top-0 left-0 z-50 h-screen md:h-screen md:overflow-y-auto w-[240px]
           border-r border-border bg-bg-secondary flex flex-col
           transition-transform duration-200 ease-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
@@ -150,7 +166,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 }
               `}
             >
-              <span className="mr-2">{item.icon}</span>
+              <item.icon size={18} className="mr-2 flex-shrink-0" />
               {item.label}
             </Link>
           ))}
@@ -165,7 +181,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           )}
           <button
             onClick={toggle}
-            className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
+            className="md:hidden w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
           >
             {isDark ? "라이트 모드" : "다크 모드"}
           </button>
@@ -179,8 +195,18 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       </aside>
 
       <main className="bg-background min-h-screen">
+        <div className="hidden md:flex sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3 items-center justify-end gap-2">
+          <button
+            onClick={toggle}
+            className="h-9 px-3 rounded border border-border bg-transparent text-sm text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+          >
+            {isDark ? "라이트 모드" : "다크 모드"}
+          </button>
+          <NotificationBell />
+        </div>
         <div className="p-4 md:p-6">{children}</div>
       </main>
     </div>
+    </NotificationProvider>
   );
 }

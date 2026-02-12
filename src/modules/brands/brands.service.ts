@@ -33,7 +33,7 @@ export class BrandsService {
       const { data, error } = await sb
         .from('brands')
         .select(
-          'id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, created_at',
         )
         .order('created_at', { ascending: false });
 
@@ -48,7 +48,6 @@ export class BrandsService {
         bizName: row.biz_name ?? null,
         bizRegNo: row.biz_reg_no ?? null,
         logoUrl: row.logo_url ?? null,
-        thumbnailUrl: row.thumbnail_url ?? null,
         createdAt: row.created_at ?? '',
       }));
     }
@@ -61,7 +60,7 @@ export class BrandsService {
         `
         brand_id,
         brands (
-          id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at
+          id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, created_at
         )
       `,
       )
@@ -80,7 +79,6 @@ export class BrandsService {
         bizName: row.brands.biz_name ?? null,
         bizRegNo: row.brands.biz_reg_no ?? null,
         logoUrl: row.brands.logo_url ?? null,
-        thumbnailUrl: row.brands.thumbnail_url ?? null,
         createdAt: row.brands.created_at ?? '',
       }));
   }
@@ -98,7 +96,7 @@ export class BrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, logo_url, cover_image_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -118,9 +116,11 @@ export class BrandsService {
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
       bizRegNo: data.biz_reg_no ?? null,
+      repName: data.rep_name ?? null,
+      address: data.address ?? null,
+      bizCertUrl: data.biz_cert_url ?? null,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
-      thumbnailUrl: data.thumbnail_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }
@@ -167,12 +167,14 @@ export class BrandsService {
         owner_user_id: userId,
         biz_name: dto.bizName ?? null,
         biz_reg_no: dto.bizRegNo ?? null,
+        rep_name: dto.repName ?? null,
+        address: dto.address ?? null,
+        biz_cert_url: dto.bizCertUrl ?? null,
         logo_url: dto.logoUrl ?? null,
         cover_image_url: dto.coverImageUrl ?? null,
-        thumbnail_url: dto.thumbnailUrl ?? null,
       })
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -204,6 +206,9 @@ export class BrandsService {
       ownerUserId: brand.owner_user_id ?? null,
       bizName: brand.biz_name ?? null,
       bizRegNo: brand.biz_reg_no ?? null,
+      repName: brand.rep_name ?? null,
+      address: brand.address ?? null,
+      bizCertUrl: brand.biz_cert_url ?? null,
       createdAt: brand.created_at ?? '',
     };
   }
@@ -223,12 +228,12 @@ export class BrandsService {
     if (dto.slug !== undefined) updateData.slug = dto.slug;
     if (dto.bizName !== undefined) updateData.biz_name = dto.bizName;
     if (dto.bizRegNo !== undefined) updateData.biz_reg_no = dto.bizRegNo;
+    if (dto.repName !== undefined) updateData.rep_name = dto.repName;
+    if (dto.address !== undefined) updateData.address = dto.address;
+    if (dto.bizCertUrl !== undefined) updateData.biz_cert_url = dto.bizCertUrl;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
     if (dto.coverImageUrl !== undefined)
       updateData.cover_image_url = dto.coverImageUrl;
-    if (dto.thumbnailUrl !== undefined)
-      updateData.thumbnail_url = dto.thumbnailUrl;
-
     if (Object.keys(updateData).length === 0) {
       return this.getBrand(accessToken, brandId, isAdmin);
     }
@@ -264,7 +269,7 @@ export class BrandsService {
       .update(updateData)
       .eq('id', brandId)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, logo_url, cover_image_url, created_at',
       )
       .maybeSingle();
 
@@ -283,9 +288,11 @@ export class BrandsService {
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
       bizRegNo: data.biz_reg_no ?? null,
+      repName: data.rep_name ?? null,
+      address: data.address ?? null,
+      bizCertUrl: data.biz_cert_url ?? null,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
-      thumbnailUrl: data.thumbnail_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }

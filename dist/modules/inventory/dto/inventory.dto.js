@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdjustInventoryRequest = exports.TransactionType = exports.UpdateInventoryRequest = exports.InventoryDetailResponse = exports.InventoryLogResponse = exports.InventoryAlertResponse = exports.InventoryListResponse = void 0;
+exports.AdjustInventoryRequest = exports.BulkAdjustInventoryRequest = exports.BulkAdjustmentItem = exports.TransactionType = exports.UpdateInventoryRequest = exports.InventoryDetailResponse = exports.InventoryLogResponse = exports.InventoryAlertResponse = exports.InventoryListResponse = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 class InventoryListResponse {
@@ -223,6 +223,55 @@ var TransactionType;
     TransactionType["DAMAGE"] = "DAMAGE";
     TransactionType["RETURN"] = "RETURN";
 })(TransactionType || (exports.TransactionType = TransactionType = {}));
+class BulkAdjustmentItem {
+    productId;
+    branchId;
+    qty_change;
+    transaction_type;
+    notes;
+}
+exports.BulkAdjustmentItem = BulkAdjustmentItem;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Product ID' }),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], BulkAdjustmentItem.prototype, "productId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Branch ID' }),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], BulkAdjustmentItem.prototype, "branchId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Quantity change (positive or negative)' }),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], BulkAdjustmentItem.prototype, "qty_change", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Transaction type',
+        enum: TransactionType,
+        example: TransactionType.ADJUSTMENT,
+    }),
+    (0, class_validator_1.IsEnum)(TransactionType),
+    __metadata("design:type", String)
+], BulkAdjustmentItem.prototype, "transaction_type", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Notes for the adjustment' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], BulkAdjustmentItem.prototype, "notes", void 0);
+class BulkAdjustInventoryRequest {
+    adjustments;
+}
+exports.BulkAdjustInventoryRequest = BulkAdjustInventoryRequest;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Array of inventory adjustments',
+        type: [BulkAdjustmentItem],
+    }),
+    __metadata("design:type", Array)
+], BulkAdjustInventoryRequest.prototype, "adjustments", void 0);
 class AdjustInventoryRequest {
     qty_change;
     transaction_type;

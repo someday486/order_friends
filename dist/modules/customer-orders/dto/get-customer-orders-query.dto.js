@@ -22,7 +22,9 @@ exports.GetCustomerOrdersQueryDto = GetCustomerOrdersQueryDto;
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ description: '지점 ID' }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.Matches)(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+        message: 'branchId must be a UUID',
+    }),
     __metadata("design:type", String)
 ], GetCustomerOrdersQueryDto.prototype, "branchId", void 0);
 __decorate([

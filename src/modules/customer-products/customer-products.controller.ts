@@ -208,6 +208,86 @@ export class CustomerProductsController {
     );
   }
 
+  @Patch('bulk-status')
+  @ApiOperation({
+    summary: '상품 일괄 상태 변경',
+    description: '여러 상품의 판매 상태를 일괄 변경합니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        branchId: { type: 'string' },
+        productIds: { type: 'array', items: { type: 'string' } },
+        isActive: { type: 'boolean' },
+      },
+      required: ['branchId', 'productIds', 'isActive'],
+    },
+  })
+  @ApiResponse({ status: 200, description: '상품 상태 일괄 변경 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async bulkUpdateProductStatus(
+    @Req() req: AuthRequest,
+    @Body() dto: { branchId: string; productIds: string[]; isActive: boolean },
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.branchId || !dto.productIds?.length) {
+      throw new BadRequestException('branchId and productIds are required');
+    }
+
+    this.logger.log(
+      `User ${req.user.id} bulk updating ${dto.productIds.length} products status`,
+    );
+    return this.productsService.bulkUpdateProductStatus(
+      req.user.id,
+      dto.branchId,
+      dto.productIds,
+      dto.isActive,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('categories/bulk-status')
+  @ApiOperation({
+    summary: '카테고리 일괄 활성화/비활성화',
+    description: '여러 카테고리의 활성 상태를 일괄 변경합니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        branchId: { type: 'string' },
+        categoryIds: { type: 'array', items: { type: 'string' } },
+        isActive: { type: 'boolean' },
+      },
+      required: ['branchId', 'categoryIds', 'isActive'],
+    },
+  })
+  @ApiResponse({ status: 200, description: '카테고리 상태 일괄 변경 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async bulkUpdateCategoryStatus(
+    @Req() req: AuthRequest,
+    @Body() dto: { branchId: string; categoryIds: string[]; isActive: boolean },
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.branchId || !dto.categoryIds?.length) {
+      throw new BadRequestException('branchId and categoryIds are required');
+    }
+
+    this.logger.log(
+      `User ${req.user.id} bulk updating ${dto.categoryIds.length} categories status`,
+    );
+    return this.productsService.bulkUpdateCategoryStatus(
+      req.user.id,
+      dto.branchId,
+      dto.categoryIds,
+      dto.isActive,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
   @Patch('reorder')
   @ApiOperation({
     summary: '상품 정렬 순서 변경',

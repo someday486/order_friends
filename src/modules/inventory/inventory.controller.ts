@@ -27,6 +27,7 @@ import { InventoryService } from './inventory.service';
 import {
   UpdateInventoryRequest,
   AdjustInventoryRequest,
+  BulkAdjustInventoryRequest,
   InventoryListResponse,
   InventoryDetailResponse,
   InventoryAlertResponse,
@@ -136,6 +137,33 @@ export class InventoryController {
       req.user.id,
       branchId,
       productId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('bulk-adjust')
+  @ApiOperation({
+    summary: '재고 일괄 조정',
+    description:
+      'OWNER 또는 ADMIN만 여러 상품의 재고를 한번에 조정할 수 있습니다.',
+  })
+  @ApiBody({ type: BulkAdjustInventoryRequest })
+  @ApiResponse({ status: 200, description: '재고 일괄 조정 성공' })
+  @ApiResponse({ status: 400, description: '잘못된 요청' })
+  @ApiResponse({ status: 403, description: '권한 없음 (OWNER/ADMIN만 가능)' })
+  async bulkAdjustInventory(
+    @Req() req: AuthRequest,
+    @Body() dto: BulkAdjustInventoryRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} bulk adjusting ${dto.adjustments.length} inventory items`,
+    );
+    return this.inventoryService.bulkAdjustInventory(
+      req.user.id,
+      dto,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

@@ -8,7 +8,6 @@ export class BrandListItemResponse {
   bizName?: string | null;
   bizRegNo?: string | null;
   logoUrl?: string | null;
-  thumbnailUrl?: string | null;
   createdAt: string;
 }
 
@@ -19,9 +18,11 @@ export class BrandDetailResponse {
   ownerUserId?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
+  repName?: string | null;
+  address?: string | null;
+  bizCertUrl?: string | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
-  thumbnailUrl?: string | null;
   createdAt: string;
 }
 
@@ -44,15 +45,23 @@ export class CreateBrandRequest {
 
   @IsString()
   @IsOptional()
+  repName?: string;
+
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  bizCertUrl?: string;
+
+  @IsString()
+  @IsOptional()
   logoUrl?: string;
 
   @IsString()
   @IsOptional()
   coverImageUrl?: string;
-
-  @IsString()
-  @IsOptional()
-  thumbnailUrl?: string;
 }
 
 export class UpdateBrandRequest {
@@ -74,13 +83,21 @@ export class UpdateBrandRequest {
 
   @IsString()
   @IsOptional()
+  repName?: string;
+
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  bizCertUrl?: string;
+
+  @IsString()
+  @IsOptional()
   logoUrl?: string;
 
   @IsString()
   @IsOptional()
   coverImageUrl?: string;
-
-  @IsString()
-  @IsOptional()
-  thumbnailUrl?: string;
 }

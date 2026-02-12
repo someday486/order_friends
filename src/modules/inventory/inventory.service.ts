@@ -13,6 +13,7 @@ import type {
 import {
   UpdateInventoryRequest,
   AdjustInventoryRequest,
+  BulkAdjustInventoryRequest,
   InventoryListResponse,
   InventoryDetailResponse,
   InventoryAlertResponse,
@@ -543,6 +544,125 @@ export class InventoryService {
       brandMemberships,
       branchMemberships,
     );
+  }
+
+  /**
+   * POST /customer/inventory/bulk-adjust - Bulk inventory adjustment
+   */
+  async bulkAdjustInventory(
+    userId: string,
+    dto: BulkAdjustInventoryRequest,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Bulk adjusting ${dto.adjustments.length} inventory items by user ${userId}`,
+    );
+
+    const results: {
+      productId: string;
+      branchId: string;
+      success: boolean;
+      error?: string;
+    }[] = [];
+
+    // Group by branchId for permission checking efficiency
+    const branchIds = [...new Set(dto.adjustments.map((a) => a.branchId))];
+
+    // Pre-check branch access for all unique branches
+    const branchRoles = new Map<string, string>();
+    for (const branchId of branchIds) {
+      const { role } = await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
+      this.checkModificationPermission(role, 'bulk adjust inventory', userId);
+      branchRoles.set(branchId, role);
+    }
+
+    const sb = this.supabase.adminClient();
+
+    for (const item of dto.adjustments) {
+      try {
+        // Get current inventory
+        const { data: currentInventory, error: fetchError } = await sb
+          .from('product_inventory')
+          .select('*')
+          .eq('product_id', item.productId)
+          .eq('branch_id', item.branchId)
+          .single();
+
+        if (fetchError || !currentInventory) {
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: 'Inventory not found',
+          });
+          continue;
+        }
+
+        const newQty = currentInventory.qty_available + item.qty_change;
+        if (newQty < 0) {
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: 'Quantity cannot be negative',
+          });
+          continue;
+        }
+
+        const { error: updateError } = await sb
+          .from('product_inventory')
+          .update({ qty_available: newQty })
+          .eq('id', currentInventory.id);
+
+        if (updateError) {
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: updateError.message,
+          });
+          continue;
+        }
+
+        // Log the adjustment
+        await this.createInventoryLog(
+          item.productId,
+          item.branchId,
+          item.transaction_type,
+          item.qty_change,
+          currentInventory.qty_available,
+          newQty,
+          userId,
+          item.notes,
+        );
+
+        results.push({
+          productId: item.productId,
+          branchId: item.branchId,
+          success: true,
+        });
+      } catch (err: any) {
+        results.push({
+          productId: item.productId,
+          branchId: item.branchId,
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    const successCount = results.filter((r) => r.success).length;
+    this.logger.log(
+      `Bulk adjust complete: ${successCount}/${results.length} successful`,
+    );
+
+    return { total: results.length, successful: successCount, results };
   }
 
   /**

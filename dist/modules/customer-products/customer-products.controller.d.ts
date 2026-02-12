@@ -44,6 +44,29 @@ export declare class CustomerProductsController {
     deleteCategory(req: AuthRequest, categoryId: string): Promise<{
         deleted: boolean;
     }>;
+    bulkUpdateProductStatus(req: AuthRequest, dto: {
+        branchId: string;
+        productIds: string[];
+        isActive: boolean;
+    }): Promise<{
+        updated: number;
+        products: any[];
+    }>;
+    bulkUpdateCategoryStatus(req: AuthRequest, dto: {
+        branchId: string;
+        categoryIds: string[];
+        isActive: boolean;
+    }): Promise<{
+        updated: number;
+        categories: {
+            id: any;
+            branchId: any;
+            name: any;
+            sortOrder: any;
+            isActive: any;
+            createdAt: any;
+        }[];
+    }>;
     reorderProducts(req: AuthRequest, dto: ReorderProductsRequest): Promise<any[]>;
     getProduct(req: AuthRequest, productId: string): Promise<any>;
     createProduct(req: AuthRequest, dto: CreateProductRequest): Promise<any>;

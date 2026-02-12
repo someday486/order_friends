@@ -60,6 +60,16 @@ export declare enum TransactionType {
     DAMAGE = "DAMAGE",
     RETURN = "RETURN"
 }
+export declare class BulkAdjustmentItem {
+    productId: string;
+    branchId: string;
+    qty_change: number;
+    transaction_type: TransactionType;
+    notes?: string;
+}
+export declare class BulkAdjustInventoryRequest {
+    adjustments: BulkAdjustmentItem[];
+}
 export declare class AdjustInventoryRequest {
     qty_change: number;
     transaction_type: TransactionType;

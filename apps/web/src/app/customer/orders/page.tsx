@@ -22,6 +22,7 @@ type Order = {
   status: OrderStatus;
   orderedAt: string;
   items?: { name: string; qty: number }[];
+  branchName?: string;
 };
 
 type OrderListResponse = {
@@ -37,6 +38,7 @@ type OrderListResponse = {
 // Constants
 // ============================================================
 
+// TODO(5-C): 카드 레이아웃과 함께 동작하는 컬럼 드래그 재정렬 UX를 다음 단계에서 추가.
 const STATUS_FILTERS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
   { value: "CREATED", label: "주문접수" },
@@ -99,6 +101,13 @@ const statusConfig: Record<
 // Helpers
 // ============================================================
 
+const UUID_FORMAT_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuidFormat(value: string): boolean {
+  return UUID_FORMAT_REGEX.test(value);
+}
+
 function getItemSummary(order: Order): string {
   if (!order.items || order.items.length === 0) return "";
   const first = order.items[0];
@@ -142,8 +151,15 @@ function OrderCard({ order }: { order: Order }) {
 
         {/* Order number + customer */}
         <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-sm font-bold text-foreground group-hover:text-primary-500 transition-colors">
-            {order.orderNo ?? order.id.slice(0, 8)}
+          <span className="flex items-center gap-2">
+            <span className="font-mono text-sm font-bold text-foreground group-hover:text-primary-500 transition-colors">
+              {order.orderNo ?? order.id.slice(0, 8)}
+            </span>
+            {order.branchName && (
+              <span className="text-2xs text-text-tertiary bg-bg-tertiary px-1.5 py-0.5 rounded">
+                {order.branchName}
+              </span>
+            )}
           </span>
           <span className="text-lg font-extrabold text-foreground">
             {formatWon(order.totalAmount)}
@@ -235,6 +251,7 @@ export default function CustomerOrdersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
+  const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
 
   // Load branches
   useEffect(() => {
@@ -250,6 +267,13 @@ export default function CustomerOrdersPage() {
     loadBranches();
   }, []);
 
+  useEffect(() => {
+    if (branchFilter !== "ALL" && !isUuidFormat(branchFilter)) {
+      setBranchFilter("ALL");
+      setPage(1);
+    }
+  }, [branchFilter]);
+
   // Load orders
   useEffect(() => {
     const loadOrders = async () => {
@@ -262,7 +286,7 @@ export default function CustomerOrdersPage() {
           limit: limit.toString(),
         });
 
-        if (branchFilter !== "ALL") {
+        if (branchFilter !== "ALL" && isUuidFormat(branchFilter)) {
           params.append("branchId", branchFilter);
         }
 
@@ -317,7 +341,7 @@ export default function CustomerOrdersPage() {
       </div>
 
       {/* Branch filter (dropdown) */}
-      {branches.length > 1 && (
+      {validBranches.length > 1 && (
         <div className="mb-3">
           <select
             value={branchFilter}
@@ -328,7 +352,7 @@ export default function CustomerOrdersPage() {
             className="h-9 px-3 rounded-full border border-border bg-bg-secondary text-foreground text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             <option value="ALL">모든 지점</option>
-            {branches.map((branch) => (
+            {validBranches.map((branch) => (
               <option key={branch.id} value={branch.id}>
                 {branch.name}
               </option>

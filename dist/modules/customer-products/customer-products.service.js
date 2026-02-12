@@ -226,6 +226,60 @@ let CustomerProductsService = CustomerProductsService_1 = class CustomerProducts
         this.logger.log(`Product ${productId} deleted successfully`);
         return { deleted: true };
     }
+    async bulkUpdateProductStatus(userId, branchId, productIds, isActive, brandMemberships, branchMemberships) {
+        this.logger.log(`Bulk updating ${productIds.length} products status for branch ${branchId} by user ${userId}`);
+        const { branchMembership, brandMembership } = await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+        const role = branchMembership?.role || brandMembership?.role;
+        if (!role) {
+            throw new common_1.ForbiddenException('You do not have access to this branch');
+        }
+        this.checkModificationPermission(role, 'bulk update product status', userId);
+        const sb = this.supabase.adminClient();
+        const { data, error } = await sb
+            .from('products')
+            .update({ is_hidden: !isActive })
+            .eq('branch_id', branchId)
+            .in('id', productIds)
+            .select();
+        if (error) {
+            this.logger.error(`Failed to bulk update product status`, error);
+            throw new Error('Failed to bulk update product status');
+        }
+        this.logger.log(`Bulk updated ${data?.length || 0} products status`);
+        return { updated: data?.length || 0, products: data || [] };
+    }
+    async bulkUpdateCategoryStatus(userId, branchId, categoryIds, isActive, brandMemberships, branchMemberships) {
+        this.logger.log(`Bulk updating ${categoryIds.length} categories status for branch ${branchId} by user ${userId}`);
+        const { branchMembership, brandMembership } = await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);
+        const role = branchMembership?.role || brandMembership?.role;
+        if (!role) {
+            throw new common_1.ForbiddenException('You do not have access to this branch');
+        }
+        this.checkModificationPermission(role, 'bulk update category status', userId);
+        const sb = this.supabase.adminClient();
+        const { data, error } = await sb
+            .from('product_categories')
+            .update({ is_active: isActive })
+            .eq('branch_id', branchId)
+            .in('id', categoryIds)
+            .select();
+        if (error) {
+            this.logger.error(`Failed to bulk update category status`, error);
+            throw new Error('Failed to bulk update category status');
+        }
+        this.logger.log(`Bulk updated ${data?.length || 0} categories status`);
+        return {
+            updated: data?.length || 0,
+            categories: (data || []).map((row) => ({
+                id: row.id,
+                branchId: row.branch_id,
+                name: row.name,
+                sortOrder: row.sort_order ?? 0,
+                isActive: row.is_active ?? true,
+                createdAt: row.created_at ?? '',
+            })),
+        };
+    }
     async reorderProducts(userId, branchId, items, brandMemberships, branchMemberships) {
         this.logger.log(`Reordering ${items.length} products for branch ${branchId} by user ${userId}`);
         const { branchMembership, brandMembership } = await this.checkBranchAccess(branchId, userId, brandMemberships, branchMemberships);

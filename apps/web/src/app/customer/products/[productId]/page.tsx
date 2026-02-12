@@ -350,8 +350,29 @@ function ProductDetailPageContent() {
 
   return (
     <div>
-      <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
-        ← 뒤로 가기
+      <button
+        onClick={() => {
+          if (isEditing && !isNew) {
+            setIsEditing(false);
+            if (product) {
+              setFormData({
+                branchId: product.branch_id || "",
+                name: product.name || "",
+                categoryId: product.category_id || "",
+                description: product.description || "",
+                price: product.base_price ?? product.price ?? 0,
+                imageUrl: product.image_url || "",
+                isActive: product.is_active ?? !product.is_hidden,
+              });
+              setImagePreviewUrl(product.image_url || null);
+            }
+          } else {
+            router.push("/customer/products");
+          }
+        }}
+        className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
+      >
+        ← {isEditing && !isNew ? "상세로 돌아가기" : "목록으로"}
       </button>
 
       <div className="flex justify-between items-center mb-8">
@@ -373,6 +394,20 @@ function ProductDetailPageContent() {
       <div className="card p-6">
         {isEditing ? (
           <div>
+            {/* Sales status dropdown (top-right) */}
+            <div className="flex justify-end mb-4">
+              <select
+                value={formData.isActive ? "active" : "inactive"}
+                onChange={(e) => setFormData(prev => ({...prev, isActive: e.target.value === "active"}))}
+                className={`input-field w-auto min-w-[120px] text-sm font-semibold ${
+                  formData.isActive ? "text-success" : "text-text-secondary"
+                }`}
+              >
+                <option value="active">판매중</option>
+                <option value="inactive">숨김</option>
+              </select>
+            </div>
+
             {/* Branch selection (only for new products) */}
             {isNew && (
               <div className="mb-5">
@@ -467,17 +502,6 @@ function ProductDetailPageContent() {
                 unoptimized
               />
               )}
-            </div>
-
-            <div className="mb-6">
-              <label className="flex items-center gap-2 text-[13px] text-text-secondary font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                />
-                판매 활성화
-              </label>
             </div>
 
             <div className="flex gap-3">

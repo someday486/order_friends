@@ -449,6 +449,118 @@ export class CustomerProductsService {
   }
 
   /**
+   * 상품 일괄 상태 변경 (OWNER, ADMIN만 가능)
+   */
+  async bulkUpdateProductStatus(
+    userId: string,
+    branchId: string,
+    productIds: string[],
+    isActive: boolean,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Bulk updating ${productIds.length} products status for branch ${branchId} by user ${userId}`,
+    );
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(
+      role,
+      'bulk update product status',
+      userId,
+    );
+
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('products')
+      .update({ is_hidden: !isActive })
+      .eq('branch_id', branchId)
+      .in('id', productIds)
+      .select();
+
+    if (error) {
+      this.logger.error(`Failed to bulk update product status`, error);
+      throw new Error('Failed to bulk update product status');
+    }
+
+    this.logger.log(`Bulk updated ${data?.length || 0} products status`);
+
+    return { updated: data?.length || 0, products: data || [] };
+  }
+
+  /**
+   * 카테고리 일괄 활성화/비활성화 (OWNER, ADMIN만 가능)
+   */
+  async bulkUpdateCategoryStatus(
+    userId: string,
+    branchId: string,
+    categoryIds: string[],
+    isActive: boolean,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Bulk updating ${categoryIds.length} categories status for branch ${branchId} by user ${userId}`,
+    );
+
+    const { branchMembership, brandMembership } = await this.checkBranchAccess(
+      branchId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    const role = branchMembership?.role || brandMembership?.role;
+    if (!role) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+    this.checkModificationPermission(
+      role,
+      'bulk update category status',
+      userId,
+    );
+
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('product_categories')
+      .update({ is_active: isActive })
+      .eq('branch_id', branchId)
+      .in('id', categoryIds)
+      .select();
+
+    if (error) {
+      this.logger.error(`Failed to bulk update category status`, error);
+      throw new Error('Failed to bulk update category status');
+    }
+
+    this.logger.log(`Bulk updated ${data?.length || 0} categories status`);
+
+    return {
+      updated: data?.length || 0,
+      categories: (data || []).map((row: any) => ({
+        id: row.id,
+        branchId: row.branch_id,
+        name: row.name,
+        sortOrder: row.sort_order ?? 0,
+        isActive: row.is_active ?? true,
+        createdAt: row.created_at ?? '',
+      })),
+    };
+  }
+
+  /**
    * 상품 정렬 순서 일괄 변경 (OWNER, ADMIN만 가능)
    */
   async reorderProducts(

@@ -150,6 +150,41 @@ export enum TransactionType {
   RETURN = 'RETURN',
 }
 
+export class BulkAdjustmentItem {
+  @ApiProperty({ description: 'Product ID' })
+  @IsString()
+  productId: string;
+
+  @ApiProperty({ description: 'Branch ID' })
+  @IsString()
+  branchId: string;
+
+  @ApiProperty({ description: 'Quantity change (positive or negative)' })
+  @IsNumber()
+  qty_change: number;
+
+  @ApiProperty({
+    description: 'Transaction type',
+    enum: TransactionType,
+    example: TransactionType.ADJUSTMENT,
+  })
+  @IsEnum(TransactionType)
+  transaction_type: TransactionType;
+
+  @ApiPropertyOptional({ description: 'Notes for the adjustment' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class BulkAdjustInventoryRequest {
+  @ApiProperty({
+    description: 'Array of inventory adjustments',
+    type: [BulkAdjustmentItem],
+  })
+  adjustments: BulkAdjustmentItem[];
+}
+
 export class AdjustInventoryRequest {
   @ApiProperty({ description: 'Quantity change (positive or negative)' })
   @IsNumber()

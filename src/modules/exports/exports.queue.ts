@@ -16,6 +16,11 @@ type BullMqModule = {
   ) => any;
 };
 
+type OrderExportRow = {
+  id: string;
+  status: string;
+};
+
 @Injectable()
 export class ExportsQueue implements OnModuleDestroy {
   private readonly logger = new Logger(ExportsQueue.name);
@@ -28,9 +33,7 @@ export class ExportsQueue implements OnModuleDestroy {
   ) {
     const redisUrl = this.configService.get<string>('REDIS_URL');
     if (!redisUrl) {
-      this.logger.warn(
-        'REDIS_URL is missing; order export queue and worker are disabled.',
-      );
+      this.logger.warn('REDIS_URL missing; skipping exports queue initialization.');
       this.queue = null;
       this.worker = null;
       return;
@@ -52,20 +55,47 @@ export class ExportsQueue implements OnModuleDestroy {
     this.worker = new bullmq.Worker(
       ORDER_EXPORT_QUEUE_NAME,
       async (job: { data: OrderExportQueuePayload }) => {
-        const { error } = await this.supabaseService
-          .adminClient()
+        const exportId = job.data.exportId;
+        const sb = this.supabaseService.adminClient();
+
+        const { data, error } = await sb
           .from('order_exports')
-          .update({ status: 'PROCESSING' })
-          .eq('id', job.data.jobId)
-          .eq('user_id', job.data.userId);
+          .select('id, status')
+          .eq('id', exportId)
+          .maybeSingle<OrderExportRow>();
 
         if (error) {
           this.logger.error(
-            `Failed to set order export ${job.data.jobId} to PROCESSING`,
+            `Failed to fetch order export ${exportId}`,
             error.message,
           );
           throw new Error(error.message);
         }
+
+        if (!data) {
+          this.logger.warn(`Order export ${exportId} not found; skipping worker job.`);
+          return;
+        }
+
+        if (data.status === 'DONE' || data.status === 'FAILED') {
+          return;
+        }
+
+        const { error: updateError } = await sb
+          .from('order_exports')
+          .update({ status: 'PROCESSING' })
+          .eq('id', exportId);
+
+        if (updateError) {
+          this.logger.error(
+            `Failed to update order export ${exportId} to PROCESSING`,
+            updateError.message,
+          );
+          throw new Error(updateError.message);
+        }
+
+        this.logger.log(`Worker started for export ${exportId}`);
+        this.logger.log(`Updated export ${exportId} status to PROCESSING`);
 
         // TODO: Generate export file and upload to storage.
       },
@@ -92,7 +122,7 @@ export class ExportsQueue implements OnModuleDestroy {
   async enqueueOrderExport(payload: OrderExportQueuePayload): Promise<void> {
     if (!this.queue) {
       this.logger.warn(
-        `Skipping enqueue for order export ${payload.jobId}: queue disabled.`,
+        `Skipping enqueue for order export ${payload.exportId}: queue disabled.`,
       );
       return;
     }
@@ -101,6 +131,8 @@ export class ExportsQueue implements OnModuleDestroy {
       removeOnComplete: 100,
       removeOnFail: 100,
     });
+
+    this.logger.log(`Enqueued export job ${payload.exportId}`);
   }
 
   async onModuleDestroy(): Promise<void> {

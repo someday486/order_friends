@@ -10,7 +10,7 @@ import {
 } from "@/lib/format";
 import type { Branch, OrderStatus } from "@/types/common";
 import Modal from "@/components/ui/Modal";
-import { createOrderExportJob } from "@/lib/exports";
+import { createOrderExportJob, getOrderExportJobStatus } from "@/lib/exports";
 
 // ============================================================
 // Types
@@ -340,8 +340,8 @@ export default function CustomerOrdersPage() {
 
     try {
       setExporting(true);
-      await createOrderExportJob({
-        format: "xlsx",
+      const createResponse = await createOrderExportJob({
+        format: "csv",
         scope: "detail",
         filters: {
           ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
@@ -350,8 +350,41 @@ export default function CustomerOrdersPage() {
           ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
         },
       });
+      const jobId = createResponse.jobId || createResponse.id;
+
+      if (!jobId) {
+        throw new Error("Export 작업 ID를 확인할 수 없습니다.");
+      }
+
+      const maxAttempts = 30;
+      let downloadUrl: string | null = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const statusResponse = await getOrderExportJobStatus(jobId);
+
+        if (statusResponse.status === "COMPLETED") {
+          downloadUrl = statusResponse.downloadUrl ?? null;
+          break;
+        }
+
+        if (statusResponse.status === "FAILED") {
+          alert(statusResponse.error || "Export 생성에 실패했습니다.");
+          return;
+        }
+
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+
+      if (downloadUrl) {
+        window.open(downloadUrl, "_blank");
+        setShowExportModal(false);
+        return;
+      }
+
+      alert("아직 처리중입니다. 잠시 후 Export 목록에서 다운로드하세요.");
       setShowExportModal(false);
-      alert("Export 작업이 생성되었습니다.");
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : "Export 생성에 실패했습니다");

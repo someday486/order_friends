@@ -55,16 +55,18 @@ export class ExportsController {
       throw new BadRequestException('jobId is required');
     }
 
-    const job = await this.exportsService.getOrderExportJob(jobId, userId);
+    const { job, downloadUrl } = await this.exportsService.getOrderExportJob(jobId, userId);
 
     return {
       jobId: job.id,
       status: job.status,
-      fileName: null,
-      downloadUrl: null,
-      error: null,
+      fileName: job.file_name ?? null,
+      downloadUrl,
+      error: job.error_message ?? null,
       createdAt: job.created_at,
       updatedAt: job.updated_at,
+      completedAt: job.completed_at ?? null,
+      rowCount: job.row_count ?? null,
     };
   }
 }

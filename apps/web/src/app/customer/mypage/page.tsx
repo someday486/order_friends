@@ -45,6 +45,7 @@ type ProfileState = {
 };
 
 const SETTINGS_STORAGE_KEY = "customer:mypage:notification-settings";
+const DELETE_CONFIRM_TEXT = "탈퇴";
 
 function getDefaultSettings(): NotificationSettings {
   return {
@@ -264,8 +265,8 @@ export default function CustomerMyPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (deleteText !== "delete") {
-      toast.error("\"delete\"를 입력해 주세요.");
+    if (deleteText !== DELETE_CONFIRM_TEXT) {
+      toast.error(`"${DELETE_CONFIRM_TEXT}"를 입력해 주세요.`);
       return;
     }
 
@@ -511,14 +512,14 @@ export default function CustomerMyPage() {
         <div className="mt-5 pt-4 border-t border-border">
           <div className="text-sm text-text-secondary mb-2">계정 탈퇴</div>
           <p className="text-xs text-text-tertiary mb-3">
-            버튼을 누르기 전에 <span className="font-semibold text-text-secondary">delete</span>를 입력하세요.
+            버튼을 누르기 전에 <span className="font-semibold text-text-secondary">{DELETE_CONFIRM_TEXT}</span>를 입력하세요.
           </p>
           <div className="flex flex-wrap gap-3">
             <input
               value={deleteText}
               onChange={(event) => setDeleteText(event.target.value)}
               className="input-field max-w-[140px]"
-              placeholder="delete"
+              placeholder={DELETE_CONFIRM_TEXT}
             />
             <button
               onClick={handleDeleteAccount}

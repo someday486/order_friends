@@ -96,3 +96,18 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Export job smoke test
+
+Use this command to verify `order_exports` table access with service-role credentials (no browser token needed).
+
+```bash
+EXPORT_SMOKE_USER_ID=<user-uuid> npm run exports:smoke
+```
+
+Requirements:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `EXPORT_SMOKE_USER_ID` (required for smoke row ownership)
+
+The script inserts a `PENDING` row into `order_exports`, reads it back, prints `{id,status}`, and then attempts cleanup.

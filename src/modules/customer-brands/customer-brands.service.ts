@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import type { BrandMembership } from '../../common/types/auth-request';
+import {
+  CreateCustomerBrandRequest,
+  UpdateCustomerBrandRequest,
+} from './dto/customer-brand.request';
 
 @Injectable()
 export class CustomerBrandsService {
@@ -30,7 +34,7 @@ export class CustomerBrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
       )
       .in('id', brandIds)
       .order('created_at', { ascending: false });
@@ -45,6 +49,7 @@ export class CustomerBrandsService {
       const membership = brandMemberships.find((m) => m.brand_id === brand.id);
       return {
         ...brand,
+        slug: brand.slug ?? null,
         myRole: membership?.role || null,
       };
     });
@@ -80,7 +85,7 @@ export class CustomerBrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -97,11 +102,78 @@ export class CustomerBrandsService {
   }
 
   /**
+   * 브랜드 생성
+   */
+  async createMyBrand(
+    createData: CreateCustomerBrandRequest,
+    userId: string,
+    brandMemberships: BrandMembership[],
+  ) {
+    const hasManagePermission = brandMemberships.some(
+      (m) => m.role === 'OWNER' || m.role === 'ADMIN',
+    );
+
+    if (!hasManagePermission) {
+      this.logger.warn(
+        `User ${userId} has no owner/admin membership and attempted to create brand`,
+      );
+      throw new ForbiddenException('Only OWNER or ADMIN can create a brand');
+    }
+
+    const sb = this.supabase.adminClient();
+
+    const insertPayload = {
+      name: createData.name,
+      slug: createData.slug ?? null,
+      owner_user_id: userId,
+      biz_name: createData.biz_name ?? null,
+      biz_reg_no: createData.biz_reg_no ?? null,
+      logo_url: createData.logo_url ?? null,
+      cover_image_url: createData.cover_image_url ?? null,
+    };
+
+    const { data, error } = await sb
+      .from('brands')
+      .insert(insertPayload)
+      .select(
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, created_at',
+      )
+      .single();
+
+    if (error || !data) {
+      this.logger.error('Failed to create brand', error);
+      throw new Error('Failed to create brand');
+    }
+
+    const memberResult = await sb.from('brand_members').insert({
+      brand_id: data.id,
+      user_id: userId,
+      role: 'OWNER',
+      status: 'ACTIVE',
+    });
+
+    if (memberResult.error) {
+      await sb.from('brands').delete().eq('id', data.id);
+      this.logger.error(
+        `Failed to create owner membership for brand ${data.id}`,
+        memberResult.error,
+      );
+      throw new Error('Failed to create brand membership');
+    }
+
+    return {
+      ...data,
+      myRole: 'OWNER',
+      slug: data.slug ?? null,
+    };
+  }
+
+  /**
    * 내 브랜드 수정 (OWNER, ADMIN만 가능)
    */
   async updateMyBrand(
     brandId: string,
-    updateData: any,
+    updateData: UpdateCustomerBrandRequest,
     userId: string,
     brandMemberships: BrandMembership[],
   ) {
@@ -126,28 +198,24 @@ export class CustomerBrandsService {
     const sb = this.supabase.adminClient();
 
     // 수정 가능한 필드만 허용
-    const {
-      name,
-      biz_name,
-      biz_reg_no,
-      logo_url,
-      cover_image_url,
-      thumbnail_url,
-    } = updateData;
+    const { name, slug, biz_name, biz_reg_no, logo_url, cover_image_url } =
+      updateData;
     const updateFields: any = {};
     if (name !== undefined) updateFields.name = name;
+    if (slug !== undefined) updateFields.slug = slug;
     if (biz_name !== undefined) updateFields.biz_name = biz_name;
     if (biz_reg_no !== undefined) updateFields.biz_reg_no = biz_reg_no;
     if (logo_url !== undefined) updateFields.logo_url = logo_url;
     if (cover_image_url !== undefined)
       updateFields.cover_image_url = cover_image_url;
-    if (thumbnail_url !== undefined) updateFields.thumbnail_url = thumbnail_url;
 
     const { data, error } = await sb
       .from('brands')
       .update(updateFields)
       .eq('id', brandId)
-      .select()
+      .select(
+        'id, name, slug, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, created_at',
+      )
       .single();
 
     if (error || !data) {

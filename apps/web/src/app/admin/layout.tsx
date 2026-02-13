@@ -8,6 +8,7 @@ import { useState } from "react";
 const menuItems = [
   { href: "/admin", label: "홈", icon: "🏠" },
   { href: "/admin/orders", label: "주문 관리", icon: "📋" },
+  { href: "/admin/order", label: "주문 바로가기", icon: "🧾" },
   { href: "/admin/products", label: "상품 관리", icon: "📦" },
   { href: "/admin/stores", label: "가게 관리", icon: "🏪" },
   { href: "/admin/brand", label: "브랜드 관리", icon: "🏢" },

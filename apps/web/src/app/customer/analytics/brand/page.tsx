@@ -454,10 +454,22 @@ export default function BrandAnalyticsPage() {
                 data={s.revenueByDay}
                 xKey="date"
                 lines={[
-                  { dataKey: "revenue", name: "매출", color: "#2563eb" },
-                  { dataKey: "orderCount", name: "주문 수", color: "#22c55e" },
+                  {
+                    dataKey: "revenue",
+                    name: "매출",
+                    color: "#2563eb",
+                    yAxisId: "left",
+                  },
+                  {
+                    dataKey: "orderCount",
+                    name: "주문 수",
+                    color: "#22c55e",
+                    yAxisId: "right",
+                  },
                 ]}
                 xTickFormatter={(value) => formatDate(String(value))}
+                leftTickFormatter={(value) => Number(value).toLocaleString()}
+                rightTickFormatter={(value) => Number(value).toLocaleString()}
                 tooltipFormatter={(value, name) =>
                   name === "매출" ? formatWon(value) : `${value.toLocaleString()}건`
                 }

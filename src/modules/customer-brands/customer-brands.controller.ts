@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -18,6 +19,10 @@ import type { AuthRequest } from '../../common/types/auth-request';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
 import { CustomerBrandsService } from './customer-brands.service';
+import {
+  CreateCustomerBrandRequest,
+  UpdateCustomerBrandRequest,
+} from './dto/customer-brand.request';
 
 @ApiTags('customer-brands')
 @ApiBearerAuth()
@@ -35,6 +40,29 @@ export class CustomerBrandsController {
   async getMyBrands(@Req() req: AuthRequest) {
     if (!req.user) throw new Error('Missing user');
     return this.brandsService.getMyBrands(
+      req.user.id,
+      req.brandMemberships || [],
+    );
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: '내 브랜드 생성',
+    description:
+      'OWNER 또는 ADMIN 권한을 가진 사용자는 새로운 브랜드를 생성할 수 있습니다.',
+  })
+  @ApiResponse({ status: 201, description: '브랜드 생성 성공' })
+  @ApiResponse({
+    status: 403,
+    description: '권한 없음 - OWNER/ADMIN 권한 필요',
+  })
+  async createMyBrand(
+    @Req() req: AuthRequest,
+    @Body() createData: CreateCustomerBrandRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    return this.brandsService.createMyBrand(
+      createData,
       req.user.id,
       req.brandMemberships || [],
     );
@@ -75,7 +103,7 @@ export class CustomerBrandsController {
   @ApiResponse({ status: 404, description: '브랜드를 찾을 수 없음' })
   async updateMyBrand(
     @Param('brandId') brandId: string,
-    @Body() updateData: any,
+    @Body() updateData: UpdateCustomerBrandRequest,
     @Req() req: AuthRequest,
   ) {
     if (!req.user) throw new Error('Missing user');

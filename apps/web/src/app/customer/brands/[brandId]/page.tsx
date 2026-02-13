@@ -7,13 +7,10 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
-// ============================================================
-// Types
-// ============================================================
-
 type Brand = {
   id: string;
   name: string;
+  slug: string | null;
   biz_name: string | null;
   biz_reg_no: string | null;
   rep_name: string | null;
@@ -26,18 +23,6 @@ type Brand = {
   created_at: string;
 };
 
-// ============================================================
-// Constants
-// ============================================================
-
-// ============================================================
-// Helpers
-// ============================================================
-
-// ============================================================
-// Component
-// ============================================================
-
 export default function BrandDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -49,6 +34,7 @@ export default function BrandDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    slug: "",
     biz_name: "",
     biz_reg_no: "",
     rep_name: "",
@@ -72,6 +58,7 @@ export default function BrandDetailPage() {
         setBrand(data);
         setFormData({
           name: data.name || "",
+          slug: data.slug || "",
           biz_name: data.biz_name || "",
           biz_reg_no: data.biz_reg_no || "",
           rep_name: data.rep_name || "",
@@ -144,7 +131,6 @@ export default function BrandDetailPage() {
   };
 
   const canEdit = brand && (brand.myRole === "OWNER" || brand.myRole === "ADMIN");
-  const brandBizCertUrl = brand?.biz_cert_url || brand?.bizCertUrl || null;
 
   if (loading) {
     return (
@@ -158,7 +144,10 @@ export default function BrandDetailPage() {
   if (error || !brand) {
     return (
       <div>
-        <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
+        <button
+          onClick={() => router.back()}
+          className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
+        >
           ← 뒤로 가기
         </button>
         <h1 className="text-2xl font-extrabold mb-4 text-foreground">브랜드 상세</h1>
@@ -171,14 +160,20 @@ export default function BrandDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
+      <button
+        onClick={() => router.back()}
+        className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
+      >
         ← 뒤로 가기
       </button>
 
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">브랜드 상세</h1>
         {canEdit && !isEditing && (
-          <button onClick={() => setIsEditing(true)} className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
+          >
             수정하기
           </button>
         )}
@@ -195,6 +190,19 @@ export default function BrandDetailPage() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input-field w-full"
                 placeholder="브랜드명을 입력하세요"
+              />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">브랜드 Slug</label>
+              <input
+                type="text"
+                value={formData.slug}
+                onChange={(e) =>
+                  setFormData({ ...formData, slug: e.target.value.toLowerCase() })
+                }
+                className="input-field w-full"
+                placeholder="brand-slug"
               />
             </div>
 
@@ -242,7 +250,7 @@ export default function BrandDetailPage() {
               />
             </div>
 
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 mb-6">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr)] gap-4 mb-6">
               <ImageUpload
                 value={formData.logo_url}
                 onChange={(url) => setFormData({ ...formData, logo_url: url })}
@@ -299,9 +307,7 @@ export default function BrandDetailPage() {
                   >
                     {bizCertUploading ? "업로드 중..." : formData.bizCertUrl ? "변경" : "파일 선택"}
                   </button>
-                  {bizCertUploading && (
-                    <span className="text-xs text-text-secondary">업로드 중...</span>
-                  )}
+                  {bizCertUploading && <span className="text-xs text-text-secondary">업로드 중...</span>}
                 </div>
               </div>
               {bizCertUploadError && (
@@ -310,22 +316,30 @@ export default function BrandDetailPage() {
             </div>
 
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setIsEditing(false)} disabled={saveLoading} className="py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors">
+              <button
+                onClick={() => setIsEditing(false)}
+                disabled={saveLoading}
+                className="py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
+              >
                 취소
               </button>
-              <button onClick={handleSave} disabled={saveLoading} className="btn-primary py-2.5 px-5 text-sm">
+              <button
+                onClick={handleSave}
+                disabled={saveLoading}
+                className="btn-primary py-2.5 px-5 text-sm"
+              >
                 {saveLoading ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>
         ) : (
           <div>
-            {brandBizCertUrl && (
+            {brand.biz_cert_url && (
               <div className="mb-5">
                 <div className="text-[13px] text-text-secondary mb-2">사업자등록증</div>
-                <a href={brandBizCertUrl} target="_blank" rel="noopener noreferrer" className="inline-block">
+                <a href={brand.biz_cert_url} target="_blank" rel="noopener noreferrer" className="inline-block">
                   <Image
-                    src={brandBizCertUrl}
+                    src={brand.biz_cert_url}
                     alt="사업자등록증"
                     width={180}
                     height={120}
@@ -369,6 +383,11 @@ export default function BrandDetailPage() {
                 <h2 className="text-xl font-bold mb-2 text-foreground">{brand.name}</h2>
                 <div className="text-sm text-text-secondary">역할: {brand.myRole}</div>
               </div>
+            </div>
+
+            <div className="mb-5">
+              <div className="text-[13px] text-text-secondary mb-2">브랜드 Slug</div>
+              <div className="text-[15px] text-foreground">{brand.slug || '-'}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-5">

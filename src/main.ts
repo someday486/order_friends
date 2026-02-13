@@ -1,4 +1,4 @@
-﻿// import { NestFactory } from '@nestjs/core';
+// import { NestFactory } from '@nestjs/core';
 // import { AppModule } from './app.module';
 
 // async function bootstrap() {
@@ -50,7 +50,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
 
-      // Allow localhost and 127.0.0.1
+      // Allow localhost and common local/dev hosts
       if (
         origin.startsWith('http://localhost:') ||
         origin.startsWith('http://127.0.0.1:')
@@ -58,10 +58,12 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      // Allow local network IPs (192.168.x.x) in development
+      // Allow private network IPs in development
       if (
         process.env.NODE_ENV !== 'production' &&
-        /^http:\/\/192\.168\.\d+\.\d+:/.test(origin)
+        (origin.startsWith('http://192.168.') ||
+          /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+:\d+$/.test(origin) ||
+          origin.startsWith('http://10.'))
       ) {
         return callback(null, true);
       }

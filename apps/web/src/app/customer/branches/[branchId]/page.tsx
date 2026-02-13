@@ -7,10 +7,6 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
-// ============================================================
-// Types
-// ============================================================
-
 type Branch = {
   id: string;
   brandId: string;
@@ -18,22 +14,9 @@ type Branch = {
   slug: string;
   logoUrl: string | null;
   coverImageUrl: string | null;
-  thumbnailUrl: string | null;
   myRole: string | null;
   createdAt: string;
 };
-
-// ============================================================
-// Constants
-// ============================================================
-
-// ============================================================
-// Helpers
-// ============================================================
-
-// ============================================================
-// Component
-// ============================================================
 
 export default function BranchDetailPage() {
   const params = useParams();
@@ -49,7 +32,6 @@ export default function BranchDetailPage() {
     slug: "",
     logoUrl: null as string | null,
     coverImageUrl: null as string | null,
-    thumbnailUrl: null as string | null,
   });
   const [saveLoading, setSaveLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -67,11 +49,10 @@ export default function BranchDetailPage() {
           slug: data.slug || "",
           logoUrl: data.logoUrl || null,
           coverImageUrl: data.coverImageUrl || null,
-          thumbnailUrl: data.thumbnailUrl || null,
         });
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 정보를 불러올 수 없습니다.");
+        setError(e instanceof Error ? e.message : "브랜치 정보를 불러올 수 없습니다.");
       } finally {
         setLoading(false);
       }
@@ -92,7 +73,7 @@ export default function BranchDetailPage() {
       toast.success("지점 정보가 저장되었습니다.");
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "지점 저장에 실패했습니다.");
+      toast.error(e instanceof Error ? e.message : "지점 수정에 실패했습니다.");
     } finally {
       setSaveLoading(false);
     }
@@ -114,7 +95,7 @@ export default function BranchDetailPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">지점 상세</h1>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">지점</h1>
         <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
@@ -123,10 +104,13 @@ export default function BranchDetailPage() {
   if (error || !branch) {
     return (
       <div>
-        <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
+        <button
+          onClick={() => router.back()}
+          className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
+        >
           ← 뒤로 가기
         </button>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점 상세</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점</h1>
         <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
           {error || "지점을 찾을 수 없습니다"}
         </div>
@@ -136,18 +120,27 @@ export default function BranchDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.back()} className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors">
+      <button
+        onClick={() => router.back()}
+        className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
+      >
         ← 뒤로 가기
       </button>
 
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 상세</h1>
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점</h1>
         {canEdit && !isEditing && (
           <div className="flex gap-3">
-            <button onClick={() => setIsEditing(true)} className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
+            >
               수정하기
             </button>
-            <button onClick={() => setShowDeleteConfirm(true)} className="py-2.5 px-5 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm cursor-pointer font-semibold hover:bg-danger-500/10 transition-colors">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="py-2.5 px-5 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm cursor-pointer font-semibold hover:bg-danger-500/10 transition-colors"
+            >
               삭제
             </button>
           </div>
@@ -169,7 +162,7 @@ export default function BranchDetailPage() {
             </div>
 
             <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">Slug (영문, 숫자, 하이픈만)</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">Slug (영문, 숫자, 하이픈)</label>
               <input
                 type="text"
                 value={formData.slug}
@@ -198,17 +191,14 @@ export default function BranchDetailPage() {
                 label="커버 이미지"
                 aspectRatio="16/9"
               />
-              <ImageUpload
-                value={formData.thumbnailUrl}
-                onChange={(url) => setFormData({ ...formData, thumbnailUrl: url })}
-                folder="branches/thumbnails"
-                label="썸네일"
-                aspectRatio="1/1"
-              />
             </div>
 
             <div className="flex gap-3">
-              <button onClick={handleSave} disabled={saveLoading} className="btn-primary flex-1 py-2.5 px-5 text-sm">
+              <button
+                onClick={handleSave}
+                disabled={saveLoading}
+                className="btn-primary flex-1 py-2.5 px-5 text-sm"
+              >
                 {saveLoading ? "저장 중..." : "저장"}
               </button>
               <button
@@ -219,7 +209,6 @@ export default function BranchDetailPage() {
                     slug: branch.slug,
                     logoUrl: branch.logoUrl,
                     coverImageUrl: branch.coverImageUrl,
-                    thumbnailUrl: branch.thumbnailUrl,
                   });
                 }}
                 disabled={saveLoading}
@@ -261,9 +250,7 @@ export default function BranchDetailPage() {
               )}
               <div>
                 <h2 className="text-xl font-bold mb-2 text-foreground">{branch.name}</h2>
-                {branch.myRole && (
-                  <div className="text-sm text-text-secondary">역할: {branch.myRole}</div>
-                )}
+                {branch.myRole && <div className="text-sm text-text-secondary">역할: {branch.myRole}</div>}
               </div>
             </div>
 
@@ -277,19 +264,6 @@ export default function BranchDetailPage() {
               <div className="text-[15px] text-foreground font-mono">{branch.brandId}</div>
             </div>
 
-            {branch.thumbnailUrl && (
-              <div className="mb-5">
-                <div className="text-[13px] text-text-secondary mb-2">썸네일</div>
-                <Image
-                  src={branch.thumbnailUrl}
-                  alt="썸네일"
-                  width={120}
-                  height={120}
-                  className="w-[120px] h-[120px] object-cover rounded-lg border border-border"
-                />
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-4 mt-6">
               <div>
                 <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
@@ -301,17 +275,29 @@ export default function BranchDetailPage() {
       </div>
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="bg-bg-secondary border border-border rounded-xl p-8 max-w-[500px] w-[90%] text-foreground" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="bg-bg-secondary border border-border rounded-xl p-8 max-w-[500px] w-[90%] text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-xl font-bold mb-4 text-foreground">지점 삭제</h2>
             <p className="text-text-secondary mb-6">
-              정말로 이 지점을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              선택한 지점을 삭제하면 관련 데이터가 함께 삭제됩니다. 계속 진행하시겠습니까?
             </p>
             <div className="flex gap-3">
-              <button onClick={handleDelete} className="flex-1 py-2.5 px-5 rounded-lg border-none bg-danger-500 text-foreground text-sm cursor-pointer font-semibold hover:bg-danger-600 transition-colors">
+              <button
+                onClick={handleDelete}
+                className="flex-1 py-2.5 px-5 rounded-lg border-none bg-danger-500 text-foreground text-sm cursor-pointer font-semibold hover:bg-danger-600 transition-colors"
+              >
                 삭제
               </button>
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
+              >
                 취소
               </button>
             </div>

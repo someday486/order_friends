@@ -10,6 +10,7 @@ describe('CustomerBrandsController', () => {
   const mockService = {
     getMyBrands: jest.fn(),
     getMyBrand: jest.fn(),
+    createMyBrand: jest.fn(),
     updateMyBrand: jest.fn(),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
@@ -48,6 +49,30 @@ describe('CustomerBrandsController', () => {
   it('getMyBrands should throw when user is missing', async () => {
     await expect(
       controller.getMyBrands(makeReq({ user: undefined })),
+    ).rejects.toThrow('Missing user');
+  });
+
+  it('createMyBrand should call service and return result', async () => {
+    mockService.createMyBrand.mockResolvedValue({ id: 'brand-new' });
+
+    const createData = {
+      name: '브랜드',
+      slug: 'brand',
+    } as any;
+
+    const result = await controller.createMyBrand(makeReq(), createData);
+
+    expect(result).toEqual({ id: 'brand-new' });
+    expect(mockService.createMyBrand).toHaveBeenCalledWith(
+      createData,
+      'user-1',
+      [],
+    );
+  });
+
+  it('createMyBrand should throw when user is missing', async () => {
+    await expect(
+      controller.createMyBrand(makeReq({ user: undefined }), {} as any),
     ).rejects.toThrow('Missing user');
   });
 

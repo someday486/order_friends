@@ -46,17 +46,21 @@ export class NotificationsService {
     // Mock mode if no API keys configured
     this.mockMode = !this.sendGridApiKey || !this.smsApiKey;
     this.mockKakaoTalkMode =
-      this.mockMode || !this.kakaoTalkApiUrl || !this.kakaoTalkAccessToken;
+      !this.kakaoTalkApiUrl || !this.kakaoTalkAccessToken;
 
     if (this.mockMode) {
       this.logger.warn(
         'Notification service running in MOCK MODE - API keys not configured',
       );
-    } else if (this.mockKakaoTalkMode) {
+    }
+
+    if (this.mockKakaoTalkMode) {
       this.logger.warn(
         'KakaoTalk API not fully configured - KakaoTalk notifications in mock mode',
       );
-    } else {
+    }
+
+    if (!this.mockMode && !this.mockKakaoTalkMode) {
       this.logger.log('Notification service initialized with external APIs');
     }
   }

@@ -258,7 +258,9 @@ export class CustomerOrdersService {
     // 데이터 조회
     let dataQuery = sb
       .from('orders')
-      .select('id, order_no, status, created_at, total_amount, customer_name')
+      .select(
+        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name)',
+      )
       .in('branch_id', targetBranchIds)
       .order('created_at', { ascending: false })
       .range(from, to);
@@ -274,12 +276,50 @@ export class CustomerOrdersService {
       throw new Error('Failed to fetch orders');
     }
 
+    const orderIds = (data ?? []).map((row: any) => row.id);
+    const itemSummaryMap = new Map<
+      string,
+      { itemCount: number; firstItemName: string | null }
+    >();
+
+    if (orderIds.length > 0) {
+      const { data: orderItems, error: orderItemsError } = await sb
+        .from('order_items')
+        .select('order_id, product_name_snapshot')
+        .in('order_id', orderIds);
+
+      if (orderItemsError) {
+        this.logger.error(
+          'Failed to fetch order item summaries',
+          orderItemsError,
+        );
+        throw new Error('Failed to fetch order item summaries');
+      }
+
+      for (const item of orderItems ?? []) {
+        const current = itemSummaryMap.get(item.order_id);
+        if (!current) {
+          itemSummaryMap.set(item.order_id, {
+            itemCount: 1,
+            firstItemName: item.product_name_snapshot ?? null,
+          });
+          continue;
+        }
+
+        current.itemCount += 1;
+      }
+    }
+
     const orders = (data ?? []).map((row: any) => ({
       id: row.id,
       orderNo: row.order_no ?? null,
       orderedAt: row.created_at ?? '',
       customerName: row.customer_name ?? '',
       totalAmount: row.total_amount ?? 0,
+      branchId: row.branch_id,
+      branchName: row.branches?.name ?? '',
+      itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
+      firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
       status: row.status as OrderStatus,
     }));
 

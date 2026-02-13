@@ -7,6 +7,7 @@ describe('CustomerOrdersService', () => {
   let service: CustomerOrdersService;
   let ordersChain: any;
   let branchesChain: any;
+  let orderItemsChain: any;
   let mockSb: any;
 
   const makeChain = () => ({
@@ -23,10 +24,13 @@ describe('CustomerOrdersService', () => {
   const setup = () => {
     ordersChain = makeChain();
     branchesChain = makeChain();
+    orderItemsChain = makeChain();
+    orderItemsChain.in.mockResolvedValue({ data: [], error: null });
     mockSb = {
       from: jest.fn((table: string) => {
         if (table === 'orders') return ordersChain;
         if (table === 'branches') return branchesChain;
+        if (table === 'order_items') return orderItemsChain;
         return ordersChain;
       }),
     };
@@ -202,6 +206,8 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: '강남점' },
         },
       ],
       error: null,
@@ -236,6 +242,8 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: '강남점' },
         },
       ],
       error: null,
@@ -296,6 +304,8 @@ describe('CustomerOrdersService', () => {
           created_at: null,
           total_amount: null,
           customer_name: null,
+          branch_id: 'b1',
+          branches: { name: '강남점' },
         },
       ],
       error: null,
@@ -315,8 +325,100 @@ describe('CustomerOrdersService', () => {
       orderedAt: '',
       customerName: '',
       totalAmount: 0,
+      branchId: 'b1',
+      branchName: '강남점',
+      itemCount: 0,
+      firstItemName: null,
       status: OrderStatus.CREATED,
     });
+  });
+
+
+  it('getMyOrders should include branch and item summary fields', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+          customer_name: '홍길동',
+          branch_id: 'b1',
+          branches: { name: '강남점' },
+        },
+      ],
+      error: null,
+    });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: [
+        { order_id: 'o1', product_name_snapshot: '아메리카노' },
+        { order_id: 'o1', product_name_snapshot: '카페라떼' },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data[0]).toMatchObject({
+      branchId: 'b1',
+      branchName: '강남점',
+      itemCount: 2,
+      firstItemName: '아메리카노',
+    });
+  });
+
+  it('getMyOrders should throw on order item summary fetch error', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: '강남점' },
+        },
+      ],
+      error: null,
+    });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+
+    await expect(
+      service.getMyOrders(
+        'user-1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+        {},
+      ),
+    ).rejects.toThrow('Failed to fetch order item summaries');
   });
 
   it('getMyOrders should use accessible branches when branchId is omitted', async () => {
@@ -336,6 +438,8 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: '강남점' },
         },
       ],
       error: null,
@@ -370,6 +474,8 @@ describe('CustomerOrdersService', () => {
             status: OrderStatus.CONFIRMED,
             created_at: 't',
             total_amount: 10,
+            branch_id: 'b1',
+            branches: { name: '강남점' },
           },
         ],
         error: null,

@@ -1,6 +1,8 @@
 import {
   Controller,
   Get,
+  Body,
+  Post,
   Patch,
   Param,
   Query,
@@ -14,13 +16,16 @@ import {
   ApiBearerAuth,
   ApiQuery,
   ApiParam,
+  ApiBody,
   ApiResponse,
 } from '@nestjs/swagger';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
 import { UserNotificationsService } from './user-notifications.service';
+import { NotificationsService } from './notifications.service';
 import { UserNotificationResponse } from './dto/user-notification.dto';
+import { SendKakaoTalkRequestDto } from './dto/send-kakao-talk.dto';
 
 @ApiTags('customer-notifications')
 @ApiBearerAuth()
@@ -30,7 +35,8 @@ export class UserNotificationsController {
   private readonly logger = new Logger(UserNotificationsController.name);
 
   constructor(
-    private readonly notificationsService: UserNotificationsService,
+    private readonly userNotificationsService: UserNotificationsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   @Get()
@@ -61,7 +67,7 @@ export class UserNotificationsController {
     if (!req.user) throw new Error('Missing user');
 
     this.logger.log(`User ${req.user.id} fetching notifications`);
-    return this.notificationsService.getNotifications(
+    return this.userNotificationsService.getNotifications(
       req.user.id,
       limit ? parseInt(limit, 10) : 50,
       offset ? parseInt(offset, 10) : 0,
@@ -78,7 +84,7 @@ export class UserNotificationsController {
     if (!req.user) throw new Error('Missing user');
 
     this.logger.log(`User ${req.user.id} marking all notifications as read`);
-    return this.notificationsService.markAllAsRead(req.user.id);
+    return this.userNotificationsService.markAllAsRead(req.user.id);
   }
 
   @Patch(':notificationId/read')
@@ -98,7 +104,34 @@ export class UserNotificationsController {
     this.logger.log(
       `User ${req.user.id} marking notification ${notificationId} as read`,
     );
-    await this.notificationsService.markAsRead(req.user.id, notificationId);
+    await this.userNotificationsService.markAsRead(req.user.id, notificationId);
     return { success: true };
+  }
+
+  @Post('send-kakao')
+  @ApiBody({ type: SendKakaoTalkRequestDto })
+  @ApiOperation({
+    summary: 'Send KakaoTalk test notification',
+    description:
+      'Send a test KakaoTalk notification to the requested phone number.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KakaoTalk notification result',
+  })
+  async sendKakaoNotification(
+    @Req() req: AuthRequest,
+    @Body() dto: SendKakaoTalkRequestDto,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(`User ${req.user.id} sending KakaoTalk test notification`);
+    const result = await this.notificationsService.sendKakaoTalk(
+      dto.phone,
+      dto.message,
+      dto.templateCode,
+    );
+
+    return { success: result.success, result };
   }
 }

@@ -146,6 +146,62 @@ describe('NotificationsService', () => {
     expect(result.type).toBe(NotificationType.EMAIL);
   });
 
+  it('should send KakaoTalk in mock mode without Kakao config', async () => {
+    const service = new NotificationsService(makeConfig({}));
+
+    const result = await service.sendKakaoTalk(
+      '01012345678',
+      'Test message',
+      'template-1',
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.type).toBe(NotificationType.KAKAO_TALK);
+    expect(result.recipient).toBe('01012345678');
+  });
+
+  it('should send KakaoTalk with API mode when configured', async () => {
+    const originalFetch = (globalThis as any).fetch;
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue('{"result":"ok"}'),
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const service = new NotificationsService(
+      makeConfig({
+        SENDGRID_API_KEY: 'sg',
+        SMS_API_KEY: 'sms',
+        KAKAO_TALK_API_URL: 'https://example.com/kakao/talk/send',
+        KAKAO_TALK_ACCESS_TOKEN: 'kakao-token',
+      }),
+    );
+
+    const result = await service.sendKakaoTalk(
+      '01012345678',
+      'Test message',
+      'template-1',
+    );
+
+    try {
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://example.com/kakao/talk/send',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer kakao-token',
+            'Content-Type': 'application/json',
+          }),
+          body: expect.stringContaining('"phone":"01012345678"'),
+        }),
+      );
+      expect(result.success).toBe(true);
+      expect(result.type).toBe(NotificationType.KAKAO_TALK);
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+  });
+
   it('should render templates without optional fields', () => {
     const service = new NotificationsService(makeConfig({}));
 

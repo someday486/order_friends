@@ -114,6 +114,12 @@ export class OrdersService {
       customerName: row.customer_name ?? '',
       totalAmount: row.total_amount ?? 0,
       status: row.status as OrderStatus,
+
+      // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
+      branchId: row.branch_id ?? branchId ?? null,
+      branchName: row.branches?.name ?? row.branch_name ?? null,
+      itemCount: row.itemCount ?? row.item_count ?? 0,
+      firstItemName: row.firstItemName ?? row.first_item_name ?? null,
     }));
 
     this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);

@@ -1,14 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import {
   formatDateTime,
   formatRelativeTime,
   formatWon,
 } from "@/lib/format";
-import type { Branch, OrderStatus } from "@/types/common";
+import {
+  ORDER_STATUS_LABEL,
+  ORDER_STATUS_BADGE_CLASS,
+  type Branch,
+  type OrderStatus,
+} from "@/types/common";
+import { TableRowSkeleton } from "@/components/ui/Skeleton";
+
 
 // ============================================================
 // Types
@@ -22,7 +29,18 @@ type Order = {
   status: OrderStatus;
   orderedAt: string;
   items?: { name: string; qty: number }[];
+  order_items?: { name: string; qty: number }[];
+  itemsSummary?: string;
+  items_summary?: string;
+  firstItemName?: string;
+  first_item_name?: string;
+  firstItemQty?: number;
+  first_item_qty?: number;
   branchName?: string;
+  branchId?: string;
+  branch_id?: string;
+  item_count?: number;
+  itemCount?: number;
 };
 
 type OrderListResponse = {
@@ -38,7 +56,6 @@ type OrderListResponse = {
 // Constants
 // ============================================================
 
-// TODO(5-C): 카드 레이아웃과 함께 동작하는 컬럼 드래그 재정렬 UX를 다음 단계에서 추가.
 const STATUS_FILTERS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
   { value: "CREATED", label: "주문접수" },
@@ -48,54 +65,6 @@ const STATUS_FILTERS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "COMPLETED", label: "완료" },
   { value: "CANCELLED", label: "취소" },
 ];
-
-const statusConfig: Record<
-  OrderStatus,
-  { label: string; bg: string; text: string; dot: string }
-> = {
-  CREATED: {
-    label: "주문접수",
-    bg: "bg-warning-500/15",
-    text: "text-warning-600",
-    dot: "bg-warning-500",
-  },
-  CONFIRMED: {
-    label: "확인",
-    bg: "bg-primary-500/15",
-    text: "text-primary-600",
-    dot: "bg-primary-500",
-  },
-  PREPARING: {
-    label: "준비중",
-    bg: "bg-secondary-500/15",
-    text: "text-secondary-600",
-    dot: "bg-secondary-500",
-  },
-  READY: {
-    label: "준비완료",
-    bg: "bg-success/15",
-    text: "text-success-600",
-    dot: "bg-success",
-  },
-  COMPLETED: {
-    label: "완료",
-    bg: "bg-neutral-200",
-    text: "text-neutral-600",
-    dot: "bg-neutral-500",
-  },
-  CANCELLED: {
-    label: "취소",
-    bg: "bg-danger-500/15",
-    text: "text-danger-600",
-    dot: "bg-danger-500",
-  },
-  REFUNDED: {
-    label: "환불",
-    bg: "bg-pink-500/15",
-    text: "text-pink-500",
-    dot: "bg-pink-500",
-  },
-};
 
 // ============================================================
 // Helpers
@@ -109,83 +78,184 @@ function isUuidFormat(value: string): boolean {
 }
 
 function getItemSummary(order: Order): string {
-  if (!order.items || order.items.length === 0) return "";
-  const first = order.items[0];
-  const rest = order.items.length - 1;
-  const label = `${first.name} ${first.qty > 1 ? `x${first.qty}` : ""}`;
-  return rest > 0 ? `${label} 외 ${rest}건` : label;
+  // 우선순위 1: firstItemName + firstItemQty + itemCount 사용
+  const firstName = order.firstItemName ?? order.first_item_name;
+  const firstQty = order.firstItemQty ?? order.first_item_qty;
+  const itemCount = order.item_count ?? order.itemCount;
+
+  if (firstName) {
+    const qtyLabel = firstQty ? `${firstQty}개` : "1개";
+    if (itemCount && itemCount > 1) {
+      return `${firstName} ${qtyLabel} 외 ${itemCount - 1}개`;
+    }
+    return `${firstName} ${qtyLabel}`;
+  }
+
+  // 우선순위 2: items 배열 사용
+  const items = order.items ?? order.order_items;
+  if (items && items.length > 0) {
+    const first = items[0];
+    const qtyLabel = first.qty ? `${first.qty}개` : "1개";
+    if (items.length > 1) {
+      return `${first.name} ${qtyLabel} 외 ${items.length - 1}개`;
+    }
+    return `${first.name} ${qtyLabel}`;
+  }
+
+  // 우선순위 3: count만 있는 경우
+  if (itemCount) return `총 ${itemCount}개`;
+  return "-";
 }
+
+function escapeCSVField(value: string | number): string {
+  const str = String(value);
+  // 쉼표, 줄바꿈, 따옴표가 있으면 따옴표로 감싸기
+  if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function downloadCSV(orders: Order[], branchMap: Map<string, string>) {
+  if (orders.length === 0) return;
+
+  // CSV 헤더
+  const headers = [
+    "주문번호",
+    "지점명",
+    "주문일시",
+    "고객명",
+    "상태",
+    "결제금액",
+    "상품",
+  ];
+
+  // CSV 행 생성
+  const rows = orders.map((order) => {
+    // 지점명 매핑
+    const branchId = order.branch_id ?? order.branchId;
+    const branchName = branchId
+      ? (branchMap.get(branchId) ?? order.branchName ?? "-")
+      : (order.branchName ?? "-");
+
+    // 상품 정보: itemsSummary 우선, 없으면 getItemSummary fallback
+    const itemsSummary = order.itemsSummary ?? order.items_summary;
+    const itemsForDownload = itemsSummary || getItemSummary(order);
+
+    return [
+      escapeCSVField(order.orderNo ?? order.id.slice(0, 8)),
+      escapeCSVField(branchName),
+      escapeCSVField(formatYmdHm(order.orderedAt)),
+      escapeCSVField(order.customerName || "-"),
+      escapeCSVField(ORDER_STATUS_LABEL[order.status]),
+      escapeCSVField(order.totalAmount),
+      escapeCSVField(itemsForDownload),
+    ].join(",");
+  });
+
+  // UTF-8 BOM + 헤더 + 데이터
+  const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+
+  // Blob 생성 및 다운로드
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  // 파일명: orders_YYYYMMDD_HHmm.csv
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  const filename = `orders_${year}${month}${day}_${hour}${minute}.csv`;
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function downloadExcel(orders: Order[], branchMap: Map<string, string>) {
+  if (orders.length === 0) return;
+
+  // Dynamic import로 번들 사이즈 최적화
+  const XLSX = await import("xlsx");
+
+  // 엑셀 데이터 생성
+  const data = [
+    // 헤더
+    ["주문번호", "지점명", "주문일시", "고객명", "상태", "결제금액", "상품"],
+    // 데이터 행
+    ...orders.map((order) => {
+      // 지점명 매핑
+      const branchId = order.branch_id ?? order.branchId;
+      const branchName = branchId
+        ? (branchMap.get(branchId) ?? order.branchName ?? "-")
+        : (order.branchName ?? "-");
+
+      // 상품 정보: itemsSummary 우선, 없으면 getItemSummary fallback
+      const itemsSummary = order.itemsSummary ?? order.items_summary;
+      const itemsForDownload = itemsSummary || getItemSummary(order);
+
+      return [
+        order.orderNo ?? order.id.slice(0, 8),
+        branchName,
+        formatYmdHm(order.orderedAt),
+        order.customerName || "-",
+        ORDER_STATUS_LABEL[order.status],
+        order.totalAmount,
+        itemsForDownload,
+      ];
+    }),
+  ];
+
+  // 워크시트 생성
+  const worksheet = XLSX.utils.aoa_to_sheet(data);
+
+  // 컬럼 너비 설정 (선택사항)
+  worksheet["!cols"] = [
+    { wch: 18 }, // 주문번호
+    { wch: 12 }, // 지점명
+    { wch: 16 }, // 주문일시
+    { wch: 12 }, // 고객명
+    { wch: 10 }, // 상태
+    { wch: 12 }, // 결제금액
+    { wch: 35 }, // 상품 (itemsSummary 때문에 더 넓게)
+  ];
+
+  // 워크북 생성
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "주문목록");
+
+  // 파일명: orders_YYYYMMDD_HHmm.xlsx
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  const filename = `orders_${year}${month}${day}_${hour}${minute}.xlsx`;
+
+  // 파일 다운로드
+  XLSX.writeFile(workbook, filename);
+}
+
+function formatYmdHm(iso: string) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
 
 // ============================================================
 // Sub-components
 // ============================================================
-
-function StatusBadge({ status }: { status: OrderStatus }) {
-  const cfg = statusConfig[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  );
-}
-
-function OrderCard({ order }: { order: Order }) {
-  const itemSummary = getItemSummary(order);
-
-  return (
-    <Link
-      href={`/customer/orders/${order.id}`}
-      className="block no-underline animate-fade-in"
-    >
-      <div className="bg-card rounded-md border border-border p-4 hover:shadow-lg hover:border-primary-200 transition-all duration-200 active:scale-[0.99] cursor-pointer group">
-        {/* Top row: status + time */}
-        <div className="flex items-center justify-between mb-3">
-          <StatusBadge status={order.status} />
-          <span className="text-xs text-text-tertiary">
-            {formatRelativeTime(order.orderedAt)}
-          </span>
-        </div>
-
-        {/* Order number + customer */}
-        <div className="flex items-center justify-between mb-1">
-          <span className="flex items-center gap-2">
-            <span className="font-mono text-sm font-bold text-foreground group-hover:text-primary-500 transition-colors">
-              {order.orderNo ?? order.id.slice(0, 8)}
-            </span>
-            {order.branchName && (
-              <span className="text-2xs text-text-tertiary bg-bg-tertiary px-1.5 py-0.5 rounded">
-                {order.branchName}
-              </span>
-            )}
-          </span>
-          <span className="text-lg font-extrabold text-foreground">
-            {formatWon(order.totalAmount)}
-          </span>
-        </div>
-
-        {/* Item summary + customer name */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-text-secondary truncate max-w-[60%]">
-            {itemSummary || order.customerName || "-"}
-          </span>
-          {itemSummary && order.customerName && (
-            <span className="text-xs text-text-tertiary">
-              {order.customerName}
-            </span>
-          )}
-        </div>
-
-        {/* Bottom: exact time on hover */}
-        <div className="mt-2 pt-2 border-t border-border-light text-xs text-text-tertiary">
-          {formatDateTime(order.orderedAt)}
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 function EmptyState() {
   return (
@@ -213,34 +283,12 @@ function EmptyState() {
   );
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="flex flex-col gap-3">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="bg-card rounded-md border border-border p-4 animate-pulse"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="h-6 w-16 bg-bg-tertiary rounded-full" />
-            <div className="h-4 w-12 bg-bg-tertiary rounded" />
-          </div>
-          <div className="flex items-center justify-between mb-1">
-            <div className="h-5 w-32 bg-bg-tertiary rounded" />
-            <div className="h-6 w-20 bg-bg-tertiary rounded" />
-          </div>
-          <div className="h-4 w-40 bg-bg-tertiary rounded mt-2" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ============================================================
 // Main Component
 // ============================================================
 
 export default function CustomerOrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,7 +299,13 @@ export default function CustomerOrdersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
+  const [downloadFormat, setDownloadFormat] = useState<"csv" | "xlsx">("csv");
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
+
+  // 지점 ID → 지점명 매핑
+  const branchMap = useMemo(() => {
+    return new Map(branches.map((b) => [b.id, b.name]));
+  }, [branches]);
 
   // Load branches
   useEffect(() => {
@@ -323,33 +377,72 @@ export default function CustomerOrdersPage() {
   ).length;
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div>
       {/* Header */}
-      <div className="mb-5">
-        <h1 className="text-2xl font-extrabold text-foreground">주문 관리</h1>
-        <div className="flex items-center gap-3 mt-1">
-          <span className="text-sm text-text-secondary">
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-extrabold text-foreground m-0">주문 관리</h1>
+          <p className="text-text-secondary mt-1 mb-0 text-[13px]">
             총 <span className="font-bold text-foreground">{total}</span>건
-          </span>
-          {activeCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold">
-              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
-              진행중 {activeCount}건
-            </span>
-          )}
+            {activeCount > 0 && (
+              <span className="ml-3 text-primary-500 font-semibold">
+                · 진행중 {activeCount}건
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={downloadFormat}
+            onChange={(e) => setDownloadFormat(e.target.value as "csv" | "xlsx")}
+            className="h-9 px-3 rounded-lg border border-border bg-bg-secondary text-foreground text-[13px] font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel (.xlsx)</option>
+          </select>
+          <button
+            onClick={async () => {
+              if (downloadFormat === "csv") {
+                downloadCSV(orders, branchMap);
+              } else {
+                await downloadExcel(orders, branchMap);
+              }
+            }}
+            disabled={orders.length === 0}
+            className="h-9 px-4 rounded-lg border border-border bg-primary-500 text-white font-semibold cursor-pointer text-[13px] hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            다운로드
+          </button>
         </div>
       </div>
 
       {/* Branch filter (dropdown) */}
       {validBranches.length > 1 && (
-        <div className="mb-3">
+        <div className="mb-4">
+          <label className="block text-[13px] text-text-secondary mb-2 font-semibold">
+            지점 필터
+          </label>
           <select
             value={branchFilter}
             onChange={(e) => {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="h-9 px-3 rounded-full border border-border bg-bg-secondary text-foreground text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className="input-field max-w-[280px]"
           >
             <option value="ALL">모든 지점</option>
             {validBranches.map((branch) => (
@@ -362,7 +455,7 @@ export default function CustomerOrdersPage() {
       )}
 
       {/* Status filter chips */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 -mx-1 px-1">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-4">
         {STATUS_FILTERS.map((opt) => {
           const isActive = statusFilter === opt.value;
           return (
@@ -374,7 +467,7 @@ export default function CustomerOrdersPage() {
               }}
               className={`
                 shrink-0 h-8 px-4 rounded-full text-sm font-medium
-                border transition-all duration-150 cursor-pointer touch-feedback
+                border transition-all duration-150 cursor-pointer
                 ${
                   isActive
                     ? "bg-foreground text-background border-foreground font-bold"
@@ -390,21 +483,120 @@ export default function CustomerOrdersPage() {
 
       {/* Error */}
       {error && (
-        <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4 text-sm">
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500 mb-4">
           {error}
         </div>
       )}
 
-      {/* Order list */}
+      {/* Order table */}
       {loading && orders.length === 0 ? (
-        <LoadingSkeleton />
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full border-collapse min-w-[640px]">
+            <thead className="bg-bg-tertiary">
+              <tr>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문번호</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">고객명</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                {validBranches.length > 1 && (
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">지점</th>
+                )}
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">금액</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문시간</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <TableRowSkeleton key={index} cols={validBranches.length > 1 ? 7 : 6} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : orders.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="flex flex-col gap-3">
-          {orders.map((order) => (
-            <OrderCard key={order.id} order={order} />
-          ))}
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full border-collapse min-w-[640px]">
+            <thead className="bg-bg-tertiary">
+              <tr>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문번호</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">고객명</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                {validBranches.length > 1 && (
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">지점</th>
+                )}
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">금액</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문시간</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => {
+                const itemSummary = getItemSummary(order);
+                const fullItemsSummary = order.itemsSummary ?? order.items_summary;
+
+                // 지점 ID 추출 (snake_case 또는 camelCase)
+                const branchId = order.branch_id ?? order.branchId;
+                // 지점명 매핑 (branchMap → order.branchName → "-")
+                const branchName = branchId
+                  ? (branchMap.get(branchId) ?? order.branchName ?? "-")
+                  : (order.branchName ?? "-");
+
+                return (
+                  <tr
+                    key={order.id}
+                    className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
+                    onClick={() => router.push(`/customer/orders/${order.id}`)}
+                  >
+                    <td className="py-3 px-3.5 text-[13px] text-foreground">
+                      <span className="font-mono font-bold">
+                        {order.orderNo ?? order.id.slice(0, 8)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3.5 text-[13px] text-foreground">
+                      {order.customerName || "-"}
+                    </td>
+                    <td
+                      className="py-3 px-3.5 text-[13px] text-text-secondary relative group"
+                      onClick={(e) => {
+                        if (fullItemsSummary) {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      <span className={fullItemsSummary ? "cursor-help" : ""}>
+                        {itemSummary}
+                      </span>
+                      {fullItemsSummary && (
+                        <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover:block bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs whitespace-nowrap max-w-xs">
+                          {fullItemsSummary}
+                        </div>
+                      )}
+                    </td>
+                    {validBranches.length > 1 && (
+                      <td className="py-3 px-3.5 text-[13px] text-foreground whitespace-nowrap">
+                        {branchName}
+                      </td>
+                    )}
+                    <td className="py-3 px-3.5 text-[13px]">
+                      <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}>
+                        {ORDER_STATUS_LABEL[order.status]}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3.5 text-[13px] text-right font-bold text-foreground">
+                      {formatWon(order.totalAmount)}
+                    </td>
+                    <td className="py-3 px-3.5 text-[13px] text-text-secondary whitespace-nowrap">
+                      <div>{formatYmdHm(order.orderedAt)}</div>
+                      <div className="text-xs text-text-tertiary">
+                        {formatRelativeTime(order.orderedAt)}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

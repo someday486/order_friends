@@ -12,6 +12,8 @@ type OrderExportJobRow = {
   id: string;
   user_id: string;
   status: string;
+  format?: string;
+  params?: Record<string, any>;
   file_path?: string | null;
   file_name?: string | null;
   error_message?: string | null;
@@ -45,7 +47,16 @@ export class ExportsService {
     const format = dto.format?.toUpperCase();
 
     if (!['CSV', 'XLSX'].includes(format)) {
-      throw new BadRequestException('Invalid format. Allowed values: csv, xlsx');
+      throw new BadRequestException(
+        'Invalid format. Allowed values: csv, xlsx',
+      );
+    }
+
+    // XLSX not supported yet
+    if (format === 'XLSX') {
+      throw new BadRequestException(
+        'XLSX format not supported yet. Please use CSV.',
+      );
     }
 
     const { data, error } = await sb
@@ -62,7 +73,10 @@ export class ExportsService {
       .single();
 
     if (error || !data) {
-      this.logger.error('Failed to create order export job row', error?.message);
+      this.logger.error(
+        'Failed to create order export job row',
+        error?.message,
+      );
       throw new InternalServerErrorException('Failed to create export job');
     }
 
@@ -74,14 +88,18 @@ export class ExportsService {
   async processOrderExport(exportId: string): Promise<void> {
     const sb = this.supabaseService.adminClient();
 
+    // Load full export row including params and format
     const { data, error } = await sb
       .from('order_exports')
-      .select('id, user_id, status')
+      .select('id, user_id, status, format, params')
       .eq('id', exportId)
-      .maybeSingle<{ id: string; user_id: string; status: string }>();
+      .maybeSingle<OrderExportJobRow>();
 
     if (error) {
-      this.logger.error(`Failed to load order export ${exportId}`, error.message);
+      this.logger.error(
+        `Failed to load order export ${exportId}`,
+        error.message,
+      );
       throw new InternalServerErrorException('Failed to process export job');
     }
 
@@ -93,6 +111,16 @@ export class ExportsService {
       return;
     }
 
+    // Check format - only CSV supported
+    if (data.format === 'XLSX') {
+      await this.updateOrderExportRow(exportId, {
+        status: 'FAILED',
+        error_message: 'XLSX format not supported yet',
+        completed_at: new Date().toISOString(),
+      });
+      throw new BadRequestException('XLSX format not supported yet');
+    }
+
     await this.updateOrderExportRow(exportId, {
       status: 'PROCESSING',
       progress_done: 0,
@@ -100,10 +128,65 @@ export class ExportsService {
     });
 
     try {
-      const orders = await this.fetchOrderRowsForExport();
-      const csvContent = this.buildOrdersCsv(orders);
+      // Extract filters from params
+      const filters = data.params ?? {};
+      const {
+        branchId,
+        status: statusFilter,
+        dateStart,
+        dateEnd,
+        search,
+        sort,
+      } = filters;
+
+      // Get accessible branch IDs
+      const accessibleBranchIds = await this.getAccessibleBranchIds(
+        data.user_id,
+      );
+
+      // Filter branches if branchId specified
+      let targetBranchIds = accessibleBranchIds;
+      if (branchId) {
+        if (accessibleBranchIds.includes(branchId)) {
+          targetBranchIds = [branchId];
+        } else {
+          throw new Error('User does not have access to specified branch');
+        }
+      }
+
+      // Prepare RPC parameters
+      const rpcParams = {
+        p_branch_ids: targetBranchIds,
+        p_status: statusFilter ?? null,
+        p_date_start: dateStart ?? null,
+        p_date_end: dateEnd ?? null,
+        p_search: search ?? null,
+        p_sort: sort ?? 'DESC',
+        p_limit: 5000,
+        p_offset: 0,
+      };
+
+      this.logger.log(
+        `Calling export_orders_detail RPC with params: ${JSON.stringify(rpcParams)}`,
+      );
+
+      // Call RPC export_orders_detail
+      const { data: rpcData, error: rpcError } = await sb.rpc(
+        'export_orders_detail',
+        rpcParams,
+      );
+
+      if (rpcError) {
+        throw new Error(`RPC export_orders_detail failed: ${rpcError.message}`);
+      }
+
+      const orders = (rpcData ?? []) as any[];
+      this.logger.log(`RPC returned ${orders.length} orders`);
+
+      // Generate CSV
+      const csvContent = this.buildFullDetailCsv(orders);
       const timestamp = this.buildTimestamp();
-      const fileName = `orders_${timestamp}.csv`;
+      const fileName = `orders_detail_${timestamp}.csv`;
       const filePath = `orders/${data.user_id}/${exportId}/${fileName}`;
 
       const { error: uploadError } = await sb.storage
@@ -125,7 +208,10 @@ export class ExportsService {
         completed_at: new Date().toISOString(),
       });
     } catch (exportError) {
-      const message = exportError instanceof Error ? exportError.message : 'Unknown export error';
+      const message =
+        exportError instanceof Error
+          ? exportError.message
+          : 'Unknown export error';
       this.logger.error(`Order export ${exportId} failed: ${message}`);
 
       await this.updateOrderExportRow(exportId, {
@@ -138,7 +224,10 @@ export class ExportsService {
     }
   }
 
-  async getOrderExportJob(jobId: string, userId: string): Promise<{
+  async getOrderExportJob(
+    jobId: string,
+    userId: string,
+  ): Promise<{
     job: OrderExportJobRow;
     downloadUrl: string | null;
   }> {
@@ -174,6 +263,139 @@ export class ExportsService {
     }
 
     return { job: data, downloadUrl };
+  }
+
+  /**
+   * Get all accessible branch IDs for a user
+   * Includes direct branch memberships and all branches from brand memberships
+   */
+  private async getAccessibleBranchIds(userId: string): Promise<string[]> {
+    const sb = this.supabaseService.adminClient();
+
+    // Get user's profile to check if system admin
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('is_system_admin')
+      .eq('id', userId)
+      .single();
+
+    // System admins have access to all branches
+    if (profile?.is_system_admin) {
+      const { data: allBranches } = await sb.from('branches').select('id');
+      return (allBranches ?? []).map((b) => b.id);
+    }
+
+    const branchIds = new Set<string>();
+
+    // Get direct branch memberships
+    const { data: branchMembers } = await sb
+      .from('branch_members')
+      .select('branch_id')
+      .eq('user_id', userId);
+
+    if (branchMembers) {
+      for (const m of branchMembers) {
+        branchIds.add(m.branch_id);
+      }
+    }
+
+    // Get brand memberships (brand owners)
+    const { data: brands } = await sb
+      .from('brands')
+      .select('id')
+      .eq('owner_user_id', userId);
+
+    if (brands && brands.length > 0) {
+      const brandIds = brands.map((b) => b.id);
+      const { data: brandBranches } = await sb
+        .from('branches')
+        .select('id')
+        .in('brand_id', brandIds);
+
+      if (brandBranches) {
+        for (const b of brandBranches) {
+          branchIds.add(b.id);
+        }
+      }
+    }
+
+    return Array.from(branchIds);
+  }
+
+  /**
+   * Format timestamp to YYYY-MM-DD HH:mm
+   */
+  private formatYmdHm(value?: string | null): string {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 16).replace('T', ' ');
+  }
+
+  /**
+   * Build 20-column CSV for full detail export with Korean headers
+   */
+  private buildFullDetailCsv(rows: any[]): string {
+    const headers = [
+      '주문번호',
+      '주문ID',
+      '지점명',
+      '지점ID',
+      '주문일시',
+      '상태',
+      '총액',
+      '상품금액',
+      '배송비',
+      '할인',
+      '결제수단',
+      '고객명',
+      '연락처',
+      '이메일',
+      '수령방식',
+      '요청시간',
+      '주소',
+      '우편번호',
+      '요청사항',
+      '상품상세',
+    ];
+
+    const lines: string[] = [];
+    lines.push(this.toCsvLine(headers));
+
+    for (const r of rows ?? []) {
+      const orderId = r.order_id ?? r.id ?? '';
+      const orderNo =
+        r.order_no ??
+        r.order_number ??
+        (typeof orderId === 'string' && orderId ? orderId.slice(0, 8) : '');
+
+      const record = [
+        orderNo, // 1 주문번호
+        orderId, // 2 주문ID
+        r.branch_name ?? '', // 3 지점명
+        r.branch_id ?? '', // 4 지점ID
+        this.formatYmdHm(r.created_at ?? null), // 5 주문일시
+        r.status ?? '', // 6 상태
+        r.total_amount ?? '', // 7 총액
+        r.subtotal ?? '', // 8 상품금액
+        r.delivery_fee ?? '', // 9 배송비
+        r.discount_total ?? '', // 10 할인
+        r.payment_method ?? '', // 11 결제수단
+        r.customer_name ?? '', // 12 고객명
+        r.customer_phone ?? '', // 13 연락처
+        r.customer_email ?? '', // 14 이메일
+        r.fulfillment_type ?? '', // 15 수령방식
+        this.formatYmdHm(r.requested_time ?? null), // 16 요청시간
+        r.delivery_address ?? '', // 17 주소
+        r.delivery_postcode ?? '', // 18 우편번호
+        r.delivery_memo ?? '', // 19 요청사항
+        r.items_summary ?? '', // 20 상품상세
+      ];
+
+      lines.push(this.toCsvLine(record));
+    }
+
+    return `\uFEFF${lines.join('\n')}`;
   }
 
   private async fetchOrderRowsForExport(): Promise<
@@ -230,7 +452,9 @@ export class ExportsService {
       for (const [orderId, items] of groupedItems.entries()) {
         const summary = items
           .slice(0, 6)
-          .map((item) => `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim())
+          .map((item) =>
+            `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim(),
+          )
           .filter(Boolean)
           .join(', ');
         itemSummaryMap.set(orderId, summary);
@@ -310,7 +534,10 @@ export class ExportsService {
   ): Promise<void> {
     const sb = this.supabaseService.adminClient();
 
-    const { error } = await sb.from('order_exports').update(payload).eq('id', exportId);
+    const { error } = await sb
+      .from('order_exports')
+      .update(payload)
+      .eq('id', exportId);
 
     if (!error) {
       return;

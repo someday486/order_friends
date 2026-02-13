@@ -11,7 +11,10 @@ type BullMqModule = {
   Queue: new (name: string, options: { connection: { url: string } }) => any;
   Worker: new (
     name: string,
-    processor: (job: { data: OrderExportQueuePayload; id?: string }) => Promise<void>,
+    processor: (job: {
+      data: OrderExportQueuePayload;
+      id?: string;
+    }) => Promise<void>,
     options: { connection: { url: string } },
   ) => any;
 };
@@ -33,7 +36,9 @@ export class ExportsQueue implements OnModuleDestroy {
   ) {
     const redisUrl = this.configService.get<string>('REDIS_URL');
     if (!redisUrl) {
-      this.logger.warn('REDIS_URL missing; skipping exports queue initialization.');
+      this.logger.warn(
+        'REDIS_URL missing; skipping exports queue initialization.',
+      );
       this.queue = null;
       this.worker = null;
       return;
@@ -73,7 +78,9 @@ export class ExportsQueue implements OnModuleDestroy {
         }
 
         if (!data) {
-          this.logger.warn(`Order export ${exportId} not found; skipping worker job.`);
+          this.logger.warn(
+            `Order export ${exportId} not found; skipping worker job.`,
+          );
           return;
         }
 
@@ -102,12 +109,15 @@ export class ExportsQueue implements OnModuleDestroy {
       { connection },
     );
 
-    this.worker.on('failed', (job: { id?: string } | undefined, error: Error) => {
-      this.logger.error(
-        `Order export job failed (${job?.id ?? 'unknown'})`,
-        error.stack,
-      );
-    });
+    this.worker.on(
+      'failed',
+      (job: { id?: string } | undefined, error: Error) => {
+        this.logger.error(
+          `Order export job failed (${job?.id ?? 'unknown'})`,
+          error.stack,
+        );
+      },
+    );
   }
 
   private loadBullMq(): BullMqModule | null {

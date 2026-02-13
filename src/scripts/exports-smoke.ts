@@ -24,7 +24,11 @@ async function run(): Promise<void> {
       .from('order_exports')
       .insert({
         user_id: exportSmokeUserId,
+        type: 'ORDERS',
+        scope: 'DETAIL',
+        format: 'CSV', // ✅ NOT NULL + CHECK 통과(대문자)
         status: 'PENDING',
+        params: { smoke: true }, // ✅ jsonb not null default가 있지만 명시해도 안전
       })
       .select('id, status')
       .single();

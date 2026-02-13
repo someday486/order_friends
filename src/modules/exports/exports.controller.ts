@@ -9,7 +9,12 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { CreateOrderExportDto } from './dto/create-order-export.dto';
@@ -55,7 +60,10 @@ export class ExportsController {
       throw new BadRequestException('jobId is required');
     }
 
-    const { job, downloadUrl } = await this.exportsService.getOrderExportJob(jobId, userId);
+    const { job, downloadUrl } = await this.exportsService.getOrderExportJob(
+      jobId,
+      userId,
+    );
 
     return {
       jobId: job.id,

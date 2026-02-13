@@ -335,7 +335,6 @@ describe('CustomerOrdersService', () => {
     });
   });
 
-
   it('getMyOrders should include branch and item summary fields', async () => {
     branchesChain.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },

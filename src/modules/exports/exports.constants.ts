@@ -1,7 +1,6 @@
-export const ORDER_EXPORT_QUEUE_NAME = 'order-exports';
-export const ORDER_EXPORT_JOB_NAME = 'order-export';
+export const ORDER_EXPORT_QUEUE_NAME = 'exports';
+export const ORDER_EXPORT_JOB_NAME = 'orders.export.detail';
 
 export type OrderExportQueuePayload = {
-  jobId: string;
-  userId: string;
+  exportId: string;
 };

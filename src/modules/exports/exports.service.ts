@@ -42,8 +42,7 @@ export class ExportsService {
 
     try {
       await this.exportsQueue.enqueueOrderExport({
-        jobId: data.id,
-        userId: data.user_id,
+        exportId: data.id,
       });
     } catch (error) {
       this.logger.error(

@@ -176,7 +176,7 @@ export default function CustomerMyPage() {
         setStoreGroups(groups);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "Unable to load mypage data.");
+        setError(e instanceof Error ? e.message : "마이페이지 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -191,7 +191,7 @@ export default function CustomerMyPage() {
 
   const requestPushPermission = async () => {
     if (!isPushSupported) {
-      toast.error("This browser does not support browser notifications.");
+      toast.error("이 브라우저는 웹 푸시 알림을 지원하지 않습니다.");
       return;
     }
 
@@ -201,35 +201,35 @@ export default function CustomerMyPage() {
 
       if (permission === "granted") {
         updateNotificationSetting("push", true);
-        toast.success("Push permission approved.");
+        toast.success("푸시 권한이 승인되었습니다.");
       } else if (permission === "denied") {
         updateNotificationSetting("push", false);
-        toast.error("Push permission was denied.");
+        toast.error("푸시 권한이 거부되었습니다.");
       }
     } catch {
-      toast.error("Failed to request push permission.");
+      toast.error("푸시 권한 요청에 실패했습니다.");
     }
   };
 
   const sendTestPush = async () => {
     if (!isPushSupported) {
-      toast.error("This browser does not support browser notifications.");
+      toast.error("이 브라우저는 웹 푸시 알림을 지원하지 않습니다.");
       return;
     }
 
     if (pushPermission !== "granted") {
-      toast.error("Allow push permission first.");
+      toast.error("먼저 푸시 권한을 허용해 주세요.");
       return;
     }
 
     try {
       setSendPushLoading(true);
-      new Notification("Push test", {
-        body: "Test notification from My Page.",
+      new Notification("푸시 테스트", {
+        body: "마이페이지에서 보낸 테스트 알림입니다.",
       });
-      toast.success("Test notification sent.");
+      toast.success("테스트 푸시를 전송했습니다.");
     } catch {
-      toast.error("Failed to send test notification.");
+      toast.error("테스트 푸시 전송에 실패했습니다.");
     } finally {
       setSendPushLoading(false);
     }
@@ -254,10 +254,10 @@ export default function CustomerMyPage() {
       }
 
       await refresh();
-      toast.success("Profile saved.");
+      toast.success("프로필이 저장되었습니다.");
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "Failed to save profile.");
+      toast.error(e instanceof Error ? e.message : "프로필 저장에 실패했습니다.");
     } finally {
       setSavingProfile(false);
     }
@@ -265,17 +265,17 @@ export default function CustomerMyPage() {
 
   const handleDeleteAccount = async () => {
     if (deleteText !== "delete") {
-      toast.error("Type \"delete\" to confirm.");
+      toast.error("\"delete\"를 입력해 주세요.");
       return;
     }
 
     try {
       setDeleting(true);
       await apiClient.delete("/customer/account");
-      toast.success("Account deletion is complete.");
+      toast.success("회원 탈퇴가 완료되었습니다.");
       await signOut();
     } catch {
-      toast.error("Delete API is not prepared in this environment. Contact administrator.");
+      toast.error("현재 환경에서 계정 탈퇴 API가 준비되지 않았습니다. 관리자에게 문의하세요.");
     } finally {
       setDeleting(false);
     }
@@ -286,8 +286,8 @@ export default function CustomerMyPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-extrabold text-foreground">My Page</h1>
-        <div className="card p-6 text-text-tertiary">Loading...</div>
+        <h1 className="text-2xl font-extrabold text-foreground">마이페이지</h1>
+        <div className="card p-6 text-text-tertiary">로딩 중...</div>
       </div>
     );
   }
@@ -295,7 +295,7 @@ export default function CustomerMyPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-extrabold text-foreground">My Page</h1>
+        <h1 className="text-2xl font-extrabold text-foreground">마이페이지</h1>
         <div className="border border-danger-500 rounded-lg p-4 bg-danger-500/10 text-danger-500">{error}</div>
       </div>
     );
@@ -303,43 +303,43 @@ export default function CustomerMyPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-extrabold text-foreground">My Page</h1>
+      <h1 className="text-2xl font-extrabold text-foreground">마이페이지</h1>
 
       <section className="card p-5">
         <div className="flex items-center justify-between gap-4 mb-4">
-          <h2 className="text-lg font-bold text-foreground">Profile Customize</h2>
+          <h2 className="text-lg font-bold text-foreground">프로필 커스터마이징</h2>
           <Link href="/customer/order" target="_blank" className="text-sm text-text-secondary underline">
-            Open Order Page
+            주문 페이지 열기
           </Link>
         </div>
 
-        <div className="text-sm text-text-secondary mb-4">Account: {user?.email ?? "-"}</div>
+        <div className="text-sm text-text-secondary mb-4">계정: {user?.email ?? "-"}</div>
 
         <form onSubmit={handleProfileSave} className="grid gap-4">
           <div>
-            <label className="block text-sm text-text-secondary mb-2">Display Name</label>
+            <label className="block text-sm text-text-secondary mb-2">표시 이름</label>
             <input
               value={profile.displayName}
               onChange={(event) =>
                 setProfile((prev) => ({ ...prev, displayName: event.target.value }))
               }
               className="input-field"
-              placeholder="Enter display name"
+              placeholder="표시 이름을 입력하세요"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-text-secondary mb-2">Tagline</label>
+            <label className="block text-sm text-text-secondary mb-2">한 줄 소개</label>
             <textarea
               value={profile.tagline}
               onChange={(event) => setProfile((prev) => ({ ...prev, tagline: event.target.value }))}
               className="input-field min-h-20"
-              placeholder="Enter a short intro"
+              placeholder="짧은 소개를 입력하세요"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-text-secondary mb-2">Theme Color</label>
+            <label className="block text-sm text-text-secondary mb-2">테마 색상</label>
             <div className="flex items-center gap-3">
               <input
                 type="color"
@@ -361,16 +361,16 @@ export default function CustomerMyPage() {
           </div>
 
           <button type="submit" disabled={savingProfile} className="btn-primary py-2.5 px-4 text-sm max-w-max">
-            {savingProfile ? "Saving..." : "Save Profile"}
+            {savingProfile ? "저장 중..." : "프로필 저장"}
           </button>
         </form>
       </section>
 
       <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">Notification Settings</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">알림 설정</h2>
         <div className="space-y-3">
           <label className="flex items-center justify-between gap-3 py-2">
-            <span>Email alerts</span>
+            <span>이메일 알림</span>
             <input
               type="checkbox"
               className="h-4 w-4"
@@ -379,7 +379,7 @@ export default function CustomerMyPage() {
             />
           </label>
           <label className="flex items-center justify-between gap-3 py-2">
-            <span>Marketing alerts</span>
+            <span>마케팅 알림</span>
             <input
               type="checkbox"
               className="h-4 w-4"
@@ -388,7 +388,7 @@ export default function CustomerMyPage() {
             />
           </label>
           <label className="flex items-center justify-between gap-3 py-2">
-            <span>Alert sound</span>
+            <span>알림음</span>
             <input
               type="checkbox"
               className="h-4 w-4"
@@ -400,23 +400,23 @@ export default function CustomerMyPage() {
       </section>
 
       <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">Push Notification</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">푸시 알림</h2>
         <div className="space-y-3 text-sm">
-          <div className="text-text-secondary">Current status: {pushPermission}</div>
+          <div className="text-text-secondary">현재 상태: {pushPermission}</div>
           <div className="flex flex-wrap gap-3">
             <button onClick={requestPushPermission} className="btn-primary px-4 py-2 text-sm">
-              Request push permission
+              푸시 알림 권한 요청
             </button>
             <button
               onClick={sendTestPush}
               disabled={sendPushLoading || pushPermission !== "granted"}
               className="px-4 py-2 rounded border border-border bg-transparent text-text-secondary text-sm disabled:opacity-60"
             >
-              {sendPushLoading ? "Sending..." : "Send test push"}
+              {sendPushLoading ? "전송 중..." : "테스트 푸시 보내기"}
             </button>
           </div>
           <label className="flex items-center justify-between gap-3 py-2 border-t border-border mt-2 pt-3">
-            <span>Enable push alerts</span>
+            <span>푸시 알림 활성화</span>
             <input
               type="checkbox"
               className="h-4 w-4"
@@ -433,13 +433,13 @@ export default function CustomerMyPage() {
       </section>
 
       <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">Store List</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">매장 목록</h2>
         <div className="text-sm text-text-secondary mb-3">
-          Total {storeGroups.length} brands · {totalBranches} stores
+          총 {storeGroups.length}개 브랜드 · {totalBranches}개 매장
         </div>
 
         {storeGroups.length === 0 ? (
-          <div className="text-text-tertiary">No linked brands or stores.</div>
+          <div className="text-text-tertiary">연결된 브랜드 또는 매장이 없습니다.</div>
         ) : (
           <div className="space-y-3">
             {storeGroups.map((group) => (
@@ -447,18 +447,18 @@ export default function CustomerMyPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <div>
                     <div className="font-semibold text-foreground">{group.name}</div>
-                    <div className="text-xs text-text-tertiary">Brand slug: {group.slug || "-"}</div>
+                    <div className="text-xs text-text-tertiary">브랜드 슬러그: {group.slug || "-"}</div>
                   </div>
                   <Link
                     href={`/customer/brands/${group.id}`}
                     className="text-sm text-text-secondary underline"
                   >
-                    Go to brand management
+                    브랜드 관리로 이동
                   </Link>
                 </div>
 
                 {group.branches.length === 0 ? (
-                  <div className="text-xs text-text-tertiary">No stores in this brand.</div>
+                  <div className="text-xs text-text-tertiary">이 브랜드에 매장이 없습니다.</div>
                 ) : (
                   <div className="space-y-2">
                     {group.branches.map((branch) => (
@@ -467,9 +467,9 @@ export default function CustomerMyPage() {
                         className="rounded border border-border/80 p-2 text-sm bg-bg-tertiary/40"
                       >
                         <div className="font-semibold text-foreground">{branch.name}</div>
-                        <div className="text-xs text-text-tertiary mt-1">Store slug: {branch.slug || "-"}</div>
+                        <div className="text-xs text-text-tertiary mt-1">매장 슬러그: {branch.slug || "-"}</div>
                         <div className="text-xs text-text-secondary mt-1 break-all">
-                          Order URL: {branch.orderUrl}
+                          주문 URL: {branch.orderUrl}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           <Link
@@ -478,13 +478,13 @@ export default function CustomerMyPage() {
                             rel="noopener noreferrer"
                             className="text-xs underline text-text-secondary"
                           >
-                            Open order page
+                            주문 페이지 열기
                           </Link>
                           <Link
                             href={`/customer/branches/${branch.id}`}
                             className="text-xs underline text-text-secondary"
                           >
-                            Manage store
+                            매장 관리
                           </Link>
                         </div>
                       </div>
@@ -498,20 +498,20 @@ export default function CustomerMyPage() {
       </section>
 
       <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">Account</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">계정</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <button
             onClick={signOut}
             className="py-2.5 px-4 rounded border border-border text-text-secondary bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer"
           >
-            Logout
+            로그아웃
           </button>
         </div>
 
         <div className="mt-5 pt-4 border-t border-border">
-          <div className="text-sm text-text-secondary mb-2">Close account</div>
+          <div className="text-sm text-text-secondary mb-2">계정 탈퇴</div>
           <p className="text-xs text-text-tertiary mb-3">
-            Type <span className="font-semibold text-text-secondary">delete</span> and click the button.
+            버튼을 누르기 전에 <span className="font-semibold text-text-secondary">delete</span>를 입력하세요.
           </p>
           <div className="flex flex-wrap gap-3">
             <input
@@ -525,7 +525,7 @@ export default function CustomerMyPage() {
               disabled={deleting}
               className="py-2.5 px-4 rounded border border-danger-500 text-danger-500 text-sm cursor-pointer hover:bg-danger-500/10 transition-colors disabled:opacity-50"
             >
-              {deleting ? "Processing..." : "Delete Account"}
+              {deleting ? "처리 중..." : "계정 탈퇴"}
             </button>
           </div>
         </div>

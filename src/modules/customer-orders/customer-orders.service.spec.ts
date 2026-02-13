@@ -329,6 +329,8 @@ describe('CustomerOrdersService', () => {
       branchName: '강남점',
       itemCount: 0,
       firstItemName: null,
+      firstItemQty: null,
+      itemsSummary: '',
       status: OrderStatus.CREATED,
     });
   });
@@ -360,8 +362,8 @@ describe('CustomerOrdersService', () => {
     });
     orderItemsChain.in.mockResolvedValueOnce({
       data: [
-        { order_id: 'o1', product_name_snapshot: '아메리카노' },
-        { order_id: 'o1', product_name_snapshot: '카페라떼' },
+        { order_id: 'o1', product_name_snapshot: '아메리카노', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '카페라떼', qty: 2 },
       ],
       error: null,
     });
@@ -379,7 +381,60 @@ describe('CustomerOrdersService', () => {
       branchName: '강남점',
       itemCount: 2,
       firstItemName: '아메리카노',
+      firstItemQty: 1,
+      itemsSummary: '아메리카노 1, 카페라떼 2',
     });
+  });
+
+  it('getMyOrders should truncate itemsSummary and append remaining count', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+          customer_name: '홍길동',
+          branch_id: 'b1',
+          branches: { name: '강남점' },
+        },
+      ],
+      error: null,
+    });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: [
+        { order_id: 'o1', product_name_snapshot: '상품1', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '상품2', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '상품3', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '상품4', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '상품5', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '상품6', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '상품7', qty: 1 },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data[0].itemsSummary).toBe(
+      '상품1 1, 상품2 1, 상품3 1, 상품4 1, 상품5 1, 상품6 1, +1',
+    );
+    expect(result.data[0].itemCount).toBe(7);
   });
 
   it('getMyOrders should throw on order item summary fetch error', async () => {

@@ -21,7 +21,11 @@ export class NotificationsService {
   private readonly smsApiKey: string;
   private readonly fromEmail: string;
   private readonly fromName: string;
+  private readonly kakaoTalkApiUrl: string;
+  private readonly kakaoTalkAccessToken: string;
+  private readonly kakaoTalkDefaultTemplateCode: string;
   private readonly mockMode: boolean;
+  private readonly mockKakaoTalkMode: boolean;
 
   constructor(private readonly configService: ConfigService) {
     this.sendGridApiKey =
@@ -32,13 +36,25 @@ export class NotificationsService {
       'noreply@orderfriends.com';
     this.fromName =
       this.configService.get<string>('FROM_NAME') || 'OrderFriends';
+    this.kakaoTalkApiUrl =
+      this.configService.get<string>('KAKAO_TALK_API_URL') || '';
+    this.kakaoTalkAccessToken =
+      this.configService.get<string>('KAKAO_TALK_ACCESS_TOKEN') || '';
+    this.kakaoTalkDefaultTemplateCode =
+      this.configService.get<string>('KAKAO_TALK_DEFAULT_TEMPLATE_CODE') || '';
 
     // Mock mode if no API keys configured
     this.mockMode = !this.sendGridApiKey || !this.smsApiKey;
+    this.mockKakaoTalkMode =
+      this.mockMode || !this.kakaoTalkApiUrl || !this.kakaoTalkAccessToken;
 
     if (this.mockMode) {
       this.logger.warn(
         'Notification service running in MOCK MODE - API keys not configured',
+      );
+    } else if (this.mockKakaoTalkMode) {
+      this.logger.warn(
+        'KakaoTalk API not fully configured - KakaoTalk notifications in mock mode',
       );
     } else {
       this.logger.log('Notification service initialized with external APIs');
@@ -209,6 +225,25 @@ export class NotificationsService {
 
   /**
    * ========================================
+   * KAKAO TALK NOTIFICATIONS
+   * ========================================
+   */
+
+  /**
+   * Send a KakaoTalk message
+   */
+  async sendKakaoTalk(
+    phone: string,
+    message: string,
+    templateCode?: string,
+  ): Promise<NotificationResult> {
+    this.logger.log(`Sending KakaoTalk message to ${phone}`);
+
+    return this.sendKakaoTalkMessage(phone, message, templateCode);
+  }
+
+  /**
+   * ========================================
    * INTERNAL EMAIL SENDER
    * ========================================
    */
@@ -330,6 +365,90 @@ export class NotificationsService {
     }
 
     return Promise.resolve(result);
+  }
+
+  /**
+   * ========================================
+   * INTERNAL KAKAO TALK SENDER
+   * ========================================
+   */
+
+  private async sendKakaoTalkMessage(
+    to: string,
+    message: string,
+    templateCode?: string,
+  ): Promise<NotificationResult> {
+    const result: NotificationResult = {
+      success: false,
+      type: NotificationType.KAKAO_TALK,
+      recipient: to,
+      retryCount: 0,
+    };
+
+    try {
+      if (this.mockKakaoTalkMode) {
+        // Mock mode - just log the KakaoTalk payload
+        this.logger.log('[MOCK KAKAO TALK] ==========================');
+        this.logger.log(`To: ${to}`);
+        this.logger.log(
+          `Template: ${templateCode || this.kakaoTalkDefaultTemplateCode || 'default'}`,
+        );
+        this.logger.log(`Message: ${message}`);
+        this.logger.log('=============================================');
+
+        result.success = true;
+        result.sentAt = new Date().toISOString();
+        return result;
+      }
+
+      const response = await fetch(this.kakaoTalkApiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.kakaoTalkAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: to,
+          message,
+          templateCode:
+            templateCode || this.kakaoTalkDefaultTemplateCode || undefined,
+        }),
+      });
+
+      const responseText = await response.text();
+      const responseBody = this.parseKakaoTalkResponseBody(responseText);
+
+      if (!response.ok) {
+        const details = responseBody
+          ? JSON.stringify(responseBody)
+          : responseText || 'no response body';
+        throw new Error(`KakaoTalk API error: ${response.status} ${details}`);
+      }
+
+      result.success = true;
+      result.sentAt = new Date().toISOString();
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Failed to send KakaoTalk to ${to}: ${error.message}`,
+        error.stack,
+      );
+      result.success = false;
+      result.errorMessage = error.message;
+      return result;
+    }
+  }
+
+  private parseKakaoTalkResponseBody(body: string): any {
+    if (!body) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(body);
+    } catch {
+      return null;
+    }
   }
 
   /**

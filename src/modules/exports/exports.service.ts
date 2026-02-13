@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { CreateOrderExportDto } from './dto/create-order-export.dto';
 
 type OrderExportJobRow = {
   id: string;
@@ -20,13 +22,26 @@ export class ExportsService {
 
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async createOrderExportJob(userId: string): Promise<OrderExportJobRow> {
+  async createOrderExportJob(
+    userId: string,
+    dto: CreateOrderExportDto,
+  ): Promise<OrderExportJobRow> {
     const sb = this.supabaseService.adminClient();
+    const format = dto.format?.toUpperCase();
+
+    if (!['CSV', 'XLSX'].includes(format)) {
+      throw new BadRequestException('Invalid format. Allowed values: csv, xlsx');
+    }
+
     const { data, error } = await sb
       .from('order_exports')
       .insert({
         user_id: userId,
+        type: 'ORDERS',
+        scope: 'DETAIL',
+        format,
         status: 'PENDING',
+        params: dto.filters ?? {},
       })
       .select('id, user_id, status, created_at, updated_at')
       .single();
@@ -59,9 +74,13 @@ export class ExportsService {
       throw new NotFoundException('Export job not found');
     }
 
+    if (['DONE', 'FAILED'].includes(data.status)) {
+      return;
+    }
+
     const { error: processingError } = await sb
       .from('order_exports')
-      .update({ status: 'PROCESSING' })
+      .update({ status: 'PROCESSING', progress_done: 0 })
       .eq('id', exportId);
 
     if (processingError) {

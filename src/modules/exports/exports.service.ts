@@ -39,12 +39,46 @@ export class ExportsService {
 
   constructor(private readonly supabaseService: SupabaseService) {}
 
+  /**
+   * Normalize date inputs for storage/RPC usage.
+   * - Date-only (YYYY-MM-DD): start -> 00:00:00.000Z, end -> 23:59:59.999Z
+   * - ISO/other parseable strings: toISOString()
+   * - null/invalid: null
+   */
+  private normalizeDateForRpc(value?: string | null, isEnd = false): string | null {
+    if (!value) {
+      return null;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const date = new Date(`${value}T00:00:00.000Z`);
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+
+      if (isEnd) {
+        date.setUTCHours(23, 59, 59, 999);
+      }
+
+      return date.toISOString();
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toISOString();
+  }
+
   async createOrderExportJob(
     userId: string,
     dto: CreateOrderExportDto,
   ): Promise<OrderExportJobRow> {
     const sb = this.supabaseService.adminClient();
     const format = dto.format?.toUpperCase();
+    const dateStart = this.normalizeDateForRpc(dto.filters?.dateStart, false);
+    const dateEnd = this.normalizeDateForRpc(dto.filters?.dateEnd, true);
 
     if (!['CSV', 'XLSX'].includes(format)) {
       throw new BadRequestException(
@@ -67,7 +101,11 @@ export class ExportsService {
         scope: 'DETAIL',
         format,
         status: 'PENDING',
-        params: dto.filters ?? {},
+        params: {
+          ...(dto.filters ?? {}),
+          dateStart,
+          dateEnd,
+        },
       })
       .select('id, user_id, status, created_at, updated_at')
       .single();
@@ -414,7 +452,7 @@ export class ExportsService {
       .from('orders')
       .select('id, order_no, status, created_at, total_amount, branches(name)')
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(5000);
 
     if (error) {
       throw new Error(`Failed to fetch orders: ${error.message}`);
@@ -504,7 +542,12 @@ export class ExportsService {
       ),
     ];
 
-    return `\uFEFF${lines.join('\n')}`;
+    const noticeLine =
+      rows.length >= 5000
+        ? '# 안내: 최대 5000건까지만 다운로드됩니다. 조건(기간/지점/검색)을 좁혀 다시 시도하세요.'
+        : '';
+
+    return `\uFEFF${[noticeLine, ...lines].filter(Boolean).join('\n')}`;
   }
 
   private toCsvLine(values: Array<string | number>): string {

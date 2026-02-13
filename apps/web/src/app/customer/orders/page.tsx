@@ -1,20 +1,17 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import {
   formatDateTime,
   formatRelativeTime,
   formatWon,
 } from "@/lib/format";
-import {
-  ORDER_STATUS_LABEL,
-  ORDER_STATUS_BADGE_CLASS,
-  type Branch,
-  type OrderStatus,
-} from "@/types/common";
-import { TableRowSkeleton } from "@/components/ui/Skeleton";
+import type { Branch, OrderStatus } from "@/types/common";
+import Modal from "@/components/ui/Modal";
+import { createOrderExportJob } from "@/lib/exports";
+import { useRouter } from 'next/navigation';
 
 
 // ============================================================
@@ -65,6 +62,28 @@ const STATUS_FILTERS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "COMPLETED", label: "완료" },
   { value: "CANCELLED", label: "취소" },
 ];
+
+const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
+  CREATED: "주문접수",
+  CONFIRMED: "확인",
+  PREPARING: "준비중",
+  READY: "준비완료",
+  COMPLETED: "완료",
+  CANCELLED: "취소",
+  REFUNDED: "환불",
+};
+
+const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
+  CREATED: "bg-blue-500/10 text-blue-500",
+  CONFIRMED: "bg-indigo-500/10 text-indigo-500",
+  PREPARING: "bg-yellow-500/10 text-yellow-600",
+  READY: "bg-green-500/10 text-green-600",
+  COMPLETED: "bg-gray-500/10 text-gray-600",
+  CANCELLED: "bg-red-500/10 text-red-600",
+  REFUNDED: "bg-purple-500/10 text-purple-600",
+};
+
+
 
 // ============================================================
 // Helpers
@@ -283,6 +302,19 @@ function EmptyState() {
   );
 }
 
+function TableRowSkeleton({ cols }: { cols: number }) {
+  return (
+    <tr className="border-t border-border">
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="py-3 px-3.5">
+          <div className="h-4 w-full max-w-[140px] bg-bg-tertiary rounded animate-pulse" />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+
 // ============================================================
 // Main Component
 // ============================================================
@@ -299,8 +331,15 @@ export default function CustomerOrdersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
-  const [downloadFormat, setDownloadFormat] = useState<"csv" | "xlsx">("csv");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDateStart, setExportDateStart] = useState("");
+  const [exportDateEnd, setExportDateEnd] = useState("");
+  const [exporting, setExporting] = useState(false);
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
+  const isInvalidExportDateRange = useMemo(() => {
+    if (!exportDateStart || !exportDateEnd) return false;
+    return exportDateEnd < exportDateStart;
+  }, [exportDateStart, exportDateEnd]);
 
   // 지점 ID → 지점명 매핑
   const branchMap = useMemo(() => {
@@ -376,56 +415,54 @@ export default function CustomerOrdersPage() {
     (o) => !["COMPLETED", "CANCELLED", "REFUNDED"].includes(o.status),
   ).length;
 
+  const handleCreateExportJob = async () => {
+    if (isInvalidExportDateRange) {
+      alert("종료일은 시작일보다 빠를 수 없습니다.");
+      return;
+    }
+
+    try {
+      setExporting(true);
+      await createOrderExportJob({
+        format: "csv",
+        scope: "detail",
+        filters: {
+          ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
+          ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+          ...(exportDateStart ? { dateStart: exportDateStart } : {}),
+          ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
+        },
+      });
+      setShowExportModal(false);
+      alert("Export 작업이 생성되었습니다.");
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Export 생성에 실패했습니다");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-extrabold text-foreground m-0">주문 관리</h1>
-          <p className="text-text-secondary mt-1 mb-0 text-[13px]">
-            총 <span className="font-bold text-foreground">{total}</span>건
-            {activeCount > 0 && (
-              <span className="ml-3 text-primary-500 font-semibold">
-                · 진행중 {activeCount}건
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={downloadFormat}
-            onChange={(e) => setDownloadFormat(e.target.value as "csv" | "xlsx")}
-            className="h-9 px-3 rounded-lg border border-border bg-bg-secondary text-foreground text-[13px] font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400"
-          >
-            <option value="csv">CSV</option>
-            <option value="xlsx">Excel (.xlsx)</option>
-          </select>
+        <h1 className="text-2xl font-extrabold text-foreground m-0">주문 관리</h1>
+        <p className="text-text-secondary mt-1 mb-0 text-[13px]">
+          총 <span className="font-bold text-foreground">{total}</span>건
+          {activeCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold ml-3">
+              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
+              진행중 {activeCount}건
+            </span>
+          )}
+        </p>
           <button
-            onClick={async () => {
-              if (downloadFormat === "csv") {
-                downloadCSV(orders, branchMap);
-              } else {
-                await downloadExcel(orders, branchMap);
-              }
-            }}
-            disabled={orders.length === 0}
-            className="h-9 px-4 rounded-lg border border-border bg-primary-500 text-white font-semibold cursor-pointer text-[13px] hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            onClick={() => setShowExportModal(true)}
+            className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            다운로드
+            Export 다운로드
           </button>
         </div>
       </div>
@@ -662,6 +699,57 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
       )}
+
+      <Modal
+        open={showExportModal}
+        title="Export 다운로드"
+        onClose={() => {
+          if (!exporting) setShowExportModal(false);
+        }}
+        footer={(
+          <>
+            <button
+              onClick={() => setShowExportModal(false)}
+              disabled={exporting}
+              className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleCreateExportJob}
+              disabled={exporting || isInvalidExportDateRange}
+              className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+            >
+              {exporting ? "생성 중..." : "Export 생성"}
+            </button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">시작일 (dateStart)</label>
+            <input
+              type="date"
+              value={exportDateStart}
+              onChange={(e) => setExportDateStart(e.target.value)}
+              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">종료일 (dateEnd)</label>
+            <input
+              type="date"
+              value={exportDateEnd}
+              onChange={(e) => setExportDateEnd(e.target.value)}
+              min={exportDateStart || undefined}
+              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            />
+          </div>
+          {isInvalidExportDateRange && (
+            <p className="text-xs text-danger-500">종료일은 시작일보다 빠를 수 없습니다.</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import { ExportsQueue } from './exports.queue';
 
 type OrderExportJobRow = {
   id: string;
@@ -19,10 +18,7 @@ type OrderExportJobRow = {
 export class ExportsService {
   private readonly logger = new Logger(ExportsService.name);
 
-  constructor(
-    private readonly supabaseService: SupabaseService,
-    private readonly exportsQueue: ExportsQueue,
-  ) {}
+  constructor(private readonly supabaseService: SupabaseService) {}
 
   async createOrderExportJob(userId: string): Promise<OrderExportJobRow> {
     const sb = this.supabaseService.adminClient();
@@ -40,18 +36,53 @@ export class ExportsService {
       throw new InternalServerErrorException('Failed to create export job');
     }
 
-    try {
-      await this.exportsQueue.enqueueOrderExport({
-        exportId: data.id,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to enqueue order export job ${data.id}`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
+    await this.processOrderExport(data.id);
 
     return data;
+  }
+
+  async processOrderExport(exportId: string): Promise<void> {
+    const sb = this.supabaseService.adminClient();
+
+    const { data, error } = await sb
+      .from('order_exports')
+      .select('id, status')
+      .eq('id', exportId)
+      .maybeSingle<{ id: string; status: string }>();
+
+    if (error) {
+      this.logger.error(`Failed to load order export ${exportId}`, error.message);
+      throw new InternalServerErrorException('Failed to process export job');
+    }
+
+    if (!data) {
+      throw new NotFoundException('Export job not found');
+    }
+
+    const { error: processingError } = await sb
+      .from('order_exports')
+      .update({ status: 'PROCESSING' })
+      .eq('id', exportId);
+
+    if (processingError) {
+      this.logger.error(
+        `Failed to update order export ${exportId} to PROCESSING`,
+        processingError.message,
+      );
+      throw new InternalServerErrorException('Failed to process export job');
+    }
+
+    // TODO: Generate export file and upload to storage.
+
+    const { error: doneError } = await sb
+      .from('order_exports')
+      .update({ status: 'DONE' })
+      .eq('id', exportId);
+
+    if (doneError) {
+      this.logger.error(`Failed to update order export ${exportId} to DONE`, doneError.message);
+      throw new InternalServerErrorException('Failed to process export job');
+    }
   }
 
   async getOrderExportJob(jobId: string, userId: string): Promise<OrderExportJobRow> {

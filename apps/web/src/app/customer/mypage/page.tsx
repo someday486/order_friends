@@ -205,7 +205,9 @@ export default function CustomerMyPage() {
         toast.success("푸시 권한이 승인되었습니다.");
       } else if (permission === "denied") {
         updateNotificationSetting("push", false);
-        toast.error("푸시 권한이 거부되었습니다.");
+        toast.error(
+          "현재 브라우저에서 푸시 알림이 차단되어 있습니다. 주소창의 사이트 권한에서 알림을 허용한 뒤 다시 시도해 주세요.",
+        );
       }
     } catch {
       toast.error("푸시 권한 요청에 실패했습니다.");
@@ -369,67 +371,76 @@ export default function CustomerMyPage() {
 
       <section className="card p-5">
         <h2 className="text-lg font-bold text-foreground mb-4">알림 설정</h2>
-        <div className="space-y-3">
-          <label className="flex items-center justify-between gap-3 py-2">
-            <span>이메일 알림</span>
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={notificationSettings.email}
-              onChange={(event) => updateNotificationSetting("email", event.target.checked)}
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3 py-2">
-            <span>마케팅 알림</span>
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={notificationSettings.marketing}
-              onChange={(event) => updateNotificationSetting("marketing", event.target.checked)}
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3 py-2">
-            <span>알림음</span>
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={notificationSettings.sound}
-              onChange={(event) => updateNotificationSetting("sound", event.target.checked)}
-            />
-          </label>
-        </div>
-      </section>
-
-      <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">푸시 알림</h2>
-        <div className="space-y-3 text-sm">
-          <div className="text-text-secondary">현재 상태: {pushPermission}</div>
-          <div className="flex flex-wrap gap-3">
-            <button onClick={requestPushPermission} className="btn-primary px-4 py-2 text-sm">
-              푸시 알림 권한 요청
-            </button>
-            <button
-              onClick={sendTestPush}
-              disabled={sendPushLoading || pushPermission !== "granted"}
-              className="px-4 py-2 rounded border border-border bg-transparent text-text-secondary text-sm disabled:opacity-60"
-            >
-              {sendPushLoading ? "전송 중..." : "테스트 푸시 보내기"}
-            </button>
+        <div className="grid md:grid-cols-2 gap-5">
+          <div className="space-y-3">
+            <div className="space-y-3">
+              <label className="flex items-center justify-between gap-3 py-2">
+                <span>이메일 알림</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={notificationSettings.email}
+                  onChange={(event) => updateNotificationSetting("email", event.target.checked)}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 py-2">
+                <span>마케팅 알림</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={notificationSettings.marketing}
+                  onChange={(event) => updateNotificationSetting("marketing", event.target.checked)}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 py-2">
+                <span>알림음</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={notificationSettings.sound}
+                  onChange={(event) => updateNotificationSetting("sound", event.target.checked)}
+                />
+              </label>
+            </div>
+            <p className="text-xs text-text-tertiary">
+              이메일 알림: 주문/결제 상태를 이메일로 받기, 마케팅 알림: 공지/혜택/혜택 안내, 알림음: 알림 발생 시 소리 재생 여부입니다.
+            </p>
           </div>
-          <label className="flex items-center justify-between gap-3 py-2 border-t border-border mt-2 pt-3">
-            <span>푸시 알림 활성화</span>
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={notificationSettings.push}
-              disabled={pushPermission !== "granted"}
-              onChange={(event) => {
-                if (pushPermission === "granted") {
-                  updateNotificationSetting("push", event.target.checked);
-                }
-              }}
-            />
-          </label>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span>현재 상태</span>
+              <span className="text-text-secondary">{pushPermission}</span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button onClick={requestPushPermission} className="btn-primary px-4 py-2 text-sm">
+                푸시 알림 권한 요청
+              </button>
+              <button
+                onClick={sendTestPush}
+                disabled={sendPushLoading || pushPermission !== "granted"}
+                className="px-4 py-2 rounded border border-border bg-transparent text-text-secondary text-sm disabled:opacity-60"
+              >
+                {sendPushLoading ? "전송 중..." : "테스트 푸시 보내기"}
+              </button>
+            </div>
+            <label className="flex items-center justify-between gap-3 py-2 border-t border-border mt-2 pt-3">
+              <span>푸시 알림 활성화</span>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={notificationSettings.push}
+                disabled={pushPermission !== "granted"}
+                onChange={(event) => {
+                  if (pushPermission === "granted") {
+                    updateNotificationSetting("push", event.target.checked);
+                  }
+                }}
+              />
+            </label>
+            <p className="text-xs text-text-tertiary">
+              푸시 권한이 {pushPermission === "denied" ? "차단된" : "허용되지 않은"} 경우 브라우저 설정에서 알림을 허용해 주세요.
+            </p>
+          </div>
         </div>
       </section>
 

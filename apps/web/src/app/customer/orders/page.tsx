@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import {
   formatDateTime,
@@ -9,6 +9,8 @@ import {
   formatWon,
 } from "@/lib/format";
 import type { Branch, OrderStatus } from "@/types/common";
+import Modal from "@/components/ui/Modal";
+import { createOrderExportJob } from "@/lib/exports";
 
 // ============================================================
 // Types
@@ -251,7 +253,15 @@ export default function CustomerOrdersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDateStart, setExportDateStart] = useState("");
+  const [exportDateEnd, setExportDateEnd] = useState("");
+  const [exporting, setExporting] = useState(false);
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
+  const isInvalidExportDateRange = useMemo(() => {
+    if (!exportDateStart || !exportDateEnd) return false;
+    return exportDateEnd < exportDateStart;
+  }, [exportDateStart, exportDateEnd]);
 
   // Load branches
   useEffect(() => {
@@ -322,6 +332,34 @@ export default function CustomerOrdersPage() {
     (o) => !["COMPLETED", "CANCELLED", "REFUNDED"].includes(o.status),
   ).length;
 
+  const handleCreateExportJob = async () => {
+    if (isInvalidExportDateRange) {
+      alert("종료일은 시작일보다 빠를 수 없습니다.");
+      return;
+    }
+
+    try {
+      setExporting(true);
+      await createOrderExportJob({
+        format: "xlsx",
+        scope: "detail",
+        filters: {
+          ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
+          ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+          ...(exportDateStart ? { dateStart: exportDateStart } : {}),
+          ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
+        },
+      });
+      setShowExportModal(false);
+      alert("Export 작업이 생성되었습니다.");
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Export 생성에 실패했습니다");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       {/* Header */}
@@ -337,6 +375,12 @@ export default function CustomerOrdersPage() {
               진행중 {activeCount}건
             </span>
           )}
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
+          >
+            Export 다운로드
+          </button>
         </div>
       </div>
 
@@ -470,6 +514,57 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
       )}
+
+      <Modal
+        open={showExportModal}
+        title="Export 다운로드"
+        onClose={() => {
+          if (!exporting) setShowExportModal(false);
+        }}
+        footer={(
+          <>
+            <button
+              onClick={() => setShowExportModal(false)}
+              disabled={exporting}
+              className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleCreateExportJob}
+              disabled={exporting || isInvalidExportDateRange}
+              className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+            >
+              {exporting ? "생성 중..." : "Export 생성"}
+            </button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">시작일 (dateStart)</label>
+            <input
+              type="date"
+              value={exportDateStart}
+              onChange={(e) => setExportDateStart(e.target.value)}
+              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">종료일 (dateEnd)</label>
+            <input
+              type="date"
+              value={exportDateEnd}
+              onChange={(e) => setExportDateEnd(e.target.value)}
+              min={exportDateStart || undefined}
+              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            />
+          </div>
+          {isInvalidExportDateRange && (
+            <p className="text-xs text-danger-500">종료일은 시작일보다 빠를 수 없습니다.</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

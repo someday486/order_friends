@@ -84,6 +84,10 @@ describe('OrdersService', () => {
         customerName: 'Test User',
         totalAmount: 10000,
         status: OrderStatus.PENDING,
+        branchId: 'branch-123',
+        branchName: null,
+        itemCount: 0,
+        firstItemName: null,
       });
       expect(result.pagination).toBeDefined();
       expect(result.pagination.total).toBe(1);
@@ -119,6 +123,10 @@ describe('OrdersService', () => {
         customerName: '',
         totalAmount: 0,
         status: OrderStatus.PENDING,
+        branchId: 'branch-123',
+        branchName: null,
+        itemCount: 0,
+        firstItemName: null,
       });
     });
 

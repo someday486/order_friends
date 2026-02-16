@@ -40,7 +40,9 @@ describe('ExportsService', () => {
   });
 
   it('normalizeDateForRpc should return null for invalid values', () => {
-    expect((service as any).normalizeDateForRpc('not-a-date', false)).toBeNull();
+    expect(
+      (service as any).normalizeDateForRpc('not-a-date', false),
+    ).toBeNull();
     expect((service as any).normalizeDateForRpc(null, true)).toBeNull();
   });
 
@@ -56,7 +58,9 @@ describe('ExportsService', () => {
 
     const csv = (service as any).buildOrdersCsv(rows);
 
-    expect(csv.startsWith('\uFEFF# 안내: 최대 5000건까지만 다운로드됩니다.')).toBe(true);
+    expect(
+      csv.startsWith('\uFEFF# 안내: 최대 5000건까지만 다운로드됩니다.'),
+    ).toBe(true);
   });
 
   it('createOrderExportJob should normalize date filters before persisting params', async () => {

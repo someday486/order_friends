@@ -66,8 +66,6 @@ export function formatYmdHm(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return '-';
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-
   return date
     .toLocaleString('sv-SE', {
       timeZone: 'Asia/Seoul',

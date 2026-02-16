@@ -45,7 +45,10 @@ export class ExportsService {
    * - ISO/other parseable strings: toISOString()
    * - null/invalid: null
    */
-  private normalizeDateForRpc(value?: string | null, isEnd = false): string | null {
+  private normalizeDateForRpc(
+    value?: string | null,
+    isEnd = false,
+  ): string | null {
     if (!value) {
       return null;
     }

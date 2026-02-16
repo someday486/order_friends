@@ -14,6 +14,10 @@ export type BranchMembership = {
   status: string;
 };
 
+export type AuthProfile = {
+  id?: string;
+};
+
 export type AuthRequest = Request & {
   accessToken?: string;
   user?: RequestUser;
@@ -23,4 +27,6 @@ export type AuthRequest = Request & {
   branchId?: string;
   brandMemberships?: BrandMembership[];
   branchMemberships?: BranchMembership[];
+  userId?: string;
+  profile?: AuthProfile;
 };

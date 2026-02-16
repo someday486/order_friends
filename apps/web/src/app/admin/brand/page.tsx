@@ -10,7 +10,7 @@ import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 // Brand Select Button
 // ============================================================
 
-export function BrandSelectButton({ brandId }: { brandId: string }) {
+function BrandSelectButton({ brandId }: { brandId: string }) {
   const router = useRouter();
   const { selectBrand } = useSelectedBrand();
 

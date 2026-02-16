@@ -24,6 +24,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { ExportsModule } from './modules/exports/exports.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -66,6 +67,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     NotificationsModule,
     AnalyticsModule,
     UploadModule,
+    ExportsModule,
   ],
   providers: [
     AuthGuard,

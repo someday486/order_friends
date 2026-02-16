@@ -320,7 +320,9 @@ export class CustomerOrdersService {
         const firstItem = items[0];
         const summaryParts = items
           .slice(0, CustomerOrdersService.ITEMS_SUMMARY_LIMIT)
-          .map((item) => `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim())
+          .map((item) =>
+            `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim(),
+          )
           .filter(Boolean);
         const remainingCount =
           items.length - CustomerOrdersService.ITEMS_SUMMARY_LIMIT;

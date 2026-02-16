@@ -8,88 +8,127 @@ import { apiClient } from "@/lib/api-client";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
-// ============================================================
-// Types
-// ============================================================
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
+type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
 
 type Branch = {
   id: string;
   brandId: string;
   name: string;
-  slug?: string;
+  slug?: string | null;
   createdAt: string;
+  enabledFulfillmentTypes?: FulfillmentType[];
+  allowedPaymentMethods?: PaymentMethod[];
+};
+
+type Brand = {
+  id: string;
+  slug?: string | null;
 };
 
 type BranchMember = {
-  id: string;
-  branchId: string;
+  id?: string;
   userId: string;
   email?: string | null;
   displayName?: string | null;
   role: string;
   status: string;
-  createdAt: string;
 };
 
-// ============================================================
-// Constants
-// ============================================================
+const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN"];
+const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
-// ============================================================
-// Helpers
-// ============================================================
+const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
+  PICKUP: "포장",
+  DELIVERY: "배달",
+  DINE_IN: "매장",
+};
 
-function formatDate(iso: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleDateString("ko-KR");
-}
+const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+  CARD: "카드",
+  TRANSFER: "계좌이체",
+  CASH: "현금",
+};
 
 function isValidSlug(value: string) {
   return /^[a-z0-9-]+$/.test(value);
 }
 
-// ============================================================
-// Component
-// ============================================================
+function normalizeSlug(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function formatDateTime(iso: string) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("ko-KR");
+}
+
+function buildOrderUrl(brandSlug: string | null, branchSlug: string | null | undefined, branchId: string) {
+  if (brandSlug && branchSlug) {
+    return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branchSlug)}`;
+  }
+  return `/order/branch/${branchId}`;
+}
+
+function toggleItem<T extends string>(items: T[], value: T): T[] {
+  if (items.includes(value)) {
+    return items.filter((item) => item !== value);
+  }
+  return [...items, value];
+}
 
 export default function StoreDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { brandId, ready } = useSelectedBrand();
   const { selectBranch } = useSelectedBranch();
+
   const storeId = (params?.storeId as string) ?? "";
 
   const [branch, setBranch] = useState<Branch | null>(null);
+  const [brandSlug, setBrandSlug] = useState<string | null>(null);
+
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
+  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+
+  const [members, setMembers] = useState<BranchMember[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [members, setMembers] = useState<BranchMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [membersError, setMembersError] = useState<string | null>(null);
 
   const isDirty = useMemo(() => {
     if (!branch) return false;
-    return name.trim() !== branch.name || slug.trim() !== (branch.slug ?? "");
-  }, [branch, name, slug]);
 
-  const fetchMembers = async (branchId: string) => {
-    try {
-      setMembersLoading(true);
-      setMembersError(null);
+    const branchFulfillment = branch.enabledFulfillmentTypes ?? ["PICKUP"];
+    const branchPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"];
 
-      const data = await apiClient.get<BranchMember[]>(`/admin/members/branch/${branchId}`);
-      setMembers(data);
-    } catch (e: unknown) {
-      const err = e as Error;
-      setMembersError(err?.message ?? "멤버 목록을 불러오지 못했습니다.");
-    } finally {
-      setMembersLoading(false);
-    }
-  };
+    const sameFulfillment =
+      enabledFulfillmentTypes.length === branchFulfillment.length &&
+      enabledFulfillmentTypes.every((item) => branchFulfillment.includes(item));
+
+    const samePayments =
+      allowedPaymentMethods.length === branchPayments.length &&
+      allowedPaymentMethods.every((item) => branchPayments.includes(item));
+
+    return (
+      name.trim() !== branch.name ||
+      slug.trim() !== (branch.slug ?? "") ||
+      !sameFulfillment ||
+      !samePayments
+    );
+  }, [allowedPaymentMethods, branch, enabledFulfillmentTypes, name, slug]);
 
   useEffect(() => {
     if (!ready) return;
@@ -98,7 +137,7 @@ export default function StoreDetailPage() {
       return;
     }
 
-    const fetchBranch = async () => {
+    const loadBranch = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -107,8 +146,17 @@ export default function StoreDetailPage() {
         setBranch(data);
         setName(data.name ?? "");
         setSlug(data.slug ?? "");
+        setEnabledFulfillmentTypes(
+          data.enabledFulfillmentTypes && data.enabledFulfillmentTypes.length > 0
+            ? data.enabledFulfillmentTypes
+            : ["PICKUP"],
+        );
+        setAllowedPaymentMethods(
+          data.allowedPaymentMethods && data.allowedPaymentMethods.length > 0
+            ? data.allowedPaymentMethods
+            : ["CARD", "TRANSFER", "CASH"],
+        );
         selectBranch(data.id);
-        fetchMembers(data.id);
       } catch (e: unknown) {
         const err = e as Error;
         setError(err?.message ?? "매장 정보를 불러오지 못했습니다.");
@@ -117,38 +165,117 @@ export default function StoreDetailPage() {
       }
     };
 
-    fetchBranch();
+    loadBranch();
   }, [storeId, brandId, ready, router, selectBranch]);
+
+  useEffect(() => {
+    if (!ready || !brandId) return;
+
+    const loadBrandSlug = async () => {
+      try {
+        const brands = await apiClient.get<Brand[]>("/admin/brands");
+        const current = brands.find((item) => item.id === brandId);
+        setBrandSlug(current?.slug ?? null);
+      } catch {
+        setBrandSlug(null);
+      }
+    };
+
+    loadBrandSlug();
+  }, [brandId, ready]);
+
+  useEffect(() => {
+    if (!branch?.id) return;
+
+    const loadMembers = async () => {
+      try {
+        setMembersLoading(true);
+        setMembersError(null);
+        const data = await apiClient.get<BranchMember[]>(`/admin/members/branch/${branch.id}`);
+        setMembers(data);
+      } catch (e: unknown) {
+        const err = e as Error;
+        setMembersError(err?.message ?? "매장 멤버를 불러오지 못했습니다.");
+      } finally {
+        setMembersLoading(false);
+      }
+    };
+
+    loadMembers();
+  }, [branch?.id]);
+
+  const handleReset = () => {
+    if (!branch) return;
+    setName(branch.name ?? "");
+    setSlug(branch.slug ?? "");
+    setEnabledFulfillmentTypes(
+      branch.enabledFulfillmentTypes && branch.enabledFulfillmentTypes.length > 0
+        ? branch.enabledFulfillmentTypes
+        : ["PICKUP"],
+    );
+    setAllowedPaymentMethods(
+      branch.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
+        ? branch.allowedPaymentMethods
+        : ["CARD", "TRANSFER", "CASH"],
+    );
+  };
 
   const handleSave = async () => {
     if (!branch) return;
+
     if (!name.trim()) {
-      toast.error("가게명을 입력하세요.");
+      toast.error("매장명을 입력하세요.");
       return;
     }
-    if (!slug.trim()) {
-      toast.error("가게 URL을 입력하세요.");
+
+    const normalizedSlug = normalizeSlug(slug);
+    if (!normalizedSlug) {
+      toast.error("주문 URL 값을 입력하세요.");
       return;
     }
-    if (!isValidSlug(slug.trim())) {
-      toast.error("가게 URL은 영문/숫자/하이픈(-)만 가능합니다.");
+
+    if (!isValidSlug(normalizedSlug)) {
+      toast.error("주문 URL은 영문/숫자/하이픈(-)만 사용할 수 있습니다.");
+      return;
+    }
+
+    if (enabledFulfillmentTypes.length === 0) {
+      toast.error("주문 방식을 최소 1개 이상 선택하세요.");
+      return;
+    }
+
+    if (allowedPaymentMethods.length === 0) {
+      toast.error("결제 수단을 최소 1개 이상 선택하세요.");
       return;
     }
 
     try {
       setSaving(true);
-
-      const data = await apiClient.patch<Branch>("/admin/branches/" + branch.id, {
+      const updated = await apiClient.patch<Branch>(`/admin/branches/${branch.id}`, {
         name: name.trim(),
-        slug: slug.trim(),
+        slug: normalizedSlug,
+        enabledFulfillmentTypes,
+        allowedPaymentMethods,
       });
 
-      setBranch(data);
-      setName(data.name ?? "");
-      setSlug(data.slug ?? "");
+      setBranch(updated);
+      setName(updated.name ?? "");
+      setSlug(updated.slug ?? "");
+      setEnabledFulfillmentTypes(
+        updated.enabledFulfillmentTypes && updated.enabledFulfillmentTypes.length > 0
+          ? updated.enabledFulfillmentTypes
+          : ["PICKUP"],
+      );
+      setAllowedPaymentMethods(
+        updated.allowedPaymentMethods && updated.allowedPaymentMethods.length > 0
+          ? updated.allowedPaymentMethods
+          : ["CARD", "TRANSFER", "CASH"],
+      );
+
+      toast.success("매장 설정을 저장했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 수정에 실패했습니다.");
+      toast.error(err?.message ?? "매장 저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -157,15 +284,12 @@ export default function StoreDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    if (
-      !confirm(`"${branch.name}" 가게를 삭제하시겠습니까?\n관련 데이터가 모두 삭제되며 복구할 수 없습니다.`)
-    ) {
-      return;
-    }
+    const confirmed = confirm(`"${branch.name}" 매장을 삭제할까요?\n삭제 후 복구할 수 없습니다.`);
+    if (!confirmed) return;
 
     try {
       setDeleting(true);
-      await apiClient.delete("/admin/branches/" + branch.id);
+      await apiClient.delete(`/admin/branches/${branch.id}`);
       router.replace("/admin/stores");
     } catch (e: unknown) {
       const err = e as Error;
@@ -180,16 +304,13 @@ export default function StoreDetailPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-4">
         <Link href="/admin/stores" className="text-text-secondary text-xs hover:text-foreground transition-colors">
-          ← 가게 관리로 돌아가기
+          ← 매장 목록으로 돌아가기
         </Link>
-        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">
-          {branch?.name ?? "가게 상세"}
-        </h1>
+        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">{branch?.name ?? "매장 상세"}</h1>
         <p className="text-text-secondary mt-1 text-[13px]">
-          {branch?.slug ? `openoda.com/store/${branch.slug}` : "-"}
+          {branch ? buildOrderUrl(brandSlug, branch.slug, branch.id) : "-"}
         </p>
       </div>
 
@@ -198,32 +319,26 @@ export default function StoreDetailPage() {
 
       {!loading && branch && (
         <div className="grid gap-3">
-          {/* Info + Edit */}
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">가게 정보</div>
+            <div className="text-xs text-text-secondary">매장 기본 정보</div>
             <div className="mt-2 grid gap-2.5">
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">가게 ID</label>
-                <div className="text-[13px] text-foreground">{branch.id}</div>
-              </div>
-
-              <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">가게명</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">매장명</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input-field w-full"
-                  placeholder="가게명을 입력하세요"
+                  placeholder="매장명을 입력하세요"
                 />
               </div>
 
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">가게 URL</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">주문 URL</label>
                 <input
                   value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
+                  onChange={(e) => setSlug(normalizeSlug(e.target.value))}
                   className="input-field w-full"
-                  placeholder="예: my-store-01"
+                  placeholder="예: gangnam-main"
                 />
                 <div className="text-xs text-text-tertiary mt-1.5">
                   영문/숫자/하이픈(-)만 가능합니다.
@@ -231,72 +346,118 @@ export default function StoreDetailPage() {
               </div>
 
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">생성일</label>
-                <div className="text-[13px] text-foreground">{formatDate(branch.createdAt)}</div>
+                <label className="block mb-1.5 text-xs text-text-secondary">매장 ID</label>
+                <div className="text-[13px] text-foreground font-mono">{branch.id}</div>
               </div>
 
-              <div className="flex gap-2 mt-1.5">
-                <button
-                  className="btn-primary h-9 px-4 text-[13px]"
-                  onClick={handleSave}
-                  disabled={saving || !isDirty}
-                >
-                  {saving ? "저장 중..." : "저장"}
-                </button>
-                <button
-                  className="h-9 px-4 rounded-lg border border-border bg-transparent text-danger-500 font-bold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? "삭제 중..." : "가게 삭제"}
-                </button>
+              <div>
+                <label className="block mb-1.5 text-xs text-text-secondary">생성일</label>
+                <div className="text-[13px] text-foreground">{formatDateTime(branch.createdAt)}</div>
               </div>
             </div>
           </div>
 
-          {/* Members */}
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">가게 멤버</div>
-            {membersLoading && <p className="text-text-tertiary">불러오는 중...</p>}
-            {membersError && <p className="text-danger-500">{membersError}</p>}
-            {!membersLoading && members.length === 0 && (
-              <p className="text-text-tertiary">등록된 멤버가 없습니다.</p>
+            <div className="text-xs text-text-secondary">주문 설정</div>
+
+            <div className="mt-3">
+              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 주문 방식</div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {ALL_FULFILLMENT_TYPES.map((type) => {
+                  const checked = enabledFulfillmentTypes.includes(type);
+                  return (
+                    <label
+                      key={type}
+                      className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setEnabledFulfillmentTypes((prev) => toggleItem(prev, type))}
+                      />
+                      <span className="text-sm text-foreground">{FULFILLMENT_LABEL[type]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 결제 수단</div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {ALL_PAYMENT_METHODS.map((method) => {
+                  const checked = allowedPaymentMethods.includes(method);
+                  return (
+                    <label
+                      key={method}
+                      className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setAllowedPaymentMethods((prev) => toggleItem(prev, method))}
+                      />
+                      <span className="text-sm text-foreground">{PAYMENT_LABEL[method]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <div className="flex gap-2">
+              <button
+                className="btn-primary h-9 px-4 text-[13px]"
+                onClick={handleSave}
+                disabled={saving || deleting || !isDirty}
+              >
+                {saving ? "저장 중..." : "저장"}
+              </button>
+              <button
+                className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
+                onClick={handleReset}
+                disabled={saving || deleting || !isDirty}
+              >
+                변경 취소
+              </button>
+              <button
+                className="h-9 px-4 rounded-lg border border-danger-500 bg-transparent text-danger-500 font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+              >
+                {deleting ? "삭제 중..." : "매장 삭제"}
+              </button>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <div className="text-xs text-text-secondary">매장 멤버</div>
+            {membersLoading && <p className="text-text-tertiary mt-2">불러오는 중...</p>}
+            {membersError && <p className="text-danger-500 mt-2">{membersError}</p>}
+            {!membersLoading && !membersError && members.length === 0 && (
+              <p className="text-text-tertiary mt-2">등록된 멤버가 없습니다.</p>
             )}
             {!membersLoading && members.length > 0 && (
               <div className="mt-2 grid gap-1.5">
-                {members.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between py-2.5 px-3 border border-border rounded-lg bg-bg-secondary">
+                {members.map((member) => (
+                  <div
+                    key={member.id ?? member.userId}
+                    className="flex items-center justify-between py-2.5 px-3 border border-border rounded-lg bg-bg-secondary"
+                  >
                     <div>
                       <div className="text-[13px] text-foreground">
-                        {m.displayName ?? m.email ?? m.userId}
+                        {member.displayName ?? member.email ?? member.userId}
                       </div>
-                      <div className="text-xs text-text-tertiary">{m.userId}</div>
+                      <div className="text-xs text-text-tertiary">{member.userId}</div>
                     </div>
                     <div className="text-xs text-text-secondary">
-                      {m.role} · {m.status}
+                      {member.role} · {member.status}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Next steps */}
-          <div className="card p-4">
-            <div className="text-xs text-text-secondary">다음 단계</div>
-            <div className="mt-2.5 flex gap-2 flex-wrap">
-              <Link href={`/admin/products?branchId=${branch.id}`}>
-                <button className="btn-primary h-9 px-4 text-[13px]">상품 관리</button>
-              </Link>
-              <Link href={`/admin/orders?branchId=${branch.id}`}>
-                <button className="btn-primary h-9 px-4 text-[13px]">주문 관리</button>
-              </Link>
-              <Link href={`/admin/members?tab=branch&branchId=${branch.id}`}>
-                <button className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors">
-                  가게 멤버
-                </button>
-              </Link>
-            </div>
           </div>
         </div>
       )}

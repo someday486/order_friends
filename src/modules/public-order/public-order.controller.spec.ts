@@ -10,6 +10,7 @@ describe('PublicOrderController', () => {
     getBranch: jest.fn(),
     getBranchBySlug: jest.fn(),
     getBranchByBrandSlug: jest.fn(),
+    getBranchesByBrandSlug: jest.fn(),
     getCategories: jest.fn(),
     getProducts: jest.fn(),
     createOrder: jest.fn(),
@@ -90,6 +91,26 @@ describe('PublicOrderController', () => {
     await expect(
       controller.getBranchByBrandSlug('brand', 'branch'),
     ).rejects.toThrow('boom');
+  });
+
+  it('getBranchesByBrandSlug should call service and return result', async () => {
+    mockService.getBranchesByBrandSlug.mockResolvedValue({
+      brandSlug: 'brand',
+      branches: [{ id: 'b1' }],
+    });
+
+    const result = await controller.getBranchesByBrandSlug('brand');
+
+    expect(result).toEqual({ brandSlug: 'brand', branches: [{ id: 'b1' }] });
+    expect(mockService.getBranchesByBrandSlug).toHaveBeenCalledWith('brand');
+  });
+
+  it('getBranchesByBrandSlug should propagate service error', async () => {
+    mockService.getBranchesByBrandSlug.mockRejectedValue(new Error('boom'));
+
+    await expect(controller.getBranchesByBrandSlug('brand')).rejects.toThrow(
+      'boom',
+    );
   });
 
   it('getCategories should call service and return result', async () => {

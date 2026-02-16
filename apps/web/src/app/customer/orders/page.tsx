@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import {
-  formatDateTime,
   formatRelativeTime,
   formatWon,
 } from "@/lib/format";
@@ -95,7 +94,6 @@ function isUuidFormat(value: string): boolean {
 }
 
 function getItemSummary(order: Order): string {
-  // 우선순위 1: firstItemName + firstItemQty + itemCount 사용
   const firstName = order.firstItemName ?? order.first_item_name;
   const firstQty = order.firstItemQty ?? order.first_item_qty;
   const itemCount = order.item_count ?? order.itemCount;
@@ -108,7 +106,6 @@ function getItemSummary(order: Order): string {
     return `${firstName} ${qtyLabel}`;
   }
 
-  // 우선순위 2: items 배열 사용
   const items = order.items ?? order.order_items;
   if (items && items.length > 0) {
     const first = items[0];
@@ -119,145 +116,8 @@ function getItemSummary(order: Order): string {
     return `${first.name} ${qtyLabel}`;
   }
 
-  // 우선순위 3: count만 있는 경우
   if (itemCount) return `총 ${itemCount}개`;
   return "-";
-}
-
-function escapeCSVField(value: string | number): string {
-  const str = String(value);
-  // 쉼표, 줄바꿈, 따옴표가 있으면 따옴표로 감싸기
-  if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-function downloadCSV(orders: Order[], branchMap: Map<string, string>) {
-  if (orders.length === 0) return;
-
-  // CSV 헤더
-  const headers = [
-    "주문번호",
-    "지점명",
-    "주문일시",
-    "고객명",
-    "상태",
-    "결제금액",
-    "상품",
-  ];
-
-  // CSV 행 생성
-  const rows = orders.map((order) => {
-    // 지점명 매핑
-    const branchId = order.branch_id ?? order.branchId;
-    const branchName = branchId
-      ? (branchMap.get(branchId) ?? order.branchName ?? "-")
-      : (order.branchName ?? "-");
-
-    // 상품 정보: itemsSummary 우선, 없으면 getItemSummary fallback
-    const itemsSummary = order.itemsSummary ?? order.items_summary;
-    const itemsForDownload = itemsSummary || getItemSummary(order);
-
-    return [
-      escapeCSVField(order.orderNo ?? order.id.slice(0, 8)),
-      escapeCSVField(branchName),
-      escapeCSVField(formatYmdHm(order.orderedAt)),
-      escapeCSVField(order.customerName || "-"),
-      escapeCSVField(ORDER_STATUS_LABEL[order.status]),
-      escapeCSVField(order.totalAmount),
-      escapeCSVField(itemsForDownload),
-    ].join(",");
-  });
-
-  // UTF-8 BOM + 헤더 + 데이터
-  const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
-
-  // Blob 생성 및 다운로드
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-
-  // 파일명: orders_YYYYMMDD_HHmm.csv
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  const filename = `orders_${year}${month}${day}_${hour}${minute}.csv`;
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-async function downloadExcel(orders: Order[], branchMap: Map<string, string>) {
-  if (orders.length === 0) return;
-
-  // Dynamic import로 번들 사이즈 최적화
-  const XLSX = await import("xlsx");
-
-  // 엑셀 데이터 생성
-  const data = [
-    // 헤더
-    ["주문번호", "지점명", "주문일시", "고객명", "상태", "결제금액", "상품"],
-    // 데이터 행
-    ...orders.map((order) => {
-      // 지점명 매핑
-      const branchId = order.branch_id ?? order.branchId;
-      const branchName = branchId
-        ? (branchMap.get(branchId) ?? order.branchName ?? "-")
-        : (order.branchName ?? "-");
-
-      // 상품 정보: itemsSummary 우선, 없으면 getItemSummary fallback
-      const itemsSummary = order.itemsSummary ?? order.items_summary;
-      const itemsForDownload = itemsSummary || getItemSummary(order);
-
-      return [
-        order.orderNo ?? order.id.slice(0, 8),
-        branchName,
-        formatYmdHm(order.orderedAt),
-        order.customerName || "-",
-        ORDER_STATUS_LABEL[order.status],
-        order.totalAmount,
-        itemsForDownload,
-      ];
-    }),
-  ];
-
-  // 워크시트 생성
-  const worksheet = XLSX.utils.aoa_to_sheet(data);
-
-  // 컬럼 너비 설정 (선택사항)
-  worksheet["!cols"] = [
-    { wch: 18 }, // 주문번호
-    { wch: 12 }, // 지점명
-    { wch: 16 }, // 주문일시
-    { wch: 12 }, // 고객명
-    { wch: 10 }, // 상태
-    { wch: 12 }, // 결제금액
-    { wch: 35 }, // 상품 (itemsSummary 때문에 더 넓게)
-  ];
-
-  // 워크북 생성
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "주문목록");
-
-  // 파일명: orders_YYYYMMDD_HHmm.xlsx
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  const filename = `orders_${year}${month}${day}_${hour}${minute}.xlsx`;
-
-  // 파일 다운로드
-  XLSX.writeFile(workbook, filename);
 }
 
 function formatYmdHm(iso: string) {
@@ -339,7 +199,7 @@ export default function CustomerOrdersPage() {
     return exportDateEnd < exportDateStart;
   }, [exportDateStart, exportDateEnd]);
 
-  // 지점 ID → 지점명 매핑
+  // 지점 ID -> 지점명 매핑
   const branchMap = useMemo(() => {
     return new Map(branches.map((b) => [b.id, b.name]));
   }, [branches]);
@@ -431,7 +291,7 @@ export default function CustomerOrdersPage() {
           ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
         },
       });
-      const jobId = createResponse.jobId || createResponse.id;
+      const jobId = createResponse.jobId;
 
       if (!jobId) {
         throw new Error("Export 작업 ID를 확인할 수 없습니다.");
@@ -605,7 +465,7 @@ export default function CustomerOrdersPage() {
 
                 // 지점 ID 추출 (snake_case 또는 camelCase)
                 const branchId = order.branch_id ?? order.branchId;
-                // 지점명 매핑 (branchMap → order.branchName → "-")
+                // 지점명 매핑 (branchMap -> order.branchName -> "-")
                 const branchName = branchId
                   ? (branchMap.get(branchId) ?? order.branchName ?? "-")
                   : (order.branchName ?? "-");
@@ -784,3 +644,6 @@ export default function CustomerOrdersPage() {
     </div>
   );
 }
+
+
+

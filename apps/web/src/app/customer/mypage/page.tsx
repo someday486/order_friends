@@ -593,7 +593,9 @@ export default function CustomerMyPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <div>
                     <div className="font-semibold text-foreground">{group.name}</div>
-                    <div className="text-xs text-text-tertiary">브랜드 슬러그: {group.slug || "-"}</div>
+                    <div className="text-xs text-text-tertiary">
+                      브랜드 URL: {group.slug ? `/order/${encodeURIComponent(group.slug)}` : "-"}
+                    </div>
                   </div>
                   <Link
                     href={`/customer/brands/${group.id}`}
@@ -613,7 +615,9 @@ export default function CustomerMyPage() {
                         className="rounded border border-border/80 p-2 text-sm bg-bg-tertiary/40"
                       >
                         <div className="font-semibold text-foreground">{branch.name}</div>
-                        <div className="text-xs text-text-tertiary mt-1">매장 슬러그: {branch.slug || "-"}</div>
+                        <div className="text-xs text-text-tertiary mt-1">
+                          매장 URL: {branch.orderUrl}
+                        </div>
                         <div className="text-xs text-text-secondary mt-1 break-all">
                           주문 URL: {branch.orderUrl}
                         </div>

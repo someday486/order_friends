@@ -34,6 +34,7 @@ describe('PublicOrderService - Inventory Integration', () => {
     adminChains = {
       orders: makeChain(),
       order_items: makeChain(),
+      product_inventory: makeChain(),
     };
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };
@@ -127,6 +128,162 @@ describe('PublicOrderService - Inventory Integration', () => {
         ],
       },
     );
+  });
+
+  it('should skip inventory reservation when all ordered products are non-tracked', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-1');
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it('should reserve only inventory-tracked items in mixed orders', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [
+        { productId: 'product-1', qty: 2 },
+        { productId: 'product-2', qty: 1 },
+      ],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Tracked Product',
+          price: 10000,
+          branch_id: 'branch-123',
+        },
+        {
+          id: 'product-2',
+          name: 'Non-tracked Product',
+          price: 15000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-123',
+        order_no: 'ORD-001',
+        total_amount: 35000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single
+      .mockResolvedValueOnce({ data: { id: 'item-1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'item-2' }, error: null });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: [{ product_id: 'product-1' }],
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    await service.createOrder(mockOrderDto as any);
+
+    expect(adminClient.rpc).toHaveBeenCalledWith(
+      'reserve_inventory_for_order',
+      {
+        branch_id: 'branch-123',
+        order_id: 'order-123',
+        order_no: 'ORD-001',
+        items: [{ product_id: 'product-1', qty: 2 }],
+      },
+    );
+  });
+
+  it('should rollback order when product inventory lookup fails', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'lookup-fail' },
+    });
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(adminChains.order_items.eq).toHaveBeenCalledWith(
+      'order_id',
+      'order-1',
+    );
+    expect(adminChains.orders.eq).toHaveBeenCalledWith('id', 'order-1');
+    expect(adminClient.rpc).not.toHaveBeenCalled();
   });
 
   it('should insert order item options when present and ignore option insert errors', async () => {

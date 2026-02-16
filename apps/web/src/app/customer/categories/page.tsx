@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -26,6 +26,15 @@ type Branch = {
   brandId: string;
   myRole: string;
 };
+
+function canManageCategory(role: string | null | undefined) {
+  return (
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "BRANCH_OWNER" ||
+    role === "BRANCH_ADMIN"
+  );
+}
 
 // ============================================================
 // Constants
@@ -81,73 +90,102 @@ export default function CustomerCategoriesPage() {
     loadBranches();
   }, []);
 
+  const loadSelectedBranchCategories = useCallback(async () => {
+    if (selectedBranchIds.size === 0) {
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const branchIds = Array.from(selectedBranchIds);
+      const results = await Promise.all(
+        branchIds.map((branchId) =>
+          apiClient.get<Category[]>(
+            `/customer/products/categories?branchId=${encodeURIComponent(branchId)}`,
+          ),
+        ),
+      );
+      const merged = results
+        .flat()
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+      setCategories(merged);
+
+      if (branchIds.length === 1) {
+        const activeBranchId = branchIds[0];
+        setSelectedBranchId(activeBranchId);
+        const branch = branches.find((b) => b.id === activeBranchId);
+        if (branch) setUserRole(branch.myRole);
+      } else {
+        setSelectedBranchId("");
+        setUserRole(null);
+      }
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "카테고리를 불러올 수 없습니다");
+    } finally {
+      setLoading(false);
+    }
+  }, [branches, selectedBranchIds]);
+
   // Load categories when branch changes
   useEffect(() => {
-    const loadCategories = async () => {
-      if (selectedBranchIds.size === 0) {
-        setCategories([]);
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        setError(null);
+    void loadSelectedBranchCategories();
+  }, [loadSelectedBranchCategories]);
 
-        const branchIds = Array.from(selectedBranchIds);
-        const results = await Promise.all(
-          branchIds.map((branchId) =>
-            apiClient.get<Category[]>(
-              `/customer/products/categories?branchId=${encodeURIComponent(branchId)}`,
-            ),
-          ),
-        );
-        const merged = results
-          .flat()
-          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-        setCategories(merged);
-
-        if (branchIds.length === 1) {
-          const activeBranchId = branchIds[0];
-          setSelectedBranchId(activeBranchId);
-          const branch = branches.find((b) => b.id === activeBranchId);
-          if (branch) setUserRole(branch.myRole);
-        } else {
-          setSelectedBranchId("");
-          setUserRole(null);
-        }
-      } catch (e) {
-        console.error(e);
-        setError(e instanceof Error ? e.message : "카테고리를 불러올 수 없습니다");
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadCategories();
-  }, [selectedBranchIds, branches]);
+  const selectedBranches = useMemo(
+    () => branches.filter((branch) => selectedBranchIds.has(branch.id)),
+    [branches, selectedBranchIds],
+  );
 
   const canManage =
-    selectedBranchIds.size === 1 &&
-    (userRole === "OWNER" ||
-      userRole === "ADMIN" ||
-      userRole === "BRANCH_OWNER" ||
-      userRole === "BRANCH_ADMIN");
+    selectedBranches.length > 0 &&
+    selectedBranches.every((branch) => canManageCategory(branch.myRole));
+  const canReorder = canManage && selectedBranchIds.size === 1;
+  const canBulkStatus = canManage && selectedBranchIds.size === 1;
 
   // Add category
   const handleAdd = async () => {
-    if (!selectedBranchId || !newCategoryName.trim()) return;
+    const name = newCategoryName.trim();
+    const branchIds = Array.from(selectedBranchIds);
+    if (branchIds.length === 0 || !name) return;
+
     try {
       setAddLoading(true);
-      const created = await apiClient.post<Category>("/customer/products/categories", {
-        branchId: selectedBranchId,
-        name: newCategoryName.trim(),
-        sortOrder: categories.length,
-      });
-      setCategories((prev) => [...prev, created]);
+      if (branchIds.length === 1) {
+        const created = await apiClient.post<Category>("/customer/products/categories", {
+          branchId: branchIds[0],
+          name,
+          sortOrder: categories.length,
+        });
+        setCategories((prev) => [...prev, created]);
+      } else {
+        const result = await apiClient.post<{
+          created: number;
+          skipped: number;
+          skippedBranchIds?: string[];
+        }>("/customer/products/categories/bulk-create", {
+          branchIds,
+          name,
+        });
+        await loadSelectedBranchCategories();
+        if (result.skipped > 0) {
+          toast.success(
+            `${result.created}개 매장에 생성, ${result.skipped}개 매장은 같은 이름이 있어 건너뛰었습니다.`,
+          );
+        } else {
+          toast.success(`${result.created}개 매장에 카테고리를 생성했습니다.`);
+        }
+      }
+
       setNewCategoryName("");
       setShowAddForm(false);
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "카테고리 수정에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "카테고리 추가에 실패했습니다");
     } finally {
       setAddLoading(false);
     }
@@ -194,6 +232,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleBulkToggle = async (active: boolean) => {
+    if (!canBulkStatus) {
+      toast.error("일괄 활성/비활성은 단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     const targetBranchId = selectedBranchId || Array.from(selectedBranchIds)[0];
     const categoryIds = Array.from(selectedCatIds);
     if (!targetBranchId || categoryIds.length === 0) return;
@@ -266,7 +308,7 @@ export default function CustomerCategoriesPage() {
         category.isActive ? "border-border" : "border-border opacity-50"
       }`}
     >
-      {canManage && (
+      {canBulkStatus && (
         <input
           type="checkbox"
           checked={selectedCatIds.has(category.id)}
@@ -390,7 +432,7 @@ export default function CustomerCategoriesPage() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">카테고리 관리</h1>
-        {canManage && selectedBranchId && (
+        {canManage && selectedBranchIds.size > 0 && (
           <button
             onClick={() => setShowAddForm(true)}
             className="btn-primary px-5 py-2.5 text-sm"
@@ -438,7 +480,7 @@ export default function CustomerCategoriesPage() {
           </div>
           {selectedBranchIds.size !== 1 && (
             <div className="text-xs text-text-tertiary">
-              여러 매장 선택 시 조회만 가능하며 편집/정렬은 단일 매장 선택에서만 가능합니다.
+              여러 매장 선택 시 카테고리 추가는 일괄 등록으로 동작하며, 정렬/일괄상태 변경은 단일 매장에서만 가능합니다.
             </div>
           )}
         </div>
@@ -451,7 +493,12 @@ export default function CustomerCategoriesPage() {
       {/* Add Form */}
       {showAddForm && (
         <div className="mb-6 p-4 rounded-lg border border-primary-500/30 bg-primary-500/5">
-          <div className="text-sm font-semibold text-foreground mb-3">새 카테고리</div>
+          <div className="text-sm font-semibold text-foreground mb-1">새 카테고리</div>
+          <div className="text-xs text-text-secondary mb-3">
+            {selectedBranchIds.size > 1
+              ? `선택한 ${selectedBranchIds.size}개 매장에 동일한 카테고리를 등록합니다.`
+              : "선택한 매장에 카테고리를 등록합니다."}
+          </div>
           <div className="flex gap-2">
             <input
               type="text"
@@ -500,7 +547,7 @@ export default function CustomerCategoriesPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {/* Bulk action bar */}
-          {selectedCatIds.size > 0 && (
+          {canBulkStatus && selectedCatIds.size > 0 && (
             <div className="flex items-center gap-2 mb-2 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
               <span className="text-sm font-medium text-foreground">{selectedCatIds.size}개 선택</span>
               <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>활성화</button>
@@ -509,7 +556,7 @@ export default function CustomerCategoriesPage() {
             </div>
           )}
 
-          {canManage ? (
+          {canReorder ? (
             <SortableList
               items={categories}
               keyExtractor={(item) => item.id}

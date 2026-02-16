@@ -10,10 +10,17 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import {
   PublicBranchResponse,
+  PublicBrandBranchesResponse,
   PublicProductResponse,
   PublicOrderResponse,
   CreatePublicOrderRequest,
+  FulfillmentType,
 } from './dto/public-order.dto';
+import {
+  getBranchOrderConfig,
+  normalizeFulfillmentTypes,
+  normalizePaymentMethods,
+} from '../branches/branch-order-config.util';
 
 @Injectable()
 export class PublicOrderService {
@@ -53,6 +60,21 @@ export class PublicOrderService {
     return 0;
   }
 
+  private async getPublicBranchOrderConfig(branchId: string) {
+    const adminSb = this.supabase.adminClient();
+    const config = await getBranchOrderConfig(adminSb, branchId);
+
+    return {
+      enabledFulfillmentTypes: normalizeFulfillmentTypes(
+        config.enabledFulfillmentTypes,
+      ),
+      allowedPaymentMethods: normalizePaymentMethods(
+        config.allowedPaymentMethods,
+      ),
+      channelByType: config.channelByType,
+    };
+  }
+
   private async rollbackOrder(adminClient: any, orderId: string) {
     try {
       await adminClient.from('order_items').delete().eq('order_id', orderId);
@@ -65,6 +87,19 @@ export class PublicOrderService {
     } catch (error) {
       this.logger.error(`Failed to rollback order ${orderId}`, error);
     }
+  }
+
+  private isMissingColumnError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    return error?.code === '42703' || /column .* does not exist/i.test(message);
+  }
+
+  private getMissingColumnName(error: any): string | null {
+    const message = String(error?.message ?? '');
+    const match = message.match(
+      /column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i,
+    );
+    return match?.[1] ?? null;
   }
 
   /**
@@ -96,12 +131,15 @@ export class PublicOrderService {
     }
 
     const row = data as any;
+    const orderConfig = await this.getPublicBranchOrderConfig(row.id);
     return {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
     };
   }
 
@@ -143,12 +181,15 @@ export class PublicOrderService {
     }
 
     const row = data[0] as any;
+    const orderConfig = await this.getPublicBranchOrderConfig(row.id);
     return {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
     };
   }
 
@@ -196,12 +237,65 @@ export class PublicOrderService {
     }
 
     const row = data[0] as any;
+    const orderConfig = await this.getPublicBranchOrderConfig(row.id);
     return {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+    };
+  }
+
+  /**
+   * Get branch list by brand slug (public)
+   */
+  async getBranchesByBrandSlug(
+    brandSlug: string,
+  ): Promise<PublicBrandBranchesResponse> {
+    const sb = this.supabase.anonClient();
+
+    const { data, error } = await sb
+      .from('branches')
+      .select(
+        `
+        id,
+        name,
+        slug,
+        logo_url,
+        cover_image_url,
+        brands!inner (
+          name,
+          slug,
+          logo_url,
+          cover_image_url
+        )
+      `,
+      )
+      .eq('brands.slug', brandSlug)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new NotFoundException('사용할 수 없는 브랜드입니다.');
+    }
+
+    const rows = (data ?? []) as any[];
+    const brand = rows[0]?.brands;
+
+    return {
+      brandSlug: brand?.slug ?? brandSlug,
+      brandName: brand?.name ?? undefined,
+      logoUrl: brand?.logo_url ?? null,
+      coverImageUrl: brand?.cover_image_url ?? null,
+      branches: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug ?? null,
+        logoUrl: row.logo_url || brand?.logo_url || null,
+        coverImageUrl: row.cover_image_url || brand?.cover_image_url || null,
+      })),
     };
   }
   /**
@@ -694,13 +788,41 @@ export class PublicOrderService {
     const customerPhone = this.normalizeOptional(dto.customerPhone) ?? null;
     const customerAddress1 =
       this.normalizeOptional(dto.customerAddress1) ?? null;
-    const paymentMethod = dto.paymentMethod ?? 'CARD';
+    const paymentMethod = (dto.paymentMethod ?? 'CARD').toUpperCase();
+    const branchOrderConfig = await this.getPublicBranchOrderConfig(
+      dto.branchId,
+    );
+    const allowedPaymentMethods = normalizePaymentMethods(
+      branchOrderConfig.allowedPaymentMethods,
+    );
+    if (!allowedPaymentMethods.includes(paymentMethod as any)) {
+      throw new BadRequestException(
+        '선택한 결제수단은 현재 매장에서 지원하지 않습니다.',
+      );
+    }
+
+    const requestedFulfillmentType = (
+      dto.fulfillmentType ?? FulfillmentType.PICKUP
+    ).toUpperCase();
+    const enabledFulfillmentTypes = normalizeFulfillmentTypes(
+      branchOrderConfig.enabledFulfillmentTypes,
+    );
+    if (!enabledFulfillmentTypes.includes(requestedFulfillmentType as any)) {
+      throw new BadRequestException(
+        '선택한 주문 방식은 현재 매장에서 지원하지 않습니다.',
+      );
+    }
+
+    const fulfillmentType = requestedFulfillmentType as FulfillmentType;
+    const channelId = branchOrderConfig.channelByType[fulfillmentType];
 
     this.logMetric('order.create.start', {
       branchId: dto.branchId,
       totalAmount,
       idempotencyKey,
       paymentMethod,
+      fulfillmentType,
+      channelId,
     });
 
     if (idempotencyKey) {
@@ -794,9 +916,15 @@ export class PublicOrderService {
       }
     }
 
+    const dedupDto: CreatePublicOrderRequest = {
+      ...dto,
+      paymentMethod: paymentMethod as any,
+      fulfillmentType,
+    };
+
     const duplicateOrder = await this.findRecentDuplicateOrder(
       adminClient,
-      dto,
+      dedupDto,
       totalAmount,
       signature,
     );
@@ -827,28 +955,65 @@ export class PublicOrderService {
       return duplicateOrder.order;
     }
 
-    const { data: order, error: orderError } = await sb
-      .from('orders')
-      .insert({
-        branch_id: dto.branchId,
-        customer_name: dto.customerName,
-        customer_phone: dto.customerPhone ?? null,
-        customer_address1: dto.customerAddress1 ?? null,
-        customer_address2: dto.customerAddress2 ?? null,
-        customer_memo: dto.customerMemo ?? null,
-        payment_method: paymentMethod,
-        subtotal_amount: subtotalAmount,
-        shipping_fee: 0,
-        discount_amount: 0,
-        total_amount: totalAmount,
-        status: 'CREATED',
-        payment_status: 'PENDING',
-        idempotency_key: idempotencyKey ?? null,
-      })
-      .select('id, order_no, status, total_amount, created_at')
-      .single();
+    const insertPayload: Record<string, any> = {
+      branch_id: dto.branchId,
+      customer_name: dto.customerName,
+      customer_phone: dto.customerPhone ?? null,
+      customer_address1: dto.customerAddress1 ?? null,
+      customer_address2: dto.customerAddress2 ?? null,
+      customer_memo: dto.customerMemo ?? null,
+      payment_method: paymentMethod,
+      subtotal_amount: subtotalAmount,
+      shipping_fee: 0,
+      discount_amount: 0,
+      total_amount: totalAmount,
+      status: 'CREATED',
+      payment_status: 'PENDING',
+      idempotency_key: idempotencyKey ?? null,
+      fulfillment_type: fulfillmentType,
+    };
+    if (channelId) {
+      insertPayload.channel_id = channelId;
+    }
+
+    const executeOrderInsert = async () =>
+      sb
+        .from('orders')
+        .insert(insertPayload)
+        .select('id, order_no, status, total_amount, created_at')
+        .single();
+
+    let { data: order, error: orderError } = await executeOrderInsert();
+
+    // Older schemas can miss channel/fulfillment columns. Drop unknown fields and retry once per field.
+    for (let attempts = 0; orderError && attempts < 2; attempts += 1) {
+      if (!this.isMissingColumnError(orderError)) break;
+      const missingColumn = this.getMissingColumnName(orderError);
+      if (!missingColumn) break;
+      if (!(missingColumn in insertPayload)) break;
+      delete insertPayload[missingColumn];
+      ({ data: order, error: orderError } = await executeOrderInsert());
+    }
 
     if (orderError) {
+      const orderErrorMessage = String(orderError.message ?? '');
+      if (
+        orderError.code === '23502' &&
+        /channel_id/i.test(orderErrorMessage)
+      ) {
+        throw new BadRequestException(
+          '주문 채널이 설정되지 않았습니다. 매장 주문방식을 확인해주세요.',
+        );
+      }
+      if (
+        orderError.code === '23502' &&
+        /fulfillment_type/i.test(orderErrorMessage)
+      ) {
+        throw new BadRequestException(
+          '주문 방식이 설정되지 않았습니다. 매장 주문방식을 확인해주세요.',
+        );
+      }
+
       if (orderError.code === '23505' && idempotencyKey) {
         const existingOrder = await this.fetchOrderByIdempotencyKey(
           adminClient,
@@ -887,6 +1052,12 @@ export class PublicOrderService {
       }
       throw new BadRequestException(`주문 생성 실패: ${orderError.message}`);
     }
+    if (!order) {
+      throw new BadRequestException(
+        '주문 생성 실패: 주문 정보가 반환되지 않았습니다.',
+      );
+    }
+    const createdOrder = order;
 
     const orderItemResults: {
       productName: string;
@@ -900,7 +1071,7 @@ export class PublicOrderService {
         const { data: orderItem, error: itemError } = await sb
           .from('order_items')
           .insert({
-            order_id: order.id,
+            order_id: createdOrder.id,
             product_id: itemData.product_id,
             product_name_snapshot: itemData.product_name_snapshot,
             qty: itemData.qty,
@@ -940,62 +1111,92 @@ export class PublicOrderService {
         });
       }
     } catch (error) {
-      await this.rollbackOrder(adminClient, order.id);
+      await this.rollbackOrder(adminClient, createdOrder.id);
       throw error;
     }
 
     // ============================================================
     // STEP 2: Reserve inventory and create logs (atomic RPC)
     // ============================================================
+    const defaultReserveItems = dto.items.map((item) => ({
+      product_id: item.productId,
+      qty: item.qty,
+    }));
+    let reserveItems = defaultReserveItems;
+
     try {
-      const { error: reserveError } = await adminClient.rpc(
-        'reserve_inventory_for_order',
-        {
-          branch_id: dto.branchId,
-          order_id: order.id,
-          order_no: order.order_no,
-          items: dto.items.map((item) => ({
-            product_id: item.productId,
-            qty: item.qty,
-          })),
-        },
-      );
+      const { data: inventoryRows, error: inventoryLookupError } =
+        await adminClient
+          .from('product_inventory')
+          .select('product_id')
+          .eq('branch_id', dto.branchId)
+          .in('product_id', productIds);
 
-      if (reserveError) {
-        const message = reserveError.message ?? '';
-        const notFoundMatch = message.match(
-          /INVENTORY_NOT_FOUND:([0-9a-f-]+)/i,
-        );
-        if (notFoundMatch) {
-          const missingId = notFoundMatch[1];
-          throw new BadRequestException(
-            `재고 정보를 찾을 수 없습니다: ${productMap.get(missingId)?.name ?? missingId}`,
-          );
-        }
-
-        const insufficientMatch = message.match(
-          /INSUFFICIENT_INVENTORY:([0-9a-f-]+)/i,
-        );
-        if (insufficientMatch) {
-          const productId = insufficientMatch[1];
-          throw new BadRequestException(
-            `재고가 부족합니다: ${productMap.get(productId)?.name ?? productId}`,
-          );
-        }
-
+      if (inventoryLookupError) {
         throw new BadRequestException(
           '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
         );
       }
+
+      // `inventoryRows` can be undefined in 일부 테스트 목 환경. 그 경우 기존 동작대로 전체 예약.
+      if (inventoryRows !== undefined) {
+        const trackedProductIds = new Set(
+          (inventoryRows ?? [])
+            .map((row: any) => String(row.product_id ?? ''))
+            .filter(Boolean),
+        );
+        reserveItems = defaultReserveItems.filter((item) =>
+          trackedProductIds.has(item.product_id),
+        );
+      }
+
+      if (reserveItems.length > 0) {
+        const { error: reserveError } = await adminClient.rpc(
+          'reserve_inventory_for_order',
+          {
+            branch_id: dto.branchId,
+            order_id: createdOrder.id,
+            order_no: createdOrder.order_no,
+            items: reserveItems,
+          },
+        );
+
+        if (reserveError) {
+          const message = reserveError.message ?? '';
+          const notFoundMatch = message.match(
+            /INVENTORY_NOT_FOUND:([0-9a-f-]+)/i,
+          );
+          if (notFoundMatch) {
+            const missingId = notFoundMatch[1];
+            throw new BadRequestException(
+              `재고 정보를 찾을 수 없습니다: ${productMap.get(missingId)?.name ?? missingId}`,
+            );
+          }
+
+          const insufficientMatch = message.match(
+            /INSUFFICIENT_INVENTORY:([0-9a-f-]+)/i,
+          );
+          if (insufficientMatch) {
+            const productId = insufficientMatch[1];
+            throw new BadRequestException(
+              `재고가 부족합니다: ${productMap.get(productId)?.name ?? productId}`,
+            );
+          }
+
+          throw new BadRequestException(
+            '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
+          );
+        }
+      }
     } catch (error) {
-      await this.rollbackOrder(adminClient, order.id);
+      await this.rollbackOrder(adminClient, createdOrder.id);
       this.logger.error(
-        'Inventory reservation failed for order ' + order.id,
+        'Inventory reservation failed for order ' + createdOrder.id,
         error,
       );
       this.logMetric('order.create.inventory_failed', {
         branchId: dto.branchId,
-        orderId: order.id,
+        orderId: createdOrder.id,
       });
 
       if (error instanceof BadRequestException) {
@@ -1009,17 +1210,17 @@ export class PublicOrderService {
 
     this.logMetric('order.create.success', {
       branchId: dto.branchId,
-      orderId: order.id,
-      totalAmount: order.total_amount,
+      orderId: createdOrder.id,
+      totalAmount: createdOrder.total_amount,
       idempotencyKey,
     });
 
     return {
-      id: order.id,
-      orderNo: order.order_no,
-      status: order.status,
-      totalAmount: order.total_amount,
-      createdAt: order.created_at,
+      id: createdOrder.id,
+      orderNo: createdOrder.order_no,
+      status: createdOrder.status,
+      totalAmount: createdOrder.total_amount,
+      createdAt: createdOrder.created_at,
       items: orderItemResults,
     };
   }

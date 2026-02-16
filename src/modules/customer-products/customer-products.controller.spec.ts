@@ -10,8 +10,16 @@ describe('CustomerProductsController', () => {
 
   const mockService = {
     getMyProducts: jest.fn(),
+    getBrandProductTemplates: jest.fn(),
+    createBrandProductTemplate: jest.fn(),
+    updateBrandProductTemplate: jest.fn(),
+    bulkUpdateBrandProductTemplates: jest.fn(),
+    deleteBrandProductTemplate: jest.fn(),
+    applyBrandTemplateToBranch: jest.fn(),
+    unapplyBrandTemplateFromBranch: jest.fn(),
     getMyCategories: jest.fn(),
     createCategory: jest.fn(),
+    bulkCreateCategories: jest.fn(),
     reorderCategories: jest.fn(),
     updateCategory: jest.fn(),
     deleteCategory: jest.fn(),
@@ -72,6 +80,178 @@ describe('CustomerProductsController', () => {
     );
   });
 
+  it('getBrandTemplates should call service and return result', async () => {
+    mockService.getBrandProductTemplates.mockResolvedValue([{ id: 'tpl-1' }]);
+
+    const result = await controller.getBrandTemplates(
+      makeReq(),
+      'brand-1',
+      'branch-1',
+    );
+
+    expect(result).toEqual([{ id: 'tpl-1' }]);
+    expect(mockService.getBrandProductTemplates).toHaveBeenCalledWith(
+      'user-1',
+      'brand-1',
+      'branch-1',
+      [],
+      [],
+    );
+  });
+
+  it('getBrandTemplates should throw when brandId is missing', async () => {
+    await expect(
+      controller.getBrandTemplates(makeReq(), '', 'branch-1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('createBrandTemplate should call service', async () => {
+    mockService.createBrandProductTemplate.mockResolvedValue({ id: 'tpl-1' });
+
+    const dto = {
+      brandId: 'brand-1',
+      name: 'Americano',
+      price: 4500,
+    } as any;
+    const result = await controller.createBrandTemplate(makeReq(), dto);
+
+    expect(result).toEqual({ id: 'tpl-1' });
+    expect(mockService.createBrandProductTemplate).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+      [],
+      [],
+    );
+  });
+
+  it('createBrandTemplate should throw when brandId is missing', async () => {
+    await expect(
+      controller.createBrandTemplate(makeReq(), {
+        name: 'Americano',
+        price: 4500,
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('updateBrandTemplate should call service', async () => {
+    mockService.updateBrandProductTemplate.mockResolvedValue({ id: 'tpl-1' });
+    const dto = { name: 'Americano Ice' } as any;
+
+    const result = await controller.updateBrandTemplate(
+      makeReq(),
+      'tpl-1',
+      dto,
+    );
+
+    expect(result).toEqual({ id: 'tpl-1' });
+    expect(mockService.updateBrandProductTemplate).toHaveBeenCalledWith(
+      'user-1',
+      'tpl-1',
+      dto,
+      [],
+      [],
+    );
+  });
+
+  it('bulkUpdateBrandTemplates should call service', async () => {
+    mockService.bulkUpdateBrandProductTemplates.mockResolvedValue({
+      updatedCount: 2,
+    });
+    const dto = {
+      brandId: 'brand-1',
+      templateIds: ['tpl-1', 'tpl-2'],
+      branchIds: ['branch-1'],
+      isActive: true,
+    } as any;
+
+    const result = await controller.bulkUpdateBrandTemplates(makeReq(), dto);
+
+    expect(result).toEqual({ updatedCount: 2 });
+    expect(mockService.bulkUpdateBrandProductTemplates).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+      [],
+      [],
+    );
+  });
+
+  it('bulkUpdateBrandTemplates should throw when brandId is missing', async () => {
+    await expect(
+      controller.bulkUpdateBrandTemplates(makeReq(), {
+        templateIds: ['tpl-1'],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkUpdateBrandTemplates should throw when templateIds is missing', async () => {
+    await expect(
+      controller.bulkUpdateBrandTemplates(makeReq(), {
+        brandId: 'brand-1',
+        templateIds: [],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('deleteBrandTemplate should call service', async () => {
+    mockService.deleteBrandProductTemplate.mockResolvedValue({ deleted: true });
+
+    const result = await controller.deleteBrandTemplate(makeReq(), 'tpl-1');
+
+    expect(result).toEqual({ deleted: true });
+    expect(mockService.deleteBrandProductTemplate).toHaveBeenCalledWith(
+      'user-1',
+      'tpl-1',
+      [],
+      [],
+    );
+  });
+
+  it('applyBrandTemplateToBranch should call service', async () => {
+    mockService.applyBrandTemplateToBranch.mockResolvedValue({ id: 'prod-1' });
+
+    const result = await controller.applyBrandTemplateToBranch(
+      makeReq(),
+      'tpl-1',
+      { branchId: 'branch-1' } as any,
+    );
+
+    expect(result).toEqual({ id: 'prod-1' });
+    expect(mockService.applyBrandTemplateToBranch).toHaveBeenCalledWith(
+      'user-1',
+      'tpl-1',
+      'branch-1',
+      [],
+      [],
+    );
+  });
+
+  it('applyBrandTemplateToBranch should throw when branchId is missing', async () => {
+    await expect(
+      controller.applyBrandTemplateToBranch(makeReq(), 'tpl-1', {} as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('unapplyBrandTemplateFromBranch should call service', async () => {
+    mockService.unapplyBrandTemplateFromBranch.mockResolvedValue({
+      updated: 1,
+    });
+
+    const result = await controller.unapplyBrandTemplateFromBranch(
+      makeReq(),
+      'tpl-1',
+      { branchId: 'branch-1' } as any,
+    );
+
+    expect(result).toEqual({ updated: 1 });
+    expect(mockService.unapplyBrandTemplateFromBranch).toHaveBeenCalledWith(
+      'user-1',
+      'tpl-1',
+      'branch-1',
+      [],
+      [],
+    );
+  });
+
   it('getCategories should call service and return result', async () => {
     mockService.getMyCategories.mockResolvedValue([{ id: 'cat-1' }]);
 
@@ -118,6 +298,42 @@ describe('CustomerProductsController', () => {
   it('createCategory should throw when branchId is missing', async () => {
     await expect(
       controller.createCategory(makeReq(), { name: 'Coffee' } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkCreateCategories should call service and return result', async () => {
+    mockService.bulkCreateCategories.mockResolvedValue({
+      created: 2,
+      skipped: 0,
+      categories: [{ id: 'cat-1' }, { id: 'cat-2' }],
+    });
+
+    const dto = {
+      branchIds: ['branch-1', 'branch-2'],
+      name: 'Coffee',
+    } as any;
+
+    const result = await controller.bulkCreateCategories(makeReq(), dto);
+
+    expect(result).toEqual({
+      created: 2,
+      skipped: 0,
+      categories: [{ id: 'cat-1' }, { id: 'cat-2' }],
+    });
+    expect(mockService.bulkCreateCategories).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+      [],
+      [],
+    );
+  });
+
+  it('bulkCreateCategories should throw when branchIds is missing', async () => {
+    await expect(
+      controller.bulkCreateCategories(makeReq(), {
+        branchIds: [],
+        name: 'Coffee',
+      } as any),
     ).rejects.toThrow(BadRequestException);
   });
 

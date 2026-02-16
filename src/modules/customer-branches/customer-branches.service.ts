@@ -13,6 +13,10 @@ import {
   CreateBranchRequest,
   UpdateBranchRequest,
 } from '../../modules/branches/dto/branch.request';
+import {
+  getBranchOrderConfig,
+  saveBranchOrderConfig,
+} from '../../modules/branches/branch-order-config.util';
 
 @Injectable()
 export class CustomerBranchesService {
@@ -230,6 +234,7 @@ export class CustomerBranchesService {
     branchMemberships: BranchMembership[],
   ) {
     this.logger.log(`Fetching branch ${branchId} by user ${userId}`);
+    const sb = this.supabase.adminClient();
 
     const { branchMembership, brandMembership, branch } =
       await this.checkBranchAccess(
@@ -238,6 +243,7 @@ export class CustomerBranchesService {
         brandMemberships,
         branchMemberships,
       );
+    const orderConfig = await getBranchOrderConfig(sb, branch.id);
 
     return {
       id: branch.id,
@@ -247,6 +253,8 @@ export class CustomerBranchesService {
       logoUrl: branch.logo_url ?? null,
       coverImageUrl: branch.cover_image_url ?? null,
       thumbnailUrl: branch.thumbnail_url ?? null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       createdAt: branch.created_at,
       myRole: branchMembership?.role || brandMembership?.role,
     };
@@ -306,6 +314,12 @@ export class CustomerBranchesService {
 
     this.logger.log(`Branch ${data.id} created successfully`);
 
+    await saveBranchOrderConfig(sb, data.id, {
+      enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+      allowedPaymentMethods: dto.allowedPaymentMethods,
+    });
+    const orderConfig = await getBranchOrderConfig(sb, data.id);
+
     return {
       id: data.id,
       brandId: data.brand_id,
@@ -314,6 +328,8 @@ export class CustomerBranchesService {
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       createdAt: data.created_at,
       myRole: membership.role,
     };
@@ -358,8 +374,17 @@ export class CustomerBranchesService {
       updateFields.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl !== undefined)
       updateFields.thumbnail_url = dto.thumbnailUrl;
+    const hasOrderConfigUpdate =
+      dto.enabledFulfillmentTypes !== undefined ||
+      dto.allowedPaymentMethods !== undefined;
 
     if (Object.keys(updateFields).length === 0) {
+      if (hasOrderConfigUpdate) {
+        await saveBranchOrderConfig(sb, branchId, {
+          enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+          allowedPaymentMethods: dto.allowedPaymentMethods,
+        });
+      }
       return this.getMyBranch(
         userId,
         branchId,
@@ -389,6 +414,12 @@ export class CustomerBranchesService {
 
     this.logger.log(`Branch ${branchId} updated successfully`);
 
+    await saveBranchOrderConfig(sb, branchId, {
+      enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+      allowedPaymentMethods: dto.allowedPaymentMethods,
+    });
+    const orderConfig = await getBranchOrderConfig(sb, branchId);
+
     return {
       id: data.id,
       brandId: data.brand_id,
@@ -397,6 +428,8 @@ export class CustomerBranchesService {
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       createdAt: data.created_at,
       myRole: role,
     };

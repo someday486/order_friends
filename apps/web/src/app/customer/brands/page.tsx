@@ -18,6 +18,11 @@ type Brand = {
   myRole?: string;
 };
 
+function getBrandOrderUrl(slug: string | null): string | null {
+  if (!slug) return null;
+  return `/order/${encodeURIComponent(slug)}`;
+}
+
 const canCreateBrand = (
   role: string,
   loading: boolean,
@@ -124,6 +129,8 @@ export default function CustomerBrandsPage() {
 }
 
 function BrandCard({ brand }: { brand: Brand }) {
+  const brandOrderUrl = getBrandOrderUrl(brand.slug);
+
   return (
     <Link
       href={`/customer/brands/${brand.id}`}
@@ -145,7 +152,11 @@ function BrandCard({ brand }: { brand: Brand }) {
         )}
         <div className="flex-1">
           <div className="font-bold text-base mb-1">{brand.name}</div>
-          {brand.slug && <div className="text-xs text-text-tertiary">Slug: {brand.slug}</div>}
+          {brandOrderUrl && (
+            <div className="text-xs text-text-tertiary">
+              URL: {brandOrderUrl}
+            </div>
+          )}
           {brand.myRole && (
             <div className="text-xs text-text-secondary">Role: {brand.myRole}</div>
           )}
@@ -224,7 +235,7 @@ function AddBrandModal({
           </div>
 
           <div className="mb-5">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Brand Slug</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">Brand URL</label>
             <input
               type="text"
               value={formData.slug}
@@ -232,7 +243,7 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, slug: event.target.value.toLowerCase() }))
               }
               className="input-field"
-              placeholder="brand-slug"
+              placeholder="brand-url"
             />
             <div className="text-xs text-text-tertiary mt-1">Letters, numbers, and hyphens only.</div>
           </div>

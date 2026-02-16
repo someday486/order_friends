@@ -48,6 +48,11 @@ type Brand = {
 // Helpers
 // ============================================================
 
+function getBrandOrderUrl(slug?: string | null) {
+  if (!slug) return null;
+  return `/order/${encodeURIComponent(slug)}`;
+}
+
 // ============================================================
 // Component
 // ============================================================
@@ -247,7 +252,7 @@ export default function BrandPage() {
             />
           </div>
           <div className="mb-3">
-            <label className="block text-text-secondary text-xs mb-1">브랜드 URL (slug)</label>
+            <label className="block text-text-secondary text-xs mb-1">브랜드 URL</label>
             <input
               type="text"
               value={newSlug}
@@ -321,7 +326,7 @@ export default function BrandPage() {
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="block text-text-secondary text-xs mb-1">브랜드 URL (slug)</label>
+                    <label className="block text-text-secondary text-xs mb-1">브랜드 URL</label>
                     <input
                       type="text"
                       value={editSlug}
@@ -367,7 +372,7 @@ export default function BrandPage() {
                     <div className="font-bold text-base text-foreground">{brand.name}</div>
                     {brand.slug && (
                       <div className="text-text-secondary text-xs mt-1">
-                        슬러그: {brand.slug}
+                        URL: {getBrandOrderUrl(brand.slug)}
                       </div>
                     )}
                     {brand.bizName && (

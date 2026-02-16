@@ -14,7 +14,8 @@ type Branch = {
   id: string;
   brandId: string;
   name: string;
-  slug: string;
+  slug: string | null;
+  brandSlug?: string | null;
   myRole: string | null;
   createdAt: string;
 };
@@ -22,6 +23,7 @@ type Branch = {
 type Brand = {
   id: string;
   name: string;
+  slug: string | null;
 };
 
 // ============================================================
@@ -31,6 +33,18 @@ type Brand = {
 // ============================================================
 // Helpers
 // ============================================================
+
+function getBranchOrderUrl(
+  brandSlug: string | null | undefined,
+  branchSlug: string | null,
+  branchId: string,
+): string {
+  if (brandSlug && branchSlug) {
+    return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branchSlug)}`;
+  }
+
+  return `/order/branch/${branchId}`;
+}
 
 // ============================================================
 // Component
@@ -74,7 +88,13 @@ export default function CustomerBranchesPage() {
         setError(null);
 
         const data = await apiClient.get<Branch[]>(`/customer/branches?brandId=${selectedBrandId}`);
-        setBranches(data);
+        const selectedBrand = brands.find((brand) => brand.id === selectedBrandId);
+        setBranches(
+          data.map((branch) => ({
+            ...branch,
+            brandSlug: selectedBrand?.slug ?? null,
+          })),
+        );
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
@@ -84,7 +104,7 @@ export default function CustomerBranchesPage() {
     };
 
     loadBranches();
-  }, [selectedBrandId]);
+  }, [selectedBrandId, brands]);
 
   const canAddBranch = branches.length > 0
     ? branches[0]?.myRole === "OWNER" || branches[0]?.myRole === "ADMIN"
@@ -168,6 +188,8 @@ export default function CustomerBranchesPage() {
 // ============================================================
 
 function BranchCard({ branch }: { branch: Branch }) {
+  const orderUrl = getBranchOrderUrl(branch.brandSlug, branch.slug, branch.id);
+
   return (
     <Link
       href={`/customer/branches/${branch.id}`}
@@ -184,9 +206,9 @@ function BranchCard({ branch }: { branch: Branch }) {
           )}
         </div>
       </div>
-      {branch.slug && (
-        <div className="text-sm text-text-secondary mb-2">Slug: {branch.slug}</div>
-      )}
+      <div className="text-sm text-text-secondary mb-2">
+        URL: {orderUrl}
+      </div>
       <div className="text-2xs text-text-tertiary">
         등록일: {new Date(branch.createdAt).toLocaleDateString()}
       </div>
@@ -250,13 +272,13 @@ function AddBranchModal({
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Slug (영문, 숫자, 하이픈만)</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">URL (영문, 숫자, 하이픈만)</label>
             <input
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
               className="input-field"
-              placeholder="branch-slug"
+              placeholder="branch-url"
               pattern="[a-z0-9-]+"
               required
             />

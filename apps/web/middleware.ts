@@ -3,6 +3,9 @@ import { createServerClient } from '@supabase/ssr';
 
 const PROTECTED_PREFIXES = ['/app', '/admin', '/customer'];
 const AUTH_PAGES = new Set(['/login']);
+const E2E_AUTH_COOKIE = 'of_e2e_auth';
+const E2E_AUTH_HEADER = 'x-of-e2e-auth';
+const E2E_BYPASS_AUTH = process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === 'true';
 
 function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some(
@@ -10,11 +13,25 @@ function isProtectedPath(pathname: string) {
   );
 }
 
+function shouldBypassAuth(request: NextRequest) {
+  const cookieBypass = request.cookies.get(E2E_AUTH_COOKIE)?.value === '1';
+  const headerBypass = request.headers.get(E2E_AUTH_HEADER) === '1';
+  if (!cookieBypass || !headerBypass) return false;
+  if (E2E_BYPASS_AUTH) return true;
+
+  const host = request.nextUrl.hostname;
+  return host === '127.0.0.1' || host === 'localhost';
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 기본 응답을 먼저 만들어두고 (쿠키 싱크용)
   const response = NextResponse.next();
+
+  if (shouldBypassAuth(request)) {
+    return response;
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;

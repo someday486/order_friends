@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
+import { apiClient } from "@/lib/api-client";
+import { loadLastOrderRecord } from "@/lib/order-session";
 
 type OrderResult = {
   id: string;
@@ -19,27 +21,101 @@ type OrderResult = {
   }>;
 };
 
+function normalizeOrder(raw: unknown): OrderResult | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+  if (typeof source.id !== "string") return null;
+
+  const orderNo = source.orderNo ?? source.order_no;
+  const status = source.status;
+  const totalAmount = source.totalAmount ?? source.total_amount;
+  const createdAt = source.createdAt ?? source.created_at;
+  const items = Array.isArray(source.items) ? source.items : [];
+
+  if (typeof orderNo !== "string") return null;
+  if (typeof status !== "string") return null;
+  if (typeof totalAmount !== "number") return null;
+  if (typeof createdAt !== "string") return null;
+
+  return {
+    id: source.id,
+    orderNo,
+    status: status as OrderStatus,
+    totalAmount,
+    createdAt,
+    items: items.map((item) => {
+      const row = (item ?? {}) as Record<string, unknown>;
+      const name =
+        typeof row.name === "string"
+          ? row.name
+          : typeof row.productName === "string"
+            ? row.productName
+            : typeof row.product_name_snapshot === "string"
+              ? row.product_name_snapshot
+              : "-";
+      const qty = typeof row.qty === "number" ? row.qty : 0;
+      const unitPrice =
+        typeof row.unitPrice === "number"
+          ? row.unitPrice
+          : typeof row.unit_price === "number"
+            ? row.unit_price
+            : 0;
+
+      return { name, qty, unitPrice };
+    }),
+  };
+}
+
 export default function CompletePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const brandSlug = params?.brandSlug as string;
   const branchSlug = params?.branchSlug as string;
+  const orderId = searchParams.get("orderId");
 
-  const [order] = useState<OrderResult | null>(() => {
-    if (typeof window === "undefined") return null;
-    const saved = sessionStorage.getItem("lastOrder");
-    if (!saved) return null;
-    try {
-      return JSON.parse(saved) as OrderResult;
-    } catch {
-      return null;
-    }
-  });
+  const [order, setOrder] = useState<OrderResult | null>(() =>
+    normalizeOrder(loadLastOrderRecord({ brandSlug, branchSlug })),
+  );
+  const [loading, setLoading] = useState<boolean>(!order && Boolean(orderId));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (order || !orderId) return;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await apiClient.get(`/public/orders/${orderId}`, { auth: false });
+        const normalized = normalizeOrder(data);
+        if (!normalized) {
+          setError("주문 정보를 확인할 수 없습니다.");
+          return;
+        }
+        setOrder(normalized);
+      } catch (e: unknown) {
+        setError((e as Error)?.message ?? "주문 정보를 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [order, orderId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <p className="text-text-secondary">주문 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
 
   if (!order) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="p-10 text-center">
-          <p className="text-text-secondary">주문 정보를 찾을 수 없습니다.</p>
+          <p className="text-text-secondary">{error ?? "주문 정보를 찾을 수 없습니다."}</p>
           <Link
             href={`/order/${brandSlug}/${branchSlug}`}
             className="inline-block mt-4 text-foreground underline"
@@ -55,8 +131,8 @@ export default function CompletePage() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="p-6 text-center">
         <div className="text-[40px] mb-3">완료</div>
-        <h1 className="text-2xl font-extrabold mb-2">주문이 완료되었습니다.</h1>
-        <p className="text-text-secondary">주문 번호를 확인해 주세요.</p>
+        <h1 className="text-2xl font-extrabold mb-2">주문이 완료되었습니다</h1>
+        <p className="text-text-secondary">주문 번호를 확인해주세요.</p>
       </div>
 
       <div className="mx-4 mb-6 p-4 rounded-md border border-border bg-bg-secondary">

@@ -662,6 +662,7 @@ export class CustomerProductsService {
       appliedBranchCount: appliedBranchIds.length,
       totalBranchCount: options?.totalBranchCount ?? null,
       inventoryMode: options?.inventoryMode ?? 'PRODUCT',
+      isOnlineShopVisible: row.is_online_shop_visible ?? true,
     };
   }
 
@@ -1686,6 +1687,7 @@ export class CustomerProductsService {
       imageUrl?: string;
       sortOrder?: number;
       isActive?: boolean;
+      isOnlineShopVisible?: boolean;
       inventoryMode?: 'PRODUCT' | 'NONE';
       branchIds?: string[];
       branchCategoryAssignments?: Array<{
@@ -1720,6 +1722,7 @@ export class CustomerProductsService {
         image_url: dto.imageUrl ?? null,
         sort_order: dto.sortOrder ?? 0,
         is_active: dto.isActive ?? true,
+        is_online_shop_visible: dto.isOnlineShopVisible ?? true,
       })
       .select('*')
       .single();
@@ -1764,6 +1767,7 @@ export class CustomerProductsService {
       imageUrl?: string;
       sortOrder?: number;
       isActive?: boolean;
+      isOnlineShopVisible?: boolean;
       inventoryMode?: 'PRODUCT' | 'NONE';
       branchIds?: string[];
       branchCategoryAssignments?: Array<{
@@ -1806,6 +1810,9 @@ export class CustomerProductsService {
     if (dto.imageUrl !== undefined) updateFields.image_url = dto.imageUrl;
     if (dto.sortOrder !== undefined) updateFields.sort_order = dto.sortOrder;
     if (dto.isActive !== undefined) updateFields.is_active = dto.isActive;
+    if (dto.isOnlineShopVisible !== undefined) {
+      updateFields.is_online_shop_visible = dto.isOnlineShopVisible;
+    }
 
     let latestTemplate = template;
 
@@ -1878,6 +1885,7 @@ export class CustomerProductsService {
       templateIds: string[];
       branchIds?: string[];
       isActive?: boolean;
+      isOnlineShopVisible?: boolean;
       inventoryMode?: 'PRODUCT' | 'NONE';
     },
     brandMemberships: BrandMembership[],
@@ -1889,10 +1897,11 @@ export class CustomerProductsService {
     if (
       dto.branchIds === undefined &&
       dto.isActive === undefined &&
+      dto.isOnlineShopVisible === undefined &&
       dto.inventoryMode === undefined
     ) {
       throw new BadRequestException(
-        'isActive, branchIds, or inventoryMode is required',
+        'isActive, isOnlineShopVisible, branchIds, or inventoryMode is required',
       );
     }
 
@@ -1937,10 +1946,18 @@ export class CustomerProductsService {
       );
     }
 
+    const templateUpdateFields: Record<string, unknown> = {};
     if (dto.isActive !== undefined) {
+      templateUpdateFields.is_active = dto.isActive;
+    }
+    if (dto.isOnlineShopVisible !== undefined) {
+      templateUpdateFields.is_online_shop_visible = dto.isOnlineShopVisible;
+    }
+
+    if (Object.keys(templateUpdateFields).length > 0) {
       const { error: statusError } = await sb
         .from('brand_products')
-        .update({ is_active: dto.isActive })
+        .update(templateUpdateFields)
         .eq('brand_id', dto.brandId)
         .in('id', templateIds);
 
@@ -1953,7 +1970,12 @@ export class CustomerProductsService {
       }
 
       for (const template of foundTemplates) {
-        template.is_active = dto.isActive;
+        if (dto.isActive !== undefined) {
+          template.is_active = dto.isActive;
+        }
+        if (dto.isOnlineShopVisible !== undefined) {
+          template.is_online_shop_visible = dto.isOnlineShopVisible;
+        }
       }
     }
 

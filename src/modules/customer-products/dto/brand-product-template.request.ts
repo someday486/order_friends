@@ -62,6 +62,14 @@ export class CreateBrandProductTemplateRequest {
   isActive?: boolean;
 
   @ApiPropertyOptional({
+    description: '온라인샵 노출 여부',
+    default: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isOnlineShopVisible?: boolean;
+
+  @ApiPropertyOptional({
     description:
       '재고 관리 방식. PRODUCT는 메뉴 재고를 관리하고, NONE은 재고를 관리하지 않습니다.',
     enum: ['PRODUCT', 'NONE'],
@@ -125,6 +133,11 @@ export class UpdateBrandProductTemplateRequest {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: '온라인샵 노출 여부' })
+  @IsBoolean()
+  @IsOptional()
+  isOnlineShopVisible?: boolean;
 
   @ApiPropertyOptional({
     description:
@@ -197,6 +210,13 @@ export class BulkUpdateBrandProductTemplateRequest {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: '일괄 온라인샵 노출 여부. 전달하지 않으면 상태는 유지됩니다.',
+  })
+  @IsBoolean()
+  @IsOptional()
+  isOnlineShopVisible?: boolean;
 
   @ApiPropertyOptional({
     description:

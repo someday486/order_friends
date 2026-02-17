@@ -1729,7 +1729,9 @@ describe('CustomerProductsService', () => {
         [{ brand_id: 'brand-1', role: 'OWNER' } as any],
         [],
       ),
-    ).rejects.toThrow('isActive, branchIds, or inventoryMode is required');
+    ).rejects.toThrow(
+      'isActive, isOnlineShopVisible, branchIds, or inventoryMode is required',
+    );
   });
 
   it('applyBrandTemplateToBranch should create linked branch product', async () => {

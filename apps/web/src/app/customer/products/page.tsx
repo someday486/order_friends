@@ -9,6 +9,7 @@ import { ImageUpload } from "@/components/ui/ImageUpload";
 type Brand = {
   id: string;
   name: string;
+  slug?: string | null;
   myRole?: string | null;
 };
 
@@ -42,6 +43,7 @@ type BrandTemplate = {
   appliedBranchCount?: number;
   totalBranchCount?: number | null;
   inventoryMode?: InventoryMode;
+  isOnlineShopVisible?: boolean;
 };
 
 type TemplateForm = {
@@ -73,6 +75,11 @@ function getOrderUrl(branchId: string) {
   return `/order/branch/${encodeURIComponent(branchId)}`;
 }
 
+function getShopUrl(brandSlug: string | null | undefined) {
+  if (!brandSlug) return null;
+  return `/shop/${encodeURIComponent(brandSlug)}`;
+}
+
 function BranchChecklistTable({
   branches,
   selectedIds,
@@ -81,6 +88,9 @@ function BranchChecklistTable({
   categoryMap,
   selectedCategoryIds,
   onChangeCategory,
+  onlineShopChecked,
+  onToggleOnlineShop,
+  onlineShopUrl,
   disabled,
 }: {
   branches: Branch[];
@@ -90,9 +100,15 @@ function BranchChecklistTable({
   categoryMap?: Record<string, ProductCategory[]>;
   selectedCategoryIds?: Record<string, string>;
   onChangeCategory?: (branchId: string, categoryId: string) => void;
+  onlineShopChecked?: boolean;
+  onToggleOnlineShop?: () => void;
+  onlineShopUrl?: string | null;
   disabled?: boolean;
 }) {
-  const allChecked = branches.length > 0 && branches.every((b) => selectedIds.has(b.id));
+  const allBranchesChecked = branches.length > 0 && branches.every((b) => selectedIds.has(b.id));
+  const allChecked = onToggleOnlineShop
+    ? allBranchesChecked && (onlineShopChecked ?? false)
+    : allBranchesChecked;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -152,6 +168,26 @@ function BranchChecklistTable({
               )}
             </tr>
           ))}
+          {onToggleOnlineShop && (
+            <tr className="border-t border-border bg-bg-secondary/40">
+              <td className="py-2.5 px-3">
+                <input
+                  type="checkbox"
+                  checked={onlineShopChecked ?? false}
+                  onChange={() => onToggleOnlineShop()}
+                  disabled={disabled}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+              </td>
+              <td className="py-2.5 px-3 text-sm text-foreground font-semibold">온라인샵</td>
+              <td className="py-2.5 px-3 text-xs text-text-tertiary font-mono">
+                {onlineShopUrl ?? "-"}
+              </td>
+              {onChangeCategory && (
+                <td className="py-2.5 px-3 text-xs text-text-tertiary">카테고리 미사용</td>
+              )}
+            </tr>
+          )}
           {branches.length === 0 && (
             <tr>
               <td
@@ -181,15 +217,18 @@ export default function CustomerProductsPage() {
 
   const [createForm, setCreateForm] = useState<TemplateForm>(EMPTY_FORM);
   const [createBranchIds, setCreateBranchIds] = useState<Set<string>>(new Set());
+  const [createOnlineShopChecked, setCreateOnlineShopChecked] = useState(true);
   const [createBranchCategoryIds, setCreateBranchCategoryIds] = useState<Record<string, string>>({});
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
 
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<TemplateForm>(EMPTY_FORM);
   const [editBranchIds, setEditBranchIds] = useState<Set<string>>(new Set());
+  const [editOnlineShopChecked, setEditOnlineShopChecked] = useState(true);
   const [editBranchCategoryIds, setEditBranchCategoryIds] = useState<Record<string, string>>({});
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
   const [bulkBranchIds, setBulkBranchIds] = useState<Set<string>>(new Set());
+  const [bulkOnlineShopChecked, setBulkOnlineShopChecked] = useState(true);
   const [bulkStatus, setBulkStatus] = useState<BulkStatus>("keep");
   const [bulkInventoryMode, setBulkInventoryMode] = useState<BulkInventoryMode>("keep");
   const [applyBulkBranchChecks, setApplyBulkBranchChecks] = useState(false);
@@ -198,13 +237,17 @@ export default function CustomerProductsPage() {
     () => brands.find((brand) => brand.id === selectedBrandId) ?? null,
     [brands, selectedBrandId],
   );
+  const selectedBrandShopUrl = useMemo(
+    () => getShopUrl(selectedBrand?.slug),
+    [selectedBrand?.slug],
+  );
 
   const canManage = canManageBrandTemplate(selectedBrand?.myRole);
   const hasSelectedTemplates = selectedTemplateIds.size > 0;
   const allTemplatesChecked =
     templates.length > 0 && templates.every((template) => selectedTemplateIds.has(template.id));
-  const createSelectedCount = createBranchIds.size;
-  const createTotalCount = branches.length;
+  const createSelectedCount = createBranchIds.size + (createOnlineShopChecked ? 1 : 0);
+  const createTotalCount = branches.length + 1;
   const hasCreateImage = Boolean(createForm.imageUrl);
 
   const toggleSetValue = (source: Set<string>, id: string) => {
@@ -221,9 +264,11 @@ export default function CustomerProductsPage() {
     const next = checked ? new Set(branches.map((branch) => branch.id)) : new Set<string>();
     if (target === "create") {
       setCreateBranchIds(next);
+      setCreateOnlineShopChecked(checked);
       return;
     }
     setEditBranchIds(next);
+    setEditOnlineShopChecked(checked);
   };
 
   const buildBranchCategoryAssignments = (
@@ -275,10 +320,13 @@ export default function CustomerProductsPage() {
     await loadBranchCategories(branchRows);
     setBranches(branchRows);
     setCreateBranchIds(new Set(branchRows.map((branch) => branch.id)));
+    setCreateOnlineShopChecked(true);
     setCreateBranchCategoryIds({});
     setEditBranchCategoryIds({});
+    setEditOnlineShopChecked(true);
     setEditingTemplateId(null);
     setBulkBranchIds(new Set(branchRows.map((branch) => branch.id)));
+    setBulkOnlineShopChecked(true);
     setSelectedTemplateIds(new Set());
     setBulkStatus("keep");
     setBulkInventoryMode("keep");
@@ -360,6 +408,7 @@ export default function CustomerProductsPage() {
         price: parsedPrice,
         imageUrl: createForm.imageUrl.trim() || undefined,
         isActive: createForm.isActive,
+        isOnlineShopVisible: createOnlineShopChecked,
         inventoryMode: createForm.inventoryMode,
         branchIds: Array.from(createBranchIds),
         branchCategoryAssignments: buildBranchCategoryAssignments(
@@ -370,6 +419,7 @@ export default function CustomerProductsPage() {
 
       setCreateForm(EMPTY_FORM);
       setCreateBranchIds(new Set(branches.map((branch) => branch.id)));
+      setCreateOnlineShopChecked(true);
       setCreateBranchCategoryIds({});
       setIsCreateFormOpen(false);
       await loadTemplates(selectedBrandId);
@@ -393,6 +443,7 @@ export default function CustomerProductsPage() {
       inventoryMode: template.inventoryMode === "NONE" ? "NONE" : "PRODUCT",
     });
     setEditBranchIds(new Set(template.appliedBranchIds ?? []));
+    setEditOnlineShopChecked(template.isOnlineShopVisible !== false);
     const mappedCategories: Record<string, string> = {};
     for (const [branchId, categoryId] of Object.entries(template.appliedBranchCategoryIds ?? {})) {
       if (typeof categoryId === "string" && categoryId.length > 0) {
@@ -406,6 +457,7 @@ export default function CustomerProductsPage() {
     setEditingTemplateId(null);
     setEditForm(EMPTY_FORM);
     setEditBranchIds(new Set());
+    setEditOnlineShopChecked(true);
     setEditBranchCategoryIds({});
   };
 
@@ -432,6 +484,7 @@ export default function CustomerProductsPage() {
         price: parsedPrice,
         imageUrl: editForm.imageUrl.trim() || undefined,
         isActive: editForm.isActive,
+        isOnlineShopVisible: editOnlineShopChecked,
         inventoryMode: editForm.inventoryMode,
         branchIds: Array.from(editBranchIds),
         branchCategoryAssignments: buildBranchCategoryAssignments(
@@ -492,6 +545,7 @@ export default function CustomerProductsPage() {
       brandId: string;
       templateIds: string[];
       isActive?: boolean;
+      isOnlineShopVisible?: boolean;
       branchIds?: string[];
       inventoryMode?: "PRODUCT" | "NONE";
     } = {
@@ -507,13 +561,15 @@ export default function CustomerProductsPage() {
     }
     if (applyBulkBranchChecks) {
       payload.branchIds = Array.from(bulkBranchIds);
+      payload.isOnlineShopVisible = bulkOnlineShopChecked;
     }
     if (
       payload.isActive === undefined &&
+      payload.isOnlineShopVisible === undefined &&
       payload.branchIds === undefined &&
       payload.inventoryMode === undefined
     ) {
-      toast.error("일괄 변경할 항목(상태/재고관리/매장 체크)을 선택해주세요.");
+      toast.error("일괄 변경할 항목(상태/재고관리/매장 체크/온라인샵)을 선택해주세요.");
       return;
     }
 
@@ -588,7 +644,7 @@ export default function CustomerProductsPage() {
               <>
                 <div className="mt-4 mb-3 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
-                    선택 매장 {createSelectedCount}/{createTotalCount}
+                    선택 채널 {createSelectedCount}/{createTotalCount}
                   </span>
                   <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
                     이미지 {hasCreateImage ? "등록됨" : "미등록"}
@@ -682,6 +738,11 @@ export default function CustomerProductsPage() {
                         [branchId]: categoryId,
                       }))
                     }
+                    onlineShopChecked={createOnlineShopChecked}
+                    onToggleOnlineShop={() =>
+                      setCreateOnlineShopChecked((prev) => !prev)
+                    }
+                    onlineShopUrl={selectedBrandShopUrl}
                     disabled={saving}
                   />
                 </div>
@@ -773,7 +834,7 @@ export default function CustomerProductsPage() {
                       disabled={saving || !hasSelectedTemplates}
                       className="w-4 h-4 rounded accent-primary"
                     />
-                    매장 체크 상태도 함께 일괄 반영
+                    매장 체크와 온라인샵 노출 상태도 함께 일괄 반영
                   </label>
                 </div>
 
@@ -786,11 +847,17 @@ export default function CustomerProductsPage() {
                       branches={branches}
                       selectedIds={bulkBranchIds}
                       onToggle={(branchId) => setBulkBranchIds((prev) => toggleSetValue(prev, branchId))}
-                      onToggleAll={(checked) =>
+                      onToggleAll={(checked) => {
                         setBulkBranchIds(
                           checked ? new Set(branches.map((branch) => branch.id)) : new Set(),
-                        )
+                        );
+                        setBulkOnlineShopChecked(checked);
+                      }}
+                      onlineShopChecked={bulkOnlineShopChecked}
+                      onToggleOnlineShop={() =>
+                        setBulkOnlineShopChecked((prev) => !prev)
                       }
+                      onlineShopUrl={selectedBrandShopUrl}
                       disabled={saving || !hasSelectedTemplates}
                     />
                   </div>
@@ -847,7 +914,12 @@ export default function CustomerProductsPage() {
                               {formatWon(template.price)}
                             </td>
                             <td className="py-3 px-4 text-sm text-foreground">
-                              {appliedCount} / {totalCount} 매장
+                              <div>{appliedCount} / {totalCount} 매장</div>
+                              <div className="text-xs text-text-secondary mt-0.5">
+                                {template.isOnlineShopVisible === false
+                                  ? "온라인샵 미노출"
+                                  : "온라인샵 노출"}
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-sm">
                               <span
@@ -987,6 +1059,11 @@ export default function CustomerProductsPage() {
                                         [branchId]: categoryId,
                                       }))
                                     }
+                                    onlineShopChecked={editOnlineShopChecked}
+                                    onToggleOnlineShop={() =>
+                                      setEditOnlineShopChecked((prev) => !prev)
+                                    }
+                                    onlineShopUrl={selectedBrandShopUrl}
                                     disabled={saving}
                                   />
                                 </div>

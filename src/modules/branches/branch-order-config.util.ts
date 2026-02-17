@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 export const ORDER_FULFILLMENT_TYPES = [
   'PICKUP',
   'DELIVERY',
@@ -183,9 +185,10 @@ async function applyFulfillmentTypesToChannels(
       .select('id, type, is_active')
       .eq('branch_id', branchId);
 
-    if (error || !Array.isArray(data) || data.length === 0) return;
+    if (error || !Array.isArray(data)) return;
 
     const enabledSet = new Set(enabledFulfillmentTypes);
+    const existingTypeSet = new Set<OrderFulfillmentType>();
 
     for (const row of data) {
       const type =
@@ -195,7 +198,9 @@ async function applyFulfillmentTypesToChannels(
         continue;
       }
 
-      const shouldActive = enabledSet.has(type as OrderFulfillmentType);
+      const castedType = type as OrderFulfillmentType;
+      existingTypeSet.add(castedType);
+      const shouldActive = enabledSet.has(castedType);
       const isActive = row?.is_active === true;
       if (shouldActive === isActive) continue;
       if (typeof row?.id !== 'string') continue;
@@ -204,6 +209,34 @@ async function applyFulfillmentTypesToChannels(
         .from('order_channels')
         .update({ is_active: shouldActive })
         .eq('id', row.id);
+    }
+
+    const missingTypes = enabledFulfillmentTypes.filter(
+      (type) => !existingTypeSet.has(type),
+    );
+
+    for (const type of missingTypes) {
+      const fallbackSlug = `${branchId}-${type.toLowerCase()}`;
+      const id = randomUUID();
+
+      const { error: insertWithSlugError } = await sb
+        .from('order_channels')
+        .insert({
+          id,
+          branch_id: branchId,
+          type,
+          slug: fallbackSlug,
+          is_active: true,
+        });
+
+      if (!insertWithSlugError) continue;
+
+      await sb.from('order_channels').insert({
+        id,
+        branch_id: branchId,
+        type,
+        is_active: true,
+      });
     }
   } catch {
     // Ignore schema/runtime differences across environments.

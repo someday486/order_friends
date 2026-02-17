@@ -53,7 +53,7 @@ export class CustomerOrdersController {
   ) {
     if (!req.user) throw new Error('Missing user');
 
-    const { branchId, status, page, limit } = query ?? {};
+    const { branchId, status, fulfillmentType, page, limit } = query ?? {};
     const paginationDto: PaginationDto = { page, limit };
 
     this.logger.log(
@@ -66,6 +66,7 @@ export class CustomerOrdersController {
       req.branchMemberships || [],
       paginationDto,
       status,
+      fulfillmentType,
     );
   }
 

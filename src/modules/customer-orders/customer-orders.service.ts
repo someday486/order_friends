@@ -211,6 +211,7 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -248,6 +249,9 @@ export class CustomerOrdersService {
     if (status) {
       countQuery = countQuery.eq('status', status);
     }
+    if (fulfillmentType) {
+      countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
+    }
 
     const { count, error: countError } = await countQuery;
 
@@ -260,7 +264,7 @@ export class CustomerOrdersService {
     let dataQuery = sb
       .from('orders')
       .select(
-        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name)',
+        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name), fulfillment_type',
       )
       .in('branch_id', targetBranchIds)
       .order('created_at', { ascending: false })
@@ -268,6 +272,9 @@ export class CustomerOrdersService {
 
     if (status) {
       dataQuery = dataQuery.eq('status', status);
+    }
+    if (fulfillmentType) {
+      dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
     }
 
     const { data, error } = await dataQuery;
@@ -348,6 +355,7 @@ export class CustomerOrdersService {
       totalAmount: row.total_amount ?? 0,
       branchId: row.branch_id,
       branchName: row.branches?.name ?? '',
+      fulfillmentType: row.fulfillment_type ?? null,
       itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
       firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
       firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
@@ -381,7 +389,7 @@ export class CustomerOrdersService {
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
-      id, order_no, status, created_at,
+      id, order_no, status, created_at, fulfillment_type,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -421,6 +429,7 @@ export class CustomerOrdersService {
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      fulfillmentType: data.fulfillment_type ?? null,
       customer: {
         name: data.customer_name ?? '',
         phone: data.customer_phone ?? '',

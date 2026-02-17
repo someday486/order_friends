@@ -6,6 +6,7 @@ type CreateOrderExportPayload = {
   filters?: {
     branchId?: string;
     status?: string;
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN';
     dateStart?: string;
     dateEnd?: string;
   };

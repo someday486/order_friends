@@ -8,7 +8,7 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
-// 주문 상태 한글 라벨 (관리자용 - 짧은 형태)
+// 주문 상태 라벨 (관리자용)
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
   CONFIRMED: '확인',
@@ -19,7 +19,7 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   REFUNDED: '환불',
 };
 
-// 주문 상태 한글 라벨 (고객용 - 긴 형태)
+// 주문 상태 라벨 (고객용)
 export const ORDER_STATUS_LABEL_LONG: Record<OrderStatus, string> = {
   CREATED: '주문 접수',
   CONFIRMED: '주문 확인',
@@ -30,7 +30,7 @@ export const ORDER_STATUS_LABEL_LONG: Record<OrderStatus, string> = {
   REFUNDED: '환불됨',
 };
 
-// 상태 뱃지 스타일
+// 상태 배지 스타일
 export const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   CREATED: 'bg-warning-500/20 text-warning-500',
   CONFIRMED: 'bg-primary-500/20 text-primary-500',
@@ -39,6 +39,14 @@ export const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   COMPLETED: 'bg-neutral-500/20 text-text-secondary',
   CANCELLED: 'bg-danger-500/20 text-danger-500',
   REFUNDED: 'bg-pink-500/20 text-pink-400',
+};
+
+export type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+
+export const FULFILLMENT_TYPE_LABEL: Record<FulfillmentType, string> = {
+  PICKUP: '포장',
+  DELIVERY: '배달',
+  DINE_IN: '매장',
 };
 
 // 지점

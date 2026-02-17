@@ -5,7 +5,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { formatDateTime, formatPhone, formatWon } from "@/lib/format";
-import { PAYMENT_METHOD_LABEL, type OrderStatus } from "@/types/common";
+import {
+  FULFILLMENT_TYPE_LABEL,
+  PAYMENT_METHOD_LABEL,
+  type FulfillmentType,
+  type OrderStatus,
+} from "@/types/common";
 
 // ============================================================
 // Types
@@ -24,6 +29,7 @@ type OrderDetail = {
   orderNo: string | null;
   orderedAt: string;
   status: OrderStatus;
+  fulfillmentType?: FulfillmentType | null;
   customer: {
     name: string;
     phone: string;
@@ -546,6 +552,14 @@ export default function CustomerOrderDetailPage() {
         <h2 className="text-sm font-extrabold text-foreground mb-3">
           결제 정보
         </h2>
+        <InfoRow
+          label="주문 방식"
+          value={
+            order.fulfillmentType
+              ? FULFILLMENT_TYPE_LABEL[order.fulfillmentType]
+              : "-"
+          }
+        />
         <InfoRow
           label="결제 방법"
           value={PAYMENT_METHOD_LABEL[order.payment.method] || order.payment.method || "-"}

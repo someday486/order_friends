@@ -8,11 +8,9 @@ import {
 import { OrderListItemResponse } from './dto/order-list.response';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
-import {
-  PaginationDto,
-  PaginatedResponse,
-} from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
+import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 
 @Injectable()
 export class OrdersService {
@@ -60,9 +58,9 @@ export class OrdersService {
   async getOrders(
     accessToken: string,
     branchId: string,
-    paginationDto: PaginationDto = {},
+    queryDto: Partial<GetOrdersQueryDto> = {},
   ): Promise<PaginatedResponse<OrderListItemResponse>> {
-    const { page = 1, limit = 20 } = paginationDto;
+    const { page = 1, limit = 20, status, fulfillmentType } = queryDto;
     this.logger.log(
       `Fetching orders for branch: ${branchId} (page: ${page}, limit: ${limit})`,
     );
@@ -71,10 +69,19 @@ export class OrdersService {
     const { from, to } = PaginationUtil.getRange(page, limit);
 
     // 총 개수 조회
-    const { count, error: countError } = await sb
+    let countQuery = sb
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('branch_id', branchId);
+
+    if (status) {
+      countQuery = countQuery.eq('status', status);
+    }
+    if (fulfillmentType) {
+      countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
+    }
+
+    const { count, error: countError } = await countQuery;
 
     if (countError) {
       this.logger.error(
@@ -90,12 +97,23 @@ export class OrdersService {
     }
 
     // 데이터 조회
-    const { data, error } = await sb
+    let dataQuery = sb
       .from('orders')
-      .select('id, order_no, status, created_at, total_amount, customer_name')
+      .select(
+        'id, order_no, status, created_at, total_amount, customer_name, branch_id, fulfillment_type',
+      )
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false })
       .range(from, to);
+
+    if (status) {
+      dataQuery = dataQuery.eq('status', status);
+    }
+    if (fulfillmentType) {
+      dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
+    }
+
+    const { data, error } = await dataQuery;
 
     if (error) {
       this.logger.error(`Failed to fetch orders: ${error.message}`, error);
@@ -114,6 +132,7 @@ export class OrdersService {
       customerName: row.customer_name ?? '',
       totalAmount: row.total_amount ?? 0,
       status: row.status as OrderStatus,
+      fulfillmentType: row.fulfillment_type ?? null,
 
       // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
       branchId: row.branch_id ?? branchId ?? null,
@@ -124,7 +143,7 @@ export class OrdersService {
 
     this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);
 
-    return PaginationUtil.createResponse(orders, count || 0, paginationDto);
+    return PaginationUtil.createResponse(orders, count || 0, queryDto);
   }
 
   /**
@@ -143,7 +162,7 @@ export class OrdersService {
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
-      id, order_no, status, created_at,
+      id, order_no, status, created_at, fulfillment_type,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -198,6 +217,7 @@ export class OrdersService {
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      fulfillmentType: data.fulfillment_type ?? null,
       customer: {
         name: data.customer_name ?? '',
         phone: data.customer_phone ?? '',

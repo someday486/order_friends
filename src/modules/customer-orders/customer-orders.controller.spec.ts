@@ -59,6 +59,7 @@ describe('CustomerOrdersController', () => {
       [],
       { page: 1, limit: 10 },
       'COMPLETED',
+      undefined,
     );
   });
 
@@ -85,6 +86,7 @@ describe('CustomerOrdersController', () => {
       [],
       [],
       { page: 1, limit: 10 },
+      undefined,
       undefined,
     );
   });
@@ -163,6 +165,7 @@ describe('CustomerOrdersController', () => {
           [],
           { page: 1, limit: 10 },
           'COMPLETED',
+          undefined,
         ),
     },
     {

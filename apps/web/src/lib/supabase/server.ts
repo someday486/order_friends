@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr';
+﻿import { createServerClient } from '@supabase/ssr';
 
 export function getSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -6,15 +6,14 @@ export function getSupabaseServerClient() {
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      // ✅ getAll 지원 안 하는 런타임 대응: 최소한 get() 기반으로만 사용
+      // 서버 컴포넌트에서는 읽기 전용 쿠키 접근만 사용한다.
       getAll() {
-        // cookieStore.getAll()이 없는 경우도 있어서, 안전하게 빈 배열
-        // (세션 갱신은 middleware가 담당)
-        // 단, 이미 세션 쿠키가 request에 있으면 supabase 내부에서 get(name)로도 동작함
+        // 세션 갱신은 미들웨어에서 처리하므로 서버 클라이언트는
+        // 쿠키 쓰기를 수행하지 않는다.
         return [];
       },
 
-      // ✅ 여기서는 절대 set 하지 않음 (read-only 런타임)
+      // 읽기 전용 모드: setAll은 no-op
       setAll() {
         // noop
       },

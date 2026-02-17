@@ -26,6 +26,7 @@ describe('PublicOrderService - Inventory Integration', () => {
 
   beforeEach(async () => {
     anonChains = {
+      branches: makeChain(),
       products: makeChain(),
       orders: makeChain(),
       order_items: makeChain(),
@@ -127,6 +128,81 @@ describe('PublicOrderService - Inventory Integration', () => {
           { product_id: 'product-2', qty: 1 },
         ],
       },
+    );
+  });
+
+  it('getBrands should group brands and build order paths', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'branch-1',
+          slug: 'gangnam',
+          brands: {
+            id: 'brand-1',
+            name: 'Test Cafe',
+            slug: 'test-cafe',
+            logo_url: 'logo-1',
+            cover_image_url: 'cover-1',
+          },
+        },
+        {
+          id: 'branch-2',
+          slug: 'hongdae',
+          brands: {
+            id: 'brand-1',
+            name: 'Test Cafe',
+            slug: 'test-cafe',
+            logo_url: 'logo-1',
+            cover_image_url: 'cover-1',
+          },
+        },
+        {
+          id: 'branch-3',
+          slug: 'only-branch',
+          brands: {
+            id: 'brand-2',
+            name: 'No Slug Brand',
+            slug: null,
+            logo_url: null,
+            cover_image_url: null,
+          },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBrands();
+
+    expect(result).toEqual([
+      {
+        id: 'brand-2',
+        name: 'No Slug Brand',
+        slug: null,
+        logoUrl: null,
+        coverImageUrl: null,
+        branchCount: 1,
+        orderPath: '/order/branch/branch-3',
+      },
+      {
+        id: 'brand-1',
+        name: 'Test Cafe',
+        slug: 'test-cafe',
+        logoUrl: 'logo-1',
+        coverImageUrl: 'cover-1',
+        branchCount: 2,
+        orderPath: '/order/test-cafe',
+      },
+    ]);
+  });
+
+  it('getBrands should throw when query fails', async () => {
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'query failed' },
+    });
+
+    await expect(service.getBrands()).rejects.toThrow(
+      '브랜드 목록 조회 실패: query failed',
     );
   });
 

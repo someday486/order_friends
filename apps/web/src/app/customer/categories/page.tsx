@@ -56,7 +56,6 @@ export default function CustomerCategoriesPage() {
   const [branchSearch, setBranchSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
 
   // New category form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -80,7 +79,6 @@ export default function CustomerCategoriesPage() {
         if (data.length > 0) {
           setSelectedBranchId(data[0].id);
           setSelectedBranchIds(new Set([data[0].id]));
-          setUserRole(data[0].myRole);
         }
       } catch (e) {
         console.error(e);
@@ -117,11 +115,8 @@ export default function CustomerCategoriesPage() {
       if (branchIds.length === 1) {
         const activeBranchId = branchIds[0];
         setSelectedBranchId(activeBranchId);
-        const branch = branches.find((b) => b.id === activeBranchId);
-        if (branch) setUserRole(branch.myRole);
       } else {
         setSelectedBranchId("");
-        setUserRole(null);
       }
     } catch (e) {
       console.error(e);
@@ -129,7 +124,7 @@ export default function CustomerCategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [branches, selectedBranchIds]);
+  }, [selectedBranchIds]);
 
   // Load categories when branch changes
   useEffect(() => {
@@ -146,6 +141,8 @@ export default function CustomerCategoriesPage() {
     selectedBranches.every((branch) => canManageCategory(branch.myRole));
   const canReorder = canManage && selectedBranchIds.size === 1;
   const canBulkStatus = canManage && selectedBranchIds.size === 1;
+  const activeCategoryCount = categories.filter((category) => category.isActive).length;
+  const inactiveCategoryCount = categories.length - activeCategoryCount;
 
   // Add category
   const handleAdd = async () => {
@@ -431,7 +428,12 @@ export default function CustomerCategoriesPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">카테고리 관리</h1>
+        <div>
+          <h1 className="text-2xl font-extrabold m-0 text-foreground">카테고리 관리</h1>
+          <p className="text-text-secondary text-sm mt-1">
+            선택 매장 {selectedBranchIds.size}개 · 카테고리 {categories.length}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
+          </p>
+        </div>
         {canManage && selectedBranchIds.size > 0 && (
           <button
             onClick={() => setShowAddForm(true)}
@@ -442,9 +444,13 @@ export default function CustomerCategoriesPage() {
         )}
       </div>
 
+      <div className="mb-6 rounded-xl border border-border bg-bg-secondary p-4 text-[13px] text-text-secondary">
+        여러 매장을 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다. 정렬 변경과 일괄 활성/비활성은 단일 매장 선택에서만 가능합니다.
+      </div>
+
       {/* Branch Filter */}
       <div className="mb-6">
-        <label className="block text-sm text-text-secondary mb-2 font-semibold">매장 선택</label>
+        <label className="block text-sm text-text-secondary mb-2 font-semibold">매장 선택 (여러 개 가능)</label>
         <div className="max-w-[520px] space-y-2">
           <input
             type="text"
@@ -549,9 +555,9 @@ export default function CustomerCategoriesPage() {
           {/* Bulk action bar */}
           {canBulkStatus && selectedCatIds.size > 0 && (
             <div className="flex items-center gap-2 mb-2 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
-              <span className="text-sm font-medium text-foreground">{selectedCatIds.size}개 선택</span>
-              <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>활성화</button>
-              <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>비활성화</button>
+              <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
+              <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
+              <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
               <button className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors" onClick={() => setSelectedCatIds(new Set())}>선택 해제</button>
             </div>
           )}

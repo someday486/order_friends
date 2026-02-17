@@ -407,4 +407,20 @@ describe('NotificationsService', () => {
     const status = await service.getNotificationStatus('n1');
     expect(status).toBeNull();
   });
+
+  it('should store status and support retry for existing notification', async () => {
+    const service = new NotificationsService(makeConfig({}));
+
+    await (service as any).sendSMS('01012345678', 'retry-target');
+    const storedIds = Array.from((service as any).notifications.keys());
+
+    expect(storedIds.length).toBeGreaterThan(0);
+    const [notificationId] = storedIds;
+
+    const status = await service.getNotificationStatus(notificationId);
+    expect(status?.status).toBe('SENT');
+
+    const retryResult = await service.retryNotification(notificationId);
+    expect(retryResult.success).toBe(true);
+  });
 });

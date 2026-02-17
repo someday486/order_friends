@@ -315,4 +315,61 @@ describe('PublicOrderService - Shop Flow', () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it('getShopBrandBySlug should auto-create online shop branch when brand has no branch', async () => {
+    adminChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-1',
+          name: 'No Branch Brand',
+          slug: 'no-branch-brand',
+          logo_url: null,
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
+    adminChains.branches.limit
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'branch-auto', created_at: '2026-01-01T00:00:00.000Z' }],
+        error: null,
+      });
+    adminChains.branches.single.mockResolvedValueOnce({
+      data: { id: 'branch-auto', created_at: '2026-01-01T00:00:00.000Z' },
+      error: null,
+    });
+    adminChains.order_channels.eq
+      .mockReturnValueOnce(adminChains.order_channels)
+      .mockResolvedValueOnce({
+        data: [{ id: 'ch-delivery', type: 'DELIVERY', is_active: true }],
+        error: null,
+      });
+    adminChains.branches.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'branch-auto', allowed_payment_methods: ['CARD'] },
+      error: null,
+    });
+    adminChains.brand_products.limit.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const ensureReadySpy = jest
+      .spyOn<any, any>(service as any, 'ensureOnlineShopBranchReady')
+      .mockResolvedValue(undefined);
+
+    const result = await service.getShopBrandBySlug('no-branch-brand');
+
+    expect(adminChains.branches.insert).toHaveBeenCalled();
+    expect(ensureReadySpy).toHaveBeenCalledWith(
+      expect.anything(),
+      'brand-1',
+      'branch-auto',
+    );
+    expect(result.brandId).toBe('brand-1');
+    expect(result.products).toEqual([]);
+  });
 });

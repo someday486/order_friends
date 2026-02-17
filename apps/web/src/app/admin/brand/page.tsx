@@ -22,7 +22,7 @@ function BrandSelectButton({ brandId }: { brandId: string }) {
       }}
       className="btn-primary py-1.5 px-2.5 text-xs whitespace-nowrap"
     >
-      선택하고 가게 관리
+      선택 후 매장 관리
     </button>
   );
 }
@@ -80,6 +80,16 @@ export default function BrandPage() {
   const [adding, setAdding] = useState(false);
   const [autoKoreanSlug, setAutoKoreanSlug] = useState("");
 
+  const copyOrderUrl = async (slug: string) => {
+    const url = `${window.location.origin}/order/${encodeURIComponent(slug)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("주문 URL을 복사했습니다.");
+    } catch {
+      toast.error("URL 복사에 실패했습니다.");
+    }
+  };
+
   // 브랜드 목록 조회
   const fetchBrands = async () => {
     try {
@@ -96,7 +106,7 @@ export default function BrandPage() {
     }
   };
 
-  // ??? ??
+  // 브랜드 추가
   const handleAdd = async () => {
     if (!newName.trim()) return;
 
@@ -126,7 +136,7 @@ export default function BrandPage() {
     }
   };
 
-  // ?? ??
+  // 수정 시작
   const startEdit = (brand: Brand) => {
     setEditingId(brand.id);
     setEditName(brand.name);
@@ -204,7 +214,7 @@ export default function BrandPage() {
     }
   };
 
-  // ??
+  // 삭제
   const handleDelete = async (brandId: string, brandName: string) => {
     if (!confirm(`"${brandName}" 브랜드를 삭제하시겠습니까?\n관련 매장, 상품, 주문이 함께 삭제됩니다.`)) return;
 
@@ -228,13 +238,17 @@ export default function BrandPage() {
         <div>
           <h1 className="text-[22px] font-extrabold m-0 text-foreground">브랜드 관리</h1>
           <p className="text-text-secondary mt-1 text-[13px]">
-            내 브랜드 목록
+            총 {brands.length}개 브랜드
           </p>
         </div>
 
         <button className="btn-primary h-9 px-4 text-[13px]" onClick={() => setShowAddForm(true)}>
           + 브랜드 추가
         </button>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-border bg-bg-secondary p-4 text-[13px] text-text-secondary">
+        브랜드 URL은 고객 주문 페이지 주소입니다. 브랜드명을 입력하면 자동 생성되며, 필요하면 직접 수정할 수 있습니다.
       </div>
 
       {/* 추가 폼 */}
@@ -264,7 +278,7 @@ export default function BrandPage() {
               className="input-field max-w-[320px]"
             />
             <div className="text-text-tertiary text-[11px] mt-1">
-              영어는 자동으로 소문자/하이픈 처리되고, 한글은 랜덤으로 생성됩니다.
+              고객 주문 주소로 사용됩니다. 영어는 소문자/하이픈으로 자동 정리되고, 한글은 랜덤값이 생성됩니다.
             </div>
           </div>
           <div className="mb-3">
@@ -371,8 +385,20 @@ export default function BrandPage() {
                   <div>
                     <div className="font-bold text-base text-foreground">{brand.name}</div>
                     {brand.slug && (
-                      <div className="text-text-secondary text-xs mt-1">
-                        URL: {getBrandOrderUrl(brand.slug)}
+                      <div className="mt-2">
+                        <div className="text-text-secondary text-xs mb-1">고객 주문 URL</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <code className="text-[12px] px-2 py-1 rounded bg-bg-tertiary text-foreground">
+                            {getBrandOrderUrl(brand.slug)}
+                          </code>
+                          <button
+                            type="button"
+                            className="py-1 px-2.5 rounded-md border border-border bg-transparent text-foreground font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors"
+                            onClick={() => copyOrderUrl(brand.slug ?? "")}
+                          >
+                            URL 복사
+                          </button>
+                        </div>
                       </div>
                     )}
                     {brand.bizName && (

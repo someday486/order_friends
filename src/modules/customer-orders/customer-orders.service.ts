@@ -379,7 +379,7 @@ export class CustomerOrdersService {
   ): Promise<OrderDetailResponse> {
     this.logger.log(`Fetching order ${orderId} by user ${userId}`);
 
-    const { order } = await this.checkOrderAccess(
+    const { order, role } = await this.checkOrderAccess(
       orderId,
       userId,
       brandMemberships,
@@ -430,6 +430,7 @@ export class CustomerOrdersService {
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
       fulfillmentType: data.fulfillment_type ?? null,
+      myRole: role,
       customer: {
         name: data.customer_name ?? '',
         phone: data.customer_phone ?? '',
@@ -498,6 +499,71 @@ export class CustomerOrdersService {
       customerName: data.customer_name ?? '',
       totalAmount: data.total_amount ?? 0,
       status: data.status as OrderStatus,
+    };
+  }
+
+  /**
+   * 주문 상태 일괄 변경
+   */
+  async updateMyOrdersStatusBulk(
+    userId: string,
+    orderIds: string[],
+    status: OrderStatus,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    const uniqueOrderIds = Array.from(
+      new Set(orderIds.map((id) => id.trim()).filter(Boolean)),
+    );
+
+    if (uniqueOrderIds.length === 0) {
+      throw new NotFoundException('No order IDs provided');
+    }
+
+    this.logger.log(
+      `Bulk updating ${uniqueOrderIds.length} orders to ${status} by user ${userId}`,
+    );
+
+    const resolvedOrderIds: string[] = [];
+    for (const orderId of uniqueOrderIds) {
+      const { role, order } = await this.checkOrderAccess(
+        orderId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
+      this.checkModificationPermission(
+        role,
+        'bulk update order status',
+        userId,
+      );
+      resolvedOrderIds.push(order.id);
+    }
+
+    const targetOrderIds = Array.from(new Set(resolvedOrderIds));
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('orders')
+      .update({ status })
+      .in('id', targetOrderIds)
+      .select('id');
+
+    if (error) {
+      this.logger.error(
+        `Failed to bulk update order statuses to ${status}`,
+        error,
+      );
+      throw new Error('Failed to bulk update order status');
+    }
+
+    const updatedCount = data?.length ?? targetOrderIds.length;
+    this.logger.log(`Bulk status update completed: ${updatedCount} orders`);
+
+    return {
+      updatedCount,
+      status,
+      orderIds: targetOrderIds,
     };
   }
 }

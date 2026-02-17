@@ -14,6 +14,7 @@ export class OrderDetailResponse {
   orderNo?: string | null; // ✅ 추가
   status: OrderStatus;
   fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | null;
+  myRole?: string;
 
   customer: {
     name: string;

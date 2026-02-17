@@ -18,9 +18,9 @@ type Brand = {
   myRole?: string;
 };
 
-function getBrandOrderUrl(slug: string | null): string | null {
+function getBrandShopUrl(slug: string | null): string | null {
   if (!slug) return null;
-  return `/order/${encodeURIComponent(slug)}`;
+  return `/shop/${encodeURIComponent(slug)}`;
 }
 
 const canCreateBrand = (
@@ -118,8 +118,12 @@ export default function CustomerBrandsPage() {
       {showAddModal && (
         <AddBrandModal
           onClose={() => setShowAddModal(false)}
-          onSuccess={() => {
+          onSuccess={(createdBrand) => {
             setShowAddModal(false);
+            setBrands((prev) => {
+              const deduped = prev.filter((brand) => brand.id !== createdBrand.id);
+              return [createdBrand, ...deduped];
+            });
             loadBrands().catch(() => null);
           }}
         />
@@ -129,7 +133,7 @@ export default function CustomerBrandsPage() {
 }
 
 function BrandCard({ brand }: { brand: Brand }) {
-  const brandOrderUrl = getBrandOrderUrl(brand.slug);
+  const brandShopUrl = getBrandShopUrl(brand.slug);
 
   return (
     <Link
@@ -152,9 +156,9 @@ function BrandCard({ brand }: { brand: Brand }) {
         )}
         <div className="flex-1">
           <div className="font-bold text-base mb-1">{brand.name}</div>
-          {brandOrderUrl && (
+          {brandShopUrl && (
             <div className="text-xs text-text-tertiary">
-              URL: {brandOrderUrl}
+              온라인샵: {brandShopUrl}
             </div>
           )}
           {brand.myRole && (
@@ -174,7 +178,7 @@ function AddBrandModal({
   onSuccess,
 }: {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (createdBrand: Brand) => void;
 }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -194,7 +198,7 @@ function AddBrandModal({
 
     try {
       setSaving(true);
-      await apiClient.post('/customer/brands', {
+      const createdBrand = await apiClient.post<Brand>('/customer/brands', {
         name: formData.name,
         slug: formData.slug || null,
         biz_name: formData.biz_name || null,
@@ -202,7 +206,7 @@ function AddBrandModal({
       });
 
       toast.success('Brand has been added.');
-      onSuccess();
+      onSuccess(createdBrand);
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : 'Failed to add brand.');

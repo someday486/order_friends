@@ -626,7 +626,7 @@ export default function CustomerOrderDetailPage() {
             </span>
           </div>
           <p className="text-xs text-text-tertiary mt-1">
-            주문 상태를 변경하려면 매니저 또는 스태프 권한이 필요합니다
+            주문 상태를 변경하려면 OWNER, ADMIN, BRANCH_OWNER, BRANCH_ADMIN, STAFF 권한이 필요합니다
           </p>
         </div>
       )}

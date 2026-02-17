@@ -7,6 +7,9 @@ describe('PublicOrderController', () => {
   let controller: PublicOrderController;
 
   const mockService = {
+    getBrands: jest.fn(),
+    getShopBrandBySlug: jest.fn(),
+    createShopOrderByBrandSlug: jest.fn(),
     getBranch: jest.fn(),
     getBranchBySlug: jest.fn(),
     getBranchByBrandSlug: jest.fn(),
@@ -41,6 +44,57 @@ describe('PublicOrderController', () => {
 
     expect(result).toEqual({ id: 'branch-1' });
     expect(mockService.getBranch).toHaveBeenCalledWith('branch-1');
+  });
+
+  it('getBrands should call service and return result', async () => {
+    mockService.getBrands.mockResolvedValue([{ id: 'brand-1' }]);
+
+    const result = await controller.getBrands();
+
+    expect(result).toEqual([{ id: 'brand-1' }]);
+    expect(mockService.getBrands).toHaveBeenCalledWith();
+  });
+
+  it('getBrands should propagate service error', async () => {
+    mockService.getBrands.mockRejectedValue(new Error('boom'));
+
+    await expect(controller.getBrands()).rejects.toThrow('boom');
+  });
+
+  it('getShopBrand should call service and return result', async () => {
+    mockService.getShopBrandBySlug.mockResolvedValue({ brandSlug: 'test' });
+
+    const result = await controller.getShopBrand('test');
+
+    expect(result).toEqual({ brandSlug: 'test' });
+    expect(mockService.getShopBrandBySlug).toHaveBeenCalledWith('test');
+  });
+
+  it('getShopBrand should propagate service error', async () => {
+    mockService.getShopBrandBySlug.mockRejectedValue(new Error('boom'));
+
+    await expect(controller.getShopBrand('test')).rejects.toThrow('boom');
+  });
+
+  it('createShopOrder should call service and return result', async () => {
+    const dto = { customerName: 'Lee' } as any;
+    mockService.createShopOrderByBrandSlug.mockResolvedValue({ id: 'order-2' });
+
+    const result = await controller.createShopOrder('test', dto);
+
+    expect(result).toEqual({ id: 'order-2' });
+    expect(mockService.createShopOrderByBrandSlug).toHaveBeenCalledWith(
+      'test',
+      dto,
+    );
+  });
+
+  it('createShopOrder should propagate service error', async () => {
+    mockService.createShopOrderByBrandSlug.mockRejectedValue(new Error('boom'));
+
+    await expect(controller.createShopOrder('test', {} as any)).rejects.toThrow(
+      'boom',
+    );
   });
 
   it('getBranch should propagate service error', async () => {

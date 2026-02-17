@@ -25,6 +25,7 @@ import {
   getBranchOrderConfig,
   normalizeFulfillmentTypes,
   normalizePaymentMethods,
+  saveBranchOrderConfig,
 } from '../branches/branch-order-config.util';
 
 @Injectable()
@@ -140,6 +141,7 @@ export class PublicOrderService {
     logoUrl: string | null;
     coverImageUrl: string | null;
     branchId: string;
+    shopPaymentMethods: string[];
     paymentMethods: string[];
     deliverySupported: boolean;
     branchCandidates: Array<{
@@ -152,11 +154,24 @@ export class PublicOrderService {
   }> {
     const adminSb = this.supabase.adminClient();
 
-    const { data: brandRows, error: brandError } = await adminSb
+    let brandRows: any[] | null = null;
+    let brandError: any = null;
+    ({ data: brandRows, error: brandError } = await adminSb
       .from('brands')
-      .select('id, name, slug, logo_url, cover_image_url')
+      .select('id, name, slug, logo_url, cover_image_url, shop_payment_methods')
       .eq('slug', brandSlug)
-      .limit(2);
+      .limit(2));
+    if (
+      brandError &&
+      this.isMissingColumnError(brandError) &&
+      this.getMissingColumnName(brandError) === 'shop_payment_methods'
+    ) {
+      ({ data: brandRows, error: brandError } = await adminSb
+        .from('brands')
+        .select('id, name, slug, logo_url, cover_image_url')
+        .eq('slug', brandSlug)
+        .limit(2));
+    }
 
     if (brandError || !brandRows || brandRows.length === 0) {
       throw new NotFoundException('온라인샵 브랜드를 찾을 수 없습니다.');
@@ -166,7 +181,10 @@ export class PublicOrderService {
       throw new ConflictException('브랜드 URL이 중복되어 사용할 수 없습니다.');
     }
 
-    const brand = brandRows[0] as any;
+    const brand = brandRows[0];
+    const shopPaymentMethods = normalizePaymentMethods(
+      brand.shop_payment_methods,
+    );
 
     const { data: branchRows, error: branchError } = await adminSb
       .from('branches')
@@ -175,9 +193,24 @@ export class PublicOrderService {
       .order('created_at', { ascending: true })
       .limit(1000);
 
-    if (branchError || !branchRows || branchRows.length === 0) {
+    if (branchError) {
       throw new BadRequestException(
         '온라인샵 주문을 처리할 지점이 설정되지 않았습니다.',
+      );
+    }
+
+    let resolvedBranchRows = (branchRows ?? []) as any[];
+    if (resolvedBranchRows.length === 0) {
+      resolvedBranchRows = await this.ensureOnlineShopBranch(
+        adminSb,
+        brand.id,
+        brand.name ?? '브랜드 온라인샵',
+      );
+    }
+
+    if (resolvedBranchRows.length === 0) {
+      throw new BadRequestException(
+        '온라인샵 주문을 처리할 지점을 찾을 수 없습니다.',
       );
     }
 
@@ -205,7 +238,7 @@ export class PublicOrderService {
         }
       | undefined;
 
-    for (const row of branchRows as any[]) {
+    for (const row of resolvedBranchRows) {
       const branchId = String(row?.id ?? '');
       if (!branchId) continue;
 
@@ -268,10 +301,148 @@ export class PublicOrderService {
       logoUrl: brand.logo_url ?? null,
       coverImageUrl: brand.cover_image_url ?? null,
       branchId: chosen.branchId,
+      shopPaymentMethods,
       paymentMethods: chosen.paymentMethods,
       deliverySupported: Boolean(selected),
       branchCandidates,
     };
+  }
+
+  private async ensureOnlineShopBranch(
+    adminSb: any,
+    brandId: string,
+    brandName: string,
+  ): Promise<Array<{ id: string; created_at: string | null }>> {
+    const branchName = `${brandName} 온라인샵`;
+
+    const { data: createdBranch, error: createBranchError } = await adminSb
+      .from('branches')
+      .insert({
+        brand_id: brandId,
+        name: branchName,
+      })
+      .select('id, created_at')
+      .single();
+
+    if (createBranchError || !createdBranch?.id) {
+      this.logger.warn(
+        `온라인샵 자동 지점 생성 실패(재조회 시도): brand=${brandId} reason=${createBranchError?.message ?? 'unknown'}`,
+      );
+      const { data: existingRows, error: existingRowsError } = await adminSb
+        .from('branches')
+        .select('id, created_at')
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: true })
+        .limit(1000);
+
+      if (existingRowsError || !existingRows || existingRows.length === 0) {
+        throw new BadRequestException(
+          '온라인샵 주문을 처리할 지점을 자동 생성하지 못했습니다.',
+        );
+      }
+
+      const branchId = String(existingRows[0]?.id ?? '');
+      if (branchId) {
+        await this.ensureOnlineShopBranchReady(adminSb, brandId, branchId);
+      }
+      return existingRows as Array<{ id: string; created_at: string | null }>;
+    }
+
+    const branchId = String(createdBranch.id);
+    await this.ensureOnlineShopBranchReady(adminSb, brandId, branchId);
+    return [
+      {
+        id: branchId,
+        created_at: createdBranch.created_at ?? null,
+      },
+    ];
+  }
+
+  private async ensureOnlineShopBranchReady(
+    adminSb: any,
+    brandId: string,
+    branchId: string,
+  ): Promise<void> {
+    await saveBranchOrderConfig(adminSb, branchId, {
+      enabledFulfillmentTypes: [FulfillmentType.DELIVERY],
+    });
+    await this.ensureBrandProductsLinkedToBranch(adminSb, brandId, branchId);
+  }
+
+  private async ensureBrandProductsLinkedToBranch(
+    adminSb: any,
+    brandId: string,
+    branchId: string,
+  ): Promise<void> {
+    const { data: templates, error: templatesError } = await adminSb
+      .from('brand_products')
+      .select(
+        'id, name, description, base_price, image_url, sort_order, is_active',
+      )
+      .eq('brand_id', brandId)
+      .eq('is_active', true)
+      .limit(2000);
+
+    if (templatesError) {
+      throw new BadRequestException(
+        `온라인샵 상품 템플릿 조회 실패: ${templatesError.message}`,
+      );
+    }
+
+    const templateRows = (templates ?? []) as any[];
+    if (templateRows.length === 0) return;
+
+    const templateIds = templateRows
+      .map((row) => String(row?.id ?? ''))
+      .filter(Boolean);
+    if (templateIds.length === 0) return;
+
+    const { data: existingProducts, error: existingProductsError } =
+      await adminSb
+        .from('products')
+        .select('brand_product_id')
+        .eq('branch_id', branchId)
+        .in('brand_product_id', templateIds)
+        .limit(2000);
+
+    if (existingProductsError) {
+      throw new BadRequestException(
+        `온라인샵 상품 연결 조회 실패: ${existingProductsError.message}`,
+      );
+    }
+
+    const existingTemplateIds = new Set(
+      (existingProducts ?? [])
+        .map((row: any) => String(row?.brand_product_id ?? ''))
+        .filter(Boolean),
+    );
+
+    const rowsToInsert = templateRows
+      .filter((template) => !existingTemplateIds.has(String(template.id)))
+      .map((template) => ({
+        branch_id: branchId,
+        brand_product_id: template.id,
+        name: template.name ?? '이름 없는 상품',
+        description: template.description ?? null,
+        base_price: this.getPriceFromRow(template),
+        image_url: template.image_url ?? null,
+        sort_order:
+          template.sort_order !== undefined && template.sort_order !== null
+            ? template.sort_order
+            : 0,
+      }));
+
+    if (rowsToInsert.length === 0) return;
+
+    const { error: insertError } = await adminSb
+      .from('products')
+      .insert(rowsToInsert);
+
+    if (insertError && insertError.code !== '23505') {
+      throw new BadRequestException(
+        `온라인샵 상품 자동 연결 실패: ${insertError.message}`,
+      );
+    }
   }
 
   async getShopBrandBySlug(
@@ -369,6 +540,13 @@ export class PublicOrderService {
       }
     }
 
+    const exposedPaymentMethods = chosenPaymentMethods.filter((method) =>
+      context.shopPaymentMethods.includes(method),
+    );
+    if (exposedPaymentMethods.length === 0) {
+      throw new BadRequestException('온라인샵 결제수단 설정을 확인해주세요.');
+    }
+
     const categoryIds = [
       ...new Set(
         Array.from(linkedProductMap.values())
@@ -419,7 +597,7 @@ export class PublicOrderService {
       logoUrl: context.logoUrl,
       coverImageUrl: context.coverImageUrl,
       fulfillmentType: FulfillmentType.DELIVERY,
-      paymentMethods: chosenPaymentMethods,
+      paymentMethods: exposedPaymentMethods,
       products: products as any[],
     };
   }
@@ -496,6 +674,11 @@ export class PublicOrderService {
     const paymentMethod = (dto.paymentMethod ?? PaymentMethod.CARD)
       .toUpperCase()
       .trim() as PaymentMethod;
+    if (!context.shopPaymentMethods.includes(paymentMethod)) {
+      throw new BadRequestException(
+        '선택한 결제수단은 현재 온라인샵에서 사용할 수 없습니다.',
+      );
+    }
     const branchSelection = await this.resolveShopBranchForOrder(
       adminSb,
       context.branchCandidates,
@@ -2046,6 +2229,8 @@ export class PublicOrderService {
   async getOrder(orderIdOrNo: string): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
     const adminSb = this.supabase.adminClient();
+    const adminRetryCount = this.isUuid(orderIdOrNo) ? 3 : 1;
+    const adminRetryDelayMs = process.env.NODE_ENV === 'test' ? 0 : 200;
 
     const queryOrder = async (client: any) => {
       let { data, error } = await this.runOrderSelectWithUnitPriceFallback(
@@ -2108,10 +2293,18 @@ export class PublicOrderService {
 
     let { data, error } = await queryOrder(sb);
     if (!data && this.isUuid(orderIdOrNo)) {
-      const adminResult = await queryOrder(adminSb);
-      if (adminResult.data || adminResult.error) {
-        data = adminResult.data;
-        error = adminResult.error;
+      for (let attempt = 0; attempt < adminRetryCount; attempt += 1) {
+        const adminResult = await queryOrder(adminSb);
+        if (adminResult.data || adminResult.error) {
+          data = adminResult.data;
+          error = adminResult.error;
+          break;
+        }
+        if (attempt < adminRetryCount - 1 && adminRetryDelayMs > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, adminRetryDelayMs),
+          );
+        }
       }
     }
 

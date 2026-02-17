@@ -50,12 +50,27 @@ type OrderListResponse = {
   total?: number;
 };
 
+type BulkUpdateStatusResponse = {
+  updatedCount: number;
+  status: OrderStatus;
+  orderIds: string[];
+};
+
 // ============================================================
 // Constants
 // ============================================================
 
 const STATUS_FILTERS: { value: OrderStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: '전체' },
+  { value: 'CREATED', label: '주문접수' },
+  { value: 'CONFIRMED', label: '확인' },
+  { value: 'PREPARING', label: '준비중' },
+  { value: 'READY', label: '준비완료' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'CANCELLED', label: '취소' },
+];
+
+const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'CREATED', label: '주문접수' },
   { value: 'CONFIRMED', label: '확인' },
   { value: 'PREPARING', label: '준비중' },
@@ -210,6 +225,12 @@ export default function CustomerOrdersPage() {
   const [exportDateStart, setExportDateStart] = useState('');
   const [exportDateEnd, setExportDateEnd] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
   const isInvalidExportDateRange = useMemo(() => {
     if (!exportDateStart || !exportDateEnd) return false;
@@ -272,6 +293,13 @@ export default function CustomerOrdersPage() {
           ? data
           : data.data || data.items || [];
         setOrders(orderItems);
+        setSelectedOrderIds((prev) => {
+          if (prev.size === 0) return prev;
+          const visibleIds = new Set(orderItems.map((item) => item.id));
+          return new Set(
+            Array.from(prev).filter((orderId) => visibleIds.has(orderId)),
+          );
+        });
         setTotal(
           Array.isArray(data)
             ? data.length
@@ -286,7 +314,7 @@ export default function CustomerOrdersPage() {
     };
 
     void loadOrders();
-  }, [page, limit, branchFilter, statusFilter, fulfillmentFilter]);
+  }, [page, limit, branchFilter, statusFilter, fulfillmentFilter, reloadToken]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -294,6 +322,58 @@ export default function CustomerOrdersPage() {
   const activeCount = orders.filter(
     (o) => !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status),
   ).length;
+  const selectedCount = selectedOrderIds.size;
+  const allVisibleSelected =
+    orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        for (const order of orders) {
+          next.add(order.id);
+        }
+      } else {
+        for (const order of orders) {
+          next.delete(order.id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (selectedCount === 0) return;
+
+    const confirmed = window.confirm(
+      `선택한 ${selectedCount}건의 주문 상태를 "${ORDER_STATUS_LABEL[bulkStatus]}"(으)로 변경하시겠습니까?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setBulkUpdating(true);
+      setError(null);
+
+      const response = await apiClient.patch<BulkUpdateStatusResponse>(
+        '/customer/orders/bulk-status',
+        {
+          orderIds: Array.from(selectedOrderIds),
+          status: bulkStatus,
+        },
+      );
+
+      setSelectedOrderIds(new Set());
+      setReloadToken((prev) => prev + 1);
+      window.alert(
+        `${response.updatedCount}건의 주문 상태를 "${ORDER_STATUS_LABEL[bulkStatus]}"(으)로 변경했습니다.`,
+      );
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : '일괄 상태 변경에 실패했습니다');
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
 
   const handleCreateExportJob = async () => {
     if (isInvalidExportDateRange) {
@@ -472,12 +552,60 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
+      {orders.length > 0 && (
+        <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-bold text-foreground">주문 일괄 처리</div>
+              <div className="text-xs text-text-secondary mt-1">
+                선택 {selectedCount}건
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+                className="input-field h-9 min-w-[150px]"
+                disabled={bulkUpdating}
+              >
+                {BULK_STATUS_OPTIONS.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleBulkStatusUpdate();
+                }}
+                disabled={selectedCount === 0 || bulkUpdating}
+                className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+              >
+                {bulkUpdating ? '변경 중...' : '선택 주문 일괄 변경'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderIds(new Set())}
+                disabled={selectedCount === 0 || bulkUpdating}
+                className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+              >
+                선택 해제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order table */}
       {loading && orders.length === 0 ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-bg-tertiary">
               <tr>
+                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  선택
+                </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                   주문번호
                 </th>
@@ -510,7 +638,7 @@ export default function CustomerOrdersPage() {
               {Array.from({ length: 5 }).map((_, index) => (
                 <TableRowSkeleton
                   key={index}
-                  cols={validBranches.length > 1 ? 8 : 7}
+                  cols={validBranches.length > 1 ? 9 : 8}
                 />
               ))}
             </tbody>
@@ -520,9 +648,18 @@ export default function CustomerOrdersPage() {
         <EmptyState />
       ) : (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-bg-tertiary">
               <tr>
+                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary cursor-pointer"
+                    aria-label="전체 선택"
+                  />
+                </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                   주문번호
                 </th>
@@ -572,6 +709,26 @@ export default function CustomerOrdersPage() {
                     className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
                     onClick={() => router.push(`/customer/orders/${order.id}`)}
                   >
+                    <td
+                      className="py-3 px-3.5 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedOrderIds.has(order.id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSelectedOrderIds((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.add(order.id);
+                            else next.delete(order.id);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded accent-primary cursor-pointer"
+                        aria-label={`주문 ${order.orderNo ?? order.id.slice(0, 8)} 선택`}
+                      />
+                    </td>
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <span className="font-mono font-bold">
                         {order.orderNo ?? order.id.slice(0, 8)}

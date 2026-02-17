@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+﻿import { BadRequestException } from '@nestjs/common';
 import { ExportsService } from './exports.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 
@@ -59,10 +59,11 @@ describe('ExportsService', () => {
     const csv = (service as any).buildOrdersCsv(rows);
 
     expect(
-      csv.startsWith('\uFEFF# 안내: 최대 5000건까지만 다운로드됩니다.'),
+      csv.startsWith(
+        '\uFEFF# 안내: 최대 5000건까지 다운로드됩니다. 조건(기간/지점/검색)을 좁혀 다시 시도해주세요.',
+      ),
     ).toBe(true);
   });
-
   it('createOrderExportJob should normalize date filters before persisting params', async () => {
     orderExportsChain.single.mockResolvedValueOnce({
       data: {

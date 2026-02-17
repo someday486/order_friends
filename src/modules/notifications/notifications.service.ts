@@ -2,6 +2,7 @@
 import { ConfigService } from '@nestjs/config';
 import {
   NotificationType,
+  NotificationStatus,
   NotificationResult,
   OrderConfirmationEmailData,
   OrderStatusUpdateEmailData,
@@ -14,23 +15,63 @@ import {
   EmailTemplate,
 } from './dto/notification.dto';
 
+type EmailPayload = {
+  kind: 'EMAIL';
+  subject: string;
+  html: string;
+  text?: string;
+};
+
+type SmsPayload = {
+  kind: 'SMS';
+  message: string;
+};
+
+type KakaoPayload = {
+  kind: 'KAKAO_TALK';
+  message: string;
+  templateCode?: string;
+};
+
+type NotificationPayload = EmailPayload | SmsPayload | KakaoPayload;
+
+type NotificationStatusView = {
+  id: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  recipient: string;
+  retryCount: number;
+  errorMessage?: string;
+  sentAt?: string;
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly sendGridApiKey: string;
   private readonly smsApiKey: string;
+  private readonly smsApiUrl: string;
+  private readonly sendGridApiUrl = 'https://api.sendgrid.com/v3/mail/send';
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly kakaoTalkApiUrl: string;
   private readonly kakaoTalkAccessToken: string;
   private readonly kakaoTalkDefaultTemplateCode: string;
-  private readonly mockMode: boolean;
+  private readonly mockEmailMode: boolean;
+  private readonly mockSmsMode: boolean;
   private readonly mockKakaoTalkMode: boolean;
+  private readonly maxRetryCount: number;
+  private readonly notifications = new Map<
+    string,
+    NotificationStatusView & { payload: NotificationPayload }
+  >();
+  private notificationSequence = 0;
 
   constructor(private readonly configService: ConfigService) {
     this.sendGridApiKey =
       this.configService.get<string>('SENDGRID_API_KEY') || '';
     this.smsApiKey = this.configService.get<string>('SMS_API_KEY') || '';
+    this.smsApiUrl = this.configService.get<string>('SMS_API_URL') || '';
     this.fromEmail =
       this.configService.get<string>('FROM_EMAIL') ||
       'noreply@orderfriends.com';
@@ -42,15 +83,29 @@ export class NotificationsService {
       this.configService.get<string>('KAKAO_TALK_ACCESS_TOKEN') || '';
     this.kakaoTalkDefaultTemplateCode =
       this.configService.get<string>('KAKAO_TALK_DEFAULT_TEMPLATE_CODE') || '';
+    this.maxRetryCount = Number(
+      this.configService.get<string>('NOTIFICATION_MAX_RETRY') ?? 2,
+    );
 
-    // Mock mode if no API keys configured
-    this.mockMode = !this.sendGridApiKey || !this.smsApiKey;
+    const sendGridLiveMode =
+      this.configService.get<string>('SENDGRID_LIVE_MODE') === 'true';
+    const smsLiveMode =
+      this.configService.get<string>('SMS_LIVE_MODE') === 'true';
+
+    this.mockEmailMode = !this.sendGridApiKey || !sendGridLiveMode;
+    this.mockSmsMode = !this.smsApiKey || !this.smsApiUrl || !smsLiveMode;
     this.mockKakaoTalkMode =
       !this.kakaoTalkApiUrl || !this.kakaoTalkAccessToken;
 
-    if (this.mockMode) {
+    if (this.mockEmailMode) {
       this.logger.warn(
-        'Notification service running in MOCK MODE - API keys not configured',
+        'Email notification running in mock mode (set SENDGRID_API_KEY + SENDGRID_LIVE_MODE=true for live mode)',
+      );
+    }
+
+    if (this.mockSmsMode) {
+      this.logger.warn(
+        'SMS notification running in mock mode (set SMS_API_KEY + SMS_API_URL + SMS_LIVE_MODE=true for live mode)',
       );
     }
 
@@ -60,7 +115,7 @@ export class NotificationsService {
       );
     }
 
-    if (!this.mockMode && !this.mockKakaoTalkMode) {
+    if (!this.mockEmailMode && !this.mockSmsMode && !this.mockKakaoTalkMode) {
       this.logger.log('Notification service initialized with external APIs');
     }
   }
@@ -100,7 +155,7 @@ export class NotificationsService {
     recipientEmail: string,
   ): Promise<NotificationResult> {
     this.logger.log(
-      `Sending order status update email for order: ${orderId} (${orderData.oldStatus} ??${orderData.newStatus})`,
+      `Sending order status update email for order: ${orderId} (${orderData.oldStatus} -> ${orderData.newStatus})`,
     );
 
     const template = this.getOrderStatusUpdateEmailTemplate(orderData);
@@ -252,67 +307,22 @@ export class NotificationsService {
    * ========================================
    */
 
-  private sendEmail(
+  private async sendEmail(
     to: string,
     subject: string,
     html: string,
     text?: string,
   ): Promise<NotificationResult> {
-    const result: NotificationResult = {
-      success: false,
-      type: NotificationType.EMAIL,
-      recipient: to,
-      retryCount: 0,
+    const payload: EmailPayload = {
+      kind: 'EMAIL',
+      subject,
+      html,
+      text,
     };
 
-    try {
-      if (this.mockMode) {
-        // Mock mode - just log the email
-        this.logger.log('[MOCK EMAIL] ================================');
-        this.logger.log(`To: ${to}`);
-        this.logger.log(`From: ${this.fromName} <${this.fromEmail}>`);
-        this.logger.log(`Subject: ${subject}`);
-        this.logger.log(`Text: ${text || 'N/A'}`);
-        this.logger.log('HTML:');
-        this.logger.log(html);
-        this.logger.log('==============================================');
-
-        result.success = true;
-        result.sentAt = new Date().toISOString();
-      } else {
-        // TODO: Integrate with SendGrid API
-        // const sgMail = require('@sendgrid/mail');
-        // sgMail.setApiKey(this.sendGridApiKey);
-        //
-        // const msg = {
-        //   to,
-        //   from: { email: this.fromEmail, name: this.fromName },
-        //   subject,
-        //   text: text || '',
-        //   html,
-        // };
-        //
-        // await sgMail.send(msg);
-
-        this.logger.warn(
-          'SendGrid integration not implemented yet - using mock mode',
-        );
-        result.success = true;
-        result.sentAt = new Date().toISOString();
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to send email to ${to}: ${error.message}`,
-        error.stack,
-      );
-      result.success = false;
-      result.errorMessage = error.message;
-
-      // TODO: Implement retry logic
-      // TODO: Add to notification queue for later retry
-    }
-
-    return Promise.resolve(result);
+    return this.sendWithRetry(NotificationType.EMAIL, to, payload, () =>
+      this.deliverEmail(to, payload),
+    );
   }
 
   /**
@@ -321,54 +331,18 @@ export class NotificationsService {
    * ========================================
    */
 
-  private sendSMS(to: string, message: string): Promise<NotificationResult> {
-    const result: NotificationResult = {
-      success: false,
-      type: NotificationType.SMS,
-      recipient: to,
-      retryCount: 0,
+  private async sendSMS(
+    to: string,
+    message: string,
+  ): Promise<NotificationResult> {
+    const payload: SmsPayload = {
+      kind: 'SMS',
+      message,
     };
 
-    try {
-      if (this.mockMode) {
-        // Mock mode - just log the SMS
-        this.logger.log('[MOCK SMS] ===================================');
-        this.logger.log(`To: ${to}`);
-        this.logger.log(`Message: ${message}`);
-        this.logger.log('==============================================');
-
-        result.success = true;
-        result.sentAt = new Date().toISOString();
-      } else {
-        // TODO: Integrate with SMS API (Twilio, AWS SNS, etc.)
-        // Example with Twilio:
-        // const client = require('twilio')(accountSid, authToken);
-        //
-        // await client.messages.create({
-        //   body: message,
-        //   from: '+1234567890',
-        //   to,
-        // });
-
-        this.logger.warn(
-          'SMS API integration not implemented yet - using mock mode',
-        );
-        result.success = true;
-        result.sentAt = new Date().toISOString();
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to send SMS to ${to}: ${error.message}`,
-        error.stack,
-      );
-      result.success = false;
-      result.errorMessage = error.message;
-
-      // TODO: Implement retry logic
-      // TODO: Add to notification queue for later retry
-    }
-
-    return Promise.resolve(result);
+    return this.sendWithRetry(NotificationType.SMS, to, payload, () =>
+      this.deliverSms(to, payload),
+    );
   }
 
   /**
@@ -382,68 +356,20 @@ export class NotificationsService {
     message: string,
     templateCode?: string,
   ): Promise<NotificationResult> {
-    const result: NotificationResult = {
-      success: false,
-      type: NotificationType.KAKAO_TALK,
-      recipient: to,
-      retryCount: 0,
+    const payload: KakaoPayload = {
+      kind: 'KAKAO_TALK',
+      message,
+      templateCode,
     };
 
-    try {
-      if (this.mockKakaoTalkMode) {
-        // Mock mode - just log the KakaoTalk payload
-        this.logger.log('[MOCK KAKAO TALK] ==========================');
-        this.logger.log(`To: ${to}`);
-        this.logger.log(
-          `Template: ${templateCode || this.kakaoTalkDefaultTemplateCode || 'default'}`,
-        );
-        this.logger.log(`Message: ${message}`);
-        this.logger.log('=============================================');
-
-        result.success = true;
-        result.sentAt = new Date().toISOString();
-        return result;
-      }
-
-      const response = await fetch(this.kakaoTalkApiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.kakaoTalkAccessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: to,
-          message,
-          templateCode:
-            templateCode || this.kakaoTalkDefaultTemplateCode || undefined,
-        }),
-      });
-
-      const responseText = await response.text();
-      const responseBody = this.parseKakaoTalkResponseBody(responseText);
-
-      if (!response.ok) {
-        const details = responseBody
-          ? JSON.stringify(responseBody)
-          : responseText || 'no response body';
-        throw new Error(`KakaoTalk API error: ${response.status} ${details}`);
-      }
-
-      result.success = true;
-      result.sentAt = new Date().toISOString();
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Failed to send KakaoTalk to ${to}: ${error.message}`,
-        error.stack,
-      );
-      result.success = false;
-      result.errorMessage = error.message;
-      return result;
-    }
+    return this.sendWithRetry(NotificationType.KAKAO_TALK, to, payload, () =>
+      this.deliverKakaoTalk(to, payload),
+    );
   }
 
-  private parseKakaoTalkResponseBody(body: string): any {
+  private parseKakaoTalkResponseBody(
+    body: string,
+  ): Record<string, unknown> | null {
     if (!body) {
       return null;
     }
@@ -453,6 +379,191 @@ export class NotificationsService {
     } catch {
       return null;
     }
+  }
+
+  private buildNotificationId(): string {
+    this.notificationSequence += 1;
+    return `ntf_${Date.now()}_${this.notificationSequence}`;
+  }
+
+  private async deliverEmail(to: string, payload: EmailPayload): Promise<void> {
+    if (this.mockEmailMode) {
+      this.logger.log('[MOCK EMAIL] ================================');
+      this.logger.log(`To: ${to}`);
+      this.logger.log(`From: ${this.fromName} <${this.fromEmail}>`);
+      this.logger.log(`Subject: ${payload.subject}`);
+      this.logger.log(`Text: ${payload.text || 'N/A'}`);
+      this.logger.log('HTML:');
+      this.logger.log(payload.html);
+      this.logger.log('==============================================');
+      return;
+    }
+
+    const response = await fetch(this.sendGridApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.sendGridApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: this.fromEmail, name: this.fromName },
+        subject: payload.subject,
+        content: [
+          { type: 'text/plain', value: payload.text || '' },
+          { type: 'text/html', value: payload.html },
+        ],
+      }),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    const body = await response.text();
+    throw new Error(
+      `SendGrid API error: ${response.status} ${body || 'no response body'}`,
+    );
+  }
+
+  private async deliverSms(to: string, payload: SmsPayload): Promise<void> {
+    if (this.mockSmsMode) {
+      this.logger.log('[MOCK SMS] ===================================');
+      this.logger.log(`To: ${to}`);
+      this.logger.log(`Message: ${payload.message}`);
+      this.logger.log('==============================================');
+      return;
+    }
+
+    const response = await fetch(this.smsApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.smsApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to,
+        message: payload.message,
+      }),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    const body = await response.text();
+    throw new Error(
+      `SMS API error: ${response.status} ${body || 'no response body'}`,
+    );
+  }
+
+  private async deliverKakaoTalk(
+    to: string,
+    payload: KakaoPayload,
+  ): Promise<void> {
+    if (this.mockKakaoTalkMode) {
+      this.logger.log('[MOCK KAKAO TALK] ==========================');
+      this.logger.log(`To: ${to}`);
+      this.logger.log(
+        `Template: ${payload.templateCode || this.kakaoTalkDefaultTemplateCode || 'default'}`,
+      );
+      this.logger.log(`Message: ${payload.message}`);
+      this.logger.log('=============================================');
+      return;
+    }
+
+    const response = await fetch(this.kakaoTalkApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.kakaoTalkAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phone: to,
+        message: payload.message,
+        templateCode:
+          payload.templateCode ||
+          this.kakaoTalkDefaultTemplateCode ||
+          undefined,
+      }),
+    });
+
+    const responseText = await response.text();
+    const responseBody = this.parseKakaoTalkResponseBody(responseText);
+
+    if (!response.ok) {
+      const details = responseBody
+        ? JSON.stringify(responseBody)
+        : responseText || 'no response body';
+      throw new Error(`KakaoTalk API error: ${response.status} ${details}`);
+    }
+  }
+
+  private async sendWithRetry(
+    type: NotificationType,
+    recipient: string,
+    payload: NotificationPayload,
+    sender: () => Promise<void>,
+    notificationId?: string,
+  ): Promise<NotificationResult> {
+    const id = notificationId || this.buildNotificationId();
+    const current = this.notifications.get(id);
+
+    const statusEntry: NotificationStatusView & {
+      payload: NotificationPayload;
+    } = current ?? {
+      id,
+      type,
+      status: NotificationStatus.PENDING,
+      recipient,
+      retryCount: 0,
+      payload,
+    };
+
+    this.notifications.set(id, statusEntry);
+
+    let lastErrorMessage: string | undefined;
+    for (let attempt = 0; attempt <= this.maxRetryCount; attempt += 1) {
+      try {
+        await sender();
+
+        const sentAt = new Date().toISOString();
+        statusEntry.status = NotificationStatus.SENT;
+        statusEntry.retryCount = attempt;
+        statusEntry.errorMessage = undefined;
+        statusEntry.sentAt = sentAt;
+        this.notifications.set(id, statusEntry);
+
+        return {
+          success: true,
+          type,
+          recipient,
+          retryCount: attempt,
+          sentAt,
+        };
+      } catch (error) {
+        lastErrorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to send ${type} to ${recipient} (attempt ${attempt + 1}/${this.maxRetryCount + 1}): ${lastErrorMessage}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
+
+    statusEntry.status = NotificationStatus.FAILED;
+    statusEntry.retryCount = this.maxRetryCount;
+    statusEntry.errorMessage = lastErrorMessage || 'unknown error';
+    statusEntry.sentAt = undefined;
+    this.notifications.set(id, statusEntry);
+
+    return {
+      success: false,
+      type,
+      recipient,
+      retryCount: this.maxRetryCount,
+      errorMessage: statusEntry.errorMessage,
+    };
   }
 
   /**
@@ -835,28 +946,78 @@ Alerted At: ${new Date(data.alertedAt).toLocaleString('ko-KR')}
 
   /**
    * Retry failed notification
-   * TODO: Implement with queue system
    */
-  retryNotification(notificationId: string): Promise<NotificationResult> {
-    this.logger.warn(
-      `Retry notification not implemented yet: ${notificationId}`,
-    );
-    return Promise.resolve({
-      success: false,
-      type: NotificationType.EMAIL,
-      recipient: 'unknown',
-      errorMessage: 'Retry not implemented',
-    });
+  async retryNotification(notificationId: string): Promise<NotificationResult> {
+    const statusEntry = this.notifications.get(notificationId);
+    if (!statusEntry) {
+      return {
+        success: false,
+        type: NotificationType.EMAIL,
+        recipient: 'unknown',
+        errorMessage: 'Notification not found',
+      };
+    }
+
+    switch (statusEntry.payload.kind) {
+      case 'EMAIL': {
+        const payload: EmailPayload = statusEntry.payload;
+        return this.sendWithRetry(
+          NotificationType.EMAIL,
+          statusEntry.recipient,
+          payload,
+          () => this.deliverEmail(statusEntry.recipient, payload),
+          notificationId,
+        );
+      }
+      case 'SMS': {
+        const payload: SmsPayload = statusEntry.payload;
+        return this.sendWithRetry(
+          NotificationType.SMS,
+          statusEntry.recipient,
+          payload,
+          () => this.deliverSms(statusEntry.recipient, payload),
+          notificationId,
+        );
+      }
+      case 'KAKAO_TALK': {
+        const payload: KakaoPayload = statusEntry.payload;
+        return this.sendWithRetry(
+          NotificationType.KAKAO_TALK,
+          statusEntry.recipient,
+          payload,
+          () => this.deliverKakaoTalk(statusEntry.recipient, payload),
+          notificationId,
+        );
+      }
+      default:
+        return {
+          success: false,
+          type: statusEntry.type,
+          recipient: statusEntry.recipient,
+          errorMessage: 'Unsupported notification type',
+        };
+    }
   }
 
   /**
    * Get notification status
-   * TODO: Implement with database
    */
-  getNotificationStatus(notificationId: string): Promise<unknown> {
-    this.logger.warn(
-      `Get notification status not implemented yet: ${notificationId}`,
-    );
-    return Promise.resolve(null);
+  getNotificationStatus(
+    notificationId: string,
+  ): Promise<NotificationStatusView | null> {
+    const statusEntry = this.notifications.get(notificationId);
+    if (!statusEntry) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      id: statusEntry.id,
+      type: statusEntry.type,
+      status: statusEntry.status,
+      recipient: statusEntry.recipient,
+      retryCount: statusEntry.retryCount,
+      errorMessage: statusEntry.errorMessage,
+      sentAt: statusEntry.sentAt,
+    });
   }
 }

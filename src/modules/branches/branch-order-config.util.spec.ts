@@ -33,7 +33,7 @@ describe('branch-order-config.util', () => {
       expect.objectContaining({
         branch_id: 'branch-1',
         type: 'DINE_IN',
-        slug: 'branch-1-dine_in',
+        slug: 'branch-1-dine-in',
         is_active: true,
       }),
     );

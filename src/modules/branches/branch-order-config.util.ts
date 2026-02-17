@@ -216,7 +216,8 @@ async function applyFulfillmentTypesToChannels(
     );
 
     for (const type of missingTypes) {
-      const fallbackSlug = `${branchId}-${type.toLowerCase()}`;
+      const typeSlug = type.toLowerCase().replace(/_/g, '-');
+      const fallbackSlug = `${branchId}-${typeSlug}`;
       const id = randomUUID();
 
       const { error: insertWithSlugError } = await sb

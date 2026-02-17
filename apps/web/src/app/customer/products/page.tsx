@@ -71,13 +71,29 @@ function canManageBrandTemplate(role: string | null | undefined) {
   return role === "OWNER" || role === "ADMIN";
 }
 
-function getOrderUrl(branchId: string) {
-  return `/order/branch/${encodeURIComponent(branchId)}`;
+function getOrderUrl(branch: Branch, brandSlug?: string | null) {
+  if (brandSlug && branch.slug) {
+    return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branch.slug)}`;
+  }
+  return `/order/branch/${encodeURIComponent(branch.id)}`;
 }
 
 function getShopUrl(brandSlug: string | null | undefined) {
   if (!brandSlug) return null;
   return `/shop/${encodeURIComponent(brandSlug)}`;
+}
+
+function isInternalOnlineShopBranch(branch: Branch, brandName?: string | null): boolean {
+  if (branch.slug) return false;
+  const branchName = (branch.name ?? "").trim();
+  if (!branchName) return false;
+  const normalizedBranchName = branchName.toLowerCase();
+  const normalizedBrandName = (brandName ?? "").trim().toLowerCase();
+
+  if (normalizedBrandName && normalizedBranchName === `${normalizedBrandName} 온라인샵`) {
+    return true;
+  }
+  return normalizedBranchName.endsWith("온라인샵");
 }
 
 function BranchChecklistTable({
@@ -91,6 +107,7 @@ function BranchChecklistTable({
   onlineShopChecked,
   onToggleOnlineShop,
   onlineShopUrl,
+  brandSlug,
   disabled,
 }: {
   branches: Branch[];
@@ -103,6 +120,7 @@ function BranchChecklistTable({
   onlineShopChecked?: boolean;
   onToggleOnlineShop?: () => void;
   onlineShopUrl?: string | null;
+  brandSlug?: string | null;
   disabled?: boolean;
 }) {
   const allBranchesChecked = branches.length > 0 && branches.every((b) => selectedIds.has(b.id));
@@ -125,7 +143,7 @@ function BranchChecklistTable({
               />
             </th>
             <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">매장명</th>
-            <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">주문 URL</th>
+            <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">채널 URL</th>
             {onChangeCategory && (
               <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">
                 카테고리
@@ -145,8 +163,13 @@ function BranchChecklistTable({
                   className="w-4 h-4 rounded accent-primary"
                 />
               </td>
-              <td className="py-2.5 px-3 text-sm text-foreground">{branch.name}</td>
-              <td className="py-2.5 px-3 text-xs text-text-tertiary font-mono">{getOrderUrl(branch.id)}</td>
+              <td className="py-2.5 px-3 text-sm text-foreground">
+                <div>{branch.name}</div>
+                <div className="text-xs text-text-secondary">지점 주문</div>
+              </td>
+              <td className="py-2.5 px-3 text-xs text-text-tertiary font-mono">
+                {getOrderUrl(branch, brandSlug)}
+              </td>
               {onChangeCategory && (
                 <td className="py-2.5 px-3">
                   <select
@@ -179,7 +202,10 @@ function BranchChecklistTable({
                   className="w-4 h-4 rounded accent-primary"
                 />
               </td>
-              <td className="py-2.5 px-3 text-sm text-foreground font-semibold">온라인샵</td>
+              <td className="py-2.5 px-3 text-sm text-foreground font-semibold">
+                <div>온라인샵</div>
+                <div className="text-xs text-text-secondary font-normal">브랜드 직배송</div>
+              </td>
               <td className="py-2.5 px-3 text-xs text-text-tertiary font-mono">
                 {onlineShopUrl ?? "-"}
               </td>
@@ -311,21 +337,25 @@ export default function CustomerProductsPage() {
     });
   }, []);
 
-  const loadBrandContext = useCallback(async (brandId: string) => {
+  const loadBrandContext = useCallback(async (brandId: string, brandName?: string | null) => {
     const [branchRows] = await Promise.all([
       apiClient.get<Branch[]>(`/customer/branches?brandId=${encodeURIComponent(brandId)}`),
       loadTemplates(brandId),
     ]);
 
-    await loadBranchCategories(branchRows);
-    setBranches(branchRows);
-    setCreateBranchIds(new Set(branchRows.map((branch) => branch.id)));
+    const visibleBranchRows = branchRows.filter(
+      (branch) => !isInternalOnlineShopBranch(branch, brandName),
+    );
+
+    await loadBranchCategories(visibleBranchRows);
+    setBranches(visibleBranchRows);
+    setCreateBranchIds(new Set(visibleBranchRows.map((branch) => branch.id)));
     setCreateOnlineShopChecked(true);
     setCreateBranchCategoryIds({});
     setEditBranchCategoryIds({});
     setEditOnlineShopChecked(true);
     setEditingTemplateId(null);
-    setBulkBranchIds(new Set(branchRows.map((branch) => branch.id)));
+    setBulkBranchIds(new Set(visibleBranchRows.map((branch) => branch.id)));
     setBulkOnlineShopChecked(true);
     setSelectedTemplateIds(new Set());
     setBulkStatus("keep");
@@ -349,9 +379,10 @@ export default function CustomerProductsPage() {
           return;
         }
 
-        const initialBrandId = brandRows[0].id;
+        const initialBrand = brandRows[0];
+        const initialBrandId = initialBrand.id;
         setSelectedBrandId(initialBrandId);
-        await loadBrandContext(initialBrandId);
+        await loadBrandContext(initialBrandId, initialBrand.name);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "브랜드 메뉴 정보를 불러오지 못했습니다.");
@@ -372,7 +403,7 @@ export default function CustomerProductsPage() {
       try {
         setLoading(true);
         setError(null);
-        await loadBrandContext(selectedBrandId);
+        await loadBrandContext(selectedBrandId, selectedBrand?.name);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "브랜드 메뉴 정보를 불러오지 못했습니다.");
@@ -382,7 +413,7 @@ export default function CustomerProductsPage() {
     };
 
     run();
-  }, [selectedBrandId, loadBrandContext]);
+  }, [selectedBrandId, selectedBrand?.name, loadBrandContext]);
 
   const handleCreateTemplate = async () => {
     if (!selectedBrandId) {
@@ -721,8 +752,11 @@ export default function CustomerProductsPage() {
 
                 <div className="mb-4">
                   <label className="block text-sm text-text-secondary mb-2 font-semibold">
-                    등록 매장 체크
+                    등록 채널 체크
                   </label>
+                  <p className="text-xs text-text-secondary mb-2">
+                    체크한 채널(지점 주문/온라인샵)에만 메뉴가 노출됩니다.
+                  </p>
                   <BranchChecklistTable
                     branches={branches}
                     selectedIds={createBranchIds}
@@ -743,6 +777,7 @@ export default function CustomerProductsPage() {
                       setCreateOnlineShopChecked((prev) => !prev)
                     }
                     onlineShopUrl={selectedBrandShopUrl}
+                    brandSlug={selectedBrand?.slug ?? null}
                     disabled={saving}
                   />
                 </div>
@@ -841,7 +876,7 @@ export default function CustomerProductsPage() {
                 {applyBulkBranchChecks && (
                   <div>
                     <label className="block text-sm text-text-secondary mb-2 font-semibold">
-                      일괄 적용할 매장 체크
+                      일괄 적용할 채널 체크
                     </label>
                     <BranchChecklistTable
                       branches={branches}
@@ -858,6 +893,7 @@ export default function CustomerProductsPage() {
                         setBulkOnlineShopChecked((prev) => !prev)
                       }
                       onlineShopUrl={selectedBrandShopUrl}
+                      brandSlug={selectedBrand?.slug ?? null}
                       disabled={saving || !hasSelectedTemplates}
                     />
                   </div>
@@ -1042,8 +1078,11 @@ export default function CustomerProductsPage() {
 
                                 <div className="mb-3">
                                   <label className="block text-sm text-text-secondary mb-2 font-semibold">
-                                    등록 매장 체크
+                                    등록 채널 체크
                                   </label>
+                                  <p className="text-xs text-text-secondary mb-2">
+                                    체크한 채널(지점 주문/온라인샵)에만 메뉴가 노출됩니다.
+                                  </p>
                                   <BranchChecklistTable
                                     branches={branches}
                                     selectedIds={editBranchIds}
@@ -1064,6 +1103,7 @@ export default function CustomerProductsPage() {
                                       setEditOnlineShopChecked((prev) => !prev)
                                     }
                                     onlineShopUrl={selectedBrandShopUrl}
+                                    brandSlug={selectedBrand?.slug ?? null}
                                     disabled={saving}
                                   />
                                 </div>

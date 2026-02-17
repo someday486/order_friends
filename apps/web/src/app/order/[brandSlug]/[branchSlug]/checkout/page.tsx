@@ -40,6 +40,11 @@ type CreateOrderResult = {
   id: string;
 };
 
+type PublicBranchConfigResponse = {
+  enabledFulfillmentTypes?: string[] | null;
+  allowedPaymentMethods?: string[] | null;
+};
+
 const DEFAULT_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP"];
 const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
@@ -91,46 +96,80 @@ export default function CheckoutPage() {
   const [customerMemo, setCustomerMemo] = useState("");
 
   useEffect(() => {
-    const recovered = loadCheckoutDraft({ brandSlug, branchSlug });
-    if (!recovered) {
-      router.replace(`/order/${brandSlug}/${branchSlug}`);
-      return;
-    }
+    let cancelled = false;
 
-    const recoveredFulfillmentTypes = Array.isArray(recovered.enabledFulfillmentTypes)
-      ? recovered.enabledFulfillmentTypes.filter(isFulfillmentType)
-      : [];
-    const recoveredPaymentMethods = Array.isArray(recovered.allowedPaymentMethods)
-      ? recovered.allowedPaymentMethods.filter(isPaymentMethod)
-      : [];
+    const initializeCheckout = async () => {
+      const recovered = loadCheckoutDraft({ brandSlug, branchSlug });
+      if (!recovered) {
+        router.replace(`/order/${brandSlug}/${branchSlug}`);
+        return;
+      }
 
-    const normalizedFulfillmentTypes =
-      recoveredFulfillmentTypes.length > 0 ? recoveredFulfillmentTypes : DEFAULT_FULFILLMENT_TYPES;
-    const normalizedPaymentMethods =
-      recoveredPaymentMethods.length > 0 ? recoveredPaymentMethods : DEFAULT_PAYMENT_METHODS;
+      const recoveredFulfillmentTypes = Array.isArray(recovered.enabledFulfillmentTypes)
+        ? recovered.enabledFulfillmentTypes.filter(isFulfillmentType)
+        : [];
+      const recoveredPaymentMethods = Array.isArray(recovered.allowedPaymentMethods)
+        ? recovered.allowedPaymentMethods.filter(isPaymentMethod)
+        : [];
 
-    const selectedFulfillment = isFulfillmentType(recovered.selectedFulfillmentType)
-      ? recovered.selectedFulfillmentType
-      : normalizedFulfillmentTypes[0];
-    const selectedPayment = isPaymentMethod(recovered.selectedPaymentMethod)
-      ? recovered.selectedPaymentMethod
-      : normalizedPaymentMethods[0];
+      let normalizedFulfillmentTypes =
+        recoveredFulfillmentTypes.length > 0 ? recoveredFulfillmentTypes : DEFAULT_FULFILLMENT_TYPES;
+      let normalizedPaymentMethods =
+        recoveredPaymentMethods.length > 0 ? recoveredPaymentMethods : DEFAULT_PAYMENT_METHODS;
 
-    setBranchId(recovered.branchId);
-    setCart(recovered.cart as CartItem[]);
-    setEnabledFulfillmentTypes(normalizedFulfillmentTypes);
-    setAllowedPaymentMethods(normalizedPaymentMethods);
-    setFulfillmentType(
-      normalizedFulfillmentTypes.includes(selectedFulfillment)
-        ? selectedFulfillment
-        : normalizedFulfillmentTypes[0],
-    );
-    setPaymentMethod(
-      normalizedPaymentMethods.includes(selectedPayment)
-        ? selectedPayment
-        : normalizedPaymentMethods[0],
-    );
-    setReady(true);
+      try {
+        const latestConfig = await apiClient.get<PublicBranchConfigResponse>(
+          `/public/branches/${encodeURIComponent(recovered.branchId)}`,
+          { auth: false },
+        );
+
+        const latestFulfillmentTypes = Array.isArray(latestConfig?.enabledFulfillmentTypes)
+          ? latestConfig.enabledFulfillmentTypes.filter(isFulfillmentType)
+          : [];
+        const latestPaymentMethods = Array.isArray(latestConfig?.allowedPaymentMethods)
+          ? latestConfig.allowedPaymentMethods.filter(isPaymentMethod)
+          : [];
+
+        if (latestFulfillmentTypes.length > 0) {
+          normalizedFulfillmentTypes = latestFulfillmentTypes;
+        }
+        if (latestPaymentMethods.length > 0) {
+          normalizedPaymentMethods = latestPaymentMethods;
+        }
+      } catch {
+        // Keep draft values when live config fetch fails.
+      }
+
+      const selectedFulfillment = isFulfillmentType(recovered.selectedFulfillmentType)
+        ? recovered.selectedFulfillmentType
+        : normalizedFulfillmentTypes[0];
+      const selectedPayment = isPaymentMethod(recovered.selectedPaymentMethod)
+        ? recovered.selectedPaymentMethod
+        : normalizedPaymentMethods[0];
+
+      if (cancelled) return;
+
+      setBranchId(recovered.branchId);
+      setCart(recovered.cart as CartItem[]);
+      setEnabledFulfillmentTypes(normalizedFulfillmentTypes);
+      setAllowedPaymentMethods(normalizedPaymentMethods);
+      setFulfillmentType(
+        normalizedFulfillmentTypes.includes(selectedFulfillment)
+          ? selectedFulfillment
+          : normalizedFulfillmentTypes[0],
+      );
+      setPaymentMethod(
+        normalizedPaymentMethods.includes(selectedPayment)
+          ? selectedPayment
+          : normalizedPaymentMethods[0],
+      );
+      setReady(true);
+    };
+
+    initializeCheckout();
+    return () => {
+      cancelled = true;
+    };
   }, [brandSlug, branchSlug, router]);
 
   const totalAmount = useMemo(

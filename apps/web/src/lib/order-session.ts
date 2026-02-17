@@ -153,6 +153,12 @@ export function loadCheckoutDraft(context: {
 }) {
   if (typeof window === 'undefined') return null;
 
+  const stored = readStoredCheckoutDraft();
+  if (stored && matchesCheckoutContext(stored, context)) {
+    saveLegacyCheckoutKeys(stored);
+    return stored;
+  }
+
   const legacy = readLegacyCheckoutDraft();
   if (legacy && matchesCheckoutContext(legacy, context)) {
     localStorage.setItem(
@@ -162,12 +168,7 @@ export function loadCheckoutDraft(context: {
     return legacy;
   }
 
-  const stored = readStoredCheckoutDraft();
-  if (!stored) return null;
-  if (!matchesCheckoutContext(stored, context)) return null;
-
-  saveLegacyCheckoutKeys(stored);
-  return stored;
+  return null;
 }
 
 export function clearCheckoutDraft() {

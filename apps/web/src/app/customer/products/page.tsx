@@ -57,6 +57,7 @@ type TemplateForm = {
 
 type BulkStatus = "keep" | "active" | "inactive";
 type BulkInventoryMode = "keep" | "PRODUCT" | "NONE";
+type SalesChannelFilter = "ALL" | "ONLINE_SHOP" | `BRANCH:${string}`;
 
 const EMPTY_FORM: TemplateForm = {
   name: "",
@@ -94,6 +95,18 @@ function isInternalOnlineShopBranch(branch: Branch, brandName?: string | null): 
     return true;
   }
   return normalizedBranchName.endsWith("온라인샵");
+}
+
+function toBranchSalesChannelFilter(branchId: string): SalesChannelFilter {
+  return `BRANCH:${branchId}`;
+}
+
+function getBranchIdFromSalesChannelFilter(filter: SalesChannelFilter): string | null {
+  if (!filter.startsWith("BRANCH:")) {
+    return null;
+  }
+  const branchId = filter.replace("BRANCH:", "").trim();
+  return branchId || null;
 }
 
 function BranchChecklistTable({
@@ -258,6 +271,7 @@ export default function CustomerProductsPage() {
   const [bulkStatus, setBulkStatus] = useState<BulkStatus>("keep");
   const [bulkInventoryMode, setBulkInventoryMode] = useState<BulkInventoryMode>("keep");
   const [applyBulkBranchChecks, setApplyBulkBranchChecks] = useState(false);
+  const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
 
   const selectedBrand = useMemo(
     () => brands.find((brand) => brand.id === selectedBrandId) ?? null,
@@ -268,10 +282,38 @@ export default function CustomerProductsPage() {
     [selectedBrand?.slug],
   );
 
+  const selectedFilterBranchId = useMemo(
+    () => getBranchIdFromSalesChannelFilter(salesChannelFilter),
+    [salesChannelFilter],
+  );
+  const selectedFilterBranchName = useMemo(
+    () => branches.find((branch) => branch.id === selectedFilterBranchId)?.name ?? null,
+    [branches, selectedFilterBranchId],
+  );
+  const filteredTemplates = useMemo(() => {
+    if (salesChannelFilter === "ALL") {
+      return templates;
+    }
+    if (salesChannelFilter === "ONLINE_SHOP") {
+      return templates.filter((template) => template.isOnlineShopVisible !== false);
+    }
+    if (!selectedFilterBranchId) {
+      return templates;
+    }
+    return templates.filter((template) =>
+      (template.appliedBranchIds ?? []).includes(selectedFilterBranchId),
+    );
+  }, [templates, salesChannelFilter, selectedFilterBranchId]);
+  const filteredTemplateIdSet = useMemo(
+    () => new Set(filteredTemplates.map((template) => template.id)),
+    [filteredTemplates],
+  );
+
   const canManage = canManageBrandTemplate(selectedBrand?.myRole);
   const hasSelectedTemplates = selectedTemplateIds.size > 0;
   const allTemplatesChecked =
-    templates.length > 0 && templates.every((template) => selectedTemplateIds.has(template.id));
+    filteredTemplates.length > 0 &&
+    filteredTemplates.every((template) => selectedTemplateIds.has(template.id));
   const createSelectedCount = createBranchIds.size + (createOnlineShopChecked ? 1 : 0);
   const createTotalCount = branches.length + 1;
   const hasCreateImage = Boolean(createForm.imageUrl);
@@ -361,7 +403,18 @@ export default function CustomerProductsPage() {
     setBulkStatus("keep");
     setBulkInventoryMode("keep");
     setApplyBulkBranchChecks(false);
+    setSalesChannelFilter("ALL");
   }, [loadBranchCategories, loadTemplates]);
+
+  useEffect(() => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set([...prev].filter((id) => filteredTemplateIdSet.has(id)));
+      if (next.size === prev.size) {
+        return prev;
+      }
+      return next;
+    });
+  }, [filteredTemplateIdSet]);
 
   useEffect(() => {
     const run = async () => {
@@ -564,7 +617,45 @@ export default function CustomerProductsPage() {
       setSelectedTemplateIds(new Set());
       return;
     }
-    setSelectedTemplateIds(new Set(templates.map((template) => template.id)));
+    setSelectedTemplateIds(new Set(filteredTemplates.map((template) => template.id)));
+  };
+
+  const handleToggleTemplateForSalesChannel = async (template: BrandTemplate) => {
+    if (!selectedBrandId || salesChannelFilter === "ALL") {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      if (salesChannelFilter === "ONLINE_SHOP") {
+        const nextVisible = template.isOnlineShopVisible === false;
+        await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
+          isOnlineShopVisible: nextVisible,
+        });
+        toast.success(nextVisible ? "온라인샵에 노출했습니다." : "온라인샵에서 숨겼습니다.");
+      } else if (selectedFilterBranchId) {
+        const isApplied = (template.appliedBranchIds ?? []).includes(selectedFilterBranchId);
+        if (isApplied) {
+          await apiClient.post(`/customer/products/brand-templates/${template.id}/unapply`, {
+            branchId: selectedFilterBranchId,
+          });
+          toast.success(`${selectedFilterBranchName ?? "지점"}에서 숨겼습니다.`);
+        } else {
+          await apiClient.post(`/customer/products/brand-templates/${template.id}/apply`, {
+            branchId: selectedFilterBranchId,
+          });
+          toast.success(`${selectedFilterBranchName ?? "지점"}에 노출했습니다.`);
+        }
+      }
+
+      await loadTemplates(selectedBrandId);
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "판매 채널 설정 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleBulkUpdateTemplates = async () => {
@@ -628,7 +719,8 @@ export default function CustomerProductsPage() {
         </p>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <div>
         <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드 선택</label>
         <select
           value={selectedBrandId}
@@ -642,6 +734,28 @@ export default function CustomerProductsPage() {
             </option>
           ))}
         </select>
+        </div>
+        {selectedBrandId && (
+          <div>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">판매 채널</label>
+            <select
+              value={salesChannelFilter}
+              onChange={(event) => setSalesChannelFilter(event.target.value as SalesChannelFilter)}
+              className="input-field"
+            >
+              <option value="ALL">전체 채널</option>
+              <option value="ONLINE_SHOP">온라인샵</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={toBranchSalesChannelFilter(branch.id)}>
+                  지점 주문 - {branch.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-text-secondary mt-1">
+              현재 채널 기준 {filteredTemplates.length}개 메뉴
+            </p>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -909,24 +1023,28 @@ export default function CustomerProductsPage() {
                           type="checkbox"
                           checked={allTemplatesChecked}
                           onChange={(event) => toggleAllTemplateSelection(event.target.checked)}
-                          disabled={saving || templates.length === 0}
+                          disabled={saving || filteredTemplates.length === 0}
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">메뉴</th>
                       <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">기본가</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">적용 매장</th>
+                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">판매 채널</th>
                       <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">재고관리</th>
                       <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">상태</th>
                       <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">관리</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {templates.map((template) => {
+                    {filteredTemplates.map((template) => {
                       const isEditing = editingTemplateId === template.id;
                       const appliedCount =
                         template.appliedBranchCount ?? template.appliedBranchIds?.length ?? 0;
                       const totalCount = template.totalBranchCount ?? branches.length;
+                      const selectedBranchApplied = selectedFilterBranchId
+                        ? (template.appliedBranchIds ?? []).includes(selectedFilterBranchId)
+                        : false;
+                      const isOnlineShopVisible = template.isOnlineShopVisible !== false;
 
                       return (
                         <Fragment key={template.id}>
@@ -950,12 +1068,36 @@ export default function CustomerProductsPage() {
                               {formatWon(template.price)}
                             </td>
                             <td className="py-3 px-4 text-sm text-foreground">
-                              <div>{appliedCount} / {totalCount} 매장</div>
-                              <div className="text-xs text-text-secondary mt-0.5">
-                                {template.isOnlineShopVisible === false
-                                  ? "온라인샵 미노출"
-                                  : "온라인샵 노출"}
-                              </div>
+                              {salesChannelFilter === "ALL" ? (
+                                <>
+                                  <div>{appliedCount} / {totalCount} 매장</div>
+                                  <div className="text-xs text-text-secondary mt-0.5">
+                                    {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                                  </div>
+                                </>
+                              ) : salesChannelFilter === "ONLINE_SHOP" ? (
+                                <span
+                                  className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                                    isOnlineShopVisible
+                                      ? "bg-success/20 text-success"
+                                      : "bg-danger-500/20 text-danger-500"
+                                  }`}
+                                >
+                                  {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                                </span>
+                              ) : (
+                                <span
+                                  className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                                    selectedBranchApplied
+                                      ? "bg-success/20 text-success"
+                                      : "bg-danger-500/20 text-danger-500"
+                                  }`}
+                                >
+                                  {selectedBranchApplied
+                                    ? `${selectedFilterBranchName ?? "선택 지점"} 노출`
+                                    : `${selectedFilterBranchName ?? "선택 지점"} 미노출`}
+                                </span>
+                              )}
                             </td>
                             <td className="py-3 px-4 text-sm">
                               <span
@@ -987,6 +1129,21 @@ export default function CustomerProductsPage() {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="inline-flex items-center gap-2">
+                                {salesChannelFilter !== "ALL" && (
+                                  <button
+                                    onClick={() => handleToggleTemplateForSalesChannel(template)}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                  >
+                                    {salesChannelFilter === "ONLINE_SHOP"
+                                      ? isOnlineShopVisible
+                                        ? "온라인샵 숨김"
+                                        : "온라인샵 노출"
+                                      : selectedBranchApplied
+                                        ? "지점 숨김"
+                                        : "지점 노출"}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() =>
                                     isEditing ? cancelEditTemplate() : startEditTemplate(template)
@@ -1130,6 +1287,13 @@ export default function CustomerProductsPage() {
                         </Fragment>
                       );
                     })}
+                    {filteredTemplates.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-sm text-text-secondary">
+                          선택한 판매 채널에 노출된 메뉴가 없습니다.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

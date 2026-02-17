@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -38,6 +38,11 @@ type CartItem = {
 
 type CreateOrderResult = {
   id: string;
+  orderNo?: string | null;
+  status?: string;
+  totalAmount?: number;
+  createdAt?: string;
+  items?: unknown[];
 };
 
 type PublicBranchConfigResponse = {
@@ -200,7 +205,7 @@ export default function CheckoutPage() {
       const payload = {
         branchId,
         customerName: customerName.trim(),
-        customerPhone: customerPhone || undefined,
+        customerPhone: customerPhone.trim(),
         customerAddress1: customerAddress1 || undefined,
         customerAddress2: customerAddress2 || undefined,
         customerMemo: customerMemo || undefined,
@@ -321,7 +326,7 @@ export default function CheckoutPage() {
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 data-testid="customer-name-input"
-                placeholder="홍길동"
+                placeholder="이름"
                 className="input-field"
               />
             </div>
@@ -410,3 +415,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+

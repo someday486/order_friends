@@ -286,6 +286,111 @@ describe('PublicOrderService - Inventory Integration', () => {
     expect(adminClient.rpc).not.toHaveBeenCalled();
   });
 
+  it('should continue order when product_inventory table is missing', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '42P01',
+        message: 'relation "product_inventory" does not exist',
+      },
+    });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-1');
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+    expect(adminChains.order_items.delete).not.toHaveBeenCalled();
+    expect(adminChains.orders.delete).not.toHaveBeenCalled();
+  });
+
+  it('should continue order when reserve_inventory_for_order function is missing', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: [{ product_id: 'product-1' }],
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '42883',
+        message:
+          'function reserve_inventory_for_order(uuid, uuid, text, jsonb) does not exist',
+      },
+    });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-1');
+    expect(adminClient.rpc).toHaveBeenCalledTimes(1);
+    expect(adminChains.order_items.delete).not.toHaveBeenCalled();
+    expect(adminChains.orders.delete).not.toHaveBeenCalled();
+  });
+
   it('should insert order item options when present and ignore option insert errors', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',
@@ -768,6 +873,274 @@ describe('PublicOrderService - Inventory Integration', () => {
 
     await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
       ConflictException,
+    );
+  });
+
+  it('should detect and parse missing column from schema cache errors', () => {
+    const error = {
+      code: 'PGRST204',
+      message:
+        "Could not find the 'customer_address1' column of 'orders' in the schema cache",
+    };
+
+    expect((service as any).isMissingColumnError(error)).toBe(true);
+    expect((service as any).getMissingColumnName(error)).toBe(
+      'customer_address1',
+    );
+  });
+
+  it('should retry order insert across multiple schema-cache missing columns', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      customerAddress1: 'Seoul',
+      customerAddress2: '101',
+      customerMemo: 'Leave at door',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: 'PGRST204',
+          message:
+            "Could not find the 'customer_address1' column of 'orders' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: 'PGRST204',
+          message:
+            "Could not find the 'customer_address2' column of 'orders' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: 'PGRST204',
+          message:
+            "Could not find the 'customer_memo' column of 'orders' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'order-1',
+          order_no: 'O-1',
+          total_amount: 1000,
+          status: 'CREATED',
+          created_at: 't',
+        },
+        error: null,
+      });
+
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-1');
+    expect(anonChains.orders.single).toHaveBeenCalledTimes(4);
+    expect(anonChains.orders.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        delivery_address: 'Seoul',
+        delivery_memo: 'Leave at door',
+      }),
+    );
+  });
+
+  it('should fallback to admin client when anon insert is blocked by RLS', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: '42501',
+        message:
+          'new row violates row-level security policy for table "orders"',
+      },
+    });
+
+    adminChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-admin-1',
+        order_no: 'OA-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    adminChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-admin-1' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-admin-1');
+    expect(anonChains.orders.insert).toHaveBeenCalledTimes(1);
+    expect(adminChains.orders.insert).toHaveBeenCalledTimes(1);
+    expect(adminChains.order_items.insert).toHaveBeenCalledTimes(1);
+    expect(anonChains.order_items.insert).not.toHaveBeenCalled();
+  });
+
+  it('should retry order item insert when unit_price is missing in schema cache', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    anonChains.order_items.single
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: 'PGRST204',
+          message:
+            "Could not find the 'unit_price' column of 'order_items' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'item-1' },
+        error: null,
+      });
+
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-1');
+    expect(anonChains.order_items.single).toHaveBeenCalledTimes(2);
+    expect(anonChains.order_items.insert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        unit_price_snapshot: 1000,
+        line_total: 1000,
+      }),
+    );
+  });
+
+  it('should fallback DINE_IN fulfillment to PICKUP when enum is not supported', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      fulfillmentType: 'DINE_IN',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '22P02',
+          message: 'invalid input value for enum fulfillment_type: "DINE_IN"',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'order-1',
+          order_no: 'O-1',
+          total_amount: 1000,
+          status: 'CREATED',
+          created_at: 't',
+        },
+        error: null,
+      });
+
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-1');
+    expect(anonChains.orders.single).toHaveBeenCalledTimes(2);
+    expect(anonChains.orders.insert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        fulfillment_type: 'PICKUP',
+      }),
     );
   });
 });

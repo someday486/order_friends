@@ -26,7 +26,7 @@ function normalizeOrder(raw: unknown): OrderResult | null {
   const source = raw as Record<string, unknown>;
   if (typeof source.id !== "string") return null;
 
-  const orderNo = source.orderNo ?? source.order_no;
+  const orderNo = source.orderNo ?? source.order_no ?? source.id;
   const status = source.status;
   const totalAmount = source.totalAmount ?? source.total_amount;
   const createdAt = source.createdAt ?? source.created_at;
@@ -128,7 +128,7 @@ export default function CompletePage() {
       <div className="p-6 text-center">
         <div className="text-[40px] mb-3">완료</div>
         <h1 className="text-2xl font-extrabold mb-2">주문이 완료되었습니다</h1>
-        <p className="text-text-secondary">주문 번호를 확인해주세요.</p>
+        <p className="text-text-secondary">주문 번호를 확인해 주세요.</p>
       </div>
 
       <div className="mx-4 mb-6 p-4 rounded-[14px] border border-border bg-bg-secondary">

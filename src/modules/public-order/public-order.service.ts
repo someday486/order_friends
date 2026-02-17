@@ -91,15 +91,65 @@ export class PublicOrderService {
 
   private isMissingColumnError(error: any): boolean {
     const message = String(error?.message ?? '');
-    return error?.code === '42703' || /column .* does not exist/i.test(message);
+    return (
+      error?.code === '42703' ||
+      /^PGRST/i.test(String(error?.code ?? '')) ||
+      /column .* does not exist/i.test(message) ||
+      /schema cache/i.test(message)
+    );
   }
 
   private getMissingColumnName(error: any): string | null {
     const message = String(error?.message ?? '');
-    const match = message.match(
+    const pgMatch = message.match(
       /column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i,
     );
-    return match?.[1] ?? null;
+    if (pgMatch?.[1]) {
+      return pgMatch[1];
+    }
+
+    const pgrstMatch = message.match(
+      /could not find the\s+'?([a-zA-Z0-9_]+)'?\s+column\s+of/i,
+    );
+    return pgrstMatch?.[1] ?? null;
+  }
+
+  private isRowLevelSecurityError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    return (
+      error?.code === '42501' || /row-level security policy/i.test(message)
+    );
+  }
+
+  private isInvalidFulfillmentTypeEnumError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    return (
+      (error?.code === '22P02' ||
+        /invalid input value for enum/i.test(message)) &&
+      /fulfillment_type/i.test(message)
+    );
+  }
+
+  private isInventoryInfraUnavailableError(error: any): boolean {
+    const code = String(error?.code ?? '');
+    const message = String(error?.message ?? '');
+    return (
+      code === '42P01' ||
+      code === '42883' ||
+      /relation\s+"?(product_inventory|inventory_logs)"?\s+does not exist/i.test(
+        message,
+      ) ||
+      /function\s+.*reserve_inventory_for_order.*does not exist/i.test(
+        message,
+      ) ||
+      /could not find the function.*reserve_inventory_for_order/i.test(message)
+    );
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
   }
 
   /**
@@ -503,11 +553,45 @@ export class PublicOrderService {
     return this.buildOrderSignature(items);
   }
 
+  private getOrderItemUnitPrice(item: any): number {
+    if (!item) return 0;
+    if (item.unit_price !== undefined && item.unit_price !== null) {
+      return item.unit_price;
+    }
+    if (
+      item.unit_price_snapshot !== undefined &&
+      item.unit_price_snapshot !== null
+    ) {
+      return item.unit_price_snapshot;
+    }
+    return 0;
+  }
+
+  private async runOrderSelectWithUnitPriceFallback(
+    queryFactory: (
+      unitPriceColumn: 'unit_price' | 'unit_price_snapshot',
+    ) => any,
+  ): Promise<{ data: any; error: any }> {
+    const primary = await queryFactory('unit_price');
+    if (!primary.error) {
+      return primary;
+    }
+
+    if (
+      this.isMissingColumnError(primary.error) &&
+      this.getMissingColumnName(primary.error) === 'unit_price'
+    ) {
+      return queryFactory('unit_price_snapshot');
+    }
+
+    return primary;
+  }
+
   private buildOrderResponse(order: any): PublicOrderResponse {
     const items = (order?.order_items ?? []).map((item: any) => ({
       productName: item.product_name_snapshot,
       qty: item.qty,
-      unitPrice: item.unit_price,
+      unitPrice: this.getOrderItemUnitPrice(item),
       options: (item.order_item_options ?? []).map(
         (opt: any) => opt.option_name_snapshot,
       ),
@@ -515,7 +599,7 @@ export class PublicOrderService {
 
     return {
       id: order.id,
-      orderNo: order.order_no,
+      orderNo: order.order_no ?? order.id,
       status: order.status,
       totalAmount: order.total_amount,
       createdAt: order.created_at,
@@ -530,10 +614,12 @@ export class PublicOrderService {
   ): Promise<any> {
     if (!idempotencyKey) return null;
 
-    const { data, error } = await adminClient
-      .from('orders')
-      .select(
-        `
+    const { data, error } = await this.runOrderSelectWithUnitPriceFallback(
+      (unitPriceColumn) =>
+        adminClient
+          .from('orders')
+          .select(
+            `
         id,
         order_no,
         status,
@@ -543,17 +629,18 @@ export class PublicOrderService {
           product_id,
           product_name_snapshot,
           qty,
-          unit_price,
+          ${unitPriceColumn},
           order_item_options (
             option_name_snapshot
           )
         )
       `,
-      )
-      .eq('branch_id', branchId)
-      .eq('idempotency_key', idempotencyKey)
-      .order('created_at', { ascending: false })
-      .limit(1);
+          )
+          .eq('branch_id', branchId)
+          .eq('idempotency_key', idempotencyKey)
+          .order('created_at', { ascending: false })
+          .limit(1),
+    );
 
     if (error || !data || data.length === 0) {
       return null;
@@ -618,10 +705,12 @@ export class PublicOrderService {
     const policy = this.getDuplicatePolicy(dto);
     const cutoff = new Date(Date.now() - policy.windowMs).toISOString();
 
-    let query = adminClient
-      .from('orders')
-      .select(
-        `
+    const { data, error } = await this.runOrderSelectWithUnitPriceFallback(
+      (unitPriceColumn) => {
+        let query = adminClient
+          .from('orders')
+          .select(
+            `
         id,
         order_no,
         status,
@@ -631,41 +720,43 @@ export class PublicOrderService {
           product_id,
           product_name_snapshot,
           qty,
-          unit_price,
+          ${unitPriceColumn},
           order_item_options (
             option_name_snapshot
           )
         )
       `,
-      )
-      .eq('branch_id', dto.branchId)
-      .eq('status', 'CREATED')
-      .eq('payment_status', 'PENDING')
-      .eq('total_amount', totalAmount)
-      .gte('created_at', cutoff)
-      .order('created_at', { ascending: false });
+          )
+          .eq('branch_id', dto.branchId)
+          .eq('status', 'CREATED')
+          .eq('payment_status', 'PENDING')
+          .eq('total_amount', totalAmount)
+          .gte('created_at', cutoff)
+          .order('created_at', { ascending: false });
 
-    if (policy.filters.name) {
-      query = query.eq('customer_name', policy.filters.name);
-    }
+        if (policy.filters.name) {
+          query = query.eq('customer_name', policy.filters.name);
+        }
 
-    if (policy.filters.phone) {
-      query = query.eq('customer_phone', policy.filters.phone);
-    }
+        if (policy.filters.phone) {
+          query = query.eq('customer_phone', policy.filters.phone);
+        }
 
-    if (policy.filters.address1) {
-      query = query.eq('customer_address1', policy.filters.address1);
-    }
+        if (policy.filters.address1) {
+          query = query.eq('customer_address1', policy.filters.address1);
+        }
 
-    if (
-      !policy.filters.name &&
-      !policy.filters.phone &&
-      !policy.filters.address1
-    ) {
-      query = query.eq('payment_method', policy.paymentMethod ?? 'CARD');
-    }
+        if (
+          !policy.filters.name &&
+          !policy.filters.phone &&
+          !policy.filters.address1
+        ) {
+          query = query.eq('payment_method', policy.paymentMethod ?? 'CARD');
+        }
 
-    const { data, error } = await query.limit(policy.lookbackLimit);
+        return query.limit(policy.lookbackLimit);
+      },
+    );
 
     if (error || !data || data.length === 0) {
       return null;
@@ -962,6 +1053,8 @@ export class PublicOrderService {
       customer_address1: dto.customerAddress1 ?? null,
       customer_address2: dto.customerAddress2 ?? null,
       customer_memo: dto.customerMemo ?? null,
+      delivery_address: dto.customerAddress1 ?? null,
+      delivery_memo: dto.customerMemo ?? null,
       payment_method: paymentMethod,
       subtotal_amount: subtotalAmount,
       shipping_fee: 0,
@@ -976,23 +1069,56 @@ export class PublicOrderService {
       insertPayload.channel_id = channelId;
     }
 
-    const executeOrderInsert = async () =>
-      sb
+    const executeOrderInsert = (client: any) =>
+      client
         .from('orders')
-        .insert(insertPayload)
+        .insert({ ...insertPayload })
         .select('id, order_no, status, total_amount, created_at')
         .single();
 
-    let { data: order, error: orderError } = await executeOrderInsert();
+    const retryMissingColumns = async (client: any, currentError: any) => {
+      let error = currentError;
+      const droppedColumns = new Set<string>();
+      for (let attempts = 0; error && attempts < 10; attempts += 1) {
+        if (!this.isMissingColumnError(error)) break;
+        const missingColumn = this.getMissingColumnName(error);
+        if (!missingColumn) break;
+        if (!(missingColumn in insertPayload)) break;
+        if (droppedColumns.has(missingColumn)) break;
+        droppedColumns.add(missingColumn);
+        delete insertPayload[missingColumn];
+        ({ data: order, error } = await executeOrderInsert(client));
+      }
+      return error;
+    };
 
-    // Older schemas can miss channel/fulfillment columns. Drop unknown fields and retry once per field.
-    for (let attempts = 0; orderError && attempts < 2; attempts += 1) {
-      if (!this.isMissingColumnError(orderError)) break;
-      const missingColumn = this.getMissingColumnName(orderError);
-      if (!missingColumn) break;
-      if (!(missingColumn in insertPayload)) break;
-      delete insertPayload[missingColumn];
-      ({ data: order, error: orderError } = await executeOrderInsert());
+    let orderClient: any = sb;
+    let { data: order, error: orderError } =
+      await executeOrderInsert(orderClient);
+    orderError = await retryMissingColumns(orderClient, orderError);
+
+    if (orderError && this.isRowLevelSecurityError(orderError)) {
+      orderClient = adminClient;
+      ({ data: order, error: orderError } =
+        await executeOrderInsert(orderClient));
+      orderError = await retryMissingColumns(orderClient, orderError);
+    }
+
+    if (
+      orderError &&
+      this.isInvalidFulfillmentTypeEnumError(orderError) &&
+      insertPayload.fulfillment_type === FulfillmentType.DINE_IN
+    ) {
+      insertPayload.fulfillment_type = FulfillmentType.PICKUP;
+      const pickupChannelId =
+        branchOrderConfig.channelByType[FulfillmentType.PICKUP];
+      if (pickupChannelId) {
+        insertPayload.channel_id = pickupChannelId;
+      }
+
+      ({ data: order, error: orderError } =
+        await executeOrderInsert(orderClient));
+      orderError = await retryMissingColumns(orderClient, orderError);
     }
 
     if (orderError) {
@@ -1012,6 +1138,12 @@ export class PublicOrderService {
         throw new BadRequestException(
           '주문 방식이 설정되지 않았습니다. 매장 주문방식을 확인해주세요.',
         );
+      }
+      if (
+        orderError.code === '23502' &&
+        /customer_phone/i.test(orderErrorMessage)
+      ) {
+        throw new BadRequestException('연락처를 입력해주세요.');
       }
 
       if (orderError.code === '23505' && idempotencyKey) {
@@ -1068,17 +1200,38 @@ export class PublicOrderService {
 
     try {
       for (const itemData of orderItemsData) {
-        const { data: orderItem, error: itemError } = await sb
-          .from('order_items')
-          .insert({
-            order_id: createdOrder.id,
-            product_id: itemData.product_id,
-            product_name_snapshot: itemData.product_name_snapshot,
-            qty: itemData.qty,
-            unit_price: itemData.unit_price,
-          })
-          .select('id')
-          .single();
+        const orderItemPayload: Record<string, any> = {
+          order_id: createdOrder.id,
+          product_id: itemData.product_id,
+          product_name_snapshot: itemData.product_name_snapshot,
+          qty: itemData.qty,
+          unit_price: itemData.unit_price,
+          unit_price_snapshot: itemData.unit_price,
+          line_total: itemData.unit_price * itemData.qty,
+        };
+
+        const executeOrderItemInsert = () =>
+          orderClient
+            .from('order_items')
+            .insert({ ...orderItemPayload })
+            .select('id')
+            .single();
+
+        let { data: orderItem, error: itemError } =
+          await executeOrderItemInsert();
+
+        const droppedColumns = new Set<string>();
+        for (let attempts = 0; itemError && attempts < 10; attempts += 1) {
+          if (!this.isMissingColumnError(itemError)) break;
+          const missingColumn = this.getMissingColumnName(itemError);
+          if (!missingColumn) break;
+          if (!(missingColumn in orderItemPayload)) break;
+          if (droppedColumns.has(missingColumn)) break;
+          droppedColumns.add(missingColumn);
+          delete orderItemPayload[missingColumn];
+          ({ data: orderItem, error: itemError } =
+            await executeOrderItemInsert());
+        }
 
         if (itemError || !orderItem) {
           this.logger.error('order_item insert error:', itemError);
@@ -1088,7 +1241,7 @@ export class PublicOrderService {
         const optionNames: string[] = [];
         if (itemData.options && itemData.options.length > 0) {
           for (const opt of itemData.options) {
-            const { error: optError } = await sb
+            const { error: optError } = await orderClient
               .from('order_item_options')
               .insert({
                 order_item_id: orderItem.id,
@@ -1133,9 +1286,16 @@ export class PublicOrderService {
           .in('product_id', productIds);
 
       if (inventoryLookupError) {
-        throw new BadRequestException(
-          '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
-        );
+        if (this.isInventoryInfraUnavailableError(inventoryLookupError)) {
+          this.logger.warn(
+            `Inventory infra unavailable. Skip reservation for order ${createdOrder.id}: ${inventoryLookupError.message ?? 'unknown'}`,
+          );
+          reserveItems = [];
+        } else {
+          throw new BadRequestException(
+            '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
+          );
+        }
       }
 
       // `inventoryRows` can be undefined in 일부 테스트 목 환경. 그 경우 기존 동작대로 전체 예약.
@@ -1162,50 +1322,67 @@ export class PublicOrderService {
         );
 
         if (reserveError) {
-          const message = reserveError.message ?? '';
-          const notFoundMatch = message.match(
-            /INVENTORY_NOT_FOUND:([0-9a-f-]+)/i,
-          );
-          if (notFoundMatch) {
-            const missingId = notFoundMatch[1];
+          if (this.isInventoryInfraUnavailableError(reserveError)) {
+            this.logger.warn(
+              `Inventory RPC unavailable. Skip reservation for order ${createdOrder.id}: ${reserveError.message ?? 'unknown'}`,
+            );
+          } else {
+            const message = reserveError.message ?? '';
+            const notFoundMatch = message.match(
+              /INVENTORY_NOT_FOUND:([0-9a-f-]+)/i,
+            );
+            if (notFoundMatch) {
+              const missingId = notFoundMatch[1];
+              throw new BadRequestException(
+                `재고 정보를 찾을 수 없습니다: ${productMap.get(missingId)?.name ?? missingId}`,
+              );
+            }
+
+            const insufficientMatch = message.match(
+              /INSUFFICIENT_INVENTORY:([0-9a-f-]+)/i,
+            );
+            if (insufficientMatch) {
+              const productId = insufficientMatch[1];
+              throw new BadRequestException(
+                `재고가 부족합니다: ${productMap.get(productId)?.name ?? productId}`,
+              );
+            }
+
             throw new BadRequestException(
-              `재고 정보를 찾을 수 없습니다: ${productMap.get(missingId)?.name ?? missingId}`,
+              '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
             );
           }
-
-          const insufficientMatch = message.match(
-            /INSUFFICIENT_INVENTORY:([0-9a-f-]+)/i,
-          );
-          if (insufficientMatch) {
-            const productId = insufficientMatch[1];
-            throw new BadRequestException(
-              `재고가 부족합니다: ${productMap.get(productId)?.name ?? productId}`,
-            );
-          }
-
-          throw new BadRequestException(
-            '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
-          );
         }
       }
     } catch (error) {
-      await this.rollbackOrder(adminClient, createdOrder.id);
-      this.logger.error(
-        'Inventory reservation failed for order ' + createdOrder.id,
-        error,
-      );
-      this.logMetric('order.create.inventory_failed', {
-        branchId: dto.branchId,
-        orderId: createdOrder.id,
-      });
+      if (this.isInventoryInfraUnavailableError(error)) {
+        this.logger.warn(
+          `Inventory infra unavailable after exception. Continue order ${createdOrder.id}: ${String(error?.message ?? error)}`,
+        );
+        this.logMetric('order.create.inventory_skipped', {
+          branchId: dto.branchId,
+          orderId: createdOrder.id,
+          reason: 'INFRA_UNAVAILABLE',
+        });
+      } else {
+        await this.rollbackOrder(adminClient, createdOrder.id);
+        this.logger.error(
+          'Inventory reservation failed for order ' + createdOrder.id,
+          error,
+        );
+        this.logMetric('order.create.inventory_failed', {
+          branchId: dto.branchId,
+          orderId: createdOrder.id,
+        });
 
-      if (error instanceof BadRequestException) {
-        throw error;
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+
+        throw new BadRequestException(
+          '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
+        );
       }
-
-      throw new BadRequestException(
-        '재고 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.',
-      );
     }
 
     this.logMetric('order.create.success', {
@@ -1217,7 +1394,7 @@ export class PublicOrderService {
 
     return {
       id: createdOrder.id,
-      orderNo: createdOrder.order_no,
+      orderNo: createdOrder.order_no ?? createdOrder.id,
       status: createdOrder.status,
       totalAmount: createdOrder.total_amount,
       createdAt: createdOrder.created_at,
@@ -1230,11 +1407,15 @@ export class PublicOrderService {
    */
   async getOrder(orderIdOrNo: string): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
+    const adminSb = this.supabase.adminClient();
 
-    let { data, error } = await sb
-      .from('orders')
-      .select(
-        `
+    const queryOrder = async (client: any) => {
+      let { data, error } = await this.runOrderSelectWithUnitPriceFallback(
+        (unitPriceColumn) =>
+          client
+            .from('orders')
+            .select(
+              `
         id,
         order_no,
         status,
@@ -1243,21 +1424,24 @@ export class PublicOrderService {
         order_items (
           product_name_snapshot,
           qty,
-          unit_price,
+          ${unitPriceColumn},
           order_item_options (
             option_name_snapshot
           )
         )
       `,
-      )
-      .eq('id', orderIdOrNo)
-      .maybeSingle();
+            )
+            .eq('id', orderIdOrNo)
+            .maybeSingle(),
+      );
 
-    if (!data) {
-      const result = await sb
-        .from('orders')
-        .select(
-          `
+      if (!data) {
+        const result = await this.runOrderSelectWithUnitPriceFallback(
+          (unitPriceColumn) =>
+            client
+              .from('orders')
+              .select(
+                `
           id,
           order_no,
           status,
@@ -1266,18 +1450,31 @@ export class PublicOrderService {
           order_items (
             product_name_snapshot,
             qty,
-            unit_price,
+            ${unitPriceColumn},
             order_item_options (
-              option_name_snapshot
-            )
+            option_name_snapshot
           )
-        `,
         )
-        .eq('order_no', orderIdOrNo)
-        .maybeSingle();
+      `,
+              )
+              .eq('order_no', orderIdOrNo)
+              .maybeSingle(),
+        );
 
-      data = result.data;
-      error = result.error;
+        data = result.data;
+        error = result.error;
+      }
+
+      return { data, error };
+    };
+
+    let { data, error } = await queryOrder(sb);
+    if (!data && this.isUuid(orderIdOrNo)) {
+      const adminResult = await queryOrder(adminSb);
+      if (adminResult.data || adminResult.error) {
+        data = adminResult.data;
+        error = adminResult.error;
+      }
     }
 
     if (error || !data) {
@@ -1286,14 +1483,14 @@ export class PublicOrderService {
 
     return {
       id: data.id,
-      orderNo: data.order_no,
+      orderNo: data.order_no ?? data.id,
       status: data.status,
       totalAmount: data.total_amount,
       createdAt: data.created_at,
-      items: ((data as any).order_items ?? []).map((item: any) => ({
+      items: (data.order_items ?? []).map((item: any) => ({
         productName: item.product_name_snapshot,
         qty: item.qty,
-        unitPrice: item.unit_price,
+        unitPrice: this.getOrderItemUnitPrice(item),
         options: (item.order_item_options ?? []).map(
           (o: any) => o.option_name_snapshot,
         ),

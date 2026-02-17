@@ -83,7 +83,7 @@ export default function BrandOrderPage() {
         <div className="max-w-lg mx-auto p-6">
           <div className="card p-6 text-center" data-testid="branch-selector-error">
             <div className="text-base font-semibold text-foreground mb-1">브랜드를 찾을 수 없습니다.</div>
-            <p className="text-sm text-text-secondary">{error ?? "다시 시도해주세요."}</p>
+            <p className="text-sm text-text-secondary">{error ?? "다시 시도해 주세요."}</p>
           </div>
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function BrandOrderPage() {
             <div>
               <div className="text-2xs text-text-tertiary">브랜드 주문</div>
               <h1 className="text-lg font-bold text-foreground leading-tight">{brandName}</h1>
-              <p className="text-xs text-text-secondary mt-0.5">주문할 지점을 선택해주세요.</p>
+              <p className="text-xs text-text-secondary mt-0.5">주문할 지점을 선택해 주세요.</p>
             </div>
           </div>
         </header>
@@ -139,7 +139,7 @@ export default function BrandOrderPage() {
                 주문 가능한 지점이 없습니다.
               </div>
               <p className="text-sm text-text-secondary">
-                잠시 후 다시 시도하거나 관리자에게 문의해주세요.
+                잠시 후 다시 시도하거나 관리자에게 문의해 주세요.
               </p>
             </div>
           ) : (

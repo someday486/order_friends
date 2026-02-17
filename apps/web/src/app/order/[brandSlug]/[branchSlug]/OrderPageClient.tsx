@@ -223,7 +223,7 @@ export default function OrderPageClient({
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-bg-tertiary flex items-center justify-center text-lg">
-                🏪
+                B
               </div>
             )}
             <div>
@@ -269,7 +269,7 @@ export default function OrderPageClient({
 
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-text-tertiary">
-              <div className="text-3xl mb-3">🍽</div>
+              <div className="text-3xl mb-3">!</div>
               <p>등록된 상품이 없습니다.</p>
             </div>
           ) : (
@@ -285,7 +285,6 @@ export default function OrderPageClient({
               ))}
             </div>
           )}
-
         </main>
 
         {/* Floating Cart Bar with expandable cart */}

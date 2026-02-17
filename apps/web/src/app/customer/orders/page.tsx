@@ -1,20 +1,17 @@
-﻿"use client";
+﻿'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api-client";
-import {
-  formatRelativeTime,
-  formatWon,
-} from "@/lib/format";
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
+import { formatRelativeTime, formatWon } from '@/lib/format';
 import {
   FULFILLMENT_TYPE_LABEL,
   type Branch,
   type FulfillmentType,
   type OrderStatus,
-} from "@/types/common";
-import Modal from "@/components/ui/Modal";
-import { createOrderExportJob, getOrderExportJobStatus } from "@/lib/exports";
+} from '@/types/common';
+import Modal from '@/components/ui/Modal';
+import { createOrderExportJob, getOrderExportJobStatus } from '@/lib/exports';
 
 // ============================================================
 // Types
@@ -57,50 +54,49 @@ type OrderListResponse = {
 // Constants
 // ============================================================
 
-const STATUS_FILTERS: { value: OrderStatus | "ALL"; label: string }[] = [
-  { value: "ALL", label: "?꾩껜" },
-  { value: "CREATED", label: "二쇰Ц?묒닔" },
-  { value: "CONFIRMED", label: "?뺤씤" },
-  { value: "PREPARING", label: "以鍮꾩쨷" },
-  { value: "READY", label: "以鍮꾩셿猷? },
-  { value: "COMPLETED", label: "?꾨즺" },
-  { value: "CANCELLED", label: "痍⑥냼" },
+const STATUS_FILTERS: { value: OrderStatus | 'ALL'; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'CREATED', label: '주문접수' },
+  { value: 'CONFIRMED', label: '확인' },
+  { value: 'PREPARING', label: '준비중' },
+  { value: 'READY', label: '준비완료' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'CANCELLED', label: '취소' },
 ];
 
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  CREATED: "二쇰Ц?묒닔",
-  CONFIRMED: "?뺤씤",
-  PREPARING: "以鍮꾩쨷",
-  READY: "以鍮꾩셿猷?,
-  COMPLETED: "?꾨즺",
-  CANCELLED: "痍⑥냼",
-  REFUNDED: "?섎텋",
+  CREATED: '주문접수',
+  CONFIRMED: '확인',
+  PREPARING: '준비중',
+  READY: '준비완료',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
+  REFUNDED: '환불',
 };
 
 const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
-  CREATED: "bg-blue-500/10 text-blue-500",
-  CONFIRMED: "bg-indigo-500/10 text-indigo-500",
-  PREPARING: "bg-yellow-500/10 text-yellow-600",
-  READY: "bg-green-500/10 text-green-600",
-  COMPLETED: "bg-gray-500/10 text-gray-600",
-  CANCELLED: "bg-red-500/10 text-red-600",
-  REFUNDED: "bg-purple-500/10 text-purple-600",
+  CREATED: 'bg-blue-500/10 text-blue-500',
+  CONFIRMED: 'bg-indigo-500/10 text-indigo-500',
+  PREPARING: 'bg-yellow-500/10 text-yellow-600',
+  READY: 'bg-green-500/10 text-green-600',
+  COMPLETED: 'bg-gray-500/10 text-gray-600',
+  CANCELLED: 'bg-red-500/10 text-red-600',
+  REFUNDED: 'bg-purple-500/10 text-purple-600',
 };
 
-const FULFILLMENT_FILTERS: { value: FulfillmentType | "ALL"; label: string }[] = [
-  { value: "ALL", label: "?꾩껜 諛⑹떇" },
-  { value: "PICKUP", label: "?ъ옣" },
-  { value: "DELIVERY", label: "諛곕떖" },
-  { value: "DINE_IN", label: "留ㅼ옣" },
-];
+const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
+  [
+    { value: 'ALL', label: '전체 방식' },
+    { value: 'PICKUP', label: '포장' },
+    { value: 'DELIVERY', label: '배달' },
+    { value: 'DINE_IN', label: '매장' },
+  ];
 
 const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
-  PICKUP: "bg-blue-500/10 text-blue-500",
-  DELIVERY: "bg-orange-500/10 text-orange-500",
-  DINE_IN: "bg-neutral-500/10 text-neutral-600",
+  PICKUP: 'bg-blue-500/10 text-blue-500',
+  DELIVERY: 'bg-orange-500/10 text-orange-500',
+  DINE_IN: 'bg-neutral-500/10 text-neutral-600',
 };
-
-
 
 // ============================================================
 // Helpers
@@ -119,9 +115,9 @@ function getItemSummary(order: Order): string {
   const itemCount = order.item_count ?? order.itemCount;
 
   if (firstName) {
-    const qtyLabel = firstQty ? `${firstQty}媛? : "1媛?;
+    const qtyLabel = firstQty ? `${firstQty}개` : '1개';
     if (itemCount && itemCount > 1) {
-      return `${firstName} ${qtyLabel} ??${itemCount - 1}媛?;
+      return `${firstName} ${qtyLabel} 외 ${itemCount - 1}개`;
     }
     return `${firstName} ${qtyLabel}`;
   }
@@ -129,26 +125,25 @@ function getItemSummary(order: Order): string {
   const items = order.items ?? order.order_items;
   if (items && items.length > 0) {
     const first = items[0];
-    const qtyLabel = first.qty ? `${first.qty}媛? : "1媛?;
+    const qtyLabel = first.qty ? `${first.qty}개` : '1개';
     if (items.length > 1) {
-      return `${first.name} ${qtyLabel} ??${items.length - 1}媛?;
+      return `${first.name} ${qtyLabel} 외 ${items.length - 1}개`;
     }
     return `${first.name} ${qtyLabel}`;
   }
 
-  if (itemCount) return `珥?${itemCount}媛?;
-  return "-";
+  if (itemCount) return `총 ${itemCount}개`;
+  return '-';
 }
 
 function formatYmdHm(iso: string) {
-  if (!iso) return "-";
+  if (!iso) return '-';
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
 }
-
 
 // ============================================================
 // Sub-components
@@ -172,9 +167,9 @@ function EmptyState() {
           <path d="M9 14l2 2 4-4" />
         </svg>
       </div>
-      <p className="text-foreground font-semibold mb-1">二쇰Ц???놁뒿?덈떎</p>
+      <p className="text-foreground font-semibold mb-1">주문이 없습니다</p>
       <p className="text-sm text-text-tertiary">
-        ?꾪꽣瑜?蹂寃쏀븯嫄곕굹 ??二쇰Ц??湲곕떎?ㅼ＜?몄슂
+        필터를 변경하거나 새 주문을 기다려주세요.
       </p>
     </div>
   );
@@ -192,7 +187,6 @@ function TableRowSkeleton({ cols }: { cols: number }) {
   );
 }
 
-
 // ============================================================
 // Main Component
 // ============================================================
@@ -204,17 +198,17 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [branchFilter, setBranchFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
+  const [branchFilter, setBranchFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
-    FulfillmentType | "ALL"
-  >("ALL");
+    FulfillmentType | 'ALL'
+  >('ALL');
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportDateStart, setExportDateStart] = useState("");
-  const [exportDateEnd, setExportDateEnd] = useState("");
+  const [exportDateStart, setExportDateStart] = useState('');
+  const [exportDateEnd, setExportDateEnd] = useState('');
   const [exporting, setExporting] = useState(false);
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
   const isInvalidExportDateRange = useMemo(() => {
@@ -222,7 +216,7 @@ export default function CustomerOrdersPage() {
     return exportDateEnd < exportDateStart;
   }, [exportDateStart, exportDateEnd]);
 
-  // 吏??ID -> 吏?먮챸 留ㅽ븨
+  // 지점 ID -> 지점명 매핑
   const branchMap = useMemo(() => {
     return new Map(branches.map((b) => [b.id, b.name]));
   }, [branches]);
@@ -231,19 +225,19 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const branchList = await apiClient.get<Branch[]>("/customer/branches");
+        const branchList = await apiClient.get<Branch[]>('/customer/branches');
         setBranches(branchList);
       } catch (e) {
         console.error(e);
       }
     };
 
-    loadBranches();
+    void loadBranches();
   }, []);
 
   useEffect(() => {
-    if (branchFilter !== "ALL" && !isUuidFormat(branchFilter)) {
-      setBranchFilter("ALL");
+    if (branchFilter !== 'ALL' && !isUuidFormat(branchFilter)) {
+      setBranchFilter('ALL');
       setPage(1);
     }
   }, [branchFilter]);
@@ -260,21 +254,23 @@ export default function CustomerOrdersPage() {
           limit: limit.toString(),
         });
 
-        if (branchFilter !== "ALL" && isUuidFormat(branchFilter)) {
-          params.append("branchId", branchFilter);
+        if (branchFilter !== 'ALL' && isUuidFormat(branchFilter)) {
+          params.append('branchId', branchFilter);
         }
 
-        if (statusFilter !== "ALL") {
-          params.append("status", statusFilter);
+        if (statusFilter !== 'ALL') {
+          params.append('status', statusFilter);
         }
-        if (fulfillmentFilter !== "ALL") {
-          params.append("fulfillmentType", fulfillmentFilter);
+        if (fulfillmentFilter !== 'ALL') {
+          params.append('fulfillmentType', fulfillmentFilter);
         }
 
         const data = await apiClient.get<OrderListResponse | Order[]>(
           `/customer/orders?${params.toString()}`,
         );
-        const orderItems = Array.isArray(data) ? data : data.data || data.items || [];
+        const orderItems = Array.isArray(data)
+          ? data
+          : data.data || data.items || [];
         setOrders(orderItems);
         setTotal(
           Array.isArray(data)
@@ -283,37 +279,41 @@ export default function CustomerOrdersPage() {
         );
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "二쇰Ц??遺덈윭?????놁뒿?덈떎");
+        setError(e instanceof Error ? e.message : '주문을 불러올 수 없습니다');
       } finally {
         setLoading(false);
       }
     };
 
-    loadOrders();
+    void loadOrders();
   }, [page, limit, branchFilter, statusFilter, fulfillmentFilter]);
 
   const totalPages = Math.ceil(total / limit);
 
   // Count active orders (not completed/cancelled/refunded)
   const activeCount = orders.filter(
-    (o) => !["COMPLETED", "CANCELLED", "REFUNDED"].includes(o.status),
+    (o) => !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status),
   ).length;
 
   const handleCreateExportJob = async () => {
     if (isInvalidExportDateRange) {
-      alert("醫낅즺?쇱? ?쒖옉?쇰낫??鍮좊? ???놁뒿?덈떎.");
+      alert('종료일은 시작일보다 빠를 수 없습니다.');
       return;
     }
 
     try {
       setExporting(true);
       const createResponse = await createOrderExportJob({
-        format: "csv",
-        scope: "detail",
+        format: 'csv',
+        scope: 'detail',
         filters: {
-          ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
-          ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-          ...(fulfillmentFilter !== "ALL" ? { fulfillmentType: fulfillmentFilter } : {}),
+          ...(branchFilter !== 'ALL' && isUuidFormat(branchFilter)
+            ? { branchId: branchFilter }
+            : {}),
+          ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+          ...(fulfillmentFilter !== 'ALL'
+            ? { fulfillmentType: fulfillmentFilter }
+            : {}),
           ...(exportDateStart ? { dateStart: exportDateStart } : {}),
           ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
         },
@@ -321,7 +321,7 @@ export default function CustomerOrdersPage() {
       const jobId = createResponse.jobId;
 
       if (!jobId) {
-        throw new Error("Export ?묒뾽 ID瑜??뺤씤?????놁뒿?덈떎.");
+        throw new Error('Export 작업 ID를 확인할 수 없습니다.');
       }
 
       const maxAttempts = 30;
@@ -330,13 +330,13 @@ export default function CustomerOrdersPage() {
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         const statusResponse = await getOrderExportJobStatus(jobId);
 
-        if (statusResponse.status === "COMPLETED") {
+        if (statusResponse.status === 'COMPLETED') {
           downloadUrl = statusResponse.downloadUrl ?? null;
           break;
         }
 
-        if (statusResponse.status === "FAILED") {
-          alert(statusResponse.error || "Export ?앹꽦???ㅽ뙣?덉뒿?덈떎.");
+        if (statusResponse.status === 'FAILED') {
+          alert(statusResponse.error || 'Export 생성에 실패했습니다.');
           return;
         }
 
@@ -346,16 +346,16 @@ export default function CustomerOrdersPage() {
       }
 
       if (downloadUrl) {
-        window.open(downloadUrl, "_blank");
+        window.open(downloadUrl, '_blank');
         setShowExportModal(false);
         return;
       }
 
-      alert("?꾩쭅 泥섎━以묒엯?덈떎. ?좎떆 ??Export 紐⑸줉?먯꽌 ?ㅼ슫濡쒕뱶?섏꽭??");
+      alert('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
       setShowExportModal(false);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "Export ?앹꽦???ㅽ뙣?덉뒿?덈떎");
+      alert(e instanceof Error ? e.message : 'Export 생성에 실패했습니다');
     } finally {
       setExporting(false);
     }
@@ -366,21 +366,23 @@ export default function CustomerOrdersPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-        <h1 className="text-2xl font-extrabold text-foreground m-0">二쇰Ц 愿由?/h1>
-        <p className="text-text-secondary mt-1 mb-0 text-[13px]">
-          珥?<span className="font-bold text-foreground">{total}</span>嫄?
-          {activeCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold ml-3">
-              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
-              吏꾪뻾以?{activeCount}嫄?
-            </span>
-          )}
-        </p>
+          <h1 className="text-2xl font-extrabold text-foreground m-0">
+            주문 관리
+          </h1>
+          <p className="text-text-secondary mt-1 mb-0 text-[13px]">
+            총 <span className="font-bold text-foreground">{total}</span>건
+            {activeCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold ml-3">
+                <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
+                진행중 {activeCount}건
+              </span>
+            )}
+          </p>
           <button
             onClick={() => setShowExportModal(true)}
             className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
           >
-            Export ?ㅼ슫濡쒕뱶
+            Export 다운로드
           </button>
         </div>
       </div>
@@ -389,7 +391,7 @@ export default function CustomerOrdersPage() {
       {validBranches.length > 1 && (
         <div className="mb-4">
           <label className="block text-[13px] text-text-secondary mb-2 font-semibold">
-            吏???꾪꽣
+            지점 필터
           </label>
           <select
             value={branchFilter}
@@ -399,7 +401,7 @@ export default function CustomerOrdersPage() {
             }}
             className="input-field max-w-[280px]"
           >
-            <option value="ALL">紐⑤뱺 吏??/option>
+            <option value="ALL">모든 지점</option>
             {validBranches.map((branch) => (
               <option key={branch.id} value={branch.id}>
                 {branch.name}
@@ -425,8 +427,8 @@ export default function CustomerOrdersPage() {
                 border transition-all duration-150 cursor-pointer
                 ${
                   isActive
-                    ? "bg-foreground text-background border-foreground font-bold"
-                    : "bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary"
+                    ? 'bg-foreground text-background border-foreground font-bold'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
                 }
               `}
             >
@@ -452,8 +454,8 @@ export default function CustomerOrdersPage() {
                 border transition-all duration-150 cursor-pointer
                 ${
                   isActive
-                    ? "bg-foreground text-background border-foreground font-bold"
-                    : "bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary"
+                    ? 'bg-foreground text-background border-foreground font-bold'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
                 }
               `}
             >
@@ -476,21 +478,40 @@ export default function CustomerOrdersPage() {
           <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">二쇰Ц踰덊샇</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">怨좉컼紐?/th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">?곹뭹</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문번호
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  고객명
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상품
+                </th>
                 {validBranches.length > 1 && (
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">吏??/th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                    지점
+                  </th>
                 )}
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문 방식</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">?곹깭</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">湲덉븸</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">二쇰Ц?쒓컙</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문 방식
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상태
+                </th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  금액
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문시간
+                </th>
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: 5 }).map((_, index) => (
-                <TableRowSkeleton key={index} cols={validBranches.length > 1 ? 8 : 7} />
+                <TableRowSkeleton
+                  key={index}
+                  cols={validBranches.length > 1 ? 8 : 7}
+                />
               ))}
             </tbody>
           </table>
@@ -502,30 +523,48 @@ export default function CustomerOrdersPage() {
           <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">二쇰Ц踰덊샇</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">怨좉컼紐?/th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">?곹뭹</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문번호
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  고객명
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상품
+                </th>
                 {validBranches.length > 1 && (
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">吏??/th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                    지점
+                  </th>
                 )}
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문 방식</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">?곹깭</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">湲덉븸</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">二쇰Ц?쒓컙</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문 방식
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상태
+                </th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  금액
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문시간
+                </th>
               </tr>
             </thead>
             <tbody>
               {orders.map((order) => {
                 const itemSummary = getItemSummary(order);
-                const fullItemsSummary = order.itemsSummary ?? order.items_summary;
+                const fullItemsSummary =
+                  order.itemsSummary ?? order.items_summary;
 
-                // 吏??ID 異붿텧 (snake_case ?먮뒗 camelCase)
+                // 지점 ID 추출 (snake_case 또는 camelCase)
                 const branchId = order.branch_id ?? order.branchId;
-                // 吏?먮챸 留ㅽ븨 (branchMap -> order.branchName -> "-")
+                // 지점명 매핑 (branchMap -> order.branchName -> "-")
                 const branchName = branchId
-                  ? (branchMap.get(branchId) ?? order.branchName ?? "-")
-                  : (order.branchName ?? "-");
-                const fulfillmentType = order.fulfillmentType ?? order.fulfillment_type;
+                  ? (branchMap.get(branchId) ?? order.branchName ?? '-')
+                  : (order.branchName ?? '-');
+                const fulfillmentType =
+                  order.fulfillmentType ?? order.fulfillment_type;
 
                 return (
                   <tr
@@ -539,7 +578,7 @@ export default function CustomerOrdersPage() {
                       </span>
                     </td>
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      {order.customerName || "-"}
+                      {order.customerName || '-'}
                     </td>
                     <td
                       className="py-3 px-3.5 text-[13px] text-text-secondary relative group"
@@ -549,7 +588,7 @@ export default function CustomerOrdersPage() {
                         }
                       }}
                     >
-                      <span className={fullItemsSummary ? "cursor-help" : ""}>
+                      <span className={fullItemsSummary ? 'cursor-help' : ''}>
                         {itemSummary}
                       </span>
                       {fullItemsSummary && (
@@ -565,15 +604,19 @@ export default function CustomerOrdersPage() {
                     )}
                     <td className="py-3 px-3.5 text-[13px]">
                       {fulfillmentType ? (
-                        <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${FULFILLMENT_BADGE_CLASS[fulfillmentType]}`}>
+                        <span
+                          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${FULFILLMENT_BADGE_CLASS[fulfillmentType]}`}
+                        >
                           {FULFILLMENT_TYPE_LABEL[fulfillmentType]}
                         </span>
                       ) : (
-                        "-"
+                        '-'
                       )}
                     </td>
                     <td className="py-3 px-3.5 text-[13px]">
-                      <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}>
+                      <span
+                        className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
+                      >
                         {ORDER_STATUS_LABEL[order.status]}
                       </span>
                     </td>
@@ -630,8 +673,8 @@ export default function CustomerOrdersPage() {
                   onClick={() => setPage(pageNum)}
                   className={`w-9 h-9 rounded-full text-sm font-bold cursor-pointer transition-all duration-150 ${
                     page === pageNum
-                      ? "bg-foreground text-background"
-                      : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                      ? 'bg-foreground text-background'
+                      : 'border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
                   }`}
                 >
                   {pageNum}
@@ -659,32 +702,36 @@ export default function CustomerOrdersPage() {
 
       <Modal
         open={showExportModal}
-        title="Export ?ㅼ슫濡쒕뱶"
+        title="Export 다운로드"
         onClose={() => {
           if (!exporting) setShowExportModal(false);
         }}
-        footer={(
+        footer={
           <>
             <button
               onClick={() => setShowExportModal(false)}
               disabled={exporting}
               className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
             >
-              痍⑥냼
+              취소
             </button>
             <button
-              onClick={handleCreateExportJob}
+              onClick={() => {
+                void handleCreateExportJob();
+              }}
               disabled={exporting || isInvalidExportDateRange}
               className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
             >
-              {exporting ? "?앹꽦 以?.." : "Export ?앹꽦"}
+              {exporting ? '생성 중...' : 'Export 생성'}
             </button>
           </>
-        )}
+        }
       >
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-text-secondary mb-1">?쒖옉??(dateStart)</label>
+            <label className="block text-xs text-text-secondary mb-1">
+              시작일 (dateStart)
+            </label>
             <input
               type="date"
               value={exportDateStart}
@@ -693,7 +740,9 @@ export default function CustomerOrdersPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-text-secondary mb-1">醫낅즺??(dateEnd)</label>
+            <label className="block text-xs text-text-secondary mb-1">
+              종료일 (dateEnd)
+            </label>
             <input
               type="date"
               value={exportDateEnd}
@@ -703,13 +752,12 @@ export default function CustomerOrdersPage() {
             />
           </div>
           {isInvalidExportDateRange && (
-            <p className="text-xs text-danger-500">醫낅즺?쇱? ?쒖옉?쇰낫??鍮좊? ???놁뒿?덈떎.</p>
+            <p className="text-xs text-danger-500">
+              종료일은 시작일보다 빠를 수 없습니다.
+            </p>
           )}
         </div>
       </Modal>
     </div>
   );
 }
-
-
-

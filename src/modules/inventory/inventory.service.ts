@@ -14,6 +14,7 @@ import {
   UpdateInventoryRequest,
   AdjustInventoryRequest,
   BulkAdjustInventoryRequest,
+  BulkDeactivateInventoryRequest,
   InventoryListResponse,
   InventoryDetailResponse,
   InventoryAlertResponse,
@@ -66,6 +67,16 @@ export class InventoryService {
     }
 
     throw new ForbiddenException('You do not have access to this branch');
+  }
+
+  private isNoRowsError(error: any): boolean {
+    if (!error) return false;
+    const message = String(error?.message ?? '').toLowerCase();
+    return (
+      error?.code === 'PGRST116' ||
+      message.includes('0 rows') ||
+      message.includes('no rows')
+    );
   }
 
   /**
@@ -663,6 +674,162 @@ export class InventoryService {
     );
 
     return { total: results.length, successful: successCount, results };
+  }
+
+  /**
+   * POST /customer/inventory/bulk-deactivate - Bulk deactivate inventory tracking
+   */
+  async bulkDeactivateInventory(
+    userId: string,
+    dto: BulkDeactivateInventoryRequest,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    this.logger.log(
+      `Bulk deactivating ${dto.items.length} inventory items by user ${userId}`,
+    );
+
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('At least one item is required');
+    }
+
+    const results: {
+      productId: string;
+      branchId: string;
+      success: boolean;
+      alreadyInactive?: boolean;
+      error?: string;
+    }[] = [];
+
+    const branchIds = [...new Set(dto.items.map((item) => item.branchId))];
+    for (const branchId of branchIds) {
+      const { role } = await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
+      this.checkModificationPermission(
+        role,
+        'bulk deactivate inventory',
+        userId,
+      );
+    }
+
+    const sb = this.supabase.adminClient();
+
+    for (const item of dto.items) {
+      try {
+        const { data: product, error: productError } = await sb
+          .from('products')
+          .select('id, branch_id')
+          .eq('id', item.productId)
+          .single();
+
+        if (productError || !product) {
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: 'Product not found',
+          });
+          continue;
+        }
+
+        if (product.branch_id !== item.branchId) {
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: 'Product does not belong to branch',
+          });
+          continue;
+        }
+
+        const { data: inventory, error: inventoryError } = await sb
+          .from('product_inventory')
+          .select('id, qty_available')
+          .eq('product_id', item.productId)
+          .eq('branch_id', item.branchId)
+          .single();
+
+        if (inventoryError || !inventory) {
+          if (this.isNoRowsError(inventoryError)) {
+            results.push({
+              productId: item.productId,
+              branchId: item.branchId,
+              success: true,
+              alreadyInactive: true,
+            });
+            continue;
+          }
+
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: inventoryError?.message ?? 'Failed to fetch inventory',
+          });
+          continue;
+        }
+
+        const { error: deleteError } = await sb
+          .from('product_inventory')
+          .delete()
+          .eq('id', inventory.id);
+
+        if (deleteError) {
+          results.push({
+            productId: item.productId,
+            branchId: item.branchId,
+            success: false,
+            error: deleteError.message,
+          });
+          continue;
+        }
+
+        const qtyBefore = Number(inventory.qty_available ?? 0);
+        await this.createInventoryLog(
+          item.productId,
+          item.branchId,
+          'ADJUSTMENT',
+          -qtyBefore,
+          qtyBefore,
+          0,
+          userId,
+          dto.notes || 'Inventory tracking deactivated',
+        );
+
+        results.push({
+          productId: item.productId,
+          branchId: item.branchId,
+          success: true,
+        });
+      } catch (err: any) {
+        results.push({
+          productId: item.productId,
+          branchId: item.branchId,
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    const successCount = results.filter((result) => result.success).length;
+    const alreadyInactiveCount = results.filter(
+      (result) => result.alreadyInactive,
+    ).length;
+
+    this.logger.log(
+      `Bulk deactivate complete: ${successCount}/${results.length} successful`,
+    );
+
+    return {
+      total: results.length,
+      successful: successCount,
+      alreadyInactive: alreadyInactiveCount,
+      results,
+    };
   }
 
   /**

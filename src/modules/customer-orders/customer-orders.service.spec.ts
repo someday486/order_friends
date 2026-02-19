@@ -600,9 +600,7 @@ describe('CustomerOrdersService', () => {
     ).rejects.toThrow('Failed to fetch orders');
   });
 
-
-
-  it('getMyOrders should apply created_at date filters with inclusive dateEnd', async () => {
+  it('getMyOrders should apply fulfillmentType filter', async () => {
     branchesChain.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },
       error: null,
@@ -611,26 +609,24 @@ describe('CustomerOrdersService', () => {
     ordersChain.in
       .mockReturnValueOnce(ordersChain)
       .mockReturnValueOnce(ordersChain);
-    ordersChain.gte
-      .mockReturnValueOnce(ordersChain)
-      .mockReturnValueOnce(ordersChain);
-    ordersChain.lt
+    ordersChain.eq
       .mockResolvedValueOnce({ count: 1, error: null })
-      .mockReturnValueOnce(ordersChain);
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'o1',
+            status: OrderStatus.CREATED,
+            created_at: '2026-02-18T10:00:00.000Z',
+            total_amount: 10,
+            branch_id: 'b1',
+            branches: { name: 'Gangnam' },
+            fulfillment_type: 'DELIVERY',
+          },
+        ],
+        error: null,
+      });
     ordersChain.order.mockReturnValueOnce(ordersChain);
-    ordersChain.range.mockResolvedValueOnce({
-      data: [
-        {
-          id: 'o1',
-          status: OrderStatus.CREATED,
-          created_at: '2026-02-18T10:00:00.000Z',
-          total_amount: 10,
-          branch_id: 'b1',
-          branches: { name: '강남점' },
-        },
-      ],
-      error: null,
-    });
+    ordersChain.range.mockReturnValueOnce(ordersChain);
 
     const result = await service.getMyOrders(
       'user-1',
@@ -639,19 +635,12 @@ describe('CustomerOrdersService', () => {
       [{ branch_id: 'b1', role: 'OWNER' }],
       { page: 1, limit: 10 },
       undefined,
-      '2026-02-17',
-      '2026-02-18',
+      'DELIVERY',
     );
 
     expect(result.data).toHaveLength(1);
-    expect(ordersChain.gte).toHaveBeenCalledWith(
-      'created_at',
-      '2026-02-17T00:00:00.000Z',
-    );
-    expect(ordersChain.lt).toHaveBeenCalledWith(
-      'created_at',
-      '2026-02-19T00:00:00.000Z',
-    );
+    expect(result.data[0].fulfillmentType).toBe('DELIVERY');
+    expect(ordersChain.eq).toHaveBeenCalledWith('fulfillment_type', 'DELIVERY');
   });
   it('checkOrderAccess should throw when order not found', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });

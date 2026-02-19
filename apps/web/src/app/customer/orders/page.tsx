@@ -10,7 +10,6 @@ import {
   type FulfillmentType,
   type OrderStatus,
 } from '@/types/common';
-import Modal from '@/components/ui/Modal';
 import { createOrderExportJob, getOrderExportJobStatus } from '@/lib/exports';
 
 // ============================================================
@@ -213,29 +212,41 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filters (applied on search button click)
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
     FulfillmentType | 'ALL'
   >('ALL');
+
+  // Date range: input (staged) vs applied (active)
+  const [dateStartInput, setDateStartInput] = useState('');
+  const [dateEndInput, setDateEndInput] = useState('');
+  const [appliedDateStart, setAppliedDateStart] = useState('');
+  const [appliedDateEnd, setAppliedDateEnd] = useState('');
+
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportDateStart, setExportDateStart] = useState('');
-  const [exportDateEnd, setExportDateEnd] = useState('');
+
+  // Export
+  const [exportFormat, setExportFormat] = useState<'csv' | 'xlsx'>('csv');
   const [exporting, setExporting] = useState(false);
+
+  // Bulk update
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
   const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
-  const isInvalidExportDateRange = useMemo(() => {
-    if (!exportDateStart || !exportDateEnd) return false;
-    return exportDateEnd < exportDateStart;
-  }, [exportDateStart, exportDateEnd]);
+
+  const isInvalidDateRange = useMemo(() => {
+    if (!dateStartInput || !dateEndInput) return false;
+    return dateEndInput < dateStartInput;
+  }, [dateStartInput, dateEndInput]);
 
   // 지점 ID -> 지점명 매핑
   const branchMap = useMemo(() => {
@@ -263,7 +274,7 @@ export default function CustomerOrdersPage() {
     }
   }, [branchFilter]);
 
-  // Load orders
+  // Load orders — fires on status/fulfillment chip clicks and on 조회 button (via appliedDate* / reloadToken)
   useEffect(() => {
     const loadOrders = async () => {
       try {
@@ -278,12 +289,17 @@ export default function CustomerOrdersPage() {
         if (branchFilter !== 'ALL' && isUuidFormat(branchFilter)) {
           params.append('branchId', branchFilter);
         }
-
         if (statusFilter !== 'ALL') {
           params.append('status', statusFilter);
         }
         if (fulfillmentFilter !== 'ALL') {
           params.append('fulfillmentType', fulfillmentFilter);
+        }
+        if (appliedDateStart) {
+          params.append('dateStart', appliedDateStart);
+        }
+        if (appliedDateEnd) {
+          params.append('dateEnd', appliedDateEnd);
         }
 
         const data = await apiClient.get<OrderListResponse | Order[]>(
@@ -314,17 +330,32 @@ export default function CustomerOrdersPage() {
     };
 
     void loadOrders();
-  }, [page, limit, branchFilter, statusFilter, fulfillmentFilter, reloadToken]);
+  }, [
+    page,
+    limit,
+    branchFilter,
+    statusFilter,
+    fulfillmentFilter,
+    appliedDateStart,
+    appliedDateEnd,
+    reloadToken,
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 
-  // Count active orders (not completed/cancelled/refunded)
   const activeCount = orders.filter(
     (o) => !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status),
   ).length;
   const selectedCount = selectedOrderIds.size;
   const allVisibleSelected =
     orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
+
+  // 조회 버튼: staged 날짜를 applied로 반영 + page 1
+  const handleApplyFilter = () => {
+    setAppliedDateStart(dateStartInput);
+    setAppliedDateEnd(dateEndInput);
+    setPage(1);
+  };
 
   const toggleSelectAllVisible = (checked: boolean) => {
     setSelectedOrderIds((prev) => {
@@ -375,16 +406,11 @@ export default function CustomerOrdersPage() {
     }
   };
 
-  const handleCreateExportJob = async () => {
-    if (isInvalidExportDateRange) {
-      alert('종료일은 시작일보다 빠를 수 없습니다.');
-      return;
-    }
-
+  const handleDownload = async () => {
     try {
       setExporting(true);
       const createResponse = await createOrderExportJob({
-        format: 'csv',
+        format: exportFormat,
         scope: 'detail',
         filters: {
           ...(branchFilter !== 'ALL' && isUuidFormat(branchFilter)
@@ -394,8 +420,8 @@ export default function CustomerOrdersPage() {
           ...(fulfillmentFilter !== 'ALL'
             ? { fulfillmentType: fulfillmentFilter }
             : {}),
-          ...(exportDateStart ? { dateStart: exportDateStart } : {}),
-          ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
+          ...(appliedDateStart ? { dateStart: appliedDateStart } : {}),
+          ...(appliedDateEnd ? { dateEnd: appliedDateEnd } : {}),
         },
       });
       const jobId = createResponse.jobId;
@@ -427,12 +453,10 @@ export default function CustomerOrdersPage() {
 
       if (downloadUrl) {
         window.open(downloadUrl, '_blank');
-        setShowExportModal(false);
         return;
       }
 
-      alert('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
-      setShowExportModal(false);
+      alert('아직 처리중입니다. 잠시 후 다시 시도해 주세요.');
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : 'Export 생성에 실패했습니다');
@@ -444,7 +468,7 @@ export default function CustomerOrdersPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-foreground m-0">
             주문 관리
@@ -458,28 +482,20 @@ export default function CustomerOrdersPage() {
               </span>
             )}
           </p>
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
-          >
-            Export 다운로드
-          </button>
         </div>
       </div>
 
-      {/* Branch filter (dropdown) */}
-      {validBranches.length > 1 && (
-        <div className="mb-4">
-          <label className="block text-[13px] text-text-secondary mb-2 font-semibold">
-            지점 필터
-          </label>
+      {/* Filter toolbar */}
+      <div className="flex flex-wrap items-end gap-2 mb-4 p-3 rounded-xl border border-border bg-bg-secondary">
+        {/* Branch dropdown (only shown when multiple branches) */}
+        {validBranches.length > 1 && (
           <select
             value={branchFilter}
             onChange={(e) => {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="input-field max-w-[280px]"
+            className="input-field h-9 text-sm min-w-[140px] max-w-[200px]"
           >
             <option value="ALL">모든 지점</option>
             {validBranches.map((branch) => (
@@ -488,11 +504,74 @@ export default function CustomerOrdersPage() {
               </option>
             ))}
           </select>
+        )}
+
+        {/* Date range */}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={dateStartInput}
+            onChange={(e) => setDateStartInput(e.target.value)}
+            className="input-field h-9 text-sm w-[140px]"
+            placeholder="시작일"
+          />
+          <span className="text-text-tertiary text-sm select-none">~</span>
+          <input
+            type="date"
+            value={dateEndInput}
+            min={dateStartInput || undefined}
+            onChange={(e) => setDateEndInput(e.target.value)}
+            className="input-field h-9 text-sm w-[140px]"
+            placeholder="종료일"
+          />
         </div>
-      )}
+
+        {/* 조회 button */}
+        <button
+          type="button"
+          onClick={handleApplyFilter}
+          disabled={isInvalidDateRange}
+          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity"
+        >
+          조회
+        </button>
+
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-7 bg-border mx-1" />
+
+        {/* Export format + download */}
+        <div className="flex items-center gap-1.5">
+          <select
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as 'csv' | 'xlsx')}
+            disabled={exporting}
+            className="input-field h-9 text-sm w-[90px]"
+          >
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              void handleDownload();
+            }}
+            disabled={exporting}
+            className="h-9 px-3 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium disabled:opacity-50 hover:bg-bg-tertiary/80 transition-colors whitespace-nowrap"
+          >
+            {exporting ? '다운로드 중...' : '다운로드'}
+          </button>
+        </div>
+
+        {/* Date range validation message */}
+        {isInvalidDateRange && (
+          <p className="w-full mt-0.5 text-xs text-danger-500">
+            종료일은 시작일보다 빠를 수 없습니다.
+          </p>
+        )}
+      </div>
 
       {/* Status filter chips */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-4">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-3">
         {STATUS_FILTERS.map((opt) => {
           const isActive = statusFilter === opt.value;
           return (
@@ -552,6 +631,7 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
+      {/* Bulk update panel */}
       {orders.length > 0 && (
         <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -694,9 +774,7 @@ export default function CustomerOrdersPage() {
                 const fullItemsSummary =
                   order.itemsSummary ?? order.items_summary;
 
-                // 지점 ID 추출 (snake_case 또는 camelCase)
                 const branchId = order.branch_id ?? order.branchId;
-                // 지점명 매핑 (branchMap -> order.branchName -> "-")
                 const branchName = branchId
                   ? (branchMap.get(branchId) ?? order.branchName ?? '-')
                   : (order.branchName ?? '-');
@@ -856,65 +934,6 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
       )}
-
-      <Modal
-        open={showExportModal}
-        title="Export 다운로드"
-        onClose={() => {
-          if (!exporting) setShowExportModal(false);
-        }}
-        footer={
-          <>
-            <button
-              onClick={() => setShowExportModal(false)}
-              disabled={exporting}
-              className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
-            >
-              취소
-            </button>
-            <button
-              onClick={() => {
-                void handleCreateExportJob();
-              }}
-              disabled={exporting || isInvalidExportDateRange}
-              className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
-            >
-              {exporting ? '생성 중...' : 'Export 생성'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              시작일 (dateStart)
-            </label>
-            <input
-              type="date"
-              value={exportDateStart}
-              onChange={(e) => setExportDateStart(e.target.value)}
-              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              종료일 (dateEnd)
-            </label>
-            <input
-              type="date"
-              value={exportDateEnd}
-              onChange={(e) => setExportDateEnd(e.target.value)}
-              min={exportDateStart || undefined}
-              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            />
-          </div>
-          {isInvalidExportDateRange && (
-            <p className="text-xs text-danger-500">
-              종료일은 시작일보다 빠를 수 없습니다.
-            </p>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }

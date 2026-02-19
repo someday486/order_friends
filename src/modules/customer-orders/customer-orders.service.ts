@@ -202,6 +202,15 @@ export class CustomerOrdersService {
   }
 
   /**
+   * YYYY-MM-DD → 다음날 00:00:00.000Z (lt 조건용)
+   */
+  private addOneDayUtc(dateYmd: string): string {
+    const d = new Date(`${dateYmd}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString();
+  }
+
+  /**
    * 내 지점의 주문 목록 조회 (페이지네이션 지원)
    */
   async getMyOrders(
@@ -212,6 +221,8 @@ export class CustomerOrdersService {
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
     fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
+    dateStart?: string,
+    dateEnd?: string,
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -252,6 +263,12 @@ export class CustomerOrdersService {
     if (fulfillmentType) {
       countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
     }
+    if (dateStart) {
+      countQuery = countQuery.gte('created_at', `${dateStart}T00:00:00.000Z`);
+    }
+    if (dateEnd) {
+      countQuery = countQuery.lt('created_at', this.addOneDayUtc(dateEnd));
+    }
 
     const { count, error: countError } = await countQuery;
 
@@ -275,6 +292,12 @@ export class CustomerOrdersService {
     }
     if (fulfillmentType) {
       dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
+    }
+    if (dateStart) {
+      dataQuery = dataQuery.gte('created_at', `${dateStart}T00:00:00.000Z`);
+    }
+    if (dateEnd) {
+      dataQuery = dataQuery.lt('created_at', this.addOneDayUtc(dateEnd));
     }
 
     const { data, error } = await dataQuery;

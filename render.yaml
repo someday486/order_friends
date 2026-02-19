@@ -1,0 +1,25 @@
+﻿services:
+  - type: web
+    name: orderfriends-api-free
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: TOSS_SECRET_KEY
+        sync: false
+      - key: TOSS_CLIENT_KEY
+        sync: false

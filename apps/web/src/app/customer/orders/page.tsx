@@ -1,16 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import {
-  formatDateTime,
   formatRelativeTime,
   formatWon,
 } from "@/lib/format";
 import type { Branch, OrderStatus } from "@/types/common";
-import Modal from "@/components/ui/Modal";
-import { createOrderExportJob, getOrderExportJobStatus } from "@/lib/exports";
+import { createOrderExportJob } from "@/lib/exports";
 
 // ============================================================
 // Types
@@ -124,142 +122,6 @@ function getItemSummary(order: Order): string {
   return "-";
 }
 
-function escapeCSVField(value: string | number): string {
-  const str = String(value);
-  // 쉼표, 줄바꿈, 따옴표가 있으면 따옴표로 감싸기
-  if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-function downloadCSV(orders: Order[], branchMap: Map<string, string>) {
-  if (orders.length === 0) return;
-
-  // CSV 헤더
-  const headers = [
-    "주문번호",
-    "지점명",
-    "주문일시",
-    "고객명",
-    "상태",
-    "결제금액",
-    "상품",
-  ];
-
-  // CSV 행 생성
-  const rows = orders.map((order) => {
-    // 지점명 매핑
-    const branchId = order.branch_id ?? order.branchId;
-    const branchName = branchId
-      ? (branchMap.get(branchId) ?? order.branchName ?? "-")
-      : (order.branchName ?? "-");
-
-    // 상품 정보: itemsSummary 우선, 없으면 getItemSummary fallback
-    const itemsSummary = order.itemsSummary ?? order.items_summary;
-    const itemsForDownload = itemsSummary || getItemSummary(order);
-
-    return [
-      escapeCSVField(order.orderNo ?? order.id.slice(0, 8)),
-      escapeCSVField(branchName),
-      escapeCSVField(formatYmdHm(order.orderedAt)),
-      escapeCSVField(order.customerName || "-"),
-      escapeCSVField(ORDER_STATUS_LABEL[order.status]),
-      escapeCSVField(order.totalAmount),
-      escapeCSVField(itemsForDownload),
-    ].join(",");
-  });
-
-  // UTF-8 BOM + 헤더 + 데이터
-  const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
-
-  // Blob 생성 및 다운로드
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-
-  // 파일명: orders_YYYYMMDD_HHmm.csv
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  const filename = `orders_${year}${month}${day}_${hour}${minute}.csv`;
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-async function downloadExcel(orders: Order[], branchMap: Map<string, string>) {
-  if (orders.length === 0) return;
-
-  // Dynamic import로 번들 사이즈 최적화
-  const XLSX = await import("xlsx");
-
-  // 엑셀 데이터 생성
-  const data = [
-    // 헤더
-    ["주문번호", "지점명", "주문일시", "고객명", "상태", "결제금액", "상품"],
-    // 데이터 행
-    ...orders.map((order) => {
-      // 지점명 매핑
-      const branchId = order.branch_id ?? order.branchId;
-      const branchName = branchId
-        ? (branchMap.get(branchId) ?? order.branchName ?? "-")
-        : (order.branchName ?? "-");
-
-      // 상품 정보: itemsSummary 우선, 없으면 getItemSummary fallback
-      const itemsSummary = order.itemsSummary ?? order.items_summary;
-      const itemsForDownload = itemsSummary || getItemSummary(order);
-
-      return [
-        order.orderNo ?? order.id.slice(0, 8),
-        branchName,
-        formatYmdHm(order.orderedAt),
-        order.customerName || "-",
-        ORDER_STATUS_LABEL[order.status],
-        order.totalAmount,
-        itemsForDownload,
-      ];
-    }),
-  ];
-
-  // 워크시트 생성
-  const worksheet = XLSX.utils.aoa_to_sheet(data);
-
-  // 컬럼 너비 설정 (선택사항)
-  worksheet["!cols"] = [
-    { wch: 18 }, // 주문번호
-    { wch: 12 }, // 지점명
-    { wch: 16 }, // 주문일시
-    { wch: 12 }, // 고객명
-    { wch: 10 }, // 상태
-    { wch: 12 }, // 결제금액
-    { wch: 35 }, // 상품 (itemsSummary 때문에 더 넓게)
-  ];
-
-  // 워크북 생성
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "주문목록");
-
-  // 파일명: orders_YYYYMMDD_HHmm.xlsx
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  const filename = `orders_${year}${month}${day}_${hour}${minute}.xlsx`;
-
-  // 파일 다운로드
-  XLSX.writeFile(workbook, filename);
-}
-
 function formatYmdHm(iso: string) {
   if (!iso) return "-";
   const d = new Date(iso);
@@ -267,6 +129,15 @@ function formatYmdHm(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
+}
+
+function addDaysYmd(ymd: string, days: number) {
+  const date = new Date(`${ymd}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 
@@ -329,15 +200,18 @@ export default function CustomerOrdersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportDateStart, setExportDateStart] = useState("");
-  const [exportDateEnd, setExportDateEnd] = useState("");
+  const [dateStartInput, setDateStartInput] = useState("");
+  const [dateEndInput, setDateEndInput] = useState("");
+  const [appliedDateStart, setAppliedDateStart] = useState("");
+  const [appliedDateEnd, setAppliedDateEnd] = useState("");
+  const [filterVersion, setFilterVersion] = useState(0);
+  const [downloadFormat, setDownloadFormat] = useState<"csv" | "xlsx">("csv");
   const [exporting, setExporting] = useState(false);
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
-  const isInvalidExportDateRange = useMemo(() => {
-    if (!exportDateStart || !exportDateEnd) return false;
-    return exportDateEnd < exportDateStart;
-  }, [exportDateStart, exportDateEnd]);
+  const isInvalidDateRange = useMemo(() => {
+    if (!dateStartInput || !dateEndInput) return false;
+    return dateEndInput < dateStartInput;
+  }, [dateStartInput, dateEndInput]);
 
   // 지점 ID → 지점명 매핑
   const branchMap = useMemo(() => {
@@ -385,6 +259,14 @@ export default function CustomerOrdersPage() {
           params.append("status", statusFilter);
         }
 
+        if (appliedDateStart) {
+          params.append("dateStart", appliedDateStart);
+        }
+
+        if (appliedDateEnd) {
+          params.append("dateEnd", addDaysYmd(appliedDateEnd, 1));
+        }
+
         const data = await apiClient.get<OrderListResponse | Order[]>(
           `/customer/orders?${params.toString()}`,
         );
@@ -404,7 +286,7 @@ export default function CustomerOrdersPage() {
     };
 
     loadOrders();
-  }, [page, limit, branchFilter, statusFilter]);
+  }, [page, limit, branchFilter, statusFilter, appliedDateStart, appliedDateEnd, filterVersion]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -414,64 +296,47 @@ export default function CustomerOrdersPage() {
   ).length;
 
   const handleCreateExportJob = async () => {
-    if (isInvalidExportDateRange) {
+    if (isInvalidDateRange) {
       alert("종료일은 시작일보다 빠를 수 없습니다.");
       return;
     }
 
     try {
       setExporting(true);
-      const createResponse = await createOrderExportJob({
-        format: "csv",
+      const completedJob = await createOrderExportJob({
+        format: downloadFormat,
         scope: "detail",
         filters: {
           ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
           ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-          ...(exportDateStart ? { dateStart: exportDateStart } : {}),
-          ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
+          ...(appliedDateStart ? { dateStart: appliedDateStart } : {}),
+          ...(appliedDateEnd ? { dateEnd: addDaysYmd(appliedDateEnd, 1) } : {}),
         },
       });
-      const jobId = createResponse.jobId || createResponse.id;
 
-      if (!jobId) {
-        throw new Error("Export 작업 ID를 확인할 수 없습니다.");
+      if (completedJob.downloadUrl) {
+        window.location.href = completedJob.downloadUrl;
+      } else {
+        alert("아직 처리중입니다. 잠시 후 Export 목록에서 다운로드하세요.");
       }
-
-      const maxAttempts = 30;
-      let downloadUrl: string | null = null;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const statusResponse = await getOrderExportJobStatus(jobId);
-
-        if (statusResponse.status === "COMPLETED") {
-          downloadUrl = statusResponse.downloadUrl ?? null;
-          break;
-        }
-
-        if (statusResponse.status === "FAILED") {
-          alert(statusResponse.error || "Export 생성에 실패했습니다.");
-          return;
-        }
-
-        if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      }
-
-      if (downloadUrl) {
-        window.open(downloadUrl, "_blank");
-        setShowExportModal(false);
-        return;
-      }
-
-      alert("아직 처리중입니다. 잠시 후 Export 목록에서 다운로드하세요.");
-      setShowExportModal(false);
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : "Export 생성에 실패했습니다");
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleApplyFilters = () => {
+    if (isInvalidDateRange) {
+      alert("종료일은 시작일보다 빠를 수 없습니다.");
+      return;
+    }
+
+    setAppliedDateStart(dateStartInput);
+    setAppliedDateEnd(dateEndInput);
+    setPage(1);
+    setFilterVersion((prev) => prev + 1);
   };
 
   return (
@@ -489,12 +354,23 @@ export default function CustomerOrdersPage() {
             </span>
           )}
         </p>
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
-          >
-            Export 다운로드
-          </button>
+          <div className="flex items-center gap-2 mt-3">
+            <select
+              value={downloadFormat}
+              onChange={(e) => setDownloadFormat(e.target.value as "csv" | "xlsx")}
+              className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            >
+              <option value="csv">CSV</option>
+              <option value="xlsx">Excel</option>
+            </select>
+            <button
+              onClick={handleCreateExportJob}
+              disabled={exporting}
+              className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+            >
+              {exporting ? "생성 중..." : "Export 다운로드"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -547,6 +423,38 @@ export default function CustomerOrdersPage() {
             </button>
           );
         })}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-[13px] text-text-secondary mb-1 font-semibold">시작일</label>
+          <input
+            type="date"
+            value={dateStartInput}
+            onChange={(e) => setDateStartInput(e.target.value)}
+            className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+          />
+        </div>
+        <div>
+          <label className="block text-[13px] text-text-secondary mb-1 font-semibold">종료일</label>
+          <input
+            type="date"
+            value={dateEndInput}
+            onChange={(e) => setDateEndInput(e.target.value)}
+            min={dateStartInput || undefined}
+            className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+          />
+        </div>
+        <button
+          onClick={handleApplyFilters}
+          disabled={isInvalidDateRange}
+          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+        >
+          조회
+        </button>
+        {isInvalidDateRange && (
+          <p className="text-xs text-danger-500">종료일은 시작일보다 빠를 수 없습니다.</p>
+        )}
       </div>
 
       {/* Error */}
@@ -730,57 +638,6 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
       )}
-
-      <Modal
-        open={showExportModal}
-        title="Export 다운로드"
-        onClose={() => {
-          if (!exporting) setShowExportModal(false);
-        }}
-        footer={(
-          <>
-            <button
-              onClick={() => setShowExportModal(false)}
-              disabled={exporting}
-              className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
-            >
-              취소
-            </button>
-            <button
-              onClick={handleCreateExportJob}
-              disabled={exporting || isInvalidExportDateRange}
-              className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
-            >
-              {exporting ? "생성 중..." : "Export 생성"}
-            </button>
-          </>
-        )}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">시작일 (dateStart)</label>
-            <input
-              type="date"
-              value={exportDateStart}
-              onChange={(e) => setExportDateStart(e.target.value)}
-              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">종료일 (dateEnd)</label>
-            <input
-              type="date"
-              value={exportDateEnd}
-              onChange={(e) => setExportDateEnd(e.target.value)}
-              min={exportDateStart || undefined}
-              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            />
-          </div>
-          {isInvalidExportDateRange && (
-            <p className="text-xs text-danger-500">종료일은 시작일보다 빠를 수 없습니다.</p>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }

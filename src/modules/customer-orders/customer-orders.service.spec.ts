@@ -14,6 +14,8 @@ describe('CustomerOrdersService', () => {
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
+    gte: jest.fn().mockReturnThis(),
+    lt: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     range: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
@@ -598,6 +600,48 @@ describe('CustomerOrdersService', () => {
     ).rejects.toThrow('Failed to fetch orders');
   });
 
+  it('getMyOrders should apply fulfillmentType filter', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockReturnValueOnce(ordersChain)
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.eq
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'o1',
+            status: OrderStatus.CREATED,
+            created_at: '2026-02-18T10:00:00.000Z',
+            total_amount: 10,
+            branch_id: 'b1',
+            branches: { name: 'Gangnam' },
+            fulfillment_type: 'DELIVERY',
+          },
+        ],
+        error: null,
+      });
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockReturnValueOnce(ordersChain);
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+      undefined,
+      'DELIVERY',
+    );
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].fulfillmentType).toBe('DELIVERY');
+    expect(ordersChain.eq).toHaveBeenCalledWith('fulfillment_type', 'DELIVERY');
+  });
   it('checkOrderAccess should throw when order not found', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 

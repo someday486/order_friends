@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import { ImageUpload } from "@/components/ui/ImageUpload";
+import { Switch } from "@/components/common/Switch";
 
 type Brand = {
   id: string;
@@ -588,23 +589,47 @@ export default function CustomerProductsPage() {
     }
   };
 
-  const handleDeactivateTemplate = async (template: BrandTemplate) => {
-    if (!confirm(`"${template.name}" 메뉴를 비활성화할까요?`)) {
-      return;
+  const handleToggleTemplateActive = async (template: BrandTemplate, nextActive: boolean) => {
+    const previousActive = template.isActive;
+
+    setTemplates((prev) =>
+      prev.map((item) =>
+        item.id === template.id
+          ? {
+              ...item,
+              isActive: nextActive,
+            }
+          : item,
+      ),
+    );
+
+    if (editingTemplateId === template.id) {
+      setEditForm((prev) => ({ ...prev, isActive: nextActive }));
     }
 
     try {
-      setSaving(true);
-      await apiClient.delete(`/customer/products/brand-templates/${template.id}`);
-      if (selectedBrandId) {
-        await loadTemplates(selectedBrandId);
-      }
-      toast.success("브랜드 메뉴를 비활성화했습니다.");
+      await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
+        isActive: nextActive,
+      });
+      toast.success(nextActive ? "메뉴를 활성화했습니다." : "메뉴를 비활성화했습니다.");
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "비활성화에 실패했습니다.");
-    } finally {
-      setSaving(false);
+      setTemplates((prev) =>
+        prev.map((item) =>
+          item.id === template.id
+            ? {
+                ...item,
+                isActive: previousActive,
+              }
+            : item,
+        ),
+      );
+
+      if (editingTemplateId === template.id) {
+        setEditForm((prev) => ({ ...prev, isActive: previousActive }));
+      }
+
+      toast.error(e instanceof Error ? e.message : "상태 변경에 실패했습니다.");
     }
   };
 
@@ -1117,15 +1142,14 @@ export default function CustomerProductsPage() {
                               </span>
                             </td>
                             <td className="py-3 px-4 text-sm">
-                              <span
-                                className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
-                                  template.isActive
-                                    ? "bg-success/20 text-success"
-                                    : "bg-danger-500/20 text-danger-500"
-                                }`}
-                              >
-                                {template.isActive ? "활성" : "비활성"}
-                              </span>
+                              <Switch
+                                checked={template.isActive}
+                                onChange={(nextChecked) =>
+                                  handleToggleTemplateActive(template, nextChecked)
+                                }
+                                disabled={saving}
+                                ariaLabel={`${template.name} 판매 상태 토글`}
+                              />
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="inline-flex items-center gap-2">
@@ -1153,13 +1177,6 @@ export default function CustomerProductsPage() {
                                 >
                                   {isEditing ? "편집 닫기" : "수정"}
                                 </button>
-                                <button
-                                  onClick={() => handleDeactivateTemplate(template)}
-                                  disabled={saving || !template.isActive}
-                                  className="px-3 py-1.5 rounded-md border border-border bg-danger-500/10 text-danger-500 text-xs hover:bg-danger-500/20 transition-colors disabled:opacity-50"
-                                >
-                                  비활성화
-                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1167,58 +1184,70 @@ export default function CustomerProductsPage() {
                             <tr className="border-t border-border bg-bg-secondary/50">
                               <td colSpan={7} className="py-4 px-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                  <input
-                                    value={editForm.name}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, name: event.target.value }))
-                                    }
-                                    placeholder="메뉴명"
-                                    className="input-field"
-                                  />
-                                  <input
-                                    value={editForm.price}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, price: event.target.value }))
-                                    }
-                                    placeholder="가격"
-                                    className="input-field"
-                                    inputMode="numeric"
-                                  />
-                                  <select
-                                    value={editForm.isActive ? "active" : "inactive"}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        isActive: event.target.value === "active",
-                                      }))
-                                    }
-                                    className="input-field"
-                                  >
-                                    <option value="active">활성</option>
-                                    <option value="inactive">비활성</option>
-                                  </select>
-                                  <input
-                                    value={editForm.description}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, description: event.target.value }))
-                                    }
-                                    placeholder="설명 (선택)"
-                                    className="input-field"
-                                  />
-                                  <select
-                                    value={editForm.inventoryMode}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        inventoryMode:
-                                          event.target.value === "NONE" ? "NONE" : "PRODUCT",
-                                      }))
-                                    }
-                                    className="input-field"
-                                  >
-                                    <option value="PRODUCT">재고관리 사용</option>
-                                    <option value="NONE">재고관리 미사용</option>
-                                  </select>
+                                  <div>
+                                    <label className="block text-xs text-text-secondary mb-1">상품명</label>
+                                    <input
+                                      value={editForm.name}
+                                      onChange={(event) =>
+                                        setEditForm((prev) => ({ ...prev, name: event.target.value }))
+                                      }
+                                      placeholder="메뉴명"
+                                      className="input-field"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-text-secondary mb-1">가격</label>
+                                    <input
+                                      value={editForm.price}
+                                      onChange={(event) =>
+                                        setEditForm((prev) => ({ ...prev, price: event.target.value }))
+                                      }
+                                      placeholder="가격"
+                                      className="input-field"
+                                      inputMode="numeric"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-text-secondary mb-1">상품 설명</label>
+                                    <textarea
+                                      value={editForm.description}
+                                      onChange={(event) =>
+                                        setEditForm((prev) => ({ ...prev, description: event.target.value }))
+                                      }
+                                      placeholder="설명 (선택)"
+                                      className="input-field min-h-[88px] resize-y"
+                                    />
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div>
+                                      <label className="block text-xs text-text-secondary mb-1">판매 상태</label>
+                                      <Switch
+                                        checked={template.isActive}
+                                        onChange={(nextChecked) =>
+                                          handleToggleTemplateActive(template, nextChecked)
+                                        }
+                                        disabled={saving}
+                                        ariaLabel={`${template.name} 편집 판매 상태 토글`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs text-text-secondary mb-1">재고관리</label>
+                                      <select
+                                        value={editForm.inventoryMode}
+                                        onChange={(event) =>
+                                          setEditForm((prev) => ({
+                                            ...prev,
+                                            inventoryMode:
+                                              event.target.value === "NONE" ? "NONE" : "PRODUCT",
+                                          }))
+                                        }
+                                        className="input-field"
+                                      >
+                                        <option value="PRODUCT">재고관리 사용</option>
+                                        <option value="NONE">재고관리 미사용</option>
+                                      </select>
+                                    </div>
+                                  </div>
                                 </div>
 
                                 <div className="mb-3">

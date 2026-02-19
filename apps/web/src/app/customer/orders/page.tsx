@@ -131,15 +131,6 @@ function formatYmdHm(iso: string) {
   )}:${pad(d.getMinutes())}`;
 }
 
-function addDaysYmd(ymd: string, days: number) {
-  const date = new Date(`${ymd}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 
 // ============================================================
 // Sub-components
@@ -264,7 +255,7 @@ export default function CustomerOrdersPage() {
         }
 
         if (appliedDateEnd) {
-          params.append("dateEnd", addDaysYmd(appliedDateEnd, 1));
+          params.append("dateEnd", appliedDateEnd);
         }
 
         const data = await apiClient.get<OrderListResponse | Order[]>(
@@ -310,7 +301,7 @@ export default function CustomerOrdersPage() {
           ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
           ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
           ...(appliedDateStart ? { dateStart: appliedDateStart } : {}),
-          ...(appliedDateEnd ? { dateEnd: addDaysYmd(appliedDateEnd, 1) } : {}),
+          ...(appliedDateEnd ? { dateEnd: appliedDateEnd } : {}),
         },
       });
 

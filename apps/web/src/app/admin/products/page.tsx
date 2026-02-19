@@ -74,7 +74,7 @@ function ProductsPageContent() {
     try {
       await apiClient.delete("/admin/products/" + productId);
 
-      // ???? ??
+      // 목록 즉시 반영
       setProducts((prev) => prev.filter((p) => p.id !== productId));
     } catch (e: unknown) {
       const err = e as Error;
@@ -88,7 +88,7 @@ function ProductsPageContent() {
         isActive: !product.isActive,
       });
 
-      // ?? ????
+      // 상태 즉시 반영
       setProducts((prev) =>
         prev.map((p) => (p.id === product.id ? { ...p, isActive: !p.isActive } : p))
       );
@@ -110,6 +110,8 @@ function ProductsPageContent() {
   const filteredProducts = showInactive
     ? products
     : products.filter((p) => p.isActive);
+  const activeCount = products.filter((p) => p.isActive).length;
+  const inactiveCount = products.length - activeCount;
 
   return (
     <div>
@@ -118,7 +120,7 @@ function ProductsPageContent() {
         <div>
           <h1 className="text-[22px] font-extrabold m-0 text-foreground">상품 관리</h1>
           <p className="text-text-secondary mt-1 text-[13px]">
-            총 {filteredProducts.length}개
+            표시 {filteredProducts.length}개 · 전체 {products.length}개 · 판매중 {activeCount}개 · 숨김 {inactiveCount}개
           </p>
         </div>
 
@@ -127,21 +129,19 @@ function ProductsPageContent() {
         </Link>
       </div>
 
-      {/* Branch 선택 */}
-      <div className="mb-4">
-        <BranchSelector />
-      </div>
-
-      {/* 필터 */}
-      <div className="mb-4">
-        <label className="text-text-secondary text-[13px] cursor-pointer">
+      <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-4">
+        <div className="text-[13px] font-semibold text-foreground mb-2">조회 조건</div>
+        <div className="mb-3">
+          <BranchSelector />
+        </div>
+        <label className="inline-flex items-center gap-2 text-text-secondary text-[13px] cursor-pointer">
           <input
             type="checkbox"
             checked={showInactive}
             onChange={(e) => setShowInactive(e.target.checked)}
-            className="mr-1.5"
+            className="w-4 h-4 rounded accent-primary"
           />
-          비활성 상품 표시
+          숨김 상품도 함께 보기
         </label>
       </div>
 
@@ -150,13 +150,14 @@ function ProductsPageContent() {
 
       {!branchId && (
         <p className="text-text-tertiary mb-4">
-          가게를 선택하면 상품 목록이 표시됩니다.
+          매장을 선택하면 상품 목록이 표시됩니다.
         </p>
       )}
 
       {/* Table */}
       <div className="border border-border rounded-xl overflow-hidden">
-        <table className="w-full border-collapse">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] border-collapse">
           <thead className="bg-bg-tertiary">
             <tr>
               <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품명</th>
@@ -222,7 +223,8 @@ function ProductsPageContent() {
                 </tr>
               ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
   );

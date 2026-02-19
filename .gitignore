@@ -2,3 +2,5 @@
 **/.next
 **/.env.local
 dist/
+coverage/
+apps/web/test-results/

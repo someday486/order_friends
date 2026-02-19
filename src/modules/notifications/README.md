@@ -26,9 +26,19 @@ SENDGRID_API_KEY=
 SMS_API_KEY=
 FROM_EMAIL=noreply@orderfriends.com
 FROM_NAME=OrderFriends
+KAKAO_TALK_API_URL=
+KAKAO_TALK_ACCESS_TOKEN=
+KAKAO_TALK_DEFAULT_TEMPLATE_CODE=
 ```
 
 **Mock Mode**: If `SENDGRID_API_KEY` or `SMS_API_KEY` are not set, the service will run in mock mode and log notifications to the console instead of sending them.
+If KakaoTalk credentials are not set, KakaoTalk notifications also run in mock mode.
+
+### KakaoTalk Test API
+
+`POST /customer/notifications/send-kakao`
+
+Use this endpoint to send a test KakaoTalk message payload. It returns a `NotificationResult` and behaves as a real sender only when `KAKAO_TALK_API_URL` and `KAKAO_TALK_ACCESS_TOKEN` are configured.
 
 ## Usage
 

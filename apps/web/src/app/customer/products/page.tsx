@@ -1,627 +1,1305 @@
 ﻿"use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
-import toast from "react-hot-toast";
-import { CardSkeleton } from "@/components/ui/Skeleton";
-import { SearchIcon } from "@/components/ui/icons";
-import { DragHandle, SortableList } from "@/components/ui/SortableList";
+import { ImageUpload } from "@/components/ui/ImageUpload";
 
-// ============================================================
-// Types
-// ============================================================
-
-type Product = {
+type Brand = {
   id: string;
-  branch_id: string;
   name: string;
-  description?: string | null;
-  category_id?: string | null;
-  price: number;
-  base_price?: number;
-  is_active?: boolean;
-  is_hidden?: boolean;
-  sort_order?: number;
-  image_url?: string | null;
-  created_at: string;
+  slug?: string | null;
+  myRole?: string | null;
 };
 
 type Branch = {
   id: string;
   name: string;
+  slug?: string | null;
   brandId: string;
-  myRole: string;
+  myRole?: string | null;
 };
 
-type InventoryItem = {
-  product_id: string;
-  qty_available: number;
+type ProductCategory = {
+  id: string;
+  name: string;
+  isActive: boolean;
 };
 
-// ============================================================
-// Constants
-// ============================================================
+type InventoryMode = "PRODUCT" | "NONE" | "MIXED";
 
-// ============================================================
-// Helpers
-// ============================================================
+type BrandTemplate = {
+  id: string;
+  brandId: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  imageUrl?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  appliedBranchIds?: string[];
+  appliedBranchCategoryIds?: Record<string, string | null>;
+  appliedBranchCount?: number;
+  totalBranchCount?: number | null;
+  inventoryMode?: InventoryMode;
+  isOnlineShopVisible?: boolean;
+};
 
-// TODO(2-D): 상품 다중 매장 일괄 반영 UI/연동은 백엔드 API 계약 확정 후 구현.
-const isProductActive = (product: Product) =>
-  product.is_active ?? !product.is_hidden;
+type TemplateForm = {
+  name: string;
+  description: string;
+  price: string;
+  imageUrl: string;
+  isActive: boolean;
+  inventoryMode: "PRODUCT" | "NONE";
+};
 
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString();
+type BulkStatus = "keep" | "active" | "inactive";
+type BulkInventoryMode = "keep" | "PRODUCT" | "NONE";
+type SalesChannelFilter = "ALL" | "ONLINE_SHOP" | `BRANCH:${string}`;
 
-// ============================================================
-// Component
-// ============================================================
+const EMPTY_FORM: TemplateForm = {
+  name: "",
+  description: "",
+  price: "",
+  imageUrl: "",
+  isActive: true,
+  inventoryMode: "PRODUCT",
+};
+
+function canManageBrandTemplate(role: string | null | undefined) {
+  return role === "OWNER" || role === "ADMIN";
+}
+
+function getOrderUrl(branch: Branch, brandSlug?: string | null) {
+  if (brandSlug && branch.slug) {
+    return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branch.slug)}`;
+  }
+  return `/order/branch/${encodeURIComponent(branch.id)}`;
+}
+
+function getShopUrl(brandSlug: string | null | undefined) {
+  if (!brandSlug) return null;
+  return `/shop/${encodeURIComponent(brandSlug)}`;
+}
+
+function isInternalOnlineShopBranch(branch: Branch, brandName?: string | null): boolean {
+  if (branch.slug) return false;
+  const branchName = (branch.name ?? "").trim();
+  if (!branchName) return false;
+  const normalizedBranchName = branchName.toLowerCase();
+  const normalizedBrandName = (brandName ?? "").trim().toLowerCase();
+
+  if (normalizedBrandName && normalizedBranchName === `${normalizedBrandName} 온라인샵`) {
+    return true;
+  }
+  return normalizedBranchName.endsWith("온라인샵");
+}
+
+function toBranchSalesChannelFilter(branchId: string): SalesChannelFilter {
+  return `BRANCH:${branchId}`;
+}
+
+function getBranchIdFromSalesChannelFilter(filter: SalesChannelFilter): string | null {
+  if (!filter.startsWith("BRANCH:")) {
+    return null;
+  }
+  const branchId = filter.replace("BRANCH:", "").trim();
+  return branchId || null;
+}
+
+function BranchChecklistTable({
+  branches,
+  selectedIds,
+  onToggle,
+  onToggleAll,
+  categoryMap,
+  selectedCategoryIds,
+  onChangeCategory,
+  onlineShopChecked,
+  onToggleOnlineShop,
+  onlineShopUrl,
+  brandSlug,
+  disabled,
+}: {
+  branches: Branch[];
+  selectedIds: Set<string>;
+  onToggle: (branchId: string) => void;
+  onToggleAll: (checked: boolean) => void;
+  categoryMap?: Record<string, ProductCategory[]>;
+  selectedCategoryIds?: Record<string, string>;
+  onChangeCategory?: (branchId: string, categoryId: string) => void;
+  onlineShopChecked?: boolean;
+  onToggleOnlineShop?: () => void;
+  onlineShopUrl?: string | null;
+  brandSlug?: string | null;
+  disabled?: boolean;
+}) {
+  const allBranchesChecked = branches.length > 0 && branches.every((b) => selectedIds.has(b.id));
+  const allChecked = onToggleOnlineShop
+    ? allBranchesChecked && (onlineShopChecked ?? false)
+    : allBranchesChecked;
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <table className="w-full border-collapse">
+        <thead className="bg-bg-tertiary">
+          <tr>
+            <th className="w-12 py-2.5 px-3 text-left">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={(event) => onToggleAll(event.target.checked)}
+                disabled={disabled || branches.length === 0}
+                className="w-4 h-4 rounded accent-primary"
+              />
+            </th>
+            <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">매장명</th>
+            <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">채널 URL</th>
+            {onChangeCategory && (
+              <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">
+                카테고리
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {branches.map((branch) => (
+            <tr key={branch.id} className="border-t border-border">
+              <td className="py-2.5 px-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(branch.id)}
+                  onChange={() => onToggle(branch.id)}
+                  disabled={disabled}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+              </td>
+              <td className="py-2.5 px-3 text-sm text-foreground">
+                <div>{branch.name}</div>
+                <div className="text-xs text-text-secondary">지점 주문</div>
+              </td>
+              <td className="py-2.5 px-3 text-xs text-text-tertiary font-mono">
+                {getOrderUrl(branch, brandSlug)}
+              </td>
+              {onChangeCategory && (
+                <td className="py-2.5 px-3">
+                  <select
+                    value={selectedCategoryIds?.[branch.id] ?? ""}
+                    onChange={(event) => onChangeCategory(branch.id, event.target.value)}
+                    disabled={disabled || !selectedIds.has(branch.id)}
+                    className="input-field h-8 py-1 text-xs"
+                  >
+                    <option value="">카테고리 없음</option>
+                    {(categoryMap?.[branch.id] ?? [])
+                      .filter((category) => category.isActive !== false)
+                      .map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                  </select>
+                </td>
+              )}
+            </tr>
+          ))}
+          {onToggleOnlineShop && (
+            <tr className="border-t border-border bg-bg-secondary/40">
+              <td className="py-2.5 px-3">
+                <input
+                  type="checkbox"
+                  checked={onlineShopChecked ?? false}
+                  onChange={() => onToggleOnlineShop()}
+                  disabled={disabled}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+              </td>
+              <td className="py-2.5 px-3 text-sm text-foreground font-semibold">
+                <div>온라인샵</div>
+                <div className="text-xs text-text-secondary font-normal">브랜드 직배송</div>
+              </td>
+              <td className="py-2.5 px-3 text-xs text-text-tertiary font-mono">
+                {onlineShopUrl ?? "-"}
+              </td>
+              {onChangeCategory && (
+                <td className="py-2.5 px-3 text-xs text-text-tertiary">카테고리 미사용</td>
+              )}
+            </tr>
+          )}
+          {branches.length === 0 && (
+            <tr>
+              <td
+                colSpan={onChangeCategory ? 4 : 3}
+                className="py-4 px-3 text-sm text-text-secondary text-center"
+              >
+                등록된 매장이 없습니다.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function CustomerProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState("");
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  const [branchCategories, setBranchCategories] = useState<Record<string, ProductCategory[]>>({});
+  const [templates, setTemplates] = useState<BrandTemplate[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [productCategories, setProductCategories] = useState<{id:string;name:string}[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
-  const [bulkUpdating, setBulkUpdating] = useState(false);
-  const [inventoryMap, setInventoryMap] = useState<Record<string, number>>({});
-  const [editingInventoryId, setEditingInventoryId] = useState<string | null>(null);
-  const [editingInventoryQty, setEditingInventoryQty] = useState("");
-  const [inventorySaving, setInventorySaving] = useState(false);
 
-  // Reorder mode
-  const [isReorderMode, setIsReorderMode] = useState(false);
-  const [reorderList, setReorderList] = useState<Product[]>([]);
-  const [reorderSaving, setReorderSaving] = useState(false);
+  const [createForm, setCreateForm] = useState<TemplateForm>(EMPTY_FORM);
+  const [createBranchIds, setCreateBranchIds] = useState<Set<string>>(new Set());
+  const [createOnlineShopChecked, setCreateOnlineShopChecked] = useState(true);
+  const [createBranchCategoryIds, setCreateBranchCategoryIds] = useState<Record<string, string>>({});
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
 
-  // Load branches
-  useEffect(() => {
-    const loadBranches = async () => {
-      try {
-        const data = await apiClient.get<Branch[]>("/customer/branches");
-        setBranches(data);
-        if (data.length > 0) {
-          setSelectedBranchId(data[0].id);
-          setUserRole(data[0].myRole);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<TemplateForm>(EMPTY_FORM);
+  const [editBranchIds, setEditBranchIds] = useState<Set<string>>(new Set());
+  const [editOnlineShopChecked, setEditOnlineShopChecked] = useState(true);
+  const [editBranchCategoryIds, setEditBranchCategoryIds] = useState<Record<string, string>>({});
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [bulkBranchIds, setBulkBranchIds] = useState<Set<string>>(new Set());
+  const [bulkOnlineShopChecked, setBulkOnlineShopChecked] = useState(true);
+  const [bulkStatus, setBulkStatus] = useState<BulkStatus>("keep");
+  const [bulkInventoryMode, setBulkInventoryMode] = useState<BulkInventoryMode>("keep");
+  const [applyBulkBranchChecks, setApplyBulkBranchChecks] = useState(false);
+  const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
+
+  const selectedBrand = useMemo(
+    () => brands.find((brand) => brand.id === selectedBrandId) ?? null,
+    [brands, selectedBrandId],
+  );
+  const selectedBrandShopUrl = useMemo(
+    () => getShopUrl(selectedBrand?.slug),
+    [selectedBrand?.slug],
+  );
+
+  const selectedFilterBranchId = useMemo(
+    () => getBranchIdFromSalesChannelFilter(salesChannelFilter),
+    [salesChannelFilter],
+  );
+  const selectedFilterBranchName = useMemo(
+    () => branches.find((branch) => branch.id === selectedFilterBranchId)?.name ?? null,
+    [branches, selectedFilterBranchId],
+  );
+  const filteredTemplates = useMemo(() => {
+    if (salesChannelFilter === "ALL") {
+      return templates;
+    }
+    if (salesChannelFilter === "ONLINE_SHOP") {
+      return templates.filter((template) => template.isOnlineShopVisible !== false);
+    }
+    if (!selectedFilterBranchId) {
+      return templates;
+    }
+    return templates.filter((template) =>
+      (template.appliedBranchIds ?? []).includes(selectedFilterBranchId),
+    );
+  }, [templates, salesChannelFilter, selectedFilterBranchId]);
+  const filteredTemplateIdSet = useMemo(
+    () => new Set(filteredTemplates.map((template) => template.id)),
+    [filteredTemplates],
+  );
+
+  const canManage = canManageBrandTemplate(selectedBrand?.myRole);
+  const hasSelectedTemplates = selectedTemplateIds.size > 0;
+  const allTemplatesChecked =
+    filteredTemplates.length > 0 &&
+    filteredTemplates.every((template) => selectedTemplateIds.has(template.id));
+  const createSelectedCount = createBranchIds.size + (createOnlineShopChecked ? 1 : 0);
+  const createTotalCount = branches.length + 1;
+  const hasCreateImage = Boolean(createForm.imageUrl);
+
+  const toggleSetValue = (source: Set<string>, id: string) => {
+    const next = new Set(source);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    return next;
+  };
+
+  const setAllBranchChecks = (checked: boolean, target: "create" | "edit") => {
+    const next = checked ? new Set(branches.map((branch) => branch.id)) : new Set<string>();
+    if (target === "create") {
+      setCreateBranchIds(next);
+      setCreateOnlineShopChecked(checked);
+      return;
+    }
+    setEditBranchIds(next);
+    setEditOnlineShopChecked(checked);
+  };
+
+  const buildBranchCategoryAssignments = (
+    selectedBranchIds: Set<string>,
+    selectedCategoryIds: Record<string, string>,
+  ) => {
+    return Array.from(selectedBranchIds).map((branchId) => ({
+      branchId,
+      categoryId: selectedCategoryIds[branchId]?.trim() ? selectedCategoryIds[branchId] : null,
+    }));
+  };
+
+  const loadBranchCategories = useCallback(async (branchRows: Branch[]) => {
+    const entries = await Promise.all(
+      branchRows.map(async (branch) => {
+        try {
+          const categories = await apiClient.get<ProductCategory[]>(
+            `/customer/products/categories?branchId=${encodeURIComponent(branch.id)}`,
+          );
+          return [branch.id, categories] as const;
+        } catch (e) {
+          console.error(e);
+          return [branch.id, []] as const;
         }
-      } catch (e) {
-        console.error(e);
-        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
-      }
-    };
+      }),
+    );
 
-    loadBranches();
+    setBranchCategories(Object.fromEntries(entries));
   }, []);
 
-  // Load products when branch changes
-  useEffect(() => {
-    const loadProducts = async () => {
-      if (!selectedBranchId) return;
+  const loadTemplates = useCallback(async (brandId: string) => {
+    const query = new URLSearchParams({ brandId });
+    const data = await apiClient.get<BrandTemplate[]>(
+      `/customer/products/brand-templates?${query.toString()}`,
+    );
+    setTemplates(data);
+    setSelectedTemplateIds((prev) => {
+      const visibleIds = new Set(data.map((item) => item.id));
+      return new Set([...prev].filter((id) => visibleIds.has(id)));
+    });
+  }, []);
 
+  const loadBrandContext = useCallback(async (brandId: string, brandName?: string | null) => {
+    const [branchRows] = await Promise.all([
+      apiClient.get<Branch[]>(`/customer/branches?brandId=${encodeURIComponent(brandId)}`),
+      loadTemplates(brandId),
+    ]);
+
+    const visibleBranchRows = branchRows.filter(
+      (branch) => !isInternalOnlineShopBranch(branch, brandName),
+    );
+
+    await loadBranchCategories(visibleBranchRows);
+    setBranches(visibleBranchRows);
+    setCreateBranchIds(new Set(visibleBranchRows.map((branch) => branch.id)));
+    setCreateOnlineShopChecked(true);
+    setCreateBranchCategoryIds({});
+    setEditBranchCategoryIds({});
+    setEditOnlineShopChecked(true);
+    setEditingTemplateId(null);
+    setBulkBranchIds(new Set(visibleBranchRows.map((branch) => branch.id)));
+    setBulkOnlineShopChecked(true);
+    setSelectedTemplateIds(new Set());
+    setBulkStatus("keep");
+    setBulkInventoryMode("keep");
+    setApplyBulkBranchChecks(false);
+    setSalesChannelFilter("ALL");
+  }, [loadBranchCategories, loadTemplates]);
+
+  useEffect(() => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set([...prev].filter((id) => filteredTemplateIdSet.has(id)));
+      if (next.size === prev.size) {
+        return prev;
+      }
+      return next;
+    });
+  }, [filteredTemplateIdSet]);
+
+  useEffect(() => {
+    const run = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const data = await apiClient.get<Product[]>(`/customer/products?branchId=${encodeURIComponent(selectedBranchId)}`);
-        setProducts(data);
+        const brandRows = await apiClient.get<Brand[]>("/customer/brands");
+        setBrands(brandRows);
 
-        apiClient.get<{id:string;name:string}[]>(`/customer/products/categories?branchId=${encodeURIComponent(selectedBranchId)}`)
-          .then(cats => setProductCategories(cats))
-          .catch(() => {});
-
-        apiClient.get<InventoryItem[]>(`/customer/inventory?branchId=${encodeURIComponent(selectedBranchId)}`)
-          .then((items) => {
-            const nextMap: Record<string, number> = {};
-            items.forEach((item) => {
-              nextMap[item.product_id] = item.qty_available;
-            });
-            setInventoryMap(nextMap);
-          })
-          .catch(() => setInventoryMap({}));
-
-        const branch = branches.find((item) => item.id === selectedBranchId);
-        if (branch) {
-          setUserRole(branch.myRole);
+        if (brandRows.length === 0) {
+          setSelectedBrandId("");
+          setBranches([]);
+          setTemplates([]);
+          return;
         }
+
+        const initialBrand = brandRows[0];
+        const initialBrandId = initialBrand.id;
+        setSelectedBrandId(initialBrandId);
+        await loadBrandContext(initialBrandId, initialBrand.name);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "상품 목록을 불러올 수 없습니다");
+        setError(e instanceof Error ? e.message : "브랜드 메뉴 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadProducts();
-  }, [selectedBranchId, branches]);
+    run();
+  }, [loadBrandContext]);
 
   useEffect(() => {
-    setSelectedProductIds(new Set());
-  }, [selectedBranchId]);
-
-  const canManageProducts =
-    userRole === "OWNER" ||
-    userRole === "ADMIN" ||
-    userRole === "BRANCH_OWNER" ||
-    userRole === "BRANCH_ADMIN";
-
-  // Enter reorder mode
-  const enterReorderMode = () => {
-    setReorderList([...products]);
-    setIsReorderMode(true);
-  };
-
-  // Cancel reorder
-  const cancelReorder = () => {
-    setIsReorderMode(false);
-    setReorderList([]);
-  };
-
-  // Save reorder
-  const saveReorder = async () => {
-    try {
-      setReorderSaving(true);
-
-      const items = reorderList.map((p, idx) => ({
-        id: p.id,
-        sortOrder: idx,
-      }));
-
-      const data = await apiClient.patch<Product[]>("/customer/products/reorder", {
-        branchId: selectedBranchId,
-        items,
-      });
-
-      setProducts(data);
-      setIsReorderMode(false);
-      setReorderList([]);
-    } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "순서 저장에 실패했습니다");
-    } finally {
-      setReorderSaving(false);
+    if (!selectedBrandId) {
+      return;
     }
-  };
 
-  const handleBulkStatusChange = async (active: boolean) => {
-    if (selectedProductIds.size === 0) return;
+    const run = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        await loadBrandContext(selectedBrandId, selectedBrand?.name);
+      } catch (e) {
+        console.error(e);
+        setError(e instanceof Error ? e.message : "브랜드 메뉴 정보를 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    try {
-      setBulkUpdating(true);
-      const results = await Promise.all(
-        Array.from(selectedProductIds).map((id) =>
-          apiClient.patch<Product>("/customer/products/" + id, { isActive: active }),
-        ),
-      );
-      setProducts((prev) =>
-        prev.map((p) => results.find((r) => r.id === p.id) ?? p),
-      );
-      setSelectedProductIds(new Set());
-      toast.success(`${results.length}개 상품을 ${active ? "판매중" : "숨김"}으로 변경했습니다.`);
-    } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "일괄 변경에 실패했습니다");
-    } finally {
-      setBulkUpdating(false);
+    run();
+  }, [selectedBrandId, selectedBrand?.name, loadBrandContext]);
+
+  const handleCreateTemplate = async () => {
+    if (!selectedBrandId) {
+      return;
     }
-  };
+    if (!createForm.name.trim()) {
+      toast.error("메뉴명을 입력해주세요.");
+      return;
+    }
 
-  const handleStartInventoryEdit = (productId: string, qty: number | undefined) => {
-    setEditingInventoryId(productId);
-    setEditingInventoryQty((qty ?? 0).toString());
-  };
-
-  const handleSaveInventory = async (productId: string) => {
-    const nextQty = Number.parseInt(editingInventoryQty, 10);
-    if (Number.isNaN(nextQty) || nextQty < 0) {
-      toast.error("재고는 0 이상 숫자여야 합니다");
+    const parsedPrice = Number.parseInt(createForm.price, 10);
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      toast.error("가격은 0 이상의 숫자여야 합니다.");
       return;
     }
 
     try {
-      setInventorySaving(true);
-      const updated = await apiClient.patch<{ qty_available: number }>(
-        `/customer/inventory/${productId}`,
-        { qty_available: nextQty },
-      );
-      setInventoryMap((prev) => ({ ...prev, [productId]: updated.qty_available }));
-      setEditingInventoryId(null);
-      setEditingInventoryQty("");
-      toast.success("재고를 수정했습니다");
+      setSaving(true);
+      await apiClient.post("/customer/products/brand-templates", {
+        brandId: selectedBrandId,
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || undefined,
+        price: parsedPrice,
+        imageUrl: createForm.imageUrl.trim() || undefined,
+        isActive: createForm.isActive,
+        isOnlineShopVisible: createOnlineShopChecked,
+        inventoryMode: createForm.inventoryMode,
+        branchIds: Array.from(createBranchIds),
+        branchCategoryAssignments: buildBranchCategoryAssignments(
+          createBranchIds,
+          createBranchCategoryIds,
+        ),
+      });
+
+      setCreateForm(EMPTY_FORM);
+      setCreateBranchIds(new Set(branches.map((branch) => branch.id)));
+      setCreateOnlineShopChecked(true);
+      setCreateBranchCategoryIds({});
+      setIsCreateFormOpen(false);
+      await loadTemplates(selectedBrandId);
+      toast.success("브랜드 메뉴를 등록했습니다.");
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "재고 수정에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "브랜드 메뉴 등록에 실패했습니다.");
     } finally {
-      setInventorySaving(false);
+      setSaving(false);
     }
   };
 
-  const filteredProducts = useMemo(
-    () =>
-      products
-        .filter((p) => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-        .filter((p) => !selectedCategoryId || p.category_id === selectedCategoryId),
-    [products, searchQuery, selectedCategoryId],
-  );
-
-  useEffect(() => {
-    setSelectedProductIds((prev) => {
-      if (prev.size === 0) return prev;
-      const visibleIds = new Set(filteredProducts.map((p) => p.id));
-      return new Set(Array.from(prev).filter((id) => visibleIds.has(id)));
+  const startEditTemplate = (template: BrandTemplate) => {
+    setEditingTemplateId(template.id);
+    setEditForm({
+      name: template.name,
+      description: template.description ?? "",
+      price: String(template.price ?? 0),
+      imageUrl: template.imageUrl ?? "",
+      isActive: template.isActive,
+      inventoryMode: template.inventoryMode === "NONE" ? "NONE" : "PRODUCT",
     });
-  }, [filteredProducts]);
+    setEditBranchIds(new Set(template.appliedBranchIds ?? []));
+    setEditOnlineShopChecked(template.isOnlineShopVisible !== false);
+    const mappedCategories: Record<string, string> = {};
+    for (const [branchId, categoryId] of Object.entries(template.appliedBranchCategoryIds ?? {})) {
+      if (typeof categoryId === "string" && categoryId.length > 0) {
+        mappedCategories[branchId] = categoryId;
+      }
+    }
+    setEditBranchCategoryIds(mappedCategories);
+  };
 
-  const allSelected =
-    filteredProducts.length > 0 &&
-    filteredProducts.every((p) => selectedProductIds.has(p.id));
+  const cancelEditTemplate = () => {
+    setEditingTemplateId(null);
+    setEditForm(EMPTY_FORM);
+    setEditBranchIds(new Set());
+    setEditOnlineShopChecked(true);
+    setEditBranchCategoryIds({});
+  };
 
+  const handleSaveTemplate = async (templateId: string) => {
+    if (!selectedBrandId) {
+      return;
+    }
+    if (!editForm.name.trim()) {
+      toast.error("메뉴명을 입력해주세요.");
+      return;
+    }
 
-  if (loading && branches.length === 0) {
-    return (
-      <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">상품 관리</h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <CardSkeleton key={index} />
-          ))}
-        </div>
-      </div>
-    );
-  }
+    const parsedPrice = Number.parseInt(editForm.price, 10);
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      toast.error("가격은 0 이상의 숫자여야 합니다.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await apiClient.patch(`/customer/products/brand-templates/${templateId}`, {
+        name: editForm.name.trim(),
+        description: editForm.description.trim() || undefined,
+        price: parsedPrice,
+        imageUrl: editForm.imageUrl.trim() || undefined,
+        isActive: editForm.isActive,
+        isOnlineShopVisible: editOnlineShopChecked,
+        inventoryMode: editForm.inventoryMode,
+        branchIds: Array.from(editBranchIds),
+        branchCategoryAssignments: buildBranchCategoryAssignments(
+          editBranchIds,
+          editBranchCategoryIds,
+        ),
+      });
+
+      await loadTemplates(selectedBrandId);
+      cancelEditTemplate();
+      toast.success("브랜드 메뉴를 수정했습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "브랜드 메뉴 수정에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeactivateTemplate = async (template: BrandTemplate) => {
+    if (!confirm(`"${template.name}" 메뉴를 비활성화할까요?`)) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await apiClient.delete(`/customer/products/brand-templates/${template.id}`);
+      if (selectedBrandId) {
+        await loadTemplates(selectedBrandId);
+      }
+      toast.success("브랜드 메뉴를 비활성화했습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "비활성화에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplateIds((prev) => toggleSetValue(prev, templateId));
+  };
+
+  const toggleAllTemplateSelection = (checked: boolean) => {
+    if (!checked) {
+      setSelectedTemplateIds(new Set());
+      return;
+    }
+    setSelectedTemplateIds(new Set(filteredTemplates.map((template) => template.id)));
+  };
+
+  const handleToggleTemplateForSalesChannel = async (template: BrandTemplate) => {
+    if (!selectedBrandId || salesChannelFilter === "ALL") {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      if (salesChannelFilter === "ONLINE_SHOP") {
+        const nextVisible = template.isOnlineShopVisible === false;
+        await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
+          isOnlineShopVisible: nextVisible,
+        });
+        toast.success(nextVisible ? "온라인샵에 노출했습니다." : "온라인샵에서 숨겼습니다.");
+      } else if (selectedFilterBranchId) {
+        const isApplied = (template.appliedBranchIds ?? []).includes(selectedFilterBranchId);
+        if (isApplied) {
+          await apiClient.post(`/customer/products/brand-templates/${template.id}/unapply`, {
+            branchId: selectedFilterBranchId,
+          });
+          toast.success(`${selectedFilterBranchName ?? "지점"}에서 숨겼습니다.`);
+        } else {
+          await apiClient.post(`/customer/products/brand-templates/${template.id}/apply`, {
+            branchId: selectedFilterBranchId,
+          });
+          toast.success(`${selectedFilterBranchName ?? "지점"}에 노출했습니다.`);
+        }
+      }
+
+      await loadTemplates(selectedBrandId);
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "판매 채널 설정 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBulkUpdateTemplates = async () => {
+    if (!selectedBrandId || selectedTemplateIds.size === 0) {
+      return;
+    }
+
+    const payload: {
+      brandId: string;
+      templateIds: string[];
+      isActive?: boolean;
+      isOnlineShopVisible?: boolean;
+      branchIds?: string[];
+      inventoryMode?: "PRODUCT" | "NONE";
+    } = {
+      brandId: selectedBrandId,
+      templateIds: Array.from(selectedTemplateIds),
+    };
+
+    if (bulkStatus !== "keep") {
+      payload.isActive = bulkStatus === "active";
+    }
+    if (bulkInventoryMode !== "keep") {
+      payload.inventoryMode = bulkInventoryMode;
+    }
+    if (applyBulkBranchChecks) {
+      payload.branchIds = Array.from(bulkBranchIds);
+      payload.isOnlineShopVisible = bulkOnlineShopChecked;
+    }
+    if (
+      payload.isActive === undefined &&
+      payload.isOnlineShopVisible === undefined &&
+      payload.branchIds === undefined &&
+      payload.inventoryMode === undefined
+    ) {
+      toast.error("일괄 변경할 항목(상태/재고관리/매장 체크/온라인샵)을 선택해주세요.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await apiClient.patch("/customer/products/brand-templates/bulk/update", payload);
+      await loadTemplates(selectedBrandId);
+      setSelectedTemplateIds(new Set());
+      setBulkInventoryMode("keep");
+      toast.success("선택한 메뉴를 일괄 변경했습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "일괄 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">상품 관리</h1>
-        <div className="flex gap-2">
-          {canManageProducts && selectedBranchId && !isReorderMode && products.length > 1 && (
-            <button
-              onClick={enterReorderMode}
-              className="px-4 py-2.5 text-sm rounded-lg border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary transition-colors"
-            >
-              순서 편집
-            </button>
-          )}
-          {canManageProducts && selectedBranchId && !isReorderMode && (
-            <Link href={`/customer/products/new?branchId=${selectedBranchId}`} className="no-underline">
-              <button className="btn-primary px-5 py-2.5 text-sm">+ 상품 추가</button>
-            </Link>
-          )}
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold text-foreground m-0">상품 관리</h1>
+        <p className="text-sm text-text-secondary mt-1">
+          모든 메뉴는 브랜드 단위로 등록하며, 매장별 노출과 재고관리 여부를 함께 제어합니다.
+        </p>
       </div>
 
-      {/* Filters */}
-      {!isReorderMode && (
-        <div className="mb-6 flex flex-wrap items-end gap-4">
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <div>
+        <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드 선택</label>
+        <select
+          value={selectedBrandId}
+          onChange={(event) => setSelectedBrandId(event.target.value)}
+          className="input-field max-w-[420px]"
+        >
+          <option value="">브랜드를 선택하세요</option>
+          {brands.map((brand) => (
+            <option key={brand.id} value={brand.id}>
+              {brand.name}
+            </option>
+          ))}
+        </select>
+        </div>
+        {selectedBrandId && (
           <div>
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">매장 선택</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">판매 채널</label>
             <select
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="input-field max-w-[400px]"
+              value={salesChannelFilter}
+              onChange={(event) => setSalesChannelFilter(event.target.value as SalesChannelFilter)}
+              className="input-field"
             >
-              <option value="">매장을 선택하세요</option>
+              <option value="ALL">전체 채널</option>
+              <option value="ONLINE_SHOP">온라인샵</option>
               {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
+                <option key={branch.id} value={toBranchSalesChannelFilter(branch.id)}>
+                  지점 주문 - {branch.name}
                 </option>
               ))}
             </select>
+            <p className="text-xs text-text-secondary mt-1">
+              현재 채널 기준 {filteredTemplates.length}개 메뉴
+            </p>
           </div>
-          {selectedBranchId && productCategories.length > 0 && (
-            <div>
-              <label className="block text-sm text-text-secondary mb-2 font-semibold">카테고리</label>
-              <select
-                value={selectedCategoryId}
-                onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="input-field w-auto min-w-[140px]"
-              >
-                <option value="">전체</option>
-                {productCategories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {selectedBranchId && (
-            <div className="relative">
-              <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="상품명 검색..."
-                className="input-field pl-9 w-[200px]"
-              />
-            </div>
-          )}
+        )}
+      </div>
+
+      {error && (
+        <div className="border border-danger-500 bg-danger-500/10 rounded-md p-3 text-danger-500 mb-4">
+          {error}
         </div>
       )}
 
-      {error && <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4">{error}</div>}
-
-      {/* Reorder Mode */}
-      {isReorderMode ? (
-        <div>
-          <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-primary-500/10 border border-primary-500/30">
-            <span className="text-sm font-semibold text-foreground">
-              드래그 핸들로 순서를 변경하세요
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={cancelReorder}
-                disabled={reorderSaving}
-                className="px-4 py-2 text-sm rounded-lg border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={saveReorder}
-                disabled={reorderSaving}
-                className="btn-primary px-4 py-2 text-sm"
-              >
-                {reorderSaving ? "저장 중..." : "순서 저장"}
-              </button>
-            </div>
-          </div>
-
-          <SortableList
-            items={reorderList}
-            keyExtractor={(item) => item.id}
-            onReorder={setReorderList}
-            className="flex flex-col gap-2"
-            renderItem={(product, index, dragHandleProps) => (
-              <div className="flex items-center gap-3 p-3 rounded-md border border-border bg-bg-secondary">
-                <DragHandle {...dragHandleProps} className="flex-shrink-0" />
-
-                <span className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-tertiary text-sm font-bold text-text-secondary flex-shrink-0">
-                  {index + 1}
-                </span>
-
-                {product.image_url ? (
-                  <Image
-                    src={product.image_url}
-                    alt={product.name}
-                    width={48}
-                    height={48}
-                    className="w-12 h-12 rounded object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded bg-bg-tertiary flex items-center justify-center text-lg flex-shrink-0">
-                    📦
-                  </div>
-                )}
-
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm text-foreground truncate">{product.name}</div>
-                  <div className="text-xs text-text-secondary">{formatWon(product.base_price ?? product.price ?? 0)}</div>
-                </div>
-              </div>
-            )}
-          />
-        </div>
-      ) : branches.length === 0 ? (
-        <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">등록된 매장이 없습니다</div>
-          <div className="text-sm">먼저 매장을 등록해주세요</div>
-        </div>
-      ) : !selectedBranchId ? (
-        <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">매장을 선택하세요</div>
-          <div className="text-sm">위에서 매장을 선택하면 상품 목록이 표시됩니다</div>
-        </div>
-      ) : loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <CardSkeleton key={index} />
-          ))}
-        </div>
-      ) : products.length === 0 ? (
-        <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">등록된 상품이 없습니다</div>
-          {canManageProducts && (
-            <div className="text-sm">상품 추가 버튼을 클릭하여 상품을 등록하세요</div>
-          )}
-        </div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">검색 결과가 없습니다</div>
-          <div className="text-sm">필터 또는 검색어를 변경해보세요</div>
+      {loading ? (
+        <div className="text-text-secondary text-sm">불러오는 중...</div>
+      ) : !selectedBrandId ? (
+        <div className="text-text-secondary text-sm">브랜드를 먼저 선택해주세요.</div>
+      ) : !canManage ? (
+        <div className="border border-border rounded-xl p-4 text-sm text-text-secondary">
+          OWNER 또는 ADMIN 권한에서만 메뉴를 등록/수정할 수 있습니다.
         </div>
       ) : (
-        <div>
-          {canManageProducts && selectedProductIds.size > 0 && (
-            <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-primary-500/5 border border-primary-500/20">
-              <span className="text-sm font-medium text-foreground">{selectedProductIds.size}개 선택</span>
+        <>
+          <div className="border border-border rounded-xl p-4 mb-6 bg-bg-secondary">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-foreground">메뉴 등록</h2>
               <button
-                className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors disabled:opacity-60"
-                onClick={() => handleBulkStatusChange(true)}
-                disabled={bulkUpdating}
+                onClick={() => setIsCreateFormOpen((prev) => !prev)}
+                className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs font-semibold hover:bg-bg-tertiary transition-colors"
               >
-                판매중
-              </button>
-              <button
-                className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors disabled:opacity-60"
-                onClick={() => handleBulkStatusChange(false)}
-                disabled={bulkUpdating}
-              >
-                숨김
-              </button>
-              <button
-                className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors"
-                onClick={() => setSelectedProductIds(new Set())}
-                disabled={bulkUpdating}
-              >
-                선택 해제
+                {isCreateFormOpen ? "접기" : "펼치기"}
               </button>
             </div>
-          )}
 
-          <div className="border border-border rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[760px]">
-                <thead className="bg-bg-tertiary">
-                  <tr>
-                    {canManageProducts && (
-                      <th className="w-10 py-3 px-3.5 text-left">
+            {isCreateFormOpen && (
+              <>
+                <div className="mt-4 mb-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
+                    선택 채널 {createSelectedCount}/{createTotalCount}
+                  </span>
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
+                    이미지 {hasCreateImage ? "등록됨" : "미등록"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                  <div className="border border-border rounded-lg p-3 bg-background">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">기본 정보</h3>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-xs text-text-secondary mb-1">메뉴명</label>
+                        <input
+                          value={createForm.name}
+                          onChange={(event) =>
+                            setCreateForm((prev) => ({ ...prev, name: event.target.value }))
+                          }
+                          placeholder="메뉴명"
+                          className="input-field"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-secondary mb-1">가격</label>
+                        <input
+                          value={createForm.price}
+                          onChange={(event) =>
+                            setCreateForm((prev) => ({ ...prev, price: event.target.value }))
+                          }
+                          placeholder="가격"
+                          className="input-field"
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-secondary mb-1">설명 (선택)</label>
+                        <input
+                          value={createForm.description}
+                          onChange={(event) =>
+                            setCreateForm((prev) => ({ ...prev, description: event.target.value }))
+                          }
+                          placeholder="설명 (선택)"
+                          className="input-field"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-secondary mb-1">재고관리</label>
+                        <select
+                          value={createForm.inventoryMode}
+                          onChange={(event) =>
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              inventoryMode: event.target.value === "NONE" ? "NONE" : "PRODUCT",
+                            }))
+                          }
+                          className="input-field"
+                        >
+                          <option value="PRODUCT">사용 (메뉴 재고 관리)</option>
+                          <option value="NONE">미사용 (재고 차감 없음)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-border rounded-lg p-3 bg-background">
+                    <ImageUpload
+                      value={createForm.imageUrl || null}
+                      onChange={(url) => setCreateForm((prev) => ({ ...prev, imageUrl: url ?? "" }))}
+                      folder="product-images"
+                      label="메뉴 이미지"
+                      aspectRatio="1/1"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm text-text-secondary mb-2 font-semibold">
+                    등록 채널 체크
+                  </label>
+                  <p className="text-xs text-text-secondary mb-2">
+                    체크한 채널(지점 주문/온라인샵)에만 메뉴가 노출됩니다.
+                  </p>
+                  <BranchChecklistTable
+                    branches={branches}
+                    selectedIds={createBranchIds}
+                    onToggle={(branchId) =>
+                      setCreateBranchIds((prev) => toggleSetValue(prev, branchId))
+                    }
+                    onToggleAll={(checked) => setAllBranchChecks(checked, "create")}
+                    categoryMap={branchCategories}
+                    selectedCategoryIds={createBranchCategoryIds}
+                    onChangeCategory={(branchId, categoryId) =>
+                      setCreateBranchCategoryIds((prev) => ({
+                        ...prev,
+                        [branchId]: categoryId,
+                      }))
+                    }
+                    onlineShopChecked={createOnlineShopChecked}
+                    onToggleOnlineShop={() =>
+                      setCreateOnlineShopChecked((prev) => !prev)
+                    }
+                    onlineShopUrl={selectedBrandShopUrl}
+                    brandSlug={selectedBrand?.slug ?? null}
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={handleCreateTemplate}
+                    disabled={saving}
+                    className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors disabled:opacity-60"
+                  >
+                    메뉴 등록
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {templates.length === 0 ? (
+            <div className="border border-border rounded-xl p-6 text-center text-text-secondary text-sm">
+              등록된 메뉴가 없습니다.
+            </div>
+          ) : (
+            <>
+              <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
+                    <p className="text-xs text-text-secondary mt-1">
+                      1) 표에서 메뉴 체크 → 2) 변경 항목 선택 → 3) 일괄 변경 실행
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleBulkUpdateTemplates}
+                    disabled={saving || !hasSelectedTemplates}
+                    className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                  >
+                    선택한 메뉴 일괄 변경 실행
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
+                    선택 메뉴 {selectedTemplateIds.size}개
+                  </span>
+                  {!hasSelectedTemplates && (
+                    <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-warning/20 text-warning">
+                      먼저 표에서 메뉴를 선택하세요
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">상태 일괄 변경</label>
+                    <select
+                      value={bulkStatus}
+                      onChange={(event) => setBulkStatus(event.target.value as BulkStatus)}
+                      className="input-field"
+                      disabled={saving || !hasSelectedTemplates}
+                    >
+                      <option value="keep">변경 안함</option>
+                      <option value="active">활성으로 변경</option>
+                      <option value="inactive">비활성으로 변경</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">재고관리 일괄 변경</label>
+                    <select
+                      value={bulkInventoryMode}
+                      onChange={(event) =>
+                        setBulkInventoryMode(event.target.value as BulkInventoryMode)
+                      }
+                      className="input-field"
+                      disabled={saving || !hasSelectedTemplates}
+                    >
+                      <option value="keep">변경 안함</option>
+                      <option value="PRODUCT">재고관리 사용</option>
+                      <option value="NONE">재고관리 미사용</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mb-3 flex items-end">
+                  <label className="flex items-center gap-2 text-sm text-text-secondary h-10">
+                    <input
+                      type="checkbox"
+                      checked={applyBulkBranchChecks}
+                      onChange={(event) => setApplyBulkBranchChecks(event.target.checked)}
+                      disabled={saving || !hasSelectedTemplates}
+                      className="w-4 h-4 rounded accent-primary"
+                    />
+                    매장 체크와 온라인샵 노출 상태도 함께 일괄 반영
+                  </label>
+                </div>
+
+                {applyBulkBranchChecks && (
+                  <div>
+                    <label className="block text-sm text-text-secondary mb-2 font-semibold">
+                      일괄 적용할 채널 체크
+                    </label>
+                    <BranchChecklistTable
+                      branches={branches}
+                      selectedIds={bulkBranchIds}
+                      onToggle={(branchId) => setBulkBranchIds((prev) => toggleSetValue(prev, branchId))}
+                      onToggleAll={(checked) => {
+                        setBulkBranchIds(
+                          checked ? new Set(branches.map((branch) => branch.id)) : new Set(),
+                        );
+                        setBulkOnlineShopChecked(checked);
+                      }}
+                      onlineShopChecked={bulkOnlineShopChecked}
+                      onToggleOnlineShop={() =>
+                        setBulkOnlineShopChecked((prev) => !prev)
+                      }
+                      onlineShopUrl={selectedBrandShopUrl}
+                      brandSlug={selectedBrand?.slug ?? null}
+                      disabled={saving || !hasSelectedTemplates}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-border rounded-xl overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead className="bg-bg-tertiary">
+                    <tr>
+                      <th className="w-12 py-3 px-4 text-left">
                         <input
                           type="checkbox"
-                          checked={allSelected}
-                          onChange={() => {
-                            if (allSelected) {
-                              setSelectedProductIds(new Set());
-                            } else {
-                              setSelectedProductIds(new Set(filteredProducts.map((p) => p.id)));
-                            }
-                          }}
+                          checked={allTemplatesChecked}
+                          onChange={(event) => toggleAllTemplateSelection(event.target.checked)}
+                          disabled={saving || filteredTemplates.length === 0}
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
-                    )}
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
-                    <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">가격</th>
-                    <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">등록일</th>
-                    <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">관리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((product) => {
-                    const active = isProductActive(product);
-                    const categoryName =
-                      productCategories.find((cat) => cat.id === product.category_id)?.name ?? "미분류";
+                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">메뉴</th>
+                      <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">기본가</th>
+                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">판매 채널</th>
+                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">재고관리</th>
+                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">상태</th>
+                      <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTemplates.map((template) => {
+                      const isEditing = editingTemplateId === template.id;
+                      const appliedCount =
+                        template.appliedBranchCount ?? template.appliedBranchIds?.length ?? 0;
+                      const totalCount = template.totalBranchCount ?? branches.length;
+                      const selectedBranchApplied = selectedFilterBranchId
+                        ? (template.appliedBranchIds ?? []).includes(selectedFilterBranchId)
+                        : false;
+                      const isOnlineShopVisible = template.isOnlineShopVisible !== false;
 
-                    return (
-                      <tr key={product.id} className="border-t border-border">
-                        {canManageProducts && (
-                          <td className="py-3 px-3.5">
-                            <input
-                              type="checkbox"
-                              checked={selectedProductIds.has(product.id)}
-                              onChange={() => {
-                                setSelectedProductIds((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(product.id)) next.delete(product.id);
-                                  else next.add(product.id);
-                                  return next;
-                                });
-                              }}
-                              className="w-4 h-4 rounded accent-primary"
-                            />
-                          </td>
-                        )}
-                        <td className="py-3 px-3.5 text-[13px] text-foreground">
-                          <div className="flex items-center gap-3">
-                            {product.image_url ? (
-                              <Image
-                                src={product.image_url}
-                                alt={product.name}
-                                width={40}
-                                height={40}
-                                className="w-10 h-10 rounded object-cover flex-shrink-0"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded bg-bg-tertiary flex items-center justify-center text-text-tertiary text-xs flex-shrink-0">
-                                NO
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <Link
-                                href={`/customer/products/${product.id}`}
-                                className="text-foreground no-underline hover:text-primary-500 transition-colors font-semibold truncate block"
-                              >
-                                {product.name}
-                              </Link>
-                              <div className="text-2xs text-text-tertiary">{categoryName}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3.5 text-[13px] text-foreground text-right whitespace-nowrap">
-                          {formatWon(product.base_price ?? product.price ?? 0)}
-                        </td>
-                        <td className="py-3 px-3.5 text-[13px] text-right">
-                          {editingInventoryId === product.id ? (
-                            <div className="flex justify-end items-center gap-1">
+                      return (
+                        <Fragment key={template.id}>
+                          <tr className="border-t border-border">
+                            <td className="py-3 px-4">
                               <input
-                                type="number"
-                                min="0"
-                                value={editingInventoryQty}
-                                onChange={(e) => setEditingInventoryQty(e.target.value)}
-                                className="input-field h-8 w-20 text-right"
+                                type="checkbox"
+                                checked={selectedTemplateIds.has(template.id)}
+                                onChange={() => toggleTemplateSelection(template.id)}
+                                disabled={saving}
+                                className="w-4 h-4 rounded accent-primary"
                               />
-                              <button
-                                onClick={() => handleSaveInventory(product.id)}
-                                disabled={inventorySaving}
-                                className="h-8 px-2 text-xs rounded border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors"
+                            </td>
+                            <td className="py-3 px-4 text-sm text-foreground">
+                              <div className="font-semibold">{template.name}</div>
+                              {template.description && (
+                                <div className="text-xs text-text-secondary mt-0.5">{template.description}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-foreground text-right">
+                              {formatWon(template.price)}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-foreground">
+                              {salesChannelFilter === "ALL" ? (
+                                <>
+                                  <div>{appliedCount} / {totalCount} 매장</div>
+                                  <div className="text-xs text-text-secondary mt-0.5">
+                                    {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                                  </div>
+                                </>
+                              ) : salesChannelFilter === "ONLINE_SHOP" ? (
+                                <span
+                                  className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                                    isOnlineShopVisible
+                                      ? "bg-success/20 text-success"
+                                      : "bg-danger-500/20 text-danger-500"
+                                  }`}
+                                >
+                                  {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                                </span>
+                              ) : (
+                                <span
+                                  className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                                    selectedBranchApplied
+                                      ? "bg-success/20 text-success"
+                                      : "bg-danger-500/20 text-danger-500"
+                                  }`}
+                                >
+                                  {selectedBranchApplied
+                                    ? `${selectedFilterBranchName ?? "선택 지점"} 노출`
+                                    : `${selectedFilterBranchName ?? "선택 지점"} 미노출`}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm">
+                              <span
+                                className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                                  template.inventoryMode === "NONE"
+                                    ? "bg-warning/20 text-warning"
+                                    : template.inventoryMode === "MIXED"
+                                      ? "bg-primary-500/20 text-primary-500"
+                                      : "bg-success/20 text-success"
+                                }`}
                               >
-                                저장
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEditingInventoryId(null);
-                                  setEditingInventoryQty("");
-                                }}
-                                className="h-8 px-2 text-xs rounded border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors"
+                                {template.inventoryMode === "NONE"
+                                  ? "미사용"
+                                  : template.inventoryMode === "MIXED"
+                                    ? "혼합"
+                                    : "사용"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-sm">
+                              <span
+                                className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
+                                  template.isActive
+                                    ? "bg-success/20 text-success"
+                                    : "bg-danger-500/20 text-danger-500"
+                                }`}
                               >
-                                취소
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleStartInventoryEdit(product.id, inventoryMap[product.id])}
-                              disabled={!canManageProducts}
-                              className={`font-semibold ${
-                                canManageProducts
-                                  ? "cursor-pointer hover:text-primary-500 transition-colors"
-                                  : "cursor-default"
-                              } ${
-                                (inventoryMap[product.id] ?? 0) <= 0
-                                  ? "text-danger-500"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {inventoryMap[product.id] ?? "-"}
-                            </button>
+                                {template.isActive ? "활성" : "비활성"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="inline-flex items-center gap-2">
+                                {salesChannelFilter !== "ALL" && (
+                                  <button
+                                    onClick={() => handleToggleTemplateForSalesChannel(template)}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                  >
+                                    {salesChannelFilter === "ONLINE_SHOP"
+                                      ? isOnlineShopVisible
+                                        ? "온라인샵 숨김"
+                                        : "온라인샵 노출"
+                                      : selectedBranchApplied
+                                        ? "지점 숨김"
+                                        : "지점 노출"}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() =>
+                                    isEditing ? cancelEditTemplate() : startEditTemplate(template)
+                                  }
+                                  disabled={saving}
+                                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                >
+                                  {isEditing ? "편집 닫기" : "수정"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeactivateTemplate(template)}
+                                  disabled={saving || !template.isActive}
+                                  className="px-3 py-1.5 rounded-md border border-border bg-danger-500/10 text-danger-500 text-xs hover:bg-danger-500/20 transition-colors disabled:opacity-50"
+                                >
+                                  비활성화
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isEditing && (
+                            <tr className="border-t border-border bg-bg-secondary/50">
+                              <td colSpan={7} className="py-4 px-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                  <input
+                                    value={editForm.name}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, name: event.target.value }))
+                                    }
+                                    placeholder="메뉴명"
+                                    className="input-field"
+                                  />
+                                  <input
+                                    value={editForm.price}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, price: event.target.value }))
+                                    }
+                                    placeholder="가격"
+                                    className="input-field"
+                                    inputMode="numeric"
+                                  />
+                                  <select
+                                    value={editForm.isActive ? "active" : "inactive"}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        isActive: event.target.value === "active",
+                                      }))
+                                    }
+                                    className="input-field"
+                                  >
+                                    <option value="active">활성</option>
+                                    <option value="inactive">비활성</option>
+                                  </select>
+                                  <input
+                                    value={editForm.description}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, description: event.target.value }))
+                                    }
+                                    placeholder="설명 (선택)"
+                                    className="input-field"
+                                  />
+                                  <select
+                                    value={editForm.inventoryMode}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        inventoryMode:
+                                          event.target.value === "NONE" ? "NONE" : "PRODUCT",
+                                      }))
+                                    }
+                                    className="input-field"
+                                  >
+                                    <option value="PRODUCT">재고관리 사용</option>
+                                    <option value="NONE">재고관리 미사용</option>
+                                  </select>
+                                </div>
+
+                                <div className="mb-3">
+                                  <ImageUpload
+                                    value={editForm.imageUrl || null}
+                                    onChange={(url) =>
+                                      setEditForm((prev) => ({ ...prev, imageUrl: url ?? "" }))
+                                    }
+                                    folder="product-images"
+                                    label="메뉴 이미지"
+                                    aspectRatio="1/1"
+                                  />
+                                </div>
+
+                                <div className="mb-3">
+                                  <label className="block text-sm text-text-secondary mb-2 font-semibold">
+                                    등록 채널 체크
+                                  </label>
+                                  <p className="text-xs text-text-secondary mb-2">
+                                    체크한 채널(지점 주문/온라인샵)에만 메뉴가 노출됩니다.
+                                  </p>
+                                  <BranchChecklistTable
+                                    branches={branches}
+                                    selectedIds={editBranchIds}
+                                    onToggle={(branchId) =>
+                                      setEditBranchIds((prev) => toggleSetValue(prev, branchId))
+                                    }
+                                    onToggleAll={(checked) => setAllBranchChecks(checked, "edit")}
+                                    categoryMap={branchCategories}
+                                    selectedCategoryIds={editBranchCategoryIds}
+                                    onChangeCategory={(branchId, categoryId) =>
+                                      setEditBranchCategoryIds((prev) => ({
+                                        ...prev,
+                                        [branchId]: categoryId,
+                                      }))
+                                    }
+                                    onlineShopChecked={editOnlineShopChecked}
+                                    onToggleOnlineShop={() =>
+                                      setEditOnlineShopChecked((prev) => !prev)
+                                    }
+                                    onlineShopUrl={selectedBrandShopUrl}
+                                    brandSlug={selectedBrand?.slug ?? null}
+                                    disabled={saving}
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2 justify-end">
+                                  <button
+                                    onClick={() => cancelEditTemplate()}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                  >
+                                    취소
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveTemplate(template.id)}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                                  >
+                                    저장
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="py-3 px-3.5 text-[13px]">
-                          <span
-                            className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
-                              active
-                                ? "bg-success/20 text-success"
-                                : "bg-neutral-500/20 text-text-secondary"
-                            }`}
-                          >
-                            {active ? "판매중" : "숨김"}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3.5 text-[13px] text-text-secondary whitespace-nowrap">
-                          {formatDate(product.created_at)}
-                        </td>
-                        <td className="py-3 px-3.5 text-center">
-                          <Link href={`/customer/products/${product.id}`} className="no-underline">
-                            <button className="py-1 px-2.5 rounded-md border border-border bg-transparent text-foreground font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors">
-                              보기
-                            </button>
-                          </Link>
+                        </Fragment>
+                      );
+                    })}
+                    {filteredTemplates.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-sm text-text-secondary">
+                          선택한 판매 채널에 노출된 메뉴가 없습니다.
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
   );

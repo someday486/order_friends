@@ -18,7 +18,8 @@
       "Bash(npx tsc:*)",
       "Bash(wc:*)",
       "Bash(tree:*)",
-      "Bash(npx tailwindcss init:*)"
+      "Bash(npx tailwindcss init:*)",
+      "Bash(npx next build)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-// import { NestFactory } from '@nestjs/core';
+﻿// import { NestFactory } from '@nestjs/core';
 // import { AppModule } from './app.module';
 
 // async function bootstrap() {
@@ -47,7 +47,10 @@ async function bootstrap() {
 
   // CORS Configuration
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
       if (!origin) return callback(null, true);
 
       // Allow localhost and common local/dev hosts

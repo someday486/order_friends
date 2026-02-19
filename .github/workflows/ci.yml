@@ -8,13 +8,11 @@ on:
 
 jobs:
   test:
-    name: Test
+    name: Backend Test
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [20.x, 22.x]
-
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +20,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -49,11 +47,9 @@ jobs:
           file: ./coverage/coverage-final.json
           fail_ci_if_error: false
 
-  build:
-    name: Build
+  web:
+    name: Web Test
     runs-on: ubuntu-latest
-    needs: test
-
     steps:
       - uses: actions/checkout@v4
 
@@ -61,7 +57,49 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'npm'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Run web linter
+        run: npm run lint --prefix apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+
+      - name: Run web build
+        run: npm run build --prefix apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+
+      - name: Install Playwright browsers
+        run: npm exec --prefix apps/web playwright install --with-deps chromium
+
+      - name: Run web E2E tests
+        run: npm run test:e2e --prefix apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+          NEXT_PUBLIC_E2E_BYPASS_AUTH: true
+
+  build:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -79,7 +117,6 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -87,40 +124,49 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'npm'
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: npm ci
 
-      - name: Run security audit
-        run: npm audit --production
-        continue-on-error: true
+      - name: Install web dependencies
+        run: npm ci --prefix apps/web
 
-      - name: Check for high severity vulnerabilities
+      - name: Run backend security audit
+        run: npm audit --omit=dev --json > audit-report-backend.json || true
+
+      - name: Run web security audit
+        run: npm audit --omit=dev --prefix apps/web --json > audit-report-web.json || true
+
+      - name: Check for critical vulnerabilities
         run: |
-          npm audit --production --json > audit-report.json || true
-          HIGH_VULN=$(cat audit-report.json | grep -o '"high":[0-9]*' | head -1 | cut -d':' -f2 || echo "0")
-          CRITICAL_VULN=$(cat audit-report.json | grep -o '"critical":[0-9]*' | head -1 | cut -d':' -f2 || echo "0")
-          echo "High severity vulnerabilities: $HIGH_VULN"
-          echo "Critical vulnerabilities: $CRITICAL_VULN"
-          if [ "$CRITICAL_VULN" -gt "0" ]; then
-            echo "Critical vulnerabilities found! Please review."
+          BACKEND_HIGH=$(grep -o '"high":[0-9]*' audit-report-backend.json | head -1 | cut -d':' -f2 || echo "0")
+          BACKEND_CRITICAL=$(grep -o '"critical":[0-9]*' audit-report-backend.json | head -1 | cut -d':' -f2 || echo "0")
+          WEB_HIGH=$(grep -o '"high":[0-9]*' audit-report-web.json | head -1 | cut -d':' -f2 || echo "0")
+          WEB_CRITICAL=$(grep -o '"critical":[0-9]*' audit-report-web.json | head -1 | cut -d':' -f2 || echo "0")
+          echo "Backend high=$BACKEND_HIGH critical=$BACKEND_CRITICAL"
+          echo "Web high=$WEB_HIGH critical=$WEB_CRITICAL"
+          if [ "$BACKEND_CRITICAL" -gt "0" ] || [ "$WEB_CRITICAL" -gt "0" ]; then
+            echo "Critical vulnerabilities found."
             exit 1
           fi
 
-      - name: Upload audit report
+      - name: Upload audit reports
         uses: actions/upload-artifact@v4
         with:
           name: security-audit
-          path: audit-report.json
+          path: |
+            audit-report-backend.json
+            audit-report-web.json
           retention-days: 30
 
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [build, security]
+    needs: [build, security, web]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v4
 
@@ -156,12 +202,11 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [test, build, security, docker]
+    needs: [test, build, security, web, docker]
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     environment:
       name: staging
       url: https://staging-api.orderfriends.app
-
     steps:
       - uses: actions/checkout@v4
 
@@ -171,31 +216,38 @@ jobs:
           name: build-artifacts
           path: dist/
 
-      - name: Deploy to staging
+      - name: Trigger staging deploy webhook
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.STAGING_DEPLOY_WEBHOOK_URL }}
+          IMAGE_TAGS: ${{ needs.docker.outputs.tags }}
         run: |
-          echo "Deploying to staging environment..."
-          echo "Docker image: ${{ needs.docker.outputs.tags }}"
-          # Add your staging deployment commands here
-          # Example: kubectl set image deployment/api api=${{ needs.docker.outputs.tags }}
-          # Example: docker-compose -f docker-compose.staging.yml up -d
+          if [ -z "$DEPLOY_WEBHOOK_URL" ]; then
+            echo "STAGING_DEPLOY_WEBHOOK_URL not configured; skipping deployment trigger."
+            exit 0
+          fi
+          curl -fsSL -X POST "$DEPLOY_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"imageTags\":\"$IMAGE_TAGS\",\"sha\":\"${{ github.sha }}\"}"
 
-      - name: Run health check
+      - name: Run staging health check
+        env:
+          HEALTHCHECK_URL: ${{ secrets.STAGING_HEALTHCHECK_URL }}
         run: |
-          echo "Waiting for deployment to stabilize..."
-          sleep 30
-          echo "Running health check..."
-          # Add health check command
-          # Example: curl -f https://staging-api.orderfriends.app/health || exit 1
+          if [ -z "$HEALTHCHECK_URL" ]; then
+            echo "STAGING_HEALTHCHECK_URL not configured; skipping health check."
+            exit 0
+          fi
+          sleep 15
+          curl -fsSL "$HEALTHCHECK_URL"
 
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [test, build, security, docker]
+    needs: [test, build, security, web, docker]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
       url: https://api.orderfriends.app
-
     steps:
       - uses: actions/checkout@v4
 
@@ -205,37 +257,26 @@ jobs:
           name: build-artifacts
           path: dist/
 
-      - name: Deploy to production
+      - name: Trigger production deploy webhook
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.PRODUCTION_DEPLOY_WEBHOOK_URL }}
+          IMAGE_TAGS: ${{ needs.docker.outputs.tags }}
         run: |
-          echo "Deploying to production environment..."
-          echo "Docker image: ${{ needs.docker.outputs.tags }}"
-          # Add your production deployment commands here
-          # Example: kubectl set image deployment/api api=${{ needs.docker.outputs.tags }}
-          # Example: docker-compose -f docker-compose.prod.yml up -d
+          if [ -z "$DEPLOY_WEBHOOK_URL" ]; then
+            echo "PRODUCTION_DEPLOY_WEBHOOK_URL not configured; skipping deployment trigger."
+            exit 0
+          fi
+          curl -fsSL -X POST "$DEPLOY_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"imageTags\":\"$IMAGE_TAGS\",\"sha\":\"${{ github.sha }}\"}"
 
-      - name: Run database migrations
+      - name: Run production health check
+        env:
+          HEALTHCHECK_URL: ${{ secrets.PRODUCTION_HEALTHCHECK_URL }}
         run: |
-          echo "Running database migrations..."
-          # Add migration commands
-          # Example: npm run migration:run
-          # Note: Ensure migrations are idempotent and can be safely re-run
-
-      - name: Run health check
-        run: |
-          echo "Waiting for deployment to stabilize..."
-          sleep 30
-          echo "Running health check..."
-          # Add health check command
-          # Example: curl -f https://api.orderfriends.app/health || exit 1
-
-      - name: Verify deployment
-        run: |
-          echo "Verifying deployment..."
-          # Add verification commands
-          # Example: curl -f https://api.orderfriends.app/api || exit 1
-
-      - name: Notify deployment success
-        run: |
-          echo "Production deployment completed successfully!"
-          # Add notification commands (Slack, Discord, Email, etc.)
-          # Example: curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} -d '{"text":"Production deployed successfully!"}'
+          if [ -z "$HEALTHCHECK_URL" ]; then
+            echo "PRODUCTION_HEALTHCHECK_URL not configured; skipping health check."
+            exit 0
+          fi
+          sleep 15
+          curl -fsSL "$HEALTHCHECK_URL"

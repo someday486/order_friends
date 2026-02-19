@@ -44,6 +44,7 @@ describe('PublicOrderService - Branch Coverage', () => {
       orders: makeChain(),
       order_dedup_logs: makeChain(),
       product_categories: makeChain(),
+      product_inventory: makeChain(),
     };
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };

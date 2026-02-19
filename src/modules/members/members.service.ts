@@ -31,7 +31,7 @@ export class MembersService {
   // ============================================================
 
   /**
-   * 釉뚮옖??硫ㅻ쾭 紐⑸줉 議고쉶
+   * 브랜드 멤버 목록 조회
    */
   async getBrandMembers(
     accessToken: string,
@@ -62,9 +62,9 @@ export class MembersService {
       throw new Error(`[members.getBrandMembers] ${error.message}`);
     }
 
-    // ?대찓??議고쉶瑜??꾪빐 user_id 紐⑸줉 ?섏쭛
+    // 이메일 조회를 위해 user_id 목록 수집
 
-    // auth.users?먯꽌 ?대찓??議고쉶 (service role ?꾩슂, ?놁쑝硫??ㅽ궢)
+    // auth.users 조회는 service-role 권한이 필요해서 현재는 생략
     const emailMap: Record<string, string> = {};
 
     return (data ?? []).map((row: any) => ({
@@ -80,7 +80,7 @@ export class MembersService {
   }
 
   /**
-   * 釉뚮옖??硫ㅻ쾭 珥덈? (?대찓?쇰줈)
+   * 브랜드 멤버 초대 (이메일 기반)
    */
   // eslint-disable-next-line @typescript-eslint/require-await
   async inviteBrandMember(
@@ -92,20 +92,20 @@ export class MembersService {
     void dto;
     void _isAdmin;
 
-    // 1. ?대찓?쇰줈 ?ъ슜??李얘린 (profiles ?뚯씠釉붿뿉 ?놁쑝硫?珥덈? 遺덇?)
-    // ?ㅼ젣濡쒕뒗 auth.users瑜?議고쉶?댁빞 ?섏?留?RLS ?쒗븳?쇰줈 profiles 湲곗?
-    // ?먮뒗 珥덈? ?대찓??諛쒖넚 濡쒖쭅 ?꾩슂 - ?ш린?쒕뒗 媛꾨떒??泥섎━
+    // 1. 이메일로 사용자를 찾는 초대 플로우는 아직 미구현
+    // auth.users 조회 권한/정책 정리 후 구현 예정
+    // 현재 버전에서는 userId 직접 추가만 지원
 
-    // profiles?먯꽌 ?대찓?쇰줈 ?ъ슜??李얘린 (phone ?꾨뱶瑜??꾩떆濡??ъ슜?섍굅??蹂꾨룄 濡쒖쭅 ?꾩슂)
-    // ?꾩옱??userId瑜?吏곸젒 ?낅젰諛쏅뒗 諛⑹떇?쇰줈 ?고쉶
+    // profiles 기반 이메일 검색 미구현
+    // 현재는 userId를 직접 입력받는 방식으로 우회
 
     throw new BadRequestException(
-      '?대찓??珥덈? 湲곕뒫? 異뷀썑 援ы쁽 ?덉젙?낅땲?? ?꾩옱???ъ슜??ID濡?吏곸젒 異붽??댁＜?몄슂.',
+      '이메일 초대 기능은 아직 구현되지 않았습니다. 현재는 사용자 ID로 직접 추가해주세요.',
     );
   }
 
   /**
-   * 釉뚮옖??硫ㅻ쾭 異붽? (userId濡?吏곸젒)
+   * 브랜드 멤버 추가 (userId 직접 입력)
    */
   async addBrandMember(
     accessToken: string,
@@ -116,7 +116,7 @@ export class MembersService {
   ): Promise<BrandMemberResponse> {
     const sb = this.getClient(accessToken, isAdmin);
 
-    // ?대? 硫ㅻ쾭?몄? ?뺤씤
+    // 이미 멤버인지 확인
     const { data: existing } = await sb
       .from('brand_members')
       .select('user_id')
@@ -125,10 +125,10 @@ export class MembersService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('?대? 釉뚮옖??硫ㅻ쾭?낅땲??');
+      throw new BadRequestException('이미 브랜드 멤버입니다.');
     }
 
-    // 硫ㅻ쾭 異붽?
+    // 멤버 추가
     const { data, error } = await sb
       .from('brand_members')
       .insert({
@@ -157,7 +157,7 @@ export class MembersService {
   }
 
   /**
-   * 釉뚮옖??硫ㅻ쾭 ?섏젙 (??븷/?곹깭)
+   * 브랜드 멤버 수정 (역할/상태)
    */
   async updateBrandMember(
     accessToken: string,
@@ -173,7 +173,7 @@ export class MembersService {
     if (dto.status !== undefined) updateData.status = dto.status;
 
     if (Object.keys(updateData).length === 0) {
-      throw new BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
+      throw new BadRequestException('수정할 내용이 없습니다.');
     }
 
     const { data, error } = await sb
@@ -189,7 +189,7 @@ export class MembersService {
     }
 
     if (!data) {
-      throw new NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
+      throw new NotFoundException('멤버를 찾을 수 없습니다.');
     }
 
     return {
@@ -205,7 +205,7 @@ export class MembersService {
   }
 
   /**
-   * 釉뚮옖??硫ㅻ쾭 ??젣
+   * 브랜드 멤버 삭제
    */
   async removeBrandMember(
     accessToken: string,
@@ -233,7 +233,7 @@ export class MembersService {
   // ============================================================
 
   /**
-   * 媛寃?硫ㅻ쾭 紐⑸줉 議고쉶
+   * 지점 멤버 목록 조회
    */
   async getBranchMembers(
     accessToken: string,
@@ -277,7 +277,7 @@ export class MembersService {
   }
 
   /**
-   * 媛寃?硫ㅻ쾭 異붽?
+   * 지점 멤버 추가
    */
   async addBranchMember(
     accessToken: string,
@@ -286,7 +286,7 @@ export class MembersService {
   ): Promise<BranchMemberResponse> {
     const sb = this.getClient(accessToken, isAdmin);
 
-    // ?대? 硫ㅻ쾭?몄? ?뺤씤
+    // 이미 멤버인지 확인
     const { data: existing } = await sb
       .from('branch_members')
       .select('user_id')
@@ -295,10 +295,10 @@ export class MembersService {
       .maybeSingle();
 
     if (existing) {
-      throw new BadRequestException('?대? 媛寃?硫ㅻ쾭?낅땲??');
+      throw new BadRequestException('이미 지점 멤버입니다.');
     }
 
-    // 硫ㅻ쾭 異붽?
+    // 멤버 추가
     const { data, error } = await sb
       .from('branch_members')
       .insert({
@@ -327,7 +327,7 @@ export class MembersService {
   }
 
   /**
-   * 媛寃?硫ㅻ쾭 ?섏젙
+   * 지점 멤버 수정
    */
   async updateBranchMember(
     accessToken: string,
@@ -343,7 +343,7 @@ export class MembersService {
     if (dto.status !== undefined) updateData.status = dto.status;
 
     if (Object.keys(updateData).length === 0) {
-      throw new BadRequestException('?섏젙???댁슜???놁뒿?덈떎.');
+      throw new BadRequestException('수정할 내용이 없습니다.');
     }
 
     const { data, error } = await sb
@@ -359,7 +359,7 @@ export class MembersService {
     }
 
     if (!data) {
-      throw new NotFoundException('硫ㅻ쾭瑜?李얠쓣 ???놁뒿?덈떎.');
+      throw new NotFoundException('멤버를 찾을 수 없습니다.');
     }
 
     return {
@@ -375,7 +375,7 @@ export class MembersService {
   }
 
   /**
-   * 媛寃?硫ㅻ쾭 ??젣
+   * 지점 멤버 삭제
    */
   async removeBranchMember(
     accessToken: string,

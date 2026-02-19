@@ -5,6 +5,8 @@ export class BranchListItemResponse {
   slug?: string;
   logoUrl?: string | null;
   thumbnailUrl?: string | null;
+  enabledFulfillmentTypes?: string[];
+  allowedPaymentMethods?: string[];
   createdAt: string;
 }
 
@@ -16,5 +18,7 @@ export class BranchDetailResponse {
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   thumbnailUrl?: string | null;
+  enabledFulfillmentTypes?: string[];
+  allowedPaymentMethods?: string[];
   createdAt: string;
 }

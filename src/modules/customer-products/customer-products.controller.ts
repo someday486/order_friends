@@ -30,9 +30,16 @@ import { UpdateProductRequest } from '../../modules/products/dto/update-product.
 import { ReorderProductsRequest } from '../../modules/products/dto/reorder-products.request';
 import {
   CreateCategoryRequest,
+  BulkCreateCategoriesRequest,
   UpdateCategoryRequest,
   ReorderCategoriesRequest,
 } from '../../modules/products/dto/category-crud.request';
+import {
+  ApplyBrandProductTemplateRequest,
+  BulkUpdateBrandProductTemplateRequest,
+  CreateBrandProductTemplateRequest,
+  UpdateBrandProductTemplateRequest,
+} from './dto/brand-product-template.request';
 
 @ApiTags('customer-products')
 @ApiBearerAuth()
@@ -127,6 +134,39 @@ export class CustomerProductsController {
       dto.name,
       dto.sortOrder,
       dto.isActive,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('categories/bulk-create')
+  @ApiOperation({
+    summary: '카테고리 일괄 생성',
+    description:
+      '선택한 여러 매장에 같은 카테고리를 한 번에 생성합니다. 이미 같은 이름이 있으면 해당 매장은 건너뜁니다.',
+  })
+  @ApiBody({ type: BulkCreateCategoriesRequest })
+  @ApiResponse({ status: 201, description: '카테고리 일괄 생성 성공' })
+  @ApiResponse({ status: 400, description: '잘못된 요청' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  async bulkCreateCategories(
+    @Req() req: AuthRequest,
+    @Body() dto: BulkCreateCategoriesRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.branchIds?.length) {
+      throw new BadRequestException('branchIds is required');
+    }
+    if (!dto.name?.trim()) {
+      throw new BadRequestException('name is required');
+    }
+
+    this.logger.log(
+      `User ${req.user.id} bulk creating category "${dto.name}" for ${dto.branchIds.length} branches`,
+    );
+    return this.productsService.bulkCreateCategories(
+      req.user.id,
+      dto,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );
@@ -308,6 +348,190 @@ export class CustomerProductsController {
       req.user.id,
       dto.branchId,
       dto.items,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Get('brand-templates')
+  @ApiOperation({
+    summary: '브랜드 메뉴 템플릿 조회',
+    description:
+      '브랜드 단위 메뉴 템플릿을 조회하고 지점별 적용 여부를 함께 확인합니다.',
+  })
+  @ApiQuery({ name: 'brandId', description: '브랜드 ID', required: true })
+  @ApiQuery({
+    name: 'branchId',
+    description: '적용 여부를 확인할 지점 ID',
+    required: false,
+  })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 템플릿 조회 성공' })
+  async getBrandTemplates(
+    @Req() req: AuthRequest,
+    @Query('brandId') brandId: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!brandId) {
+      throw new BadRequestException('brandId is required');
+    }
+
+    return this.productsService.getBrandProductTemplates(
+      req.user.id,
+      brandId,
+      branchId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('brand-templates')
+  @ApiOperation({
+    summary: '브랜드 메뉴 템플릿 생성',
+    description: '브랜드 단위 메뉴를 등록합니다.',
+  })
+  @ApiBody({ type: CreateBrandProductTemplateRequest })
+  @ApiResponse({ status: 201, description: '브랜드 메뉴 템플릿 생성 성공' })
+  async createBrandTemplate(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateBrandProductTemplateRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.brandId) {
+      throw new BadRequestException('brandId is required');
+    }
+
+    return this.productsService.createBrandProductTemplate(
+      req.user.id,
+      dto,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('brand-templates/:templateId')
+  @ApiOperation({
+    summary: '브랜드 메뉴 템플릿 수정',
+    description: '브랜드 단위 메뉴 템플릿을 수정합니다.',
+  })
+  @ApiParam({ name: 'templateId', description: '브랜드 메뉴 템플릿 ID' })
+  @ApiBody({ type: UpdateBrandProductTemplateRequest })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 템플릿 수정 성공' })
+  async updateBrandTemplate(
+    @Req() req: AuthRequest,
+    @Param('templateId') templateId: string,
+    @Body() dto: UpdateBrandProductTemplateRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    return this.productsService.updateBrandProductTemplate(
+      req.user.id,
+      templateId,
+      dto,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('brand-templates/bulk/update')
+  @ApiOperation({
+    summary: '브랜드 메뉴 일괄 수정',
+    description:
+      '선택한 브랜드 메뉴들의 활성 상태 또는 매장 체크 상태를 한 번에 변경합니다.',
+  })
+  @ApiBody({ type: BulkUpdateBrandProductTemplateRequest })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 일괄 수정 성공' })
+  async bulkUpdateBrandTemplates(
+    @Req() req: AuthRequest,
+    @Body() dto: BulkUpdateBrandProductTemplateRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.brandId) {
+      throw new BadRequestException('brandId is required');
+    }
+    if (!dto.templateIds?.length) {
+      throw new BadRequestException('templateIds is required');
+    }
+
+    return this.productsService.bulkUpdateBrandProductTemplates(
+      req.user.id,
+      dto,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Delete('brand-templates/:templateId')
+  @ApiOperation({
+    summary: '브랜드 메뉴 템플릿 비활성화',
+    description:
+      '브랜드 메뉴 템플릿을 비활성화하고 연결된 지점 메뉴를 숨김 처리합니다.',
+  })
+  @ApiParam({ name: 'templateId', description: '브랜드 메뉴 템플릿 ID' })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 템플릿 비활성화 성공' })
+  async deleteBrandTemplate(
+    @Req() req: AuthRequest,
+    @Param('templateId') templateId: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    return this.productsService.deleteBrandProductTemplate(
+      req.user.id,
+      templateId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('brand-templates/:templateId/apply')
+  @ApiOperation({
+    summary: '브랜드 메뉴를 지점에 적용',
+    description: '선택한 브랜드 메뉴 템플릿을 지점 상품으로 등록합니다.',
+  })
+  @ApiParam({ name: 'templateId', description: '브랜드 메뉴 템플릿 ID' })
+  @ApiBody({ type: ApplyBrandProductTemplateRequest })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 지점 적용 성공' })
+  async applyBrandTemplateToBranch(
+    @Req() req: AuthRequest,
+    @Param('templateId') templateId: string,
+    @Body() dto: ApplyBrandProductTemplateRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.branchId) {
+      throw new BadRequestException('branchId is required');
+    }
+
+    return this.productsService.applyBrandTemplateToBranch(
+      req.user.id,
+      templateId,
+      dto.branchId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('brand-templates/:templateId/unapply')
+  @ApiOperation({
+    summary: '브랜드 메뉴를 지점에서 해제',
+    description: '선택한 브랜드 메뉴 템플릿을 해당 지점에서 숨김 처리합니다.',
+  })
+  @ApiParam({ name: 'templateId', description: '브랜드 메뉴 템플릿 ID' })
+  @ApiBody({ type: ApplyBrandProductTemplateRequest })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 지점 해제 성공' })
+  async unapplyBrandTemplateFromBranch(
+    @Req() req: AuthRequest,
+    @Param('templateId') templateId: string,
+    @Body() dto: ApplyBrandProductTemplateRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.branchId) {
+      throw new BadRequestException('branchId is required');
+    }
+
+    return this.productsService.unapplyBrandTemplateFromBranch(
+      req.user.id,
+      templateId,
+      dto.branchId,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

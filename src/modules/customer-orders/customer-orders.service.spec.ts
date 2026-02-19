@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+﻿import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CustomerOrdersService } from './customer-orders.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from '../../modules/orders/order-status.enum';
@@ -7,6 +7,7 @@ describe('CustomerOrdersService', () => {
   let service: CustomerOrdersService;
   let ordersChain: any;
   let branchesChain: any;
+  let orderItemsChain: any;
   let mockSb: any;
 
   const makeChain = () => ({
@@ -23,10 +24,13 @@ describe('CustomerOrdersService', () => {
   const setup = () => {
     ordersChain = makeChain();
     branchesChain = makeChain();
+    orderItemsChain = makeChain();
+    orderItemsChain.in.mockResolvedValue({ data: [], error: null });
     mockSb = {
       from: jest.fn((table: string) => {
         if (table === 'orders') return ordersChain;
         if (table === 'branches') return branchesChain;
+        if (table === 'order_items') return orderItemsChain;
         return ordersChain;
       }),
     };
@@ -202,6 +206,8 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -236,6 +242,8 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -296,6 +304,8 @@ describe('CustomerOrdersService', () => {
           created_at: null,
           total_amount: null,
           customer_name: null,
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -315,8 +325,155 @@ describe('CustomerOrdersService', () => {
       orderedAt: '',
       customerName: '',
       totalAmount: 0,
+      fulfillmentType: null,
+      branchId: 'b1',
+      branchName: 'Gangnam',
+      itemCount: 0,
+      firstItemName: null,
+      firstItemQty: null,
+      itemsSummary: '',
       status: OrderStatus.CREATED,
     });
+  });
+
+  it('getMyOrders should include branch and item summary fields', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+          customer_name: 'Customer',
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
+        },
+      ],
+      error: null,
+    });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: [
+        { order_id: 'o1', product_name_snapshot: 'Americano', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '移댄럹?쇰뼹', qty: 2 },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data[0]).toMatchObject({
+      branchId: 'b1',
+      branchName: 'Gangnam',
+      itemCount: 2,
+      firstItemName: 'Americano',
+      firstItemQty: 1,
+      itemsSummary: 'Americano 1, 移댄럹?쇰뼹 2',
+    });
+  });
+
+  it('getMyOrders should truncate itemsSummary and append remaining count', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+          customer_name: 'Customer',
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
+        },
+      ],
+      error: null,
+    });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: [
+        { order_id: 'o1', product_name_snapshot: '?곹뭹1', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹2', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹3', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹4', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹5', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹6', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹7', qty: 1 },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data[0].itemsSummary).toBe(
+      '?곹뭹1 1, ?곹뭹2 1, ?곹뭹3 1, ?곹뭹4 1, ?곹뭹5 1, ?곹뭹6 1, +1',
+    );
+    expect(result.data[0].itemCount).toBe(7);
+  });
+
+  it('getMyOrders should throw on order item summary fetch error', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
+        },
+      ],
+      error: null,
+    });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+
+    await expect(
+      service.getMyOrders(
+        'user-1',
+        'b1',
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+        {},
+      ),
+    ).rejects.toThrow('Failed to fetch order item summaries');
   });
 
   it('getMyOrders should use accessible branches when branchId is omitted', async () => {
@@ -336,6 +493,8 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
+          branch_id: 'b1',
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -370,6 +529,8 @@ describe('CustomerOrdersService', () => {
             status: OrderStatus.CONFIRMED,
             created_at: 't',
             total_amount: 10,
+            branch_id: 'b1',
+            branches: { name: 'Gangnam' },
           },
         ],
         error: null,
@@ -538,6 +699,7 @@ describe('CustomerOrdersService', () => {
 
     expect(result.id).toBe('o1');
     expect(result.items).toHaveLength(1);
+    expect(result.myRole).toBe('OWNER');
   });
 
   it('getMyOrder should map defaults and option names', async () => {
@@ -846,6 +1008,80 @@ describe('CustomerOrdersService', () => {
         [],
       ),
     ).rejects.toThrow('Failed to update order status');
+  });
+
+  it('updateMyOrdersStatusBulk should update selected orders', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'o2', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      });
+
+    const result = await service.updateMyOrdersStatusBulk(
+      'user-1',
+      ['o1', 'o2'],
+      OrderStatus.READY,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(ordersChain.in).toHaveBeenCalledWith('id', ['o1', 'o2']);
+    expect(result.updatedCount).toBe(2);
+    expect(result.status).toBe(OrderStatus.READY);
+    expect(result.orderIds).toEqual(['o1', 'o2']);
+  });
+
+  it('updateMyOrdersStatusBulk should throw for insufficient role', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrdersStatusBulk(
+        'user-1',
+        ['o1'],
+        OrderStatus.READY,
+        [],
+        [{ branch_id: 'b1', role: 'VIEWER' }],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('updateMyOrdersStatusBulk should throw on update error', async () => {
+    ordersChain.select
+      .mockReturnValueOnce(ordersChain)
+      .mockReturnValueOnce(ordersChain)
+      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrdersStatusBulk(
+        'user-1',
+        ['o1'],
+        OrderStatus.READY,
+        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [],
+      ),
+    ).rejects.toThrow('Failed to bulk update order status');
   });
 
   it('checkModificationPermission should allow admin roles', () => {

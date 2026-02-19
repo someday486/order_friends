@@ -21,6 +21,11 @@ type Branch = {
   createdAt: string;
 };
 
+type Brand = {
+  id: string;
+  slug?: string | null;
+};
+
 // ============================================================
 // Constants
 // ============================================================
@@ -35,6 +40,18 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("ko-KR");
 }
 
+function getBranchOrderUrl(
+  brandSlug: string | null,
+  branchSlug: string | undefined,
+  branchId: string,
+) {
+  if (brandSlug && branchSlug) {
+    return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branchSlug)}`;
+  }
+
+  return `/order/branch/${branchId}`;
+}
+
 // ============================================================
 // Component
 // ============================================================
@@ -45,6 +62,7 @@ export default function StoresPage() {
   const { selectBranch } = useSelectedBranch();
 
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [brandSlug, setBrandSlug] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +114,22 @@ export default function StoresPage() {
   useEffect(() => {
     if (!ready) return;
     if (brandId) fetchBranches(brandId);
+  }, [ready, brandId]);
+
+  useEffect(() => {
+    if (!ready || !brandId) return;
+
+    const loadBrandSlug = async () => {
+      try {
+        const brands = await apiClient.get<Brand[]>("/admin/brands");
+        const currentBrand = brands.find((item) => item.id === brandId);
+        setBrandSlug(currentBrand?.slug ?? null);
+      } catch {
+        setBrandSlug(null);
+      }
+    };
+
+    loadBrandSlug();
   }, [ready, brandId]);
 
   // 초기 로딩/리다이렉트 처리
@@ -199,7 +233,7 @@ export default function StoresPage() {
                     </Link>
                   </td>
                   <td className="py-3 px-3.5 text-xs text-text-secondary">
-                    {branch.slug ? `openoda.com/store/${branch.slug}` : "-"}
+                    {getBranchOrderUrl(brandSlug, branch.slug, branch.id)}
                   </td>
                   <td className="py-3 px-3.5 text-[13px] text-text-secondary">{formatDate(branch.createdAt)}</td>
                   <td className="py-3 px-3.5 text-[13px] text-center">

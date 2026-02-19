@@ -5,7 +5,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { formatDateTime, formatPhone, formatWon } from "@/lib/format";
-import { PAYMENT_METHOD_LABEL, type OrderStatus } from "@/types/common";
+import {
+  FULFILLMENT_TYPE_LABEL,
+  PAYMENT_METHOD_LABEL,
+  type FulfillmentType,
+  type OrderStatus,
+} from "@/types/common";
 
 // ============================================================
 // Types
@@ -24,6 +29,7 @@ type OrderDetail = {
   orderNo: string | null;
   orderedAt: string;
   status: OrderStatus;
+  fulfillmentType?: FulfillmentType | null;
   customer: {
     name: string;
     phone: string;
@@ -547,6 +553,14 @@ export default function CustomerOrderDetailPage() {
           결제 정보
         </h2>
         <InfoRow
+          label="주문 방식"
+          value={
+            order.fulfillmentType
+              ? FULFILLMENT_TYPE_LABEL[order.fulfillmentType]
+              : "-"
+          }
+        />
+        <InfoRow
           label="결제 방법"
           value={PAYMENT_METHOD_LABEL[order.payment.method] || order.payment.method || "-"}
         />
@@ -612,7 +626,7 @@ export default function CustomerOrderDetailPage() {
             </span>
           </div>
           <p className="text-xs text-text-tertiary mt-1">
-            주문 상태를 변경하려면 매니저 또는 스태프 권한이 필요합니다
+            주문 상태를 변경하려면 OWNER, ADMIN, BRANCH_OWNER, BRANCH_ADMIN, STAFF 권한이 필요합니다
           </p>
         </div>
       )}

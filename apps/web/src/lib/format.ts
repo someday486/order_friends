@@ -60,6 +60,20 @@ export function formatRelativeTime(iso: string): string {
   });
 }
 
+/** 다운로드/고정 포맷 (YYYY-MM-DD HH:mm) */
+export function formatYmdHm(iso: string): string {
+  if (!iso) return '-';
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return '-';
+
+  return date
+    .toLocaleString('sv-SE', {
+      timeZone: 'Asia/Seoul',
+    })
+    .slice(0, 16)
+    .replace('T', ' ');
+}
+
 /** 전화번호 포맷 (예: 010-1234-5678) */
 export function formatPhone(phone: string): string {
   if (!phone) return '-';

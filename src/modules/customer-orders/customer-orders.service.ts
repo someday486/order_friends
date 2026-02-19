@@ -21,6 +21,7 @@ import { canModifyOrder } from '../../common/utils/role-permission.util';
 @Injectable()
 export class CustomerOrdersService {
   private readonly logger = new Logger(CustomerOrdersService.name);
+  private static readonly ITEMS_SUMMARY_LIMIT = 6;
 
   constructor(private readonly supabase: SupabaseService) {}
 
@@ -210,6 +211,7 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -247,6 +249,9 @@ export class CustomerOrdersService {
     if (status) {
       countQuery = countQuery.eq('status', status);
     }
+    if (fulfillmentType) {
+      countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
+    }
 
     const { count, error: countError } = await countQuery;
 
@@ -258,13 +263,18 @@ export class CustomerOrdersService {
     // 데이터 조회
     let dataQuery = sb
       .from('orders')
-      .select('id, order_no, status, created_at, total_amount, customer_name')
+      .select(
+        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name), fulfillment_type',
+      )
       .in('branch_id', targetBranchIds)
       .order('created_at', { ascending: false })
       .range(from, to);
 
     if (status) {
       dataQuery = dataQuery.eq('status', status);
+    }
+    if (fulfillmentType) {
+      dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
     }
 
     const { data, error } = await dataQuery;
@@ -274,12 +284,82 @@ export class CustomerOrdersService {
       throw new Error('Failed to fetch orders');
     }
 
+    const orderIds = (data ?? []).map((row: any) => row.id);
+    const itemSummaryMap = new Map<
+      string,
+      {
+        itemCount: number;
+        firstItemName: string | null;
+        firstItemQty: number | null;
+        itemsSummary: string;
+      }
+    >();
+
+    if (orderIds.length > 0) {
+      const { data: orderItems, error: orderItemsError } = await sb
+        .from('order_items')
+        .select('order_id, product_name_snapshot, qty')
+        .in('order_id', orderIds);
+
+      if (orderItemsError) {
+        this.logger.error(
+          'Failed to fetch order item summaries',
+          orderItemsError,
+        );
+        throw new Error('Failed to fetch order item summaries');
+      }
+
+      const groupedItems = new Map<
+        string,
+        { product_name_snapshot?: string | null; qty?: number | null }[]
+      >();
+
+      for (const item of orderItems ?? []) {
+        const current = groupedItems.get(item.order_id);
+        if (current) {
+          current.push(item);
+          continue;
+        }
+        groupedItems.set(item.order_id, [item]);
+      }
+
+      for (const [orderId, items] of groupedItems.entries()) {
+        const firstItem = items[0];
+        const summaryParts = items
+          .slice(0, CustomerOrdersService.ITEMS_SUMMARY_LIMIT)
+          .map((item) =>
+            `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim(),
+          )
+          .filter(Boolean);
+        const remainingCount =
+          items.length - CustomerOrdersService.ITEMS_SUMMARY_LIMIT;
+        const itemsSummary =
+          remainingCount > 0
+            ? `${summaryParts.join(', ')}, +${remainingCount}`
+            : summaryParts.join(', ');
+
+        itemSummaryMap.set(orderId, {
+          itemCount: items.length,
+          firstItemName: firstItem?.product_name_snapshot ?? null,
+          firstItemQty: firstItem?.qty ?? null,
+          itemsSummary,
+        });
+      }
+    }
+
     const orders = (data ?? []).map((row: any) => ({
       id: row.id,
       orderNo: row.order_no ?? null,
       orderedAt: row.created_at ?? '',
       customerName: row.customer_name ?? '',
       totalAmount: row.total_amount ?? 0,
+      branchId: row.branch_id,
+      branchName: row.branches?.name ?? '',
+      fulfillmentType: row.fulfillment_type ?? null,
+      itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
+      firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
+      firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
+      itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
       status: row.status as OrderStatus,
     }));
 
@@ -299,7 +379,7 @@ export class CustomerOrdersService {
   ): Promise<OrderDetailResponse> {
     this.logger.log(`Fetching order ${orderId} by user ${userId}`);
 
-    const { order } = await this.checkOrderAccess(
+    const { order, role } = await this.checkOrderAccess(
       orderId,
       userId,
       brandMemberships,
@@ -309,7 +389,7 @@ export class CustomerOrdersService {
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
-      id, order_no, status, created_at,
+      id, order_no, status, created_at, fulfillment_type,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -349,6 +429,8 @@ export class CustomerOrdersService {
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      fulfillmentType: data.fulfillment_type ?? null,
+      myRole: role,
       customer: {
         name: data.customer_name ?? '',
         phone: data.customer_phone ?? '',
@@ -417,6 +499,71 @@ export class CustomerOrdersService {
       customerName: data.customer_name ?? '',
       totalAmount: data.total_amount ?? 0,
       status: data.status as OrderStatus,
+    };
+  }
+
+  /**
+   * 주문 상태 일괄 변경
+   */
+  async updateMyOrdersStatusBulk(
+    userId: string,
+    orderIds: string[],
+    status: OrderStatus,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    const uniqueOrderIds = Array.from(
+      new Set(orderIds.map((id) => id.trim()).filter(Boolean)),
+    );
+
+    if (uniqueOrderIds.length === 0) {
+      throw new NotFoundException('No order IDs provided');
+    }
+
+    this.logger.log(
+      `Bulk updating ${uniqueOrderIds.length} orders to ${status} by user ${userId}`,
+    );
+
+    const resolvedOrderIds: string[] = [];
+    for (const orderId of uniqueOrderIds) {
+      const { role, order } = await this.checkOrderAccess(
+        orderId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
+      this.checkModificationPermission(
+        role,
+        'bulk update order status',
+        userId,
+      );
+      resolvedOrderIds.push(order.id);
+    }
+
+    const targetOrderIds = Array.from(new Set(resolvedOrderIds));
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('orders')
+      .update({ status })
+      .in('id', targetOrderIds)
+      .select('id');
+
+    if (error) {
+      this.logger.error(
+        `Failed to bulk update order statuses to ${status}`,
+        error,
+      );
+      throw new Error('Failed to bulk update order status');
+    }
+
+    const updatedCount = data?.length ?? targetOrderIds.length;
+    this.logger.log(`Bulk status update completed: ${updatedCount} orders`);
+
+    return {
+      updatedCount,
+      status,
+      orderIds: targetOrderIds,
     };
   }
 }

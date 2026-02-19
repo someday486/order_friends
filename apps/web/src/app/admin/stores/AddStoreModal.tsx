@@ -82,7 +82,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         <div className="mt-2.5 text-xs text-text-tertiary leading-relaxed">
           기본 정보만 먼저 생성됩니다. (상세/주소/이미지는 다음 단계에서 추가)
           <br />
-          slug는 <b>영문/숫자/하이픈(-)</b>만 가능합니다.
+          URL은 <b>영문/숫자/하이픈(-)</b>만 가능합니다.
         </div>
       </div>
     </Modal>

@@ -12,6 +12,7 @@ describe('InventoryController', () => {
     getInventoryList: jest.fn(),
     getLowStockAlerts: jest.fn(),
     getInventoryLogs: jest.fn(),
+    bulkDeactivateInventory: jest.fn(),
     getInventoryByProduct: jest.fn(),
     updateInventory: jest.fn(),
     adjustInventory: jest.fn(),
@@ -198,6 +199,35 @@ describe('InventoryController', () => {
     ).rejects.toThrow('Missing user');
   });
 
+  it('bulkDeactivateInventory should call service and return result', async () => {
+    mockService.bulkDeactivateInventory.mockResolvedValue({
+      total: 1,
+      successful: 1,
+      results: [{ productId: 'prod-1', branchId: 'branch-1', success: true }],
+    });
+
+    const dto = {
+      items: [{ productId: 'prod-1', branchId: 'branch-1' }],
+    } as any;
+    const result = await controller.bulkDeactivateInventory(makeReq(), dto);
+
+    expect(result.successful).toBe(1);
+    expect(mockService.bulkDeactivateInventory).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+      [],
+      [],
+    );
+  });
+
+  it('bulkDeactivateInventory should throw when user is missing', async () => {
+    await expect(
+      controller.bulkDeactivateInventory(makeReq({ user: undefined }), {
+        items: [{ productId: 'prod-1', branchId: 'branch-1' }],
+      } as any),
+    ).rejects.toThrow('Missing user');
+  });
+
   it.each([
     {
       name: 'getInventoryList',
@@ -259,6 +289,32 @@ describe('InventoryController', () => {
           'user-1',
           'branch-1',
           'prod-1',
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'bulkDeactivateInventory',
+      setup: () =>
+        mockService.bulkDeactivateInventory.mockResolvedValueOnce({
+          total: 1,
+          successful: 1,
+          results: [
+            { productId: 'prod-1', branchId: 'branch-1', success: true },
+          ],
+        }),
+      call: () =>
+        controller.bulkDeactivateInventory(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          { items: [{ productId: 'prod-1', branchId: 'branch-1' }] } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.bulkDeactivateInventory).toHaveBeenCalledWith(
+          'user-1',
+          { items: [{ productId: 'prod-1', branchId: 'branch-1' }] },
           [],
           [],
         ),

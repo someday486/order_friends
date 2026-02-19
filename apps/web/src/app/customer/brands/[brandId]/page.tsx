@@ -23,6 +23,11 @@ type Brand = {
   created_at: string;
 };
 
+function getBrandOrderUrl(slug: string | null): string | null {
+  if (!slug) return null;
+  return `/order/${encodeURIComponent(slug)}`;
+}
+
 export default function BrandDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -131,6 +136,7 @@ export default function BrandDetailPage() {
   };
 
   const canEdit = brand && (brand.myRole === "OWNER" || brand.myRole === "ADMIN");
+  const brandOrderUrl = getBrandOrderUrl(brand?.slug ?? null);
 
   if (loading) {
     return (
@@ -194,7 +200,7 @@ export default function BrandDetailPage() {
             </div>
 
             <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">브랜드 Slug</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">브랜드 URL</label>
               <input
                 type="text"
                 value={formData.slug}
@@ -202,7 +208,7 @@ export default function BrandDetailPage() {
                   setFormData({ ...formData, slug: e.target.value.toLowerCase() })
                 }
                 className="input-field w-full"
-                placeholder="brand-slug"
+                placeholder="brand-url"
               />
             </div>
 
@@ -386,8 +392,10 @@ export default function BrandDetailPage() {
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">브랜드 Slug</div>
-              <div className="text-[15px] text-foreground">{brand.slug || '-'}</div>
+              <div className="text-[13px] text-text-secondary mb-2">브랜드 URL</div>
+              <div className="text-[15px] text-foreground">
+                {brandOrderUrl ? brandOrderUrl : "-"}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-5">

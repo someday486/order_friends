@@ -13,6 +13,7 @@ describe('InventoryService', () => {
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
+    delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
@@ -690,6 +691,122 @@ describe('InventoryService', () => {
     );
     expect(result.id).toBe('i1');
     expect(detailSpy).toHaveBeenCalled();
+  });
+
+  it('bulkDeactivateInventory should throw when items are empty', async () => {
+    await expect(
+      service.bulkDeactivateInventory(
+        'u1',
+        { items: [] } as any,
+        [],
+        [{ branch_id: 'b1', role: 'OWNER' }],
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('bulkDeactivateInventory should deactivate selected inventories', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', branch_id: 'b1' },
+      error: null,
+    });
+    chains.product_inventory.single.mockResolvedValueOnce({
+      data: { id: 'i1', qty_available: 7 },
+      error: null,
+    });
+    chains.product_inventory.eq
+      .mockReturnValueOnce(chains.product_inventory)
+      .mockReturnValueOnce(chains.product_inventory)
+      .mockResolvedValueOnce({ error: null });
+
+    const logSpy = jest
+      .spyOn(service as any, 'createInventoryLog')
+      .mockResolvedValueOnce(undefined);
+
+    const result = await service.bulkDeactivateInventory(
+      'u1',
+      {
+        items: [{ productId: 'p1', branchId: 'b1' }],
+        notes: 'bulk-off',
+      } as any,
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.total).toBe(1);
+    expect(result.successful).toBe(1);
+    expect(result.results[0].success).toBe(true);
+    expect(chains.product_inventory.delete).toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      'p1',
+      'b1',
+      'ADJUSTMENT',
+      -7,
+      7,
+      0,
+      'u1',
+      'bulk-off',
+    );
+  });
+
+  it('bulkDeactivateInventory should mark already inactive rows as success', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', branch_id: 'b1' },
+      error: null,
+    });
+    chains.product_inventory.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: '0 rows' },
+    });
+    chains.product_inventory.eq
+      .mockReturnValueOnce(chains.product_inventory)
+      .mockReturnValueOnce(chains.product_inventory);
+
+    const result = await service.bulkDeactivateInventory(
+      'u1',
+      {
+        items: [{ productId: 'p1', branchId: 'b1' }],
+      } as any,
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.successful).toBe(1);
+    expect(result.alreadyInactive).toBe(1);
+    expect(result.results[0].alreadyInactive).toBe(true);
+  });
+
+  it('bulkDeactivateInventory should fail when product does not belong to branch', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', branch_id: 'b2' },
+      error: null,
+    });
+
+    const result = await service.bulkDeactivateInventory(
+      'u1',
+      {
+        items: [{ productId: 'p1', branchId: 'b1' }],
+      } as any,
+      [],
+      [{ branch_id: 'b1', role: 'OWNER' }],
+    );
+
+    expect(result.successful).toBe(0);
+    expect(result.results[0].success).toBe(false);
+    expect(result.results[0].error).toContain('Product does not belong');
   });
 
   it('getLowStockAlerts should return filtered items', async () => {

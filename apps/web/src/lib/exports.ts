@@ -66,7 +66,7 @@ export async function createOrderExportJob(payload: CreateOrderExportPayload) {
   if (!jobId) throw new Error('Export jobId가 없습니다.');
 
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 60_000) {
+  while (Date.now() - startedAt < 45_000) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const job = await apiClient.get<

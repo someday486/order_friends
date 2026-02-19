@@ -1,19 +1,23 @@
-import {
+﻿import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { CreateOrderExportDto } from './dto/create-order-export.dto';
+import { ExportsQueue } from './exports.queue';
 
 type OrderExportJobRow = {
   id: string;
   user_id: string;
   status: string;
   format?: string;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
   file_path?: string | null;
   file_name?: string | null;
   error_message?: string | null;
@@ -32,12 +36,42 @@ type OrderExportSourceRow = {
   branches?: { name?: string | null } | null;
 };
 
+type OrderExportDetailRow = {
+  id?: string | null;
+  order_id?: string | null;
+  order_no?: string | null;
+  order_number?: string | null;
+  branch_name?: string | null;
+  branch_id?: string | null;
+  created_at?: string | null;
+  status?: string | null;
+  total_amount?: number | null;
+  subtotal?: number | null;
+  delivery_fee?: number | null;
+  discount_total?: number | null;
+  payment_method?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  fulfillment_type?: string | null;
+  requested_time?: string | null;
+  delivery_address?: string | null;
+  delivery_postcode?: string | null;
+  delivery_memo?: string | null;
+  items_summary?: string | null;
+};
+
 @Injectable()
 export class ExportsService {
   private readonly logger = new Logger(ExportsService.name);
   private static readonly EXPORT_BUCKET = 'exports';
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    @Optional()
+    @Inject(forwardRef(() => ExportsQueue))
+    private readonly exportsQueue?: ExportsQueue,
+  ) {}
 
   /**
    * Normalize date inputs for storage/RPC usage.
@@ -45,7 +79,10 @@ export class ExportsService {
    * - ISO/other parseable strings: toISOString()
    * - null/invalid: null
    */
-  private normalizeDateForRpc(value?: string | null, isEnd = false): string | null {
+  private normalizeDateForRpc(
+    value?: string | null,
+    isEnd = false,
+  ): string | null {
     if (!value) {
       return null;
     }
@@ -118,7 +155,11 @@ export class ExportsService {
       throw new InternalServerErrorException('Failed to create export job');
     }
 
-    await this.processOrderExport(data.id);
+    if (this.exportsQueue?.isEnabled()) {
+      await this.exportsQueue.enqueueOrderExport({ exportId: data.id });
+    } else {
+      await this.processOrderExport(data.id);
+    }
 
     return data;
   }
@@ -168,14 +209,16 @@ export class ExportsService {
     try {
       // Extract filters from params
       const filters = data.params ?? {};
-      const {
-        branchId,
-        status: statusFilter,
-        dateStart,
-        dateEnd,
-        search,
-        sort,
-      } = filters;
+      const branchId =
+        typeof filters.branchId === 'string' ? filters.branchId : null;
+      const statusFilter =
+        typeof filters.status === 'string' ? filters.status : null;
+      const dateStart =
+        typeof filters.dateStart === 'string' ? filters.dateStart : null;
+      const dateEnd =
+        typeof filters.dateEnd === 'string' ? filters.dateEnd : null;
+      const search = typeof filters.search === 'string' ? filters.search : null;
+      const sort = typeof filters.sort === 'string' ? filters.sort : 'DESC';
 
       // Get accessible branch IDs
       const accessibleBranchIds = await this.getAccessibleBranchIds(
@@ -195,11 +238,11 @@ export class ExportsService {
       // Prepare RPC parameters
       const rpcParams = {
         p_branch_ids: targetBranchIds,
-        p_status: statusFilter ?? null,
-        p_date_start: dateStart ?? null,
-        p_date_end: dateEnd ?? null,
-        p_search: search ?? null,
-        p_sort: sort ?? 'DESC',
+        p_status: statusFilter,
+        p_date_start: dateStart,
+        p_date_end: dateEnd,
+        p_search: search,
+        p_sort: sort,
         p_limit: 5000,
         p_offset: 0,
       };
@@ -218,7 +261,7 @@ export class ExportsService {
         throw new Error(`RPC export_orders_detail failed: ${rpcError.message}`);
       }
 
-      const orders = (rpcData ?? []) as any[];
+      const orders = (rpcData ?? []) as OrderExportDetailRow[];
       this.logger.log(`RPC returned ${orders.length} orders`);
 
       // Generate CSV
@@ -373,7 +416,7 @@ export class ExportsService {
   /**
    * Build 20-column CSV for full detail export with Korean headers
    */
-  private buildFullDetailCsv(rows: any[]): string {
+  private buildFullDetailCsv(rows: OrderExportDetailRow[]): string {
     const headers = [
       '주문번호',
       '주문ID',
@@ -544,7 +587,7 @@ export class ExportsService {
 
     const noticeLine =
       rows.length >= 5000
-        ? '# 안내: 최대 5000건까지만 다운로드됩니다. 조건(기간/지점/검색)을 좁혀 다시 시도하세요.'
+        ? '# 안내: 최대 5000건까지 다운로드됩니다. 조건(기간/지점/검색)을 좁혀 다시 시도해주세요.'
         : '';
 
     return `\uFEFF${[noticeLine, ...lines].filter(Boolean).join('\n')}`;

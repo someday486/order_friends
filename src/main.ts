@@ -1,4 +1,4 @@
-// import { NestFactory } from '@nestjs/core';
+﻿// import { NestFactory } from '@nestjs/core';
 // import { AppModule } from './app.module';
 
 // async function bootstrap() {
@@ -16,6 +16,28 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
+  const configuredCorsOrigins = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  const isConfiguredOriginAllowed = (origin: string): boolean =>
+    configuredCorsOrigins.some((allowedOrigin) => {
+      if (allowedOrigin === origin) {
+        return true;
+      }
+
+      // Support wildcard host patterns like https://*.vercel.app
+      if (allowedOrigin.includes('*')) {
+        const pattern = `^${allowedOrigin
+          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/\*/g, '.*')}$`;
+        return new RegExp(pattern).test(origin);
+      }
+
+      return false;
+    });
+
   // Initialize Sentry (optional - requires SENTRY_DSN env var)
   if (process.env.SENTRY_DSN) {
     Sentry.init({
@@ -47,7 +69,10 @@ async function bootstrap() {
 
   // CORS Configuration
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
       if (!origin) return callback(null, true);
 
       // Allow localhost and common local/dev hosts
@@ -65,6 +90,10 @@ async function bootstrap() {
           /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+:\d+$/.test(origin) ||
           origin.startsWith('http://10.'))
       ) {
+        return callback(null, true);
+      }
+
+      if (isConfiguredOriginAllowed(origin)) {
         return callback(null, true);
       }
 

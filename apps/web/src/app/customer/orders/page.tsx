@@ -1,14 +1,17 @@
-"use client";
+﻿'use client';
 
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { apiClient } from "@/lib/api-client";
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
+import { formatRelativeTime, formatWon } from '@/lib/format';
 import {
-  formatRelativeTime,
-  formatWon,
-} from "@/lib/format";
-import type { Branch, OrderStatus } from "@/types/common";
-import { createOrderExportJob } from "@/lib/exports";
+  FULFILLMENT_TYPE_LABEL,
+  type Branch,
+  type FulfillmentType,
+  type OrderStatus,
+} from '@/types/common';
+import Modal from '@/components/ui/Modal';
+import { createOrderExportJob, getOrderExportJobStatus } from '@/lib/exports';
 
 // ============================================================
 // Types
@@ -20,6 +23,8 @@ type Order = {
   customerName: string;
   totalAmount: number;
   status: OrderStatus;
+  fulfillmentType?: FulfillmentType | null;
+  fulfillment_type?: FulfillmentType | null;
   orderedAt: string;
   items?: { name: string; qty: number }[];
   order_items?: { name: string; qty: number }[];
@@ -45,41 +50,68 @@ type OrderListResponse = {
   total?: number;
 };
 
+type BulkUpdateStatusResponse = {
+  updatedCount: number;
+  status: OrderStatus;
+  orderIds: string[];
+};
+
 // ============================================================
 // Constants
 // ============================================================
 
-const STATUS_FILTERS: { value: OrderStatus | "ALL"; label: string }[] = [
-  { value: "ALL", label: "전체" },
-  { value: "CREATED", label: "주문접수" },
-  { value: "CONFIRMED", label: "확인" },
-  { value: "PREPARING", label: "준비중" },
-  { value: "READY", label: "준비완료" },
-  { value: "COMPLETED", label: "완료" },
-  { value: "CANCELLED", label: "취소" },
+const STATUS_FILTERS: { value: OrderStatus | 'ALL'; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'CREATED', label: '주문접수' },
+  { value: 'CONFIRMED', label: '확인' },
+  { value: 'PREPARING', label: '준비중' },
+  { value: 'READY', label: '준비완료' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'CANCELLED', label: '취소' },
+];
+
+const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
+  { value: 'CREATED', label: '주문접수' },
+  { value: 'CONFIRMED', label: '확인' },
+  { value: 'PREPARING', label: '준비중' },
+  { value: 'READY', label: '준비완료' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'CANCELLED', label: '취소' },
 ];
 
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  CREATED: "주문접수",
-  CONFIRMED: "확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
+  CREATED: '주문접수',
+  CONFIRMED: '확인',
+  PREPARING: '준비중',
+  READY: '준비완료',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
+  REFUNDED: '환불',
 };
 
 const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
-  CREATED: "bg-blue-500/10 text-blue-500",
-  CONFIRMED: "bg-indigo-500/10 text-indigo-500",
-  PREPARING: "bg-yellow-500/10 text-yellow-600",
-  READY: "bg-green-500/10 text-green-600",
-  COMPLETED: "bg-gray-500/10 text-gray-600",
-  CANCELLED: "bg-red-500/10 text-red-600",
-  REFUNDED: "bg-purple-500/10 text-purple-600",
+  CREATED: 'bg-blue-500/10 text-blue-500',
+  CONFIRMED: 'bg-indigo-500/10 text-indigo-500',
+  PREPARING: 'bg-yellow-500/10 text-yellow-600',
+  READY: 'bg-green-500/10 text-green-600',
+  COMPLETED: 'bg-gray-500/10 text-gray-600',
+  CANCELLED: 'bg-red-500/10 text-red-600',
+  REFUNDED: 'bg-purple-500/10 text-purple-600',
 };
 
+const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
+  [
+    { value: 'ALL', label: '전체 방식' },
+    { value: 'PICKUP', label: '포장' },
+    { value: 'DELIVERY', label: '배달' },
+    { value: 'DINE_IN', label: '매장' },
+  ];
 
+const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
+  PICKUP: 'bg-blue-500/10 text-blue-500',
+  DELIVERY: 'bg-orange-500/10 text-orange-500',
+  DINE_IN: 'bg-neutral-500/10 text-neutral-600',
+};
 
 // ============================================================
 // Helpers
@@ -93,44 +125,40 @@ function isUuidFormat(value: string): boolean {
 }
 
 function getItemSummary(order: Order): string {
-  // 우선순위 1: firstItemName + firstItemQty + itemCount 사용
   const firstName = order.firstItemName ?? order.first_item_name;
   const firstQty = order.firstItemQty ?? order.first_item_qty;
   const itemCount = order.item_count ?? order.itemCount;
 
   if (firstName) {
-    const qtyLabel = firstQty ? `${firstQty}개` : "1개";
+    const qtyLabel = firstQty ? `${firstQty}개` : '1개';
     if (itemCount && itemCount > 1) {
       return `${firstName} ${qtyLabel} 외 ${itemCount - 1}개`;
     }
     return `${firstName} ${qtyLabel}`;
   }
 
-  // 우선순위 2: items 배열 사용
   const items = order.items ?? order.order_items;
   if (items && items.length > 0) {
     const first = items[0];
-    const qtyLabel = first.qty ? `${first.qty}개` : "1개";
+    const qtyLabel = first.qty ? `${first.qty}개` : '1개';
     if (items.length > 1) {
       return `${first.name} ${qtyLabel} 외 ${items.length - 1}개`;
     }
     return `${first.name} ${qtyLabel}`;
   }
 
-  // 우선순위 3: count만 있는 경우
   if (itemCount) return `총 ${itemCount}개`;
-  return "-";
+  return '-';
 }
 
 function formatYmdHm(iso: string) {
-  if (!iso) return "-";
+  if (!iso) return '-';
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
 }
-
 
 // ============================================================
 // Sub-components
@@ -156,7 +184,7 @@ function EmptyState() {
       </div>
       <p className="text-foreground font-semibold mb-1">주문이 없습니다</p>
       <p className="text-sm text-text-tertiary">
-        필터를 변경하거나 새 주문을 기다려주세요
+        필터를 변경하거나 새 주문을 기다려주세요.
       </p>
     </div>
   );
@@ -174,7 +202,6 @@ function TableRowSkeleton({ cols }: { cols: number }) {
   );
 }
 
-
 // ============================================================
 // Main Component
 // ============================================================
@@ -186,25 +213,31 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [branchFilter, setBranchFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
+  const [branchFilter, setBranchFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<
+    FulfillmentType | 'ALL'
+  >('ALL');
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
-  const [dateStartInput, setDateStartInput] = useState("");
-  const [dateEndInput, setDateEndInput] = useState("");
-  const [appliedDateStart, setAppliedDateStart] = useState("");
-  const [appliedDateEnd, setAppliedDateEnd] = useState("");
-  const [filterVersion, setFilterVersion] = useState(0);
-  const [downloadFormat, setDownloadFormat] = useState<"csv" | "xlsx">("csv");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDateStart, setExportDateStart] = useState('');
+  const [exportDateEnd, setExportDateEnd] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
-  const isInvalidDateRange = useMemo(() => {
-    if (!dateStartInput || !dateEndInput) return false;
-    return dateEndInput < dateStartInput;
-  }, [dateStartInput, dateEndInput]);
+  const isInvalidExportDateRange = useMemo(() => {
+    if (!exportDateStart || !exportDateEnd) return false;
+    return exportDateEnd < exportDateStart;
+  }, [exportDateStart, exportDateEnd]);
 
-  // 지점 ID → 지점명 매핑
+  // 지점 ID -> 지점명 매핑
   const branchMap = useMemo(() => {
     return new Map(branches.map((b) => [b.id, b.name]));
   }, [branches]);
@@ -213,19 +246,19 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const branchList = await apiClient.get<Branch[]>("/customer/branches");
+        const branchList = await apiClient.get<Branch[]>('/customer/branches');
         setBranches(branchList);
       } catch (e) {
         console.error(e);
       }
     };
 
-    loadBranches();
+    void loadBranches();
   }, []);
 
   useEffect(() => {
-    if (branchFilter !== "ALL" && !isUuidFormat(branchFilter)) {
-      setBranchFilter("ALL");
+    if (branchFilter !== 'ALL' && !isUuidFormat(branchFilter)) {
+      setBranchFilter('ALL');
       setPage(1);
     }
   }, [branchFilter]);
@@ -242,27 +275,31 @@ export default function CustomerOrdersPage() {
           limit: limit.toString(),
         });
 
-        if (branchFilter !== "ALL" && isUuidFormat(branchFilter)) {
-          params.append("branchId", branchFilter);
+        if (branchFilter !== 'ALL' && isUuidFormat(branchFilter)) {
+          params.append('branchId', branchFilter);
         }
 
-        if (statusFilter !== "ALL") {
-          params.append("status", statusFilter);
+        if (statusFilter !== 'ALL') {
+          params.append('status', statusFilter);
         }
-
-        if (appliedDateStart) {
-          params.append("dateStart", appliedDateStart);
-        }
-
-        if (appliedDateEnd) {
-          params.append("dateEnd", appliedDateEnd);
+        if (fulfillmentFilter !== 'ALL') {
+          params.append('fulfillmentType', fulfillmentFilter);
         }
 
         const data = await apiClient.get<OrderListResponse | Order[]>(
           `/customer/orders?${params.toString()}`,
         );
-        const orderItems = Array.isArray(data) ? data : data.data || data.items || [];
+        const orderItems = Array.isArray(data)
+          ? data
+          : data.data || data.items || [];
         setOrders(orderItems);
+        setSelectedOrderIds((prev) => {
+          if (prev.size === 0) return prev;
+          const visibleIds = new Set(orderItems.map((item) => item.id));
+          return new Set(
+            Array.from(prev).filter((orderId) => visibleIds.has(orderId)),
+          );
+        });
         setTotal(
           Array.isArray(data)
             ? data.length
@@ -270,64 +307,138 @@ export default function CustomerOrdersPage() {
         );
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "주문을 불러올 수 없습니다");
+        setError(e instanceof Error ? e.message : '주문을 불러올 수 없습니다');
       } finally {
         setLoading(false);
       }
     };
 
-    loadOrders();
-  }, [page, limit, branchFilter, statusFilter, appliedDateStart, appliedDateEnd, filterVersion]);
+    void loadOrders();
+  }, [page, limit, branchFilter, statusFilter, fulfillmentFilter, reloadToken]);
 
   const totalPages = Math.ceil(total / limit);
 
   // Count active orders (not completed/cancelled/refunded)
   const activeCount = orders.filter(
-    (o) => !["COMPLETED", "CANCELLED", "REFUNDED"].includes(o.status),
+    (o) => !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status),
   ).length;
+  const selectedCount = selectedOrderIds.size;
+  const allVisibleSelected =
+    orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        for (const order of orders) {
+          next.add(order.id);
+        }
+      } else {
+        for (const order of orders) {
+          next.delete(order.id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (selectedCount === 0) return;
+
+    const confirmed = window.confirm(
+      `선택한 ${selectedCount}건의 주문 상태를 "${ORDER_STATUS_LABEL[bulkStatus]}"(으)로 변경하시겠습니까?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setBulkUpdating(true);
+      setError(null);
+
+      const response = await apiClient.patch<BulkUpdateStatusResponse>(
+        '/customer/orders/bulk-status',
+        {
+          orderIds: Array.from(selectedOrderIds),
+          status: bulkStatus,
+        },
+      );
+
+      setSelectedOrderIds(new Set());
+      setReloadToken((prev) => prev + 1);
+      window.alert(
+        `${response.updatedCount}건의 주문 상태를 "${ORDER_STATUS_LABEL[bulkStatus]}"(으)로 변경했습니다.`,
+      );
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : '일괄 상태 변경에 실패했습니다');
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
 
   const handleCreateExportJob = async () => {
-    if (isInvalidDateRange) {
-      alert("종료일은 시작일보다 빠를 수 없습니다.");
+    if (isInvalidExportDateRange) {
+      alert('종료일은 시작일보다 빠를 수 없습니다.');
       return;
     }
 
     try {
       setExporting(true);
-      const completedJob = await createOrderExportJob({
-        format: downloadFormat,
-        scope: "detail",
+      const createResponse = await createOrderExportJob({
+        format: 'csv',
+        scope: 'detail',
         filters: {
-          ...(branchFilter !== "ALL" && isUuidFormat(branchFilter) ? { branchId: branchFilter } : {}),
-          ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-          ...(appliedDateStart ? { dateStart: appliedDateStart } : {}),
-          ...(appliedDateEnd ? { dateEnd: appliedDateEnd } : {}),
+          ...(branchFilter !== 'ALL' && isUuidFormat(branchFilter)
+            ? { branchId: branchFilter }
+            : {}),
+          ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+          ...(fulfillmentFilter !== 'ALL'
+            ? { fulfillmentType: fulfillmentFilter }
+            : {}),
+          ...(exportDateStart ? { dateStart: exportDateStart } : {}),
+          ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
         },
       });
+      const jobId = createResponse.jobId;
 
-      if (completedJob.downloadUrl) {
-        window.location.href = completedJob.downloadUrl;
-      } else {
-        alert("아직 처리중입니다. 잠시 후 Export 목록에서 다운로드하세요.");
+      if (!jobId) {
+        throw new Error('Export 작업 ID를 확인할 수 없습니다.');
       }
+
+      const maxAttempts = 30;
+      let downloadUrl: string | null = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const statusResponse = await getOrderExportJobStatus(jobId);
+
+        if (statusResponse.status === 'COMPLETED') {
+          downloadUrl = statusResponse.downloadUrl ?? null;
+          break;
+        }
+
+        if (statusResponse.status === 'FAILED') {
+          alert(statusResponse.error || 'Export 생성에 실패했습니다.');
+          return;
+        }
+
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+
+      if (downloadUrl) {
+        window.open(downloadUrl, '_blank');
+        setShowExportModal(false);
+        return;
+      }
+
+      alert('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
+      setShowExportModal(false);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "Export 생성에 실패했습니다");
+      alert(e instanceof Error ? e.message : 'Export 생성에 실패했습니다');
     } finally {
       setExporting(false);
     }
-  };
-
-  const handleApplyFilters = () => {
-    if (isInvalidDateRange) {
-      alert("종료일은 시작일보다 빠를 수 없습니다.");
-      return;
-    }
-
-    setAppliedDateStart(dateStartInput);
-    setAppliedDateEnd(dateEndInput);
-    setPage(1);
-    setFilterVersion((prev) => prev + 1);
   };
 
   return (
@@ -335,33 +446,24 @@ export default function CustomerOrdersPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-        <h1 className="text-2xl font-extrabold text-foreground m-0">주문 관리</h1>
-        <p className="text-text-secondary mt-1 mb-0 text-[13px]">
-          총 <span className="font-bold text-foreground">{total}</span>건
-          {activeCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold ml-3">
-              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
-              진행중 {activeCount}건
-            </span>
-          )}
-        </p>
-          <div className="flex items-center gap-2 mt-3">
-            <select
-              value={downloadFormat}
-              onChange={(e) => setDownloadFormat(e.target.value as "csv" | "xlsx")}
-              className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            >
-              <option value="csv">CSV</option>
-              <option value="xlsx">Excel</option>
-            </select>
-            <button
-              onClick={handleCreateExportJob}
-              disabled={exporting}
-              className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-            >
-              {exporting ? "생성 중..." : "Export 다운로드"}
-            </button>
-          </div>
+          <h1 className="text-2xl font-extrabold text-foreground m-0">
+            주문 관리
+          </h1>
+          <p className="text-text-secondary mt-1 mb-0 text-[13px]">
+            총 <span className="font-bold text-foreground">{total}</span>건
+            {activeCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold ml-3">
+                <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
+                진행중 {activeCount}건
+              </span>
+            )}
+          </p>
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
+          >
+            Export 다운로드
+          </button>
         </div>
       </div>
 
@@ -405,8 +507,8 @@ export default function CustomerOrdersPage() {
                 border transition-all duration-150 cursor-pointer
                 ${
                   isActive
-                    ? "bg-foreground text-background border-foreground font-bold"
-                    : "bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary"
+                    ? 'bg-foreground text-background border-foreground font-bold'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
                 }
               `}
             >
@@ -416,36 +518,31 @@ export default function CustomerOrdersPage() {
         })}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="block text-[13px] text-text-secondary mb-1 font-semibold">시작일</label>
-          <input
-            type="date"
-            value={dateStartInput}
-            onChange={(e) => setDateStartInput(e.target.value)}
-            className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-          />
-        </div>
-        <div>
-          <label className="block text-[13px] text-text-secondary mb-1 font-semibold">종료일</label>
-          <input
-            type="date"
-            value={dateEndInput}
-            onChange={(e) => setDateEndInput(e.target.value)}
-            min={dateStartInput || undefined}
-            className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-          />
-        </div>
-        <button
-          onClick={handleApplyFilters}
-          disabled={isInvalidDateRange}
-          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
-        >
-          조회
-        </button>
-        {isInvalidDateRange && (
-          <p className="text-xs text-danger-500">종료일은 시작일보다 빠를 수 없습니다.</p>
-        )}
+      {/* Fulfillment filter chips */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-4">
+        {FULFILLMENT_FILTERS.map((opt) => {
+          const isActive = fulfillmentFilter === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setFulfillmentFilter(opt.value);
+                setPage(1);
+              }}
+              className={`
+                shrink-0 h-8 px-4 rounded-full text-sm font-medium
+                border transition-all duration-150 cursor-pointer
+                ${
+                  isActive
+                    ? 'bg-foreground text-background border-foreground font-bold'
+                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                }
+              `}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Error */}
@@ -455,26 +552,94 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
+      {orders.length > 0 && (
+        <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm font-bold text-foreground">주문 일괄 처리</div>
+              <div className="text-xs text-text-secondary mt-1">
+                선택 {selectedCount}건
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+                className="input-field h-9 min-w-[150px]"
+                disabled={bulkUpdating}
+              >
+                {BULK_STATUS_OPTIONS.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleBulkStatusUpdate();
+                }}
+                disabled={selectedCount === 0 || bulkUpdating}
+                className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+              >
+                {bulkUpdating ? '변경 중...' : '선택 주문 일괄 변경'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderIds(new Set())}
+                disabled={selectedCount === 0 || bulkUpdating}
+                className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+              >
+                선택 해제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order table */}
       {loading && orders.length === 0 ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문번호</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">고객명</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  선택
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문번호
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  고객명
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상품
+                </th>
                 {validBranches.length > 1 && (
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">지점</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                    지점
+                  </th>
                 )}
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">금액</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문시간</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문 방식
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상태
+                </th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  금액
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문시간
+                </th>
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: 5 }).map((_, index) => (
-                <TableRowSkeleton key={index} cols={validBranches.length > 1 ? 7 : 6} />
+                <TableRowSkeleton
+                  key={index}
+                  cols={validBranches.length > 1 ? 9 : 8}
+                />
               ))}
             </tbody>
           </table>
@@ -483,31 +648,60 @@ export default function CustomerOrdersPage() {
         <EmptyState />
       ) : (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문번호</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">고객명</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary cursor-pointer"
+                    aria-label="전체 선택"
+                  />
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문번호
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  고객명
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상품
+                </th>
                 {validBranches.length > 1 && (
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">지점</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                    지점
+                  </th>
                 )}
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">금액</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">주문시간</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문 방식
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  상태
+                </th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  금액
+                </th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                  주문시간
+                </th>
               </tr>
             </thead>
             <tbody>
               {orders.map((order) => {
                 const itemSummary = getItemSummary(order);
-                const fullItemsSummary = order.itemsSummary ?? order.items_summary;
+                const fullItemsSummary =
+                  order.itemsSummary ?? order.items_summary;
 
                 // 지점 ID 추출 (snake_case 또는 camelCase)
                 const branchId = order.branch_id ?? order.branchId;
-                // 지점명 매핑 (branchMap → order.branchName → "-")
+                // 지점명 매핑 (branchMap -> order.branchName -> "-")
                 const branchName = branchId
-                  ? (branchMap.get(branchId) ?? order.branchName ?? "-")
-                  : (order.branchName ?? "-");
+                  ? (branchMap.get(branchId) ?? order.branchName ?? '-')
+                  : (order.branchName ?? '-');
+                const fulfillmentType =
+                  order.fulfillmentType ?? order.fulfillment_type;
 
                 return (
                   <tr
@@ -515,13 +709,33 @@ export default function CustomerOrdersPage() {
                     className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
                     onClick={() => router.push(`/customer/orders/${order.id}`)}
                   >
+                    <td
+                      className="py-3 px-3.5 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedOrderIds.has(order.id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSelectedOrderIds((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.add(order.id);
+                            else next.delete(order.id);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded accent-primary cursor-pointer"
+                        aria-label={`주문 ${order.orderNo ?? order.id.slice(0, 8)} 선택`}
+                      />
+                    </td>
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <span className="font-mono font-bold">
                         {order.orderNo ?? order.id.slice(0, 8)}
                       </span>
                     </td>
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      {order.customerName || "-"}
+                      {order.customerName || '-'}
                     </td>
                     <td
                       className="py-3 px-3.5 text-[13px] text-text-secondary relative group"
@@ -531,7 +745,7 @@ export default function CustomerOrdersPage() {
                         }
                       }}
                     >
-                      <span className={fullItemsSummary ? "cursor-help" : ""}>
+                      <span className={fullItemsSummary ? 'cursor-help' : ''}>
                         {itemSummary}
                       </span>
                       {fullItemsSummary && (
@@ -546,7 +760,20 @@ export default function CustomerOrdersPage() {
                       </td>
                     )}
                     <td className="py-3 px-3.5 text-[13px]">
-                      <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}>
+                      {fulfillmentType ? (
+                        <span
+                          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${FULFILLMENT_BADGE_CLASS[fulfillmentType]}`}
+                        >
+                          {FULFILLMENT_TYPE_LABEL[fulfillmentType]}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="py-3 px-3.5 text-[13px]">
+                      <span
+                        className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
+                      >
                         {ORDER_STATUS_LABEL[order.status]}
                       </span>
                     </td>
@@ -603,8 +830,8 @@ export default function CustomerOrdersPage() {
                   onClick={() => setPage(pageNum)}
                   className={`w-9 h-9 rounded-full text-sm font-bold cursor-pointer transition-all duration-150 ${
                     page === pageNum
-                      ? "bg-foreground text-background"
-                      : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                      ? 'bg-foreground text-background'
+                      : 'border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
                   }`}
                 >
                   {pageNum}
@@ -629,6 +856,65 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
       )}
+
+      <Modal
+        open={showExportModal}
+        title="Export 다운로드"
+        onClose={() => {
+          if (!exporting) setShowExportModal(false);
+        }}
+        footer={
+          <>
+            <button
+              onClick={() => setShowExportModal(false)}
+              disabled={exporting}
+              className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              onClick={() => {
+                void handleCreateExportJob();
+              }}
+              disabled={exporting || isInvalidExportDateRange}
+              className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+            >
+              {exporting ? '생성 중...' : 'Export 생성'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">
+              시작일 (dateStart)
+            </label>
+            <input
+              type="date"
+              value={exportDateStart}
+              onChange={(e) => setExportDateStart(e.target.value)}
+              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">
+              종료일 (dateEnd)
+            </label>
+            <input
+              type="date"
+              value={exportDateEnd}
+              onChange={(e) => setExportDateEnd(e.target.value)}
+              min={exportDateStart || undefined}
+              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
+            />
+          </div>
+          {isInvalidExportDateRange && (
+            <p className="text-xs text-danger-500">
+              종료일은 시작일보다 빠를 수 없습니다.
+            </p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -185,6 +185,29 @@ export class BulkAdjustInventoryRequest {
   adjustments: BulkAdjustmentItem[];
 }
 
+export class BulkDeactivateInventoryItem {
+  @ApiProperty({ description: 'Product ID' })
+  @IsString()
+  productId: string;
+
+  @ApiProperty({ description: 'Branch ID' })
+  @IsString()
+  branchId: string;
+}
+
+export class BulkDeactivateInventoryRequest {
+  @ApiProperty({
+    description: 'Array of inventory items to deactivate',
+    type: [BulkDeactivateInventoryItem],
+  })
+  items: BulkDeactivateInventoryItem[];
+
+  @ApiPropertyOptional({ description: 'Notes for deactivation' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 export class AdjustInventoryRequest {
   @ApiProperty({ description: 'Quantity change (positive or negative)' })
   @IsNumber()

@@ -14,7 +14,8 @@ type Branch = {
   id: string;
   brandId: string;
   name: string;
-  slug: string;
+  slug: string | null;
+  brandSlug?: string | null;
   myRole: string | null;
   createdAt: string;
 };
@@ -22,15 +23,75 @@ type Branch = {
 type Brand = {
   id: string;
   name: string;
+  slug: string | null;
+  myRole?: string | null;
+  shop_payment_methods?: string[] | null;
 };
 
 // ============================================================
 // Constants
 // ============================================================
 
+const SHOP_PAYMENT_METHOD_OPTIONS = [
+  { value: "CARD", label: "카드" },
+  { value: "TRANSFER", label: "계좌이체" },
+  { value: "CASH", label: "현금" },
+] as const;
+
 // ============================================================
 // Helpers
 // ============================================================
+
+function normalizeShopPaymentMethods(value: unknown): string[] {
+  const allowed = new Set(SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value));
+  if (!Array.isArray(value)) {
+    return SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value);
+  }
+  const unique = Array.from(
+    new Set(
+      value
+        .map((item) => (typeof item === "string" ? item.toUpperCase().trim() : ""))
+        .filter((item) => allowed.has(item as (typeof SHOP_PAYMENT_METHOD_OPTIONS)[number]["value"])),
+    ),
+  );
+  return unique.length > 0
+    ? unique
+    : SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value);
+}
+
+function canManageBrand(role: string | null | undefined): boolean {
+  return role === "OWNER" || role === "ADMIN";
+}
+
+function getBranchOrderUrl(
+  brandSlug: string | null | undefined,
+  branchSlug: string | null,
+  branchId: string,
+): string {
+  if (brandSlug && branchSlug) {
+    return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branchSlug)}`;
+  }
+
+  return `/order/branch/${branchId}`;
+}
+
+function getBrandShopUrl(brandSlug: string | null | undefined): string | null {
+  if (!brandSlug) return null;
+  return `/shop/${encodeURIComponent(brandSlug)}`;
+}
+
+function isInternalOnlineShopBranch(branch: Branch, brandName?: string | null): boolean {
+  if (branch.slug) return false;
+  const branchName = (branch.name ?? "").trim();
+  if (!branchName) return false;
+  const normalizedBranchName = branchName.toLowerCase();
+  const normalizedBrandName = (brandName ?? "").trim().toLowerCase();
+
+  if (normalizedBrandName && normalizedBranchName === `${normalizedBrandName} 온라인샵`) {
+    return true;
+  }
+  return normalizedBranchName.endsWith("온라인샵");
+}
 
 // ============================================================
 // Component
@@ -43,6 +104,20 @@ export default function CustomerBranchesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [shopPaymentMethods, setShopPaymentMethods] = useState<string[]>(
+    SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value),
+  );
+  const [savingShopPaymentMethods, setSavingShopPaymentMethods] = useState(false);
+  const selectedBrand = brands.find((brand) => brand.id === selectedBrandId) ?? null;
+  const visibleBranches = branches.filter(
+    (branch) => !isInternalOnlineShopBranch(branch, selectedBrand?.name),
+  );
+  const canManageBrandSettings =
+    canManageBrand(selectedBrand?.myRole) || canManageBrand(branches[0]?.myRole);
+
+  useEffect(() => {
+    setShopPaymentMethods(normalizeShopPaymentMethods(selectedBrand?.shop_payment_methods));
+  }, [selectedBrand?.id, selectedBrand?.shop_payment_methods]);
 
   useEffect(() => {
     const loadBrands = async () => {
@@ -74,7 +149,13 @@ export default function CustomerBranchesPage() {
         setError(null);
 
         const data = await apiClient.get<Branch[]>(`/customer/branches?brandId=${selectedBrandId}`);
-        setBranches(data);
+        const selectedBrand = brands.find((brand) => brand.id === selectedBrandId);
+        setBranches(
+          data.map((branch) => ({
+            ...branch,
+            brandSlug: selectedBrand?.slug ?? null,
+          })),
+        );
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
@@ -84,11 +165,53 @@ export default function CustomerBranchesPage() {
     };
 
     loadBranches();
-  }, [selectedBrandId]);
+  }, [selectedBrandId, brands]);
 
   const canAddBranch = branches.length > 0
     ? branches[0]?.myRole === "OWNER" || branches[0]?.myRole === "ADMIN"
-    : brands.find(b => b.id === selectedBrandId) !== undefined;
+    : brands.find((brand) => brand.id === selectedBrandId) !== undefined;
+
+  const toggleShopPaymentMethod = (method: string) => {
+    setShopPaymentMethods((prev) => {
+      const next = new Set(prev);
+      if (next.has(method)) {
+        next.delete(method);
+      } else {
+        next.add(method);
+      }
+      return Array.from(next);
+    });
+  };
+
+  const handleSaveShopPaymentMethods = async () => {
+    if (!selectedBrandId) return;
+    if (shopPaymentMethods.length === 0) {
+      toast.error("온라인샵 결제수단은 1개 이상 선택해야 합니다.");
+      return;
+    }
+
+    try {
+      setSavingShopPaymentMethods(true);
+      const updated = await apiClient.patch<Brand>(`/customer/brands/${selectedBrandId}`, {
+        shop_payment_methods: shopPaymentMethods,
+      });
+      const normalized = normalizeShopPaymentMethods(updated.shop_payment_methods);
+      setBrands((prev) =>
+        prev.map((brand) =>
+          brand.id === selectedBrandId
+            ? { ...brand, shop_payment_methods: normalized }
+            : brand,
+        ),
+      );
+      setShopPaymentMethods(normalized);
+      toast.success("온라인샵 결제수단을 저장했습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "온라인샵 결제수단 저장에 실패했습니다.");
+    } finally {
+      setSavingShopPaymentMethods(false);
+    }
+  };
 
   if (brands.length === 0 && !loading) {
     return (
@@ -128,6 +251,51 @@ export default function CustomerBranchesPage() {
         </select>
       </div>
 
+      {selectedBrand && (
+        <div className="mb-6 space-y-4">
+          <div className="text-sm font-semibold text-foreground mb-2">브랜드 하위 채널</div>
+          <BrandShopCard brand={selectedBrand} />
+          {canManageBrandSettings && (
+            <div className="p-4 rounded-md border border-border bg-bg-secondary text-foreground">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h2 className="text-sm font-bold m-0">온라인샵 결제수단 노출</h2>
+                <button
+                  type="button"
+                  onClick={handleSaveShopPaymentMethods}
+                  disabled={savingShopPaymentMethods}
+                  className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                >
+                  저장
+                </button>
+              </div>
+              <p className="text-xs text-text-secondary mb-3">
+                온라인샵 주문 화면에 노출할 결제수단을 선택하세요.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {SHOP_PAYMENT_METHOD_OPTIONS.map((option) => {
+                  const checked = shopPaymentMethods.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => toggleShopPaymentMethod(option.value)}
+                      disabled={savingShopPaymentMethods}
+                      className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-colors ${
+                        checked
+                          ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                          : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, index) => (
@@ -136,14 +304,14 @@ export default function CustomerBranchesPage() {
         </div>
       ) : error ? (
         <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500">{error}</div>
-      ) : branches.length === 0 ? (
+      ) : visibleBranches.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base mb-2">등록된 지점이 없습니다</div>
           <div className="text-sm">새로운 지점을 추가해보세요</div>
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {branches.map((branch) => (
+          {visibleBranches.map((branch) => (
             <BranchCard key={branch.id} branch={branch} />
           ))}
         </div>
@@ -168,6 +336,8 @@ export default function CustomerBranchesPage() {
 // ============================================================
 
 function BranchCard({ branch }: { branch: Branch }) {
+  const orderUrl = getBranchOrderUrl(branch.brandSlug, branch.slug, branch.id);
+
   return (
     <Link
       href={`/customer/branches/${branch.id}`}
@@ -184,12 +354,45 @@ function BranchCard({ branch }: { branch: Branch }) {
           )}
         </div>
       </div>
-      {branch.slug && (
-        <div className="text-sm text-text-secondary mb-2">Slug: {branch.slug}</div>
-      )}
+      <div className="text-sm text-text-secondary mb-2">
+        URL: {orderUrl}
+      </div>
       <div className="text-2xs text-text-tertiary">
         등록일: {new Date(branch.createdAt).toLocaleDateString()}
       </div>
+    </Link>
+  );
+}
+
+function BrandShopCard({ brand }: { brand: Brand }) {
+  const shopUrl = getBrandShopUrl(brand.slug);
+
+  if (!shopUrl) {
+    return (
+      <div className="p-4 rounded-md border border-border bg-bg-secondary text-foreground">
+        <div className="font-bold text-base mb-1">온라인샵</div>
+        <div className="text-sm text-text-secondary">
+          브랜드 URL이 없어 온라인샵 주소를 만들 수 없습니다.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={shopUrl}
+      className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-12 h-12 rounded bg-bg-tertiary flex items-center justify-center text-2xl">
+          🛒
+        </div>
+        <div className="flex-1">
+          <div className="font-bold text-base mb-1">온라인샵</div>
+          <div className="text-xs text-text-secondary">브랜드 하위 온라인 판매 채널</div>
+        </div>
+      </div>
+      <div className="text-sm text-text-secondary">URL: {shopUrl}</div>
     </Link>
   );
 }
@@ -250,13 +453,13 @@ function AddBranchModal({
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Slug (영문, 숫자, 하이픈만)</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">URL (영문, 숫자, 하이픈만)</label>
             <input
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
               className="input-field"
-              placeholder="branch-slug"
+              placeholder="branch-url"
               pattern="[a-z0-9-]+"
               required
             />

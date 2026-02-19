@@ -201,17 +201,6 @@ export class CustomerOrdersService {
     return Array.from(branchIds);
   }
 
-
-  private toUtcDayStart(value: string): string {
-    return `${value}T00:00:00.000Z`;
-  }
-
-  private addOneDay(value: string): string {
-    const date = new Date(`${value}T00:00:00.000Z`);
-    date.setUTCDate(date.getUTCDate() + 1);
-    return date.toISOString().slice(0, 10);
-  }
-
   /**
    * 내 지점의 주문 목록 조회 (페이지네이션 지원)
    */
@@ -222,8 +211,7 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
-    dateStart?: string,
-    dateEnd?: string,
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -261,12 +249,8 @@ export class CustomerOrdersService {
     if (status) {
       countQuery = countQuery.eq('status', status);
     }
-    if (dateStart) {
-      countQuery = countQuery.gte('created_at', this.toUtcDayStart(dateStart));
-    }
-    if (dateEnd) {
-      const endExclusive = this.addOneDay(dateEnd);
-      countQuery = countQuery.lt('created_at', this.toUtcDayStart(endExclusive));
+    if (fulfillmentType) {
+      countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
     }
 
     const { count, error: countError } = await countQuery;
@@ -280,7 +264,7 @@ export class CustomerOrdersService {
     let dataQuery = sb
       .from('orders')
       .select(
-        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name)',
+        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name), fulfillment_type',
       )
       .in('branch_id', targetBranchIds)
       .order('created_at', { ascending: false })
@@ -289,12 +273,8 @@ export class CustomerOrdersService {
     if (status) {
       dataQuery = dataQuery.eq('status', status);
     }
-    if (dateStart) {
-      dataQuery = dataQuery.gte('created_at', this.toUtcDayStart(dateStart));
-    }
-    if (dateEnd) {
-      const endExclusive = this.addOneDay(dateEnd);
-      dataQuery = dataQuery.lt('created_at', this.toUtcDayStart(endExclusive));
+    if (fulfillmentType) {
+      dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
     }
 
     const { data, error } = await dataQuery;
@@ -375,6 +355,7 @@ export class CustomerOrdersService {
       totalAmount: row.total_amount ?? 0,
       branchId: row.branch_id,
       branchName: row.branches?.name ?? '',
+      fulfillmentType: row.fulfillment_type ?? null,
       itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
       firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
       firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
@@ -398,7 +379,7 @@ export class CustomerOrdersService {
   ): Promise<OrderDetailResponse> {
     this.logger.log(`Fetching order ${orderId} by user ${userId}`);
 
-    const { order } = await this.checkOrderAccess(
+    const { order, role } = await this.checkOrderAccess(
       orderId,
       userId,
       brandMemberships,
@@ -408,7 +389,7 @@ export class CustomerOrdersService {
     const sb = this.supabase.adminClient();
 
     const selectDetail = `
-      id, order_no, status, created_at,
+      id, order_no, status, created_at, fulfillment_type,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -448,6 +429,8 @@ export class CustomerOrdersService {
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      fulfillmentType: data.fulfillment_type ?? null,
+      myRole: role,
       customer: {
         name: data.customer_name ?? '',
         phone: data.customer_phone ?? '',
@@ -516,6 +499,71 @@ export class CustomerOrdersService {
       customerName: data.customer_name ?? '',
       totalAmount: data.total_amount ?? 0,
       status: data.status as OrderStatus,
+    };
+  }
+
+  /**
+   * 주문 상태 일괄 변경
+   */
+  async updateMyOrdersStatusBulk(
+    userId: string,
+    orderIds: string[],
+    status: OrderStatus,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    const uniqueOrderIds = Array.from(
+      new Set(orderIds.map((id) => id.trim()).filter(Boolean)),
+    );
+
+    if (uniqueOrderIds.length === 0) {
+      throw new NotFoundException('No order IDs provided');
+    }
+
+    this.logger.log(
+      `Bulk updating ${uniqueOrderIds.length} orders to ${status} by user ${userId}`,
+    );
+
+    const resolvedOrderIds: string[] = [];
+    for (const orderId of uniqueOrderIds) {
+      const { role, order } = await this.checkOrderAccess(
+        orderId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
+      this.checkModificationPermission(
+        role,
+        'bulk update order status',
+        userId,
+      );
+      resolvedOrderIds.push(order.id);
+    }
+
+    const targetOrderIds = Array.from(new Set(resolvedOrderIds));
+    const sb = this.supabase.adminClient();
+
+    const { data, error } = await sb
+      .from('orders')
+      .update({ status })
+      .in('id', targetOrderIds)
+      .select('id');
+
+    if (error) {
+      this.logger.error(
+        `Failed to bulk update order statuses to ${status}`,
+        error,
+      );
+      throw new Error('Failed to bulk update order status');
+    }
+
+    const updatedCount = data?.length ?? targetOrderIds.length;
+    this.logger.log(`Bulk status update completed: ${updatedCount} orders`);
+
+    return {
+      updatedCount,
+      status,
+      orderIds: targetOrderIds,
     };
   }
 }

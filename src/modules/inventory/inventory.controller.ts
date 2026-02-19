@@ -28,6 +28,7 @@ import {
   UpdateInventoryRequest,
   AdjustInventoryRequest,
   BulkAdjustInventoryRequest,
+  BulkDeactivateInventoryRequest,
   InventoryListResponse,
   InventoryDetailResponse,
   InventoryAlertResponse,
@@ -162,6 +163,33 @@ export class InventoryController {
       `User ${req.user.id} bulk adjusting ${dto.adjustments.length} inventory items`,
     );
     return this.inventoryService.bulkAdjustInventory(
+      req.user.id,
+      dto,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Post('bulk-deactivate')
+  @ApiOperation({
+    summary: '재고관리 일괄 비활성화',
+    description:
+      'OWNER 또는 ADMIN만 여러 상품의 재고 관리를 한 번에 비활성화할 수 있습니다.',
+  })
+  @ApiBody({ type: BulkDeactivateInventoryRequest })
+  @ApiResponse({ status: 200, description: '재고관리 일괄 비활성화 성공' })
+  @ApiResponse({ status: 400, description: '잘못된 요청' })
+  @ApiResponse({ status: 403, description: '권한 없음 (OWNER/ADMIN만 가능)' })
+  async bulkDeactivateInventory(
+    @Req() req: AuthRequest,
+    @Body() dto: BulkDeactivateInventoryRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} bulk deactivating ${dto.items.length} inventory items`,
+    );
+    return this.inventoryService.bulkDeactivateInventory(
       req.user.id,
       dto,
       req.brandMemberships || [],

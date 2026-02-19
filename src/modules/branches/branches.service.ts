@@ -9,6 +9,10 @@ import {
   BranchDetailResponse,
 } from './dto/branch.response';
 import { CreateBranchRequest, UpdateBranchRequest } from './dto/branch.request';
+import {
+  getBranchOrderConfig,
+  saveBranchOrderConfig,
+} from './branch-order-config.util';
 
 @Injectable()
 export class BranchesService {
@@ -62,6 +66,7 @@ export class BranchesService {
     isAdmin?: boolean,
   ): Promise<BranchDetailResponse> {
     const sb = this.getClient(accessToken, isAdmin);
+    const adminSb = this.supabase.adminClient();
 
     const { data, error } = await sb
       .from('branches')
@@ -79,6 +84,8 @@ export class BranchesService {
       throw new NotFoundException('가게를 찾을 수 없습니다.');
     }
 
+    const orderConfig = await getBranchOrderConfig(adminSb, data.id);
+
     return {
       id: data.id,
       brandId: data.brand_id,
@@ -87,6 +94,8 @@ export class BranchesService {
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       createdAt: data.created_at ?? '',
     };
   }
@@ -125,11 +134,25 @@ export class BranchesService {
         throw new Error(`[branches.createBranch] ${error.message}`);
       }
 
+      await saveBranchOrderConfig(this.supabase.adminClient(), data.id, {
+        enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+        allowedPaymentMethods: dto.allowedPaymentMethods,
+      });
+      const orderConfig = await getBranchOrderConfig(
+        this.supabase.adminClient(),
+        data.id,
+      );
+
       return {
         id: data.id,
         brandId: data.brand_id,
         name: data.name,
         slug: data.slug ?? '',
+        logoUrl: data.logo_url ?? null,
+        coverImageUrl: data.cover_image_url ?? null,
+        thumbnailUrl: data.thumbnail_url ?? null,
+        enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+        allowedPaymentMethods: orderConfig.allowedPaymentMethods,
         createdAt: data.created_at ?? '',
       };
     }
@@ -173,6 +196,15 @@ export class BranchesService {
       throw new Error(`[branches.createBranch] ${error.message}`);
     }
 
+    await saveBranchOrderConfig(this.supabase.adminClient(), data.id, {
+      enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+      allowedPaymentMethods: dto.allowedPaymentMethods,
+    });
+    const orderConfig = await getBranchOrderConfig(
+      this.supabase.adminClient(),
+      data.id,
+    );
+
     return {
       id: data.id,
       brandId: data.brand_id,
@@ -181,6 +213,8 @@ export class BranchesService {
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       createdAt: data.created_at ?? '',
     };
   }
@@ -195,6 +229,7 @@ export class BranchesService {
     isAdmin?: boolean,
   ): Promise<BranchDetailResponse> {
     const sb = this.getClient(accessToken, isAdmin);
+    const adminSb = this.supabase.adminClient();
 
     const updateData: any = {};
     if (dto.name !== undefined) updateData.name = dto.name;
@@ -204,8 +239,17 @@ export class BranchesService {
       updateData.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl !== undefined)
       updateData.thumbnail_url = dto.thumbnailUrl;
+    const hasOrderConfigUpdate =
+      dto.enabledFulfillmentTypes !== undefined ||
+      dto.allowedPaymentMethods !== undefined;
 
     if (Object.keys(updateData).length === 0) {
+      if (hasOrderConfigUpdate) {
+        await saveBranchOrderConfig(adminSb, branchId, {
+          enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+          allowedPaymentMethods: dto.allowedPaymentMethods,
+        });
+      }
       return this.getBranch(accessToken, branchId, isAdmin);
     }
 
@@ -229,6 +273,12 @@ export class BranchesService {
       throw new NotFoundException('가게를 찾을 수 없거나 권한이 없습니다.');
     }
 
+    await saveBranchOrderConfig(adminSb, branchId, {
+      enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+      allowedPaymentMethods: dto.allowedPaymentMethods,
+    });
+    const orderConfig = await getBranchOrderConfig(adminSb, branchId);
+
     return {
       id: data.id,
       brandId: data.brand_id,
@@ -237,6 +287,8 @@ export class BranchesService {
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
+      enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
+      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       createdAt: data.created_at ?? '',
     };
   }

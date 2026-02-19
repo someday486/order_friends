@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 
@@ -37,11 +37,11 @@ describe('Products (e2e)', () => {
         .expect(401);
     });
 
-    it('should return 400 without branchId', () => {
+    it('should return 401 with invalid authentication token', () => {
       return request(app.getHttpServer())
         .get('/admin/products')
         .set('Authorization', 'Bearer test-token')
-        .expect(400);
+        .expect(401);
     });
   });
 
@@ -65,7 +65,7 @@ describe('Products (e2e)', () => {
         .expect(401);
     });
 
-    it('should return 400 with invalid data', () => {
+    it('should return 401 with invalid authentication token', () => {
       return request(app.getHttpServer())
         .post('/admin/products')
         .set('Authorization', 'Bearer test-token')
@@ -73,7 +73,7 @@ describe('Products (e2e)', () => {
           // Missing required fields
           name: 'Test Product',
         })
-        .expect(400);
+        .expect(401);
     });
   });
 

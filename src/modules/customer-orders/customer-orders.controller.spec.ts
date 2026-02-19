@@ -11,6 +11,7 @@ describe('CustomerOrdersController', () => {
     getMyOrders: jest.fn(),
     getMyOrder: jest.fn(),
     updateMyOrderStatus: jest.fn(),
+    updateMyOrdersStatusBulk: jest.fn(),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
 
@@ -49,8 +50,6 @@ describe('CustomerOrdersController', () => {
       status: 'COMPLETED',
       page: 1,
       limit: 10,
-      dateStart: '2026-02-17',
-      dateEnd: '2026-02-18',
     } as any);
 
     expect(result).toEqual([{ id: 'order-1' }]);
@@ -61,8 +60,7 @@ describe('CustomerOrdersController', () => {
       [],
       { page: 1, limit: 10 },
       'COMPLETED',
-      '2026-02-17',
-      '2026-02-18',
+      undefined,
     );
   });
 
@@ -80,8 +78,6 @@ describe('CustomerOrdersController', () => {
     const result = await controller.getOrders(makeReq(), {
       page: 1,
       limit: 10,
-      dateStart: '2026-02-17',
-      dateEnd: '2026-02-18',
     } as any);
 
     expect(result).toEqual([{ id: 'order-1' }]);
@@ -91,7 +87,6 @@ describe('CustomerOrdersController', () => {
       [],
       [],
       { page: 1, limit: 10 },
-      undefined,
       undefined,
       undefined,
     );
@@ -145,6 +140,41 @@ describe('CustomerOrdersController', () => {
     ).rejects.toThrow('Missing user');
   });
 
+  it('updateOrderStatusBulk should call service and return result', async () => {
+    mockService.updateMyOrdersStatusBulk.mockResolvedValue({
+      updatedCount: 2,
+      status: 'READY',
+      orderIds: ['order-1', 'order-2'],
+    });
+
+    const result = await controller.updateOrderStatusBulk(makeReq(), {
+      orderIds: ['order-1', 'order-2'],
+      status: 'READY',
+    } as any);
+
+    expect(result).toEqual({
+      updatedCount: 2,
+      status: 'READY',
+      orderIds: ['order-1', 'order-2'],
+    });
+    expect(mockService.updateMyOrdersStatusBulk).toHaveBeenCalledWith(
+      'user-1',
+      ['order-1', 'order-2'],
+      'READY',
+      [],
+      [],
+    );
+  });
+
+  it('updateOrderStatusBulk should throw when user is missing', async () => {
+    await expect(
+      controller.updateOrderStatusBulk(makeReq({ user: undefined }), {
+        orderIds: ['order-1'],
+        status: 'READY',
+      } as any),
+    ).rejects.toThrow('Missing user');
+  });
+
   it.each([
     {
       name: 'getOrders',
@@ -161,8 +191,6 @@ describe('CustomerOrdersController', () => {
             status: 'COMPLETED',
             page: 1,
             limit: 10,
-            dateStart: '2026-02-17',
-            dateEnd: '2026-02-18',
           } as any,
         ),
       expectCall: () =>
@@ -173,8 +201,7 @@ describe('CustomerOrdersController', () => {
           [],
           { page: 1, limit: 10 },
           'COMPLETED',
-          '2026-02-17',
-          '2026-02-18',
+          undefined,
         ),
     },
     {
@@ -218,6 +245,31 @@ describe('CustomerOrdersController', () => {
           'user-1',
           'order-1',
           'DONE',
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'updateOrderStatusBulk',
+      setup: () =>
+        mockService.updateMyOrdersStatusBulk.mockResolvedValueOnce({
+          updatedCount: 1,
+          status: 'READY',
+          orderIds: ['order-1'],
+        }),
+      call: () =>
+        controller.updateOrderStatusBulk(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          { orderIds: ['order-1'], status: 'READY' } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.updateMyOrdersStatusBulk).toHaveBeenCalledWith(
+          'user-1',
+          ['order-1'],
+          'READY',
           [],
           [],
         ),

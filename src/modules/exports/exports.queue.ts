@@ -1,6 +1,13 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { ExportsService } from './exports.service';
 import {
   ORDER_EXPORT_JOB_NAME,
   ORDER_EXPORT_QUEUE_NAME,
@@ -33,6 +40,8 @@ export class ExportsQueue implements OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
+    @Inject(forwardRef(() => ExportsService))
+    private readonly exportsService: ExportsService,
   ) {
     const redisUrl = this.configService.get<string>('REDIS_URL');
     if (!redisUrl) {
@@ -88,23 +97,8 @@ export class ExportsQueue implements OnModuleDestroy {
           return;
         }
 
-        const { error: updateError } = await sb
-          .from('order_exports')
-          .update({ status: 'PROCESSING' })
-          .eq('id', exportId);
-
-        if (updateError) {
-          this.logger.error(
-            `Failed to update order export ${exportId} to PROCESSING`,
-            updateError.message,
-          );
-          throw new Error(updateError.message);
-        }
-
         this.logger.log(`Worker started for export ${exportId}`);
-        this.logger.log(`Updated export ${exportId} status to PROCESSING`);
-
-        // TODO: Generate export file and upload to storage.
+        await this.exportsService.processOrderExport(exportId);
       },
       { connection },
     );
@@ -127,6 +121,10 @@ export class ExportsQueue implements OnModuleDestroy {
     } catch {
       return null;
     }
+  }
+
+  isEnabled(): boolean {
+    return this.queue !== null;
   }
 
   async enqueueOrderExport(payload: OrderExportQueuePayload): Promise<void> {

@@ -25,6 +25,50 @@ export class UserRateLimitGuard implements CanActivate {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
+  private getHeaderValue(request: any, name: string): string | undefined {
+    const headers = request?.headers;
+    if (!headers) return undefined;
+
+    if (typeof headers.get === 'function') {
+      const value = headers.get(name);
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    const direct = headers[name] ?? headers[name.toLowerCase()];
+    if (Array.isArray(direct)) {
+      return direct[0]?.toString().trim();
+    }
+    if (typeof direct === 'string' && direct.trim()) {
+      return direct.trim();
+    }
+
+    return undefined;
+  }
+
+  private resolveRateLimitIdentity(request: any): {
+    kind: 'user' | 'ip';
+    value: string;
+  } | null {
+    const userId = request?.user?.id || request?.user?.sub;
+    if (userId) {
+      return { kind: 'user', value: String(userId) };
+    }
+
+    const forwardedFor = this.getHeaderValue(request, 'x-forwarded-for');
+    const realIp = this.getHeaderValue(request, 'x-real-ip');
+    const firstForwardedIp = forwardedFor?.split(',')[0]?.trim();
+    const ip =
+      firstForwardedIp ||
+      realIp ||
+      request?.ip ||
+      request?.socket?.remoteAddress;
+
+    if (!ip) return null;
+    return { kind: 'ip', value: String(ip) };
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const options = this.reflector.get<UserRateLimitOptions>(
       USER_RATE_LIMIT_KEY,
@@ -36,15 +80,11 @@ export class UserRateLimitGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const userId = request.user?.id || request.user?.sub;
+    const identity = this.resolveRateLimitIdentity(request);
+    if (!identity) return true;
 
-    if (!userId) {
-      // If no user ID, skip rate limiting (unauthenticated requests)
-      return true;
-    }
-
-    const key = `rate-limit:user:${userId}`;
-    const blockKey = `rate-limit:block:${userId}`;
+    const key = `rate-limit:${identity.kind}:${identity.value}`;
+    const blockKey = `rate-limit:block:${identity.kind}:${identity.value}`;
 
     // Check if user is currently blocked
     const isBlocked = await this.cacheManager.get(blockKey);

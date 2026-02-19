@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
@@ -324,6 +325,22 @@ function ProductDetailPageContent() {
     userRole === "ADMIN" ||
     userRole === "BRANCH_OWNER" ||
     userRole === "BRANCH_ADMIN";
+
+  if (isNew) {
+    return (
+      <div>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">상품 등록</h1>
+        <div className="border border-border rounded-xl p-5 bg-bg-secondary">
+          <p className="text-sm text-text-secondary mb-4">
+            상품은 상품 관리 화면에서 브랜드 단위로 등록하고, 매장별 체크로 노출 지점을 선택해주세요.
+          </p>
+          <Link href="/customer/products" className="no-underline">
+            <button className="btn-primary px-5 py-2.5 text-sm">상품 관리로 이동</button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

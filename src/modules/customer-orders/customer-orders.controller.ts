@@ -24,6 +24,7 @@ import { CustomerOrdersService } from './customer-orders.service';
 import { UpdateOrderStatusRequest } from '../../modules/orders/dto/update-order-status.request';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { GetCustomerOrdersQueryDto } from './dto/get-customer-orders-query.dto';
+import { BulkUpdateOrderStatusRequest } from './dto/bulk-update-order-status.request';
 
 @ApiTags('customer-orders')
 @ApiBearerAuth()
@@ -44,8 +45,6 @@ export class CustomerOrdersController {
   @ApiQuery({ name: 'status', description: '주문 상태 필터', required: false })
   @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
   @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
-  @ApiQuery({ name: 'dateStart', description: '조회 시작일(YYYY-MM-DD)', required: false })
-  @ApiQuery({ name: 'dateEnd', description: '조회 종료일(YYYY-MM-DD)', required: false })
   @ApiResponse({ status: 200, description: '주문 목록 조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
@@ -55,7 +54,7 @@ export class CustomerOrdersController {
   ) {
     if (!req.user) throw new Error('Missing user');
 
-    const { branchId, status, page, limit, dateStart, dateEnd } = query ?? {};
+    const { branchId, status, fulfillmentType, page, limit } = query ?? {};
     const paginationDto: PaginationDto = { page, limit };
 
     this.logger.log(
@@ -68,8 +67,7 @@ export class CustomerOrdersController {
       req.branchMemberships || [],
       paginationDto,
       status,
-      dateStart,
-      dateEnd,
+      fulfillmentType,
     );
   }
 
@@ -117,6 +115,34 @@ export class CustomerOrdersController {
     return this.ordersService.updateMyOrderStatus(
       req.user.id,
       orderId,
+      body.status,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('bulk-status')
+  @ApiOperation({
+    summary: '주문 상태 일괄 변경',
+    description:
+      '선택한 주문들의 상태를 한 번에 변경합니다. 권한이 없는 주문이 포함되면 변경되지 않습니다.',
+  })
+  @ApiResponse({ status: 200, description: '주문 상태 일괄 변경 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  @ApiResponse({ status: 404, description: '주문을 찾을 수 없음' })
+  async updateOrderStatusBulk(
+    @Req() req: AuthRequest,
+    @Body() body: BulkUpdateOrderStatusRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} bulk updating ${body.orderIds.length} orders to ${body.status}`,
+    );
+
+    return this.ordersService.updateMyOrdersStatusBulk(
+      req.user.id,
+      body.orderIds,
       body.status,
       req.brandMemberships || [],
       req.branchMemberships || [],

@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+﻿import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CustomerOrdersService } from './customer-orders.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from '../../modules/orders/order-status.enum';
@@ -209,7 +209,7 @@ describe('CustomerOrdersService', () => {
           created_at: 't',
           total_amount: 10,
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -245,7 +245,7 @@ describe('CustomerOrdersService', () => {
           created_at: 't',
           total_amount: 10,
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -307,7 +307,7 @@ describe('CustomerOrdersService', () => {
           total_amount: null,
           customer_name: null,
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -327,8 +327,9 @@ describe('CustomerOrdersService', () => {
       orderedAt: '',
       customerName: '',
       totalAmount: 0,
+      fulfillmentType: null,
       branchId: 'b1',
-      branchName: '강남점',
+      branchName: 'Gangnam',
       itemCount: 0,
       firstItemName: null,
       firstItemQty: null,
@@ -354,17 +355,17 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
-          customer_name: '홍길동',
+          customer_name: 'Customer',
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
     });
     orderItemsChain.in.mockResolvedValueOnce({
       data: [
-        { order_id: 'o1', product_name_snapshot: '아메리카노', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '카페라떼', qty: 2 },
+        { order_id: 'o1', product_name_snapshot: 'Americano', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '移댄럹?쇰뼹', qty: 2 },
       ],
       error: null,
     });
@@ -379,11 +380,11 @@ describe('CustomerOrdersService', () => {
 
     expect(result.data[0]).toMatchObject({
       branchId: 'b1',
-      branchName: '강남점',
+      branchName: 'Gangnam',
       itemCount: 2,
-      firstItemName: '아메리카노',
+      firstItemName: 'Americano',
       firstItemQty: 1,
-      itemsSummary: '아메리카노 1, 카페라떼 2',
+      itemsSummary: 'Americano 1, 移댄럹?쇰뼹 2',
     });
   });
 
@@ -404,22 +405,22 @@ describe('CustomerOrdersService', () => {
           status: OrderStatus.CREATED,
           created_at: 't',
           total_amount: 10,
-          customer_name: '홍길동',
+          customer_name: 'Customer',
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
     });
     orderItemsChain.in.mockResolvedValueOnce({
       data: [
-        { order_id: 'o1', product_name_snapshot: '상품1', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '상품2', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '상품3', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '상품4', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '상품5', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '상품6', qty: 1 },
-        { order_id: 'o1', product_name_snapshot: '상품7', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹1', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹2', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹3', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹4', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹5', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹6', qty: 1 },
+        { order_id: 'o1', product_name_snapshot: '?곹뭹7', qty: 1 },
       ],
       error: null,
     });
@@ -433,7 +434,7 @@ describe('CustomerOrdersService', () => {
     );
 
     expect(result.data[0].itemsSummary).toBe(
-      '상품1 1, 상품2 1, 상품3 1, 상품4 1, 상품5 1, 상품6 1, +1',
+      '?곹뭹1 1, ?곹뭹2 1, ?곹뭹3 1, ?곹뭹4 1, ?곹뭹5 1, ?곹뭹6 1, +1',
     );
     expect(result.data[0].itemCount).toBe(7);
   });
@@ -456,7 +457,7 @@ describe('CustomerOrdersService', () => {
           created_at: 't',
           total_amount: 10,
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -495,7 +496,7 @@ describe('CustomerOrdersService', () => {
           created_at: 't',
           total_amount: 10,
           branch_id: 'b1',
-          branches: { name: '강남점' },
+          branches: { name: 'Gangnam' },
         },
       ],
       error: null,
@@ -531,7 +532,7 @@ describe('CustomerOrdersService', () => {
             created_at: 't',
             total_amount: 10,
             branch_id: 'b1',
-            branches: { name: '강남점' },
+            branches: { name: 'Gangnam' },
           },
         ],
         error: null,
@@ -753,6 +754,7 @@ describe('CustomerOrdersService', () => {
 
     expect(result.id).toBe('o1');
     expect(result.items).toHaveLength(1);
+    expect(result.myRole).toBe('OWNER');
   });
 
   it('getMyOrder should map defaults and option names', async () => {
@@ -1061,6 +1063,80 @@ describe('CustomerOrdersService', () => {
         [],
       ),
     ).rejects.toThrow('Failed to update order status');
+  });
+
+  it('updateMyOrdersStatusBulk should update selected orders', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'o2', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      });
+
+    const result = await service.updateMyOrdersStatusBulk(
+      'user-1',
+      ['o1', 'o2'],
+      OrderStatus.READY,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(ordersChain.in).toHaveBeenCalledWith('id', ['o1', 'o2']);
+    expect(result.updatedCount).toBe(2);
+    expect(result.status).toBe(OrderStatus.READY);
+    expect(result.orderIds).toEqual(['o1', 'o2']);
+  });
+
+  it('updateMyOrdersStatusBulk should throw for insufficient role', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrdersStatusBulk(
+        'user-1',
+        ['o1'],
+        OrderStatus.READY,
+        [],
+        [{ branch_id: 'b1', role: 'VIEWER' }],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('updateMyOrdersStatusBulk should throw on update error', async () => {
+    ordersChain.select
+      .mockReturnValueOnce(ordersChain)
+      .mockReturnValueOnce(ordersChain)
+      .mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrdersStatusBulk(
+        'user-1',
+        ['o1'],
+        OrderStatus.READY,
+        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [],
+      ),
+    ).rejects.toThrow('Failed to bulk update order status');
   });
 
   it('checkModificationPermission should allow admin roles', () => {

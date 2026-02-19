@@ -27,6 +27,8 @@ describe('PublicOrderService - Public Queries', () => {
     };
     adminChains = {
       product_categories: makeChain(),
+      product_inventory: makeChain(),
+      orders: makeChain(),
     };
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };
@@ -139,6 +141,45 @@ describe('PublicOrderService - Public Queries', () => {
     await expect(
       service.getBranchByBrandSlug('brand', 'branch'),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('getBranchesByBrandSlug should return branch list', async () => {
+    anonChains.branches.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          name: 'Branch 1',
+          slug: 'branch-1',
+          logo_url: null,
+          cover_image_url: null,
+          brands: {
+            name: 'Brand',
+            slug: 'brand',
+            logo_url: 'brand-logo',
+            cover_image_url: 'brand-cover',
+          },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBranchesByBrandSlug('brand');
+
+    expect(result.brandSlug).toBe('brand');
+    expect(result.brandName).toBe('Brand');
+    expect(result.branches).toHaveLength(1);
+    expect(result.branches[0].logoUrl).toBe('brand-logo');
+  });
+
+  it('getBranchesByBrandSlug should throw on error', async () => {
+    anonChains.branches.order.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'fail' },
+    });
+
+    await expect(service.getBranchesByBrandSlug('brand')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('getPriceFromRow should handle fallbacks', () => {
@@ -269,6 +310,29 @@ describe('PublicOrderService - Public Queries', () => {
     await expect(service.getOrder('missing')).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('getOrder should fallback to admin query when UUID order id is not visible to anon', async () => {
+    anonChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    adminChains.orders.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'e693332e-bedd-458b-bc4e-ac9ee1475ea1',
+        order_no: 'O-ADMIN',
+        status: 'CREATED',
+        total_amount: 12,
+        created_at: 't',
+        order_items: [],
+      },
+      error: null,
+    });
+
+    const result = await service.getOrder(
+      'e693332e-bedd-458b-bc4e-ac9ee1475ea1',
+    );
+    expect(result.id).toBe('e693332e-bedd-458b-bc4e-ac9ee1475ea1');
   });
 
   it('getCategories should return sorted categories', async () => {

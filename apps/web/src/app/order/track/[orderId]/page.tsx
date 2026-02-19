@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 import { apiClient } from "@/lib/api-client";
+import { loadLastOrderRecord } from "@/lib/order-session";
 
 // ============================================================
 // Types
@@ -22,6 +23,50 @@ type OrderInfo = {
     unitPrice: number;
   }[];
 };
+
+function normalizeOrder(raw: unknown): OrderInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+  if (typeof source.id !== "string") return null;
+
+  const orderNo = source.orderNo ?? source.order_no ?? source.id;
+  const status = source.status;
+  const totalAmount = source.totalAmount ?? source.total_amount;
+  const createdAt = source.createdAt ?? source.created_at;
+  const items = Array.isArray(source.items) ? source.items : [];
+
+  if (typeof orderNo !== "string") return null;
+  if (typeof status !== "string") return null;
+  if (typeof totalAmount !== "number") return null;
+  if (typeof createdAt !== "string") return null;
+
+  return {
+    id: source.id,
+    orderNo,
+    status: status as OrderStatus,
+    totalAmount,
+    createdAt,
+    items: items.map((item) => {
+      const row = (item ?? {}) as Record<string, unknown>;
+      const name =
+        typeof row.name === "string"
+          ? row.name
+          : typeof row.productName === "string"
+            ? row.productName
+            : typeof row.product_name_snapshot === "string"
+              ? row.product_name_snapshot
+              : "-";
+      const qty = typeof row.qty === "number" ? row.qty : 0;
+      const unitPrice =
+        typeof row.unitPrice === "number"
+          ? row.unitPrice
+          : typeof row.unit_price === "number"
+            ? row.unit_price
+            : 0;
+      return { name, qty, unitPrice };
+    }),
+  };
+}
 
 // ============================================================
 // Constants
@@ -51,7 +96,11 @@ export default function TrackOrderPage() {
   const params = useParams();
   const orderId = params?.orderId as string;
 
-  const [order, setOrder] = useState<OrderInfo | null>(null);
+  const [order, setOrder] = useState<OrderInfo | null>(() => {
+    const cached = normalizeOrder(loadLastOrderRecord({}));
+    if (cached?.id === orderId) return cached;
+    return null;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,9 +111,15 @@ export default function TrackOrderPage() {
       setError(null);
 
       const data = await apiClient.get<OrderInfo>(`/public/orders/${orderId}`, { auth: false });
-      setOrder(data);
+      setOrder(normalizeOrder(data));
     } catch (e: unknown) {
       const message = (e as Error)?.message ?? "조회 중 오류가 발생했습니다.";
+      const cached = normalizeOrder(loadLastOrderRecord({}));
+      if (cached?.id === orderId) {
+        setOrder(cached);
+        setError(null);
+        return;
+      }
       setError(message.includes("404") ? "주문을 찾을 수 없습니다." : message);
     } finally {
       setLoading(false);

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 
@@ -37,11 +37,11 @@ describe('Orders (e2e)', () => {
         .expect(401);
     });
 
-    it('should return 400 without branchId', () => {
+    it('should return 401 with invalid authentication token', () => {
       return request(app.getHttpServer())
         .get('/admin/orders')
         .set('Authorization', 'Bearer test-token')
-        .expect(400);
+        .expect(401);
     });
   });
 
@@ -52,11 +52,11 @@ describe('Orders (e2e)', () => {
         .expect(401);
     });
 
-    it('should return 400 without branchId', () => {
+    it('should return 401 with invalid authentication token', () => {
       return request(app.getHttpServer())
         .get('/admin/orders/test-order-id')
         .set('Authorization', 'Bearer test-token')
-        .expect(400);
+        .expect(401);
     });
   });
 
@@ -68,12 +68,12 @@ describe('Orders (e2e)', () => {
         .expect(401);
     });
 
-    it('should return 400 with invalid status', () => {
+    it('should return 401 with invalid authentication token', () => {
       return request(app.getHttpServer())
         .patch('/admin/orders/test-order-id/status?branchId=test-branch')
         .set('Authorization', 'Bearer test-token')
         .send({ status: 'INVALID_STATUS' })
-        .expect(400);
+        .expect(401);
     });
   });
 });

@@ -28,6 +28,12 @@ type Branch = {
   myRole: string;
 };
 
+type BulkDeactivateResponse = {
+  total: number;
+  successful: number;
+  alreadyInactive?: number;
+};
+
 const TRANSACTION_TYPES = [
   { value: "RESTOCK", label: "재입고" },
   { value: "ADJUSTMENT", label: "재고 조정" },
@@ -53,6 +59,7 @@ export default function CustomerInventoryPage() {
   const [bulkNotes, setBulkNotes] = useState("");
   const [bulkType, setBulkType] = useState("ADJUSTMENT");
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkDeactivating, setBulkDeactivating] = useState(false);
 
   const manageRoles = new Set(["OWNER", "ADMIN", "BRANCH_OWNER", "BRANCH_ADMIN"]);
   const canManage =
@@ -181,6 +188,47 @@ export default function CustomerInventoryPage() {
     }
   };
 
+  const handleBulkDeactivate = async () => {
+    if (selectedInventoryIds.size === 0) {
+      toast.error("비활성화할 대상을 선택해 주세요.");
+      return;
+    }
+
+    try {
+      setBulkDeactivating(true);
+      const targets = inventory.filter((item) => selectedInventoryIds.has(item.id));
+
+      const result = await apiClient.post<BulkDeactivateResponse>(
+        "/customer/inventory/bulk-deactivate",
+        {
+          items: targets.map((item) => ({
+            productId: item.product_id,
+            branchId: item.branch_id,
+          })),
+          notes: bulkNotes || undefined,
+        },
+      );
+
+      if (result.successful === result.total) {
+        toast.success(
+          result.alreadyInactive
+            ? `${result.total}개 상품 재고 관리 비활성화 완료 (이미 비활성 ${result.alreadyInactive}개 포함)`
+            : `${result.total}개 상품 재고 관리 비활성화 완료`,
+        );
+      } else {
+        toast.error(`일부만 처리됨 (${result.successful}/${result.total})`);
+      }
+
+      setSelectedInventoryIds(new Set());
+      setSelectedBranchIds((prev) => new Set(prev));
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "일괄 비활성화에 실패했습니다");
+    } finally {
+      setBulkDeactivating(false);
+    }
+  };
+
   if (loading && branches.length === 0) {
     return (
       <div>
@@ -297,13 +345,22 @@ export default function CustomerInventoryPage() {
               placeholder="메모 (선택)"
               className="input-field"
             />
-            <button
-              onClick={handleBulkAdjust}
-              disabled={bulkSaving}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              {bulkSaving ? "처리 중..." : "일괄 적용"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkAdjust}
+                disabled={bulkSaving || bulkDeactivating}
+                className="btn-primary px-4 py-2 text-sm whitespace-nowrap"
+              >
+                {bulkSaving ? "처리 중..." : "일괄 적용"}
+              </button>
+              <button
+                onClick={handleBulkDeactivate}
+                disabled={bulkSaving || bulkDeactivating}
+                className="btn-danger px-4 py-2 text-sm whitespace-nowrap"
+              >
+                {bulkDeactivating ? "처리 중..." : "일괄 비활성화"}
+              </button>
+            </div>
           </div>
         </div>
       )}

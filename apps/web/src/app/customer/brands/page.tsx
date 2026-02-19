@@ -18,6 +18,11 @@ type Brand = {
   myRole?: string;
 };
 
+function getBrandShopUrl(slug: string | null): string | null {
+  if (!slug) return null;
+  return `/shop/${encodeURIComponent(slug)}`;
+}
+
 const canCreateBrand = (
   role: string,
   loading: boolean,
@@ -113,8 +118,12 @@ export default function CustomerBrandsPage() {
       {showAddModal && (
         <AddBrandModal
           onClose={() => setShowAddModal(false)}
-          onSuccess={() => {
+          onSuccess={(createdBrand) => {
             setShowAddModal(false);
+            setBrands((prev) => {
+              const deduped = prev.filter((brand) => brand.id !== createdBrand.id);
+              return [createdBrand, ...deduped];
+            });
             loadBrands().catch(() => null);
           }}
         />
@@ -124,6 +133,8 @@ export default function CustomerBrandsPage() {
 }
 
 function BrandCard({ brand }: { brand: Brand }) {
+  const brandShopUrl = getBrandShopUrl(brand.slug);
+
   return (
     <Link
       href={`/customer/brands/${brand.id}`}
@@ -145,7 +156,11 @@ function BrandCard({ brand }: { brand: Brand }) {
         )}
         <div className="flex-1">
           <div className="font-bold text-base mb-1">{brand.name}</div>
-          {brand.slug && <div className="text-xs text-text-tertiary">Slug: {brand.slug}</div>}
+          {brandShopUrl && (
+            <div className="text-xs text-text-tertiary">
+              온라인샵: {brandShopUrl}
+            </div>
+          )}
           {brand.myRole && (
             <div className="text-xs text-text-secondary">Role: {brand.myRole}</div>
           )}
@@ -163,7 +178,7 @@ function AddBrandModal({
   onSuccess,
 }: {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (createdBrand: Brand) => void;
 }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -183,7 +198,7 @@ function AddBrandModal({
 
     try {
       setSaving(true);
-      await apiClient.post('/customer/brands', {
+      const createdBrand = await apiClient.post<Brand>('/customer/brands', {
         name: formData.name,
         slug: formData.slug || null,
         biz_name: formData.biz_name || null,
@@ -191,7 +206,7 @@ function AddBrandModal({
       });
 
       toast.success('Brand has been added.');
-      onSuccess();
+      onSuccess(createdBrand);
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : 'Failed to add brand.');
@@ -224,7 +239,7 @@ function AddBrandModal({
           </div>
 
           <div className="mb-5">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Brand Slug</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">Brand URL</label>
             <input
               type="text"
               value={formData.slug}
@@ -232,7 +247,7 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, slug: event.target.value.toLowerCase() }))
               }
               className="input-field"
-              placeholder="brand-slug"
+              placeholder="brand-url"
             />
             <div className="text-xs text-text-tertiary mt-1">Letters, numbers, and hyphens only.</div>
           </div>

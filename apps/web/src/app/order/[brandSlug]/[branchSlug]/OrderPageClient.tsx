@@ -5,6 +5,7 @@ import Image from "next/image";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { formatWon } from "@/lib/format";
+import { saveCheckoutDraft } from "@/lib/order-session";
 import {
   ProductCard,
   type ProductCardProduct,
@@ -21,6 +22,8 @@ type Branch = {
   brandName?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  enabledFulfillmentTypes?: string[] | null;
+  allowedPaymentMethods?: string[] | null;
 };
 
 type Category = {
@@ -162,6 +165,14 @@ export default function OrderPageClient({
 
   const totalAmount = cart.reduce((sum, item) => sum + item.itemPrice * item.qty, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+  const enabledFulfillmentTypes =
+    branch.enabledFulfillmentTypes && branch.enabledFulfillmentTypes.length > 0
+      ? branch.enabledFulfillmentTypes
+      : ["PICKUP"];
+  const allowedPaymentMethods =
+    branch.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
+      ? branch.allowedPaymentMethods
+      : ["CARD", "TRANSFER", "CASH"];
 
   const goToCheckout = () => {
     if (cart.length === 0) {
@@ -169,10 +180,16 @@ export default function OrderPageClient({
       return;
     }
 
-    sessionStorage.setItem("orderCart", JSON.stringify(cart));
-    sessionStorage.setItem("orderBranchId", branch.id);
-    sessionStorage.setItem("orderBrandSlug", brandSlug);
-    sessionStorage.setItem("orderBranchSlug", branchSlug);
+    saveCheckoutDraft({
+      cart,
+      branchId: branch.id,
+      brandSlug,
+      branchSlug,
+      enabledFulfillmentTypes,
+      allowedPaymentMethods,
+      selectedFulfillmentType: enabledFulfillmentTypes[0] ?? "PICKUP",
+      selectedPaymentMethod: allowedPaymentMethods[0] ?? "CARD",
+    });
     router.push(`/order/${brandSlug}/${branchSlug}/checkout`);
   };
 
@@ -206,7 +223,7 @@ export default function OrderPageClient({
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-bg-tertiary flex items-center justify-center text-lg">
-                🏪
+                B
               </div>
             )}
             <div>
@@ -252,7 +269,7 @@ export default function OrderPageClient({
 
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-text-tertiary">
-              <div className="text-3xl mb-3">🍽</div>
+              <div className="text-3xl mb-3">!</div>
               <p>등록된 상품이 없습니다.</p>
             </div>
           ) : (
@@ -268,7 +285,6 @@ export default function OrderPageClient({
               ))}
             </div>
           )}
-
         </main>
 
         {/* Floating Cart Bar with expandable cart */}

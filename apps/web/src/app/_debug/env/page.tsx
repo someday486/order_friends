@@ -1,4 +1,10 @@
+import { notFound } from "next/navigation";
+
 export default function EnvDebugPage() {
+  if (process.env.NODE_ENV !== "development") {
+    notFound();
+  }
+
   return (
     <pre className="p-4 text-foreground">
       {JSON.stringify(

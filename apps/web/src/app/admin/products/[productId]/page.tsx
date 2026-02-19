@@ -112,7 +112,7 @@ function ProductDetailPageContent() {
     fetchProduct();
   }, [productId, isNew]);
 
-  // ???? ??
+  // 카테고리 목록 조회
   useEffect(() => {
     if (!branchId) {
       setCategories([]);
@@ -275,14 +275,14 @@ function ProductDetailPageContent() {
 
       {/* Form */}
       <div className="max-w-[600px]">
-        {/* 가게 선택 (등록 시에만) */}
+        {/* 매장 선택 (등록 시에만) */}
         {isNew && (
           <div className="mb-4">
-            <label className="block text-text-secondary text-[13px] mb-1.5">가게 선택 *</label>
+            <label className="block text-text-secondary text-[13px] mb-1.5">매장 선택 *</label>
             <BranchSelector />
             {!branchId && (
               <p className="text-text-tertiary mt-2 text-xs">
-                가게를 선택하면 카테고리를 불러옵니다.
+                매장을 선택하면 해당 매장의 카테고리를 불러옵니다.
               </p>
             )}
           </div>

@@ -13,6 +13,8 @@ export class OrderDetailResponse {
   orderedAt: string;
   orderNo?: string | null; // ✅ 추가
   status: OrderStatus;
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | null;
+  myRole?: string;
 
   customer: {
     name: string;

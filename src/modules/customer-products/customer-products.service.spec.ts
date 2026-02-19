@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CustomerProductsService } from './customer-products.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 
@@ -23,6 +27,8 @@ describe('CustomerProductsService', () => {
     chains = {
       branches: makeChain(),
       products: makeChain(),
+      brand_products: makeChain(),
+      product_inventory: makeChain(),
       product_categories: makeChain(),
       product_options: makeChain(),
     };
@@ -907,6 +913,79 @@ describe('CustomerProductsService', () => {
     });
   });
 
+  it('bulkCreateCategories should create for missing branches and skip duplicates', async () => {
+    chains.branches.single
+      .mockResolvedValueOnce({
+        data: { id: 'b1', brand_id: 'brand-1' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'b2', brand_id: 'brand-1' },
+        error: null,
+      });
+    chains.product_categories.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'existing-cat',
+          branch_id: 'b2',
+          name: 'Coffee',
+          sort_order: 2,
+        },
+      ],
+      error: null,
+    });
+    chains.product_categories.select.mockImplementation((columns?: string) => {
+      if (columns === '*') {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'c1',
+              branch_id: 'b1',
+              name: 'Coffee',
+              sort_order: 0,
+              is_active: true,
+              created_at: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+          error: null,
+        });
+      }
+      return chains.product_categories;
+    });
+
+    const result = await service.bulkCreateCategories(
+      'u1',
+      { branchIds: ['b1', 'b2'], name: 'Coffee' },
+      [],
+      [
+        { branch_id: 'b1', role: 'OWNER' } as any,
+        { branch_id: 'b2', role: 'OWNER' } as any,
+      ],
+    );
+
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(chains.product_categories.insert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          branch_id: 'b1',
+          name: 'Coffee',
+        }),
+      ]),
+    );
+  });
+
+  it('bulkCreateCategories should throw when name is empty', async () => {
+    await expect(
+      service.bulkCreateCategories(
+        'u1',
+        { branchIds: ['b1'], name: '   ' },
+        [],
+        [],
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('updateCategory should return current when no fields', async () => {
     chains.product_categories.single.mockResolvedValueOnce({
       data: {
@@ -1295,5 +1374,428 @@ describe('CustomerProductsService', () => {
 
     expect(result).toHaveLength(1);
     expect(spy).toHaveBeenCalled();
+  });
+
+  it('getBrandProductTemplates should include branch apply status and applied branch ids', async () => {
+    chains.branches.order.mockResolvedValueOnce({
+      data: [{ id: 'b1' }, { id: 'b2' }],
+      error: null,
+    });
+    chains.brand_products.order
+      .mockReturnValueOnce(chains.brand_products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'tpl-1',
+            brand_id: 'brand-1',
+            name: 'Americano',
+            base_price: 4500,
+            is_active: true,
+          },
+        ],
+        error: null,
+      });
+    chains.products.in
+      .mockReturnValueOnce(chains.products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'p1',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            base_price: 4700,
+          },
+          {
+            id: 'p2',
+            branch_id: 'b2',
+            brand_product_id: 'tpl-1',
+            is_hidden: true,
+            base_price: 4700,
+          },
+        ],
+        error: null,
+      });
+
+    const result = await service.getBrandProductTemplates(
+      'u1',
+      'brand-1',
+      'b1',
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      [],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].appliedToBranch).toBe(true);
+    expect(result[0].branchProductId).toBe('p1');
+    expect(result[0].appliedBranchIds).toEqual(['b1']);
+    expect(result[0].appliedBranchCount).toBe(1);
+    expect(result[0].totalBranchCount).toBe(2);
+  });
+
+  it('createBrandProductTemplate should reject non OWNER/ADMIN brand role', async () => {
+    await expect(
+      service.createBrandProductTemplate(
+        'u1',
+        {
+          brandId: 'brand-1',
+          name: 'Americano',
+          price: 4500,
+        },
+        [{ brand_id: 'brand-1', role: 'MEMBER' } as any],
+        [],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('createBrandProductTemplate should create template and apply to all branches by default', async () => {
+    chains.brand_products.single.mockResolvedValueOnce({
+      data: {
+        id: 'tpl-1',
+        brand_id: 'brand-1',
+        name: 'Americano',
+        base_price: 4500,
+        is_active: true,
+      },
+      error: null,
+    });
+    chains.branches.order
+      .mockResolvedValueOnce({
+        data: [{ id: 'b1' }, { id: 'b2' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'b1' }, { id: 'b2' }],
+        error: null,
+      });
+    chains.products.in.mockImplementation(() => {
+      const call = chains.products.in.mock.calls.length;
+      if (call === 1) {
+        return Promise.resolve({
+          data: [],
+          error: null,
+        });
+      }
+      if (call === 2) {
+        return Promise.resolve({
+          data: [
+            { id: 'p1', branch_id: 'b1' },
+            { id: 'p2', branch_id: 'b2' },
+          ],
+          error: null,
+        });
+      }
+      if (call === 3) {
+        return chains.products;
+      }
+      return Promise.resolve({
+        data: [
+          {
+            id: 'p1',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            base_price: 4500,
+          },
+          {
+            id: 'p2',
+            branch_id: 'b2',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            base_price: 4500,
+          },
+        ],
+        error: null,
+      });
+    });
+    chains.brand_products.order
+      .mockReturnValueOnce(chains.brand_products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'tpl-1',
+            brand_id: 'brand-1',
+            name: 'Americano',
+            base_price: 4500,
+            is_active: true,
+          },
+        ],
+        error: null,
+      });
+
+    const result = await service.createBrandProductTemplate(
+      'u1',
+      {
+        brandId: 'brand-1',
+        name: 'Americano',
+        price: 4500,
+      },
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      [],
+    );
+
+    expect(result.id).toBe('tpl-1');
+    expect(chains.brand_products.insert).toHaveBeenCalled();
+    expect(chains.products.insert).toHaveBeenCalledTimes(2);
+    expect(result.appliedBranchCount).toBe(2);
+  });
+
+  it('updateBrandProductTemplate should sync branch checks even without field update', async () => {
+    chains.brand_products.single.mockResolvedValueOnce({
+      data: {
+        id: 'tpl-1',
+        brand_id: 'brand-1',
+        name: 'Americano',
+        base_price: 4500,
+        is_active: true,
+      },
+      error: null,
+    });
+    chains.branches.order
+      .mockResolvedValueOnce({
+        data: [{ id: 'b1' }, { id: 'b2' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'b1' }, { id: 'b2' }],
+        error: null,
+      });
+    chains.products.in
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'p1',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-1',
+            is_hidden: true,
+          },
+          {
+            id: 'p2',
+            branch_id: 'b2',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+          },
+        ],
+        error: null,
+      })
+      .mockReturnValueOnce(chains.products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'p1',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            base_price: 4500,
+          },
+          {
+            id: 'p2',
+            branch_id: 'b2',
+            brand_product_id: 'tpl-1',
+            is_hidden: true,
+            base_price: 4500,
+          },
+        ],
+        error: null,
+      });
+    chains.brand_products.order
+      .mockReturnValueOnce(chains.brand_products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'tpl-1',
+            brand_id: 'brand-1',
+            name: 'Americano',
+            base_price: 4500,
+            is_active: true,
+          },
+        ],
+        error: null,
+      });
+
+    const result = await service.updateBrandProductTemplate(
+      'u1',
+      'tpl-1',
+      { branchIds: ['b1'] },
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      [],
+    );
+
+    expect(result.appliedBranchIds).toEqual(['b1']);
+    expect(chains.products.update).toHaveBeenCalledWith(
+      expect.objectContaining({ is_hidden: false }),
+    );
+    expect(chains.products.update).toHaveBeenCalledWith({ is_hidden: true });
+  });
+
+  it('bulkUpdateBrandProductTemplates should update status and hide linked products', async () => {
+    chains.brand_products.in
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'tpl-1',
+            brand_id: 'brand-1',
+            name: 'Americano',
+            base_price: 4500,
+            is_active: true,
+          },
+          {
+            id: 'tpl-2',
+            brand_id: 'brand-1',
+            name: 'Latte',
+            base_price: 5000,
+            is_active: true,
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({ error: null });
+    chains.products.eq
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null });
+    chains.branches.order.mockResolvedValueOnce({
+      data: [{ id: 'b1' }],
+      error: null,
+    });
+    chains.brand_products.order
+      .mockReturnValueOnce(chains.brand_products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'tpl-1',
+            brand_id: 'brand-1',
+            name: 'Americano',
+            base_price: 4500,
+            is_active: false,
+          },
+          {
+            id: 'tpl-2',
+            brand_id: 'brand-1',
+            name: 'Latte',
+            base_price: 5000,
+            is_active: false,
+          },
+        ],
+        error: null,
+      });
+    chains.products.in
+      .mockReturnValueOnce(chains.products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'p1',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-1',
+            is_hidden: true,
+            base_price: 4500,
+          },
+          {
+            id: 'p2',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-2',
+            is_hidden: true,
+            base_price: 5000,
+          },
+        ],
+        error: null,
+      });
+
+    const result = await service.bulkUpdateBrandProductTemplates(
+      'u1',
+      {
+        brandId: 'brand-1',
+        templateIds: ['tpl-1', 'tpl-2'],
+        isActive: false,
+      },
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      [],
+    );
+
+    expect(result.updatedCount).toBe(2);
+    expect(chains.brand_products.update).toHaveBeenCalledWith({
+      is_active: false,
+    });
+    expect(chains.products.update).toHaveBeenCalledWith({ is_hidden: true });
+  });
+
+  it('bulkUpdateBrandProductTemplates should require at least one update field', async () => {
+    await expect(
+      service.bulkUpdateBrandProductTemplates(
+        'u1',
+        {
+          brandId: 'brand-1',
+          templateIds: ['tpl-1'],
+        },
+        [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+        [],
+      ),
+    ).rejects.toThrow(
+      'isActive, isOnlineShopVisible, branchIds, or inventoryMode is required',
+    );
+  });
+
+  it('applyBrandTemplateToBranch should create linked branch product', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.brand_products.single.mockResolvedValueOnce({
+      data: {
+        id: 'tpl-1',
+        brand_id: 'brand-1',
+        name: 'Americano',
+        description: null,
+        base_price: 4500,
+        image_url: null,
+        sort_order: 0,
+        is_active: true,
+      },
+      error: null,
+    });
+    chains.products.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    chains.products.single.mockResolvedValueOnce({
+      data: { id: 'p1', brand_product_id: 'tpl-1', branch_id: 'b1' },
+      error: null,
+    });
+
+    const result = await service.applyBrandTemplateToBranch(
+      'u1',
+      'tpl-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'BRANCH_ADMIN' } as any],
+    );
+
+    expect(result.id).toBe('p1');
+    expect(chains.products.insert).toHaveBeenCalled();
+  });
+
+  it('unapplyBrandTemplateFromBranch should hide linked products', async () => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.brand_products.single.mockResolvedValueOnce({
+      data: { id: 'tpl-1', brand_id: 'brand-1' },
+      error: null,
+    });
+    chains.products.select.mockResolvedValueOnce({
+      data: [{ id: 'p1' }],
+      error: null,
+    });
+
+    const result = await service.unapplyBrandTemplateFromBranch(
+      'u1',
+      'tpl-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'BRANCH_ADMIN' } as any],
+    );
+
+    expect(result.updated).toBe(1);
+    expect(chains.products.update).toHaveBeenCalledWith({ is_hidden: true });
   });
 });

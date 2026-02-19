@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
+import { saveCheckoutDraft } from "@/lib/order-session";
 import toast from "react-hot-toast";
 
 // ============================================================
@@ -32,6 +33,8 @@ type Branch = {
   id: string;
   name: string;
   brandName?: string;
+  enabledFulfillmentTypes?: string[] | null;
+  allowedPaymentMethods?: string[] | null;
 };
 
 type CartItem = {
@@ -168,6 +171,14 @@ export default function OrderPage() {
   // 총액 계산
   const totalAmount = cart.reduce((sum, item) => sum + item.itemPrice * item.qty, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+  const enabledFulfillmentTypes =
+    branch?.enabledFulfillmentTypes && branch.enabledFulfillmentTypes.length > 0
+      ? branch.enabledFulfillmentTypes
+      : ["PICKUP"];
+  const allowedPaymentMethods =
+    branch?.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
+      ? branch.allowedPaymentMethods
+      : ["CARD", "TRANSFER", "CASH"];
 
   // 주문하기
   const goToCheckout = () => {
@@ -176,9 +187,14 @@ export default function OrderPage() {
       return;
     }
 
-    // 장바구니 데이터를 sessionStorage에 저장
-    sessionStorage.setItem("orderCart", JSON.stringify(cart));
-    sessionStorage.setItem("orderBranchId", branchId);
+    saveCheckoutDraft({
+      cart,
+      branchId,
+      enabledFulfillmentTypes,
+      allowedPaymentMethods,
+      selectedFulfillmentType: enabledFulfillmentTypes[0] ?? "PICKUP",
+      selectedPaymentMethod: allowedPaymentMethods[0] ?? "CARD",
+    });
     router.push(`/order/branch/${branchId}/checkout`);
   };
 

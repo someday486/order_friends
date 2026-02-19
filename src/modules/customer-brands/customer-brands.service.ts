@@ -11,48 +11,107 @@ import {
   UpdateCustomerBrandRequest,
 } from './dto/customer-brand.request';
 
+const SHOP_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'CASH'] as const;
+type ShopPaymentMethod = (typeof SHOP_PAYMENT_METHODS)[number];
+
 @Injectable()
 export class CustomerBrandsService {
   private readonly logger = new Logger(CustomerBrandsService.name);
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  /**
-   * 내 브랜드 목록 조회
-   */
+  private normalizeShopPaymentMethods(value: unknown): ShopPaymentMethod[] {
+    if (!Array.isArray(value)) {
+      return [...SHOP_PAYMENT_METHODS];
+    }
+
+    const set = new Set<ShopPaymentMethod>();
+    for (const item of value) {
+      const upper = typeof item === 'string' ? item.trim().toUpperCase() : '';
+      if ((SHOP_PAYMENT_METHODS as readonly string[]).includes(upper)) {
+        set.add(upper as ShopPaymentMethod);
+      }
+    }
+
+    if (set.size === 0) {
+      return [...SHOP_PAYMENT_METHODS];
+    }
+
+    return [...set];
+  }
+
   async getMyBrands(userId: string, brandMemberships: BrandMembership[]) {
     this.logger.log(`Fetching brands for user: ${userId}`);
 
     const brandIds = brandMemberships.map((m) => m.brand_id);
-
-    if (brandIds.length === 0) {
-      return [];
-    }
-
     const sb = this.supabase.adminClient();
 
-    const { data, error } = await sb
-      .from('brands')
-      .select(
-        'id, name, slug, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
-      )
-      .in('id', brandIds)
-      .order('created_at', { ascending: false });
+    const [memberBrandsResult, ownedBrandsResult] = await Promise.all([
+      brandIds.length > 0
+        ? sb
+            .from('brands')
+            .select(
+              'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+            )
+            .in('id', brandIds)
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+      sb
+        .from('brands')
+        .select(
+          'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+        )
+        .eq('owner_user_id', userId)
+        .order('created_at', { ascending: false }),
+    ]);
 
-    if (error) {
-      this.logger.error(`Failed to fetch brands for user ${userId}`, error);
+    if (memberBrandsResult.error) {
+      this.logger.error(
+        `Failed to fetch membership brands for user ${userId}`,
+        memberBrandsResult.error,
+      );
       throw new Error('Failed to fetch brands');
     }
 
-    // 각 브랜드에 대한 내 역할 정보 추가
-    const brandsWithRole = data.map((brand) => {
-      const membership = brandMemberships.find((m) => m.brand_id === brand.id);
-      return {
-        ...brand,
-        slug: brand.slug ?? null,
-        myRole: membership?.role || null,
-      };
-    });
+    if (ownedBrandsResult.error) {
+      this.logger.error(
+        `Failed to fetch owned brands for user ${userId}`,
+        ownedBrandsResult.error,
+      );
+      throw new Error('Failed to fetch brands');
+    }
+
+    const mergedById = new Map<string, any>();
+    for (const brand of memberBrandsResult.data ?? []) {
+      mergedById.set(brand.id, brand);
+    }
+    for (const brand of ownedBrandsResult.data ?? []) {
+      mergedById.set(brand.id, brand);
+    }
+
+    const membershipByBrandId = new Map(
+      brandMemberships.map((membership) => [membership.brand_id, membership]),
+    );
+
+    const brandsWithRole = Array.from(mergedById.values())
+      .sort((a, b) => {
+        const left = String(a.created_at ?? '');
+        const right = String(b.created_at ?? '');
+        return right.localeCompare(left);
+      })
+      .map((brand) => {
+        const membership = membershipByBrandId.get(brand.id);
+        return {
+          ...brand,
+          slug: brand.slug ?? null,
+          shop_payment_methods: this.normalizeShopPaymentMethods(
+            brand.shop_payment_methods,
+          ),
+          myRole:
+            membership?.role ??
+            (brand.owner_user_id === userId ? 'OWNER' : null),
+        };
+      });
 
     this.logger.log(
       `Fetched ${brandsWithRole.length} brands for user: ${userId}`,
@@ -61,9 +120,6 @@ export class CustomerBrandsService {
     return brandsWithRole;
   }
 
-  /**
-   * 내 브랜드 상세 조회
-   */
   async getMyBrand(
     brandId: string,
     userId: string,
@@ -71,7 +127,6 @@ export class CustomerBrandsService {
   ) {
     this.logger.log(`Fetching brand ${brandId} for user: ${userId}`);
 
-    // 권한 확인
     const membership = brandMemberships.find((m) => m.brand_id === brandId);
     if (!membership) {
       this.logger.warn(
@@ -85,7 +140,7 @@ export class CustomerBrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, slug, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -97,13 +152,13 @@ export class CustomerBrandsService {
 
     return {
       ...data,
+      shop_payment_methods: this.normalizeShopPaymentMethods(
+        data.shop_payment_methods,
+      ),
       myRole: membership.role,
     };
   }
 
-  /**
-   * 브랜드 생성
-   */
   async createMyBrand(
     createData: CreateCustomerBrandRequest,
     userId: string,
@@ -122,21 +177,29 @@ export class CustomerBrandsService {
 
     const sb = this.supabase.adminClient();
 
-    const insertPayload = {
+    const insertPayload: Record<string, unknown> = {
       name: createData.name,
       slug: createData.slug ?? null,
       owner_user_id: userId,
       biz_name: createData.biz_name ?? null,
       biz_reg_no: createData.biz_reg_no ?? null,
+      rep_name: createData.rep_name ?? null,
+      address: createData.address ?? null,
+      biz_cert_url: createData.biz_cert_url ?? createData.bizCertUrl ?? null,
       logo_url: createData.logo_url ?? null,
       cover_image_url: createData.cover_image_url ?? null,
     };
+    if (createData.shop_payment_methods !== undefined) {
+      insertPayload.shop_payment_methods = this.normalizeShopPaymentMethods(
+        createData.shop_payment_methods,
+      );
+    }
 
     const { data, error } = await sb
       .from('brands')
       .insert(insertPayload)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, logo_url, cover_image_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -165,12 +228,12 @@ export class CustomerBrandsService {
       ...data,
       myRole: 'OWNER',
       slug: data.slug ?? null,
+      shop_payment_methods: this.normalizeShopPaymentMethods(
+        data.shop_payment_methods,
+      ),
     };
   }
 
-  /**
-   * 내 브랜드 수정 (OWNER, ADMIN만 가능)
-   */
   async updateMyBrand(
     brandId: string,
     updateData: UpdateCustomerBrandRequest,
@@ -179,13 +242,11 @@ export class CustomerBrandsService {
   ) {
     this.logger.log(`Updating brand ${brandId} by user: ${userId}`);
 
-    // 권한 확인
     const membership = brandMemberships.find((m) => m.brand_id === brandId);
     if (!membership) {
       throw new ForbiddenException('You do not have access to this brand');
     }
 
-    // OWNER 또는 ADMIN만 수정 가능
     if (membership.role !== 'OWNER' && membership.role !== 'ADMIN') {
       this.logger.warn(
         `User ${userId} with role ${membership.role} attempted to update brand ${brandId}`,
@@ -197,24 +258,43 @@ export class CustomerBrandsService {
 
     const sb = this.supabase.adminClient();
 
-    // 수정 가능한 필드만 허용
-    const { name, slug, biz_name, biz_reg_no, logo_url, cover_image_url } =
-      updateData;
+    const {
+      name,
+      slug,
+      biz_name,
+      biz_reg_no,
+      rep_name,
+      address,
+      biz_cert_url,
+      bizCertUrl,
+      logo_url,
+      cover_image_url,
+      shop_payment_methods,
+    } = updateData;
     const updateFields: any = {};
     if (name !== undefined) updateFields.name = name;
     if (slug !== undefined) updateFields.slug = slug;
     if (biz_name !== undefined) updateFields.biz_name = biz_name;
     if (biz_reg_no !== undefined) updateFields.biz_reg_no = biz_reg_no;
+    if (rep_name !== undefined) updateFields.rep_name = rep_name;
+    if (address !== undefined) updateFields.address = address;
+    if (biz_cert_url !== undefined || bizCertUrl !== undefined) {
+      updateFields.biz_cert_url = biz_cert_url ?? bizCertUrl ?? null;
+    }
     if (logo_url !== undefined) updateFields.logo_url = logo_url;
     if (cover_image_url !== undefined)
       updateFields.cover_image_url = cover_image_url;
+    if (shop_payment_methods !== undefined) {
+      updateFields.shop_payment_methods =
+        this.normalizeShopPaymentMethods(shop_payment_methods);
+    }
 
     const { data, error } = await sb
       .from('brands')
       .update(updateFields)
       .eq('id', brandId)
       .select(
-        'id, name, slug, biz_name, biz_reg_no, owner_user_id, logo_url, cover_image_url, created_at',
+        'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, owner_user_id, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -227,6 +307,9 @@ export class CustomerBrandsService {
 
     return {
       ...data,
+      shop_payment_methods: this.normalizeShopPaymentMethods(
+        data.shop_payment_methods,
+      ),
       myRole: membership.role,
     };
   }

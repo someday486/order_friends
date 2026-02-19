@@ -55,3 +55,20 @@ export class ReorderCategoriesRequest {
   @Type(() => ReorderCategoryItem)
   items: ReorderCategoryItem[];
 }
+
+export class BulkCreateCategoriesRequest {
+  @IsArray()
+  @IsString({ each: true })
+  branchIds: string[];
+
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  @IsOptional()
+  sortOrder?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, Matches } from 'class-validator';
+import { IsEnum, IsOptional, Matches, IsIn } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { OrderStatus } from '../../orders/order-status.enum';
 
@@ -35,4 +35,12 @@ export class GetCustomerOrdersQueryDto extends PaginationDto {
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
+
+  @ApiPropertyOptional({
+    description: '주문 방식',
+    enum: ['PICKUP', 'DELIVERY', 'DINE_IN'],
+  })
+  @IsOptional()
+  @IsIn(['PICKUP', 'DELIVERY', 'DINE_IN'])
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN';
 }

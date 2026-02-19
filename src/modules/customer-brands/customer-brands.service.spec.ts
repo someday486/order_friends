@@ -11,7 +11,7 @@ describe('CustomerBrandsService', () => {
       from: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       in: jest.fn().mockReturnThis(),
-      order: jest.fn(),
+      order: jest.fn().mockResolvedValue({ data: [], error: null }),
       eq: jest.fn().mockReturnThis(),
       single: jest.fn(),
       insert: jest.fn().mockReturnThis(),
@@ -31,7 +31,7 @@ describe('CustomerBrandsService', () => {
 
   it('getMyBrands should return empty when no memberships', async () => {
     await expect(service.getMyBrands('user-1', [])).resolves.toEqual([]);
-    expect(mockSb.from).not.toHaveBeenCalled();
+    expect(mockSb.from).toHaveBeenCalledWith('brands');
   });
 
   it('getMyBrands should map roles and return brands', async () => {
@@ -258,6 +258,9 @@ describe('CustomerBrandsService', () => {
         slug: 'brand',
         biz_name: 'Biz',
         biz_reg_no: '123',
+        rep_name: 'Rep',
+        address: 'Seoul',
+        biz_cert_url: 'biz-cert.png',
         logo_url: 'logo.png',
         cover_image_url: 'cover.png',
         owner_user_id: 'owner',
@@ -273,6 +276,9 @@ describe('CustomerBrandsService', () => {
         slug: 'brand',
         biz_name: 'Biz',
         biz_reg_no: '123',
+        rep_name: 'Rep',
+        address: 'Seoul',
+        bizCertUrl: 'biz-cert.png',
         logo_url: 'logo.png',
         cover_image_url: 'cover.png',
       } as any,
@@ -286,6 +292,9 @@ describe('CustomerBrandsService', () => {
         slug: 'brand',
         biz_name: 'Biz',
         biz_reg_no: '123',
+        rep_name: 'Rep',
+        address: 'Seoul',
+        biz_cert_url: 'biz-cert.png',
         logo_url: 'logo.png',
         cover_image_url: 'cover.png',
       }),

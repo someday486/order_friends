@@ -3,6 +3,7 @@ export enum NotificationType {
   EMAIL = 'EMAIL',
   SMS = 'SMS',
   PUSH = 'PUSH',
+  KAKAO_TALK = 'KAKAO_TALK',
 }
 
 export enum NotificationStatus {

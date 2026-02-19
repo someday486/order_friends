@@ -1,17 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-
-// ============================================================
-// Types
-// ============================================================
+import type { FulfillmentType } from "@/types/common";
 
 type OrderStatus =
   | "CREATED"
@@ -29,11 +26,8 @@ type Order = {
   customerName: string;
   totalAmount: number;
   status: OrderStatus;
+  fulfillmentType?: FulfillmentType | null;
 };
-
-// ============================================================
-// Constants
-// ============================================================
 
 const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
@@ -46,6 +40,14 @@ const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
   { value: "REFUNDED", label: "환불" },
 ];
 
+const FULFILLMENT_OPTIONS: { value: FulfillmentType | "ALL"; label: string }[] =
+  [
+    { value: "ALL", label: "전체 방식" },
+    { value: "PICKUP", label: "포장" },
+    { value: "DELIVERY", label: "배달" },
+    { value: "DINE_IN", label: "매장" },
+  ];
+
 const statusLabel: Record<OrderStatus, string> = {
   CREATED: "접수",
   CONFIRMED: "확인",
@@ -56,7 +58,10 @@ const statusLabel: Record<OrderStatus, string> = {
   REFUNDED: "환불",
 };
 
-const statusVariant: Record<OrderStatus, "info" | "success" | "warning" | "danger" | "default"> = {
+const statusVariant: Record<
+  OrderStatus,
+  "info" | "success" | "warning" | "danger" | "default"
+> = {
   CREATED: "info",
   CONFIRMED: "info",
   PREPARING: "warning",
@@ -66,9 +71,20 @@ const statusVariant: Record<OrderStatus, "info" | "success" | "warning" | "dange
   REFUNDED: "danger",
 };
 
-// ============================================================
-// Helpers
-// ============================================================
+const fulfillmentLabel: Record<FulfillmentType, string> = {
+  PICKUP: "포장",
+  DELIVERY: "배달",
+  DINE_IN: "매장",
+};
+
+const fulfillmentVariant: Record<
+  FulfillmentType,
+  "info" | "success" | "warning" | "danger" | "default"
+> = {
+  PICKUP: "info",
+  DELIVERY: "warning",
+  DINE_IN: "default",
+};
 
 function formatWon(amount: number) {
   return amount.toLocaleString("ko-KR") + "원";
@@ -85,41 +101,49 @@ function formatDateTime(iso: string) {
   });
 }
 
-// ============================================================
-// Component
-// ============================================================
-
 function OrdersPageContent() {
   const searchParams = useSearchParams();
   const initialBranchId = useMemo(
     () => searchParams?.get("branchId") ?? "",
-    [searchParams]
+    [searchParams],
   );
 
   const { branchId, selectBranch } = useSelectedBranch();
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<
+    FulfillmentType | "ALL"
+  >("ALL");
 
   useEffect(() => {
     if (initialBranchId) selectBranch(initialBranchId);
   }, [initialBranchId, selectBranch]);
 
-  useEffect(() => {
-    const fetchOrders = async (bid: string) => {
+  const fetchOrders = useCallback(
+    async (bid: string) => {
       try {
         setLoading(true);
         setErr(null);
 
+        const params = new URLSearchParams({ branchId: bid });
+        if (statusFilter !== "ALL") {
+          params.append("status", statusFilter);
+        }
+        if (fulfillmentFilter !== "ALL") {
+          params.append("fulfillmentType", fulfillmentFilter);
+        }
+
         const response = await apiClient.get<{ data?: Order[] } | Order[]>(
-          `/admin/orders?branchId=${encodeURIComponent(bid)}`
+          `/admin/orders?${params.toString()}`,
         );
         const data = (response as { data?: Order[] }).data
           ? (response as { data: Order[] }).data
-          : (Array.isArray(response) ? response : []);
+          : Array.isArray(response)
+            ? response
+            : [];
         setOrders(data);
       } catch (e: unknown) {
         const error = e as Error;
@@ -127,70 +151,42 @@ function OrdersPageContent() {
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [statusFilter, fulfillmentFilter],
+  );
 
+  useEffect(() => {
     if (!branchId) {
       setOrders([]);
       return;
     }
-
-    fetchOrders(branchId);
-  }, [branchId]);
-
-  useEffect(() => {
-    if (statusFilter === "ALL") {
-      setFilteredOrders(orders);
-    } else {
-      setFilteredOrders(orders.filter((o) => o.status === statusFilter));
-    }
-  }, [orders, statusFilter]);
+    void fetchOrders(branchId);
+  }, [branchId, fetchOrders]);
 
   const handleRefresh = async () => {
     if (!branchId) return;
-    try {
-      setLoading(true);
-      setErr(null);
-
-      const response = await apiClient.get<{ data?: Order[] } | Order[]>(
-        `/admin/orders?branchId=${encodeURIComponent(branchId)}`
-      );
-      const data = (response as { data?: Order[] }).data
-        ? (response as { data: Order[] }).data
-        : (Array.isArray(response) ? response : []);
-      setOrders(data);
-    } catch (e: unknown) {
-      const error = e as Error;
-      setErr(error?.message ?? "조회 실패");
-    } finally {
-      setLoading(false);
-    }
+    await fetchOrders(branchId);
   };
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-extrabold m-0">주문 관리</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            총 {filteredOrders.length}건
+            총 {orders.length}건
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <BranchSelector />
-          <Button
-            onClick={handleRefresh}
-            disabled={loading || !branchId}
-            size="md"
-          >
+          <Button onClick={handleRefresh} disabled={loading || !branchId} size="md">
             {loading ? "로딩..." : "조회"}
           </Button>
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-2 mb-2 flex-wrap">
         {STATUS_OPTIONS.map((opt) => (
           <Button
             key={opt.value}
@@ -203,49 +199,76 @@ function OrdersPageContent() {
         ))}
       </div>
 
-      {/* Error */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {FULFILLMENT_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            onClick={() => setFulfillmentFilter(opt.value)}
+            variant={fulfillmentFilter === opt.value ? "secondary" : "outline"}
+            size="sm"
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </div>
+
       {err && <p className="text-danger mb-4">{err}</p>}
       {!branchId && (
         <p className="text-muted mb-4">
-          가게를 선택하면 주문 목록이 표시됩니다.
+          지점을 선택하면 주문 목록이 표시됩니다.
         </p>
       )}
 
-      {/* Table */}
       <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full border-collapse">
           <thead className="bg-card">
             <tr>
-              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">주문번호</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">고객명</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">상태</th>
-              <th className="text-right py-3 px-4 text-xs font-bold text-muted-foreground">금액</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">주문일시</th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">
+                주문번호
+              </th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">
+                고객명
+              </th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">
+                주문 방식
+              </th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">
+                상태
+              </th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-muted-foreground">
+                금액
+              </th>
+              <th className="text-left py-3 px-4 text-xs font-bold text-muted-foreground">
+                주문일시
+              </th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="py-3 px-4 text-sm text-center text-muted">
+                <td colSpan={6} className="py-3 px-4 text-sm text-center text-muted">
                   불러오는 중...
                 </td>
               </tr>
             )}
 
-            {!loading && filteredOrders.length === 0 && branchId && (
+            {!loading && orders.length === 0 && branchId && (
               <tr>
-                <td colSpan={5} className="py-3 px-4 text-sm text-center text-muted">
+                <td colSpan={6} className="py-3 px-4 text-sm text-center text-muted">
                   주문이 없습니다.
                 </td>
               </tr>
             )}
 
             {!loading &&
-              filteredOrders.map((order) => (
-                <tr key={order.id} className="border-t border-border hover:bg-card-hover transition-colors">
+              orders.map((order) => (
+                <tr
+                  key={order.id}
+                  className="border-t border-border hover:bg-card-hover transition-colors"
+                >
                   <td className="py-3 px-4 text-sm">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || "")}`}
                       className="text-white hover:underline"
                     >
                       {order.orderNo ?? order.id.slice(0, 8)}
@@ -253,11 +276,20 @@ function OrdersPageContent() {
                   </td>
                   <td className="py-3 px-4 text-sm">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || "")}`}
                       className="text-white hover:underline"
                     >
                       {order.customerName || "-"}
                     </Link>
+                  </td>
+                  <td className="py-3 px-4 text-sm">
+                    {order.fulfillmentType ? (
+                      <Badge variant={fulfillmentVariant[order.fulfillmentType]}>
+                        {fulfillmentLabel[order.fulfillmentType]}
+                      </Badge>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="py-3 px-4 text-sm">
                     <Badge variant={statusVariant[order.status]}>
@@ -266,7 +298,7 @@ function OrdersPageContent() {
                   </td>
                   <td className="py-3 px-4 text-sm text-right">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || "")}`}
                       className="text-white hover:underline"
                     >
                       {formatWon(order.totalAmount)}
@@ -274,7 +306,7 @@ function OrdersPageContent() {
                   </td>
                   <td className="py-3 px-4 text-sm text-muted-foreground">
                     <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || '')}`}
+                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(branchId || "")}`}
                       className="hover:underline"
                     >
                       {formatDateTime(order.orderedAt)}

@@ -25,6 +25,7 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  allowedDevOrigins: ['127.0.0.1'],
   images: {
     remotePatterns,
   },

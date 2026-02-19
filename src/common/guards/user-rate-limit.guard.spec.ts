@@ -35,7 +35,10 @@ describe('UserRateLimitGuard', () => {
     jest.clearAllMocks();
   });
 
-  const createMockContext = (user?: any): ExecutionContext => {
+  const createMockContext = (
+    user?: any,
+    requestOverrides?: Record<string, unknown>,
+  ): ExecutionContext => {
     return {
       getHandler: jest.fn(),
       switchToHttp: jest.fn().mockReturnValue({
@@ -43,6 +46,9 @@ describe('UserRateLimitGuard', () => {
           user,
           method: 'POST',
           url: '/api/test',
+          headers: {},
+          ip: '127.0.0.1',
+          ...requestOverrides,
         }),
         getResponse: jest.fn().mockReturnValue({
           setHeader: jest.fn(),
@@ -62,14 +68,25 @@ describe('UserRateLimitGuard', () => {
       expect(mockCacheManager.get).not.toHaveBeenCalled();
     });
 
-    it('should allow request when user is not authenticated', async () => {
+    it('should rate limit unauthenticated request by ip', async () => {
       mockReflector.get.mockReturnValue({ points: 5, duration: 60 });
-      const context = createMockContext(undefined);
+      mockCacheManager.get.mockResolvedValueOnce(null).mockResolvedValueOnce(0);
+      const context = createMockContext(undefined, { ip: '10.0.0.10' });
 
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(mockCacheManager.get).not.toHaveBeenCalled();
+      expect(mockCacheManager.get).toHaveBeenCalledWith(
+        'rate-limit:block:ip:10.0.0.10',
+      );
+      expect(mockCacheManager.get).toHaveBeenCalledWith(
+        'rate-limit:ip:10.0.0.10',
+      );
+      expect(mockCacheManager.set).toHaveBeenCalledWith(
+        'rate-limit:ip:10.0.0.10',
+        1,
+        60000,
+      );
     });
 
     it('should allow first request from user', async () => {
@@ -81,7 +98,7 @@ describe('UserRateLimitGuard', () => {
 
       expect(result).toBe(true);
       expect(mockCacheManager.get).toHaveBeenCalledWith(
-        'rate-limit:block:user-123',
+        'rate-limit:block:user:user-123',
       );
       expect(mockCacheManager.get).toHaveBeenCalledWith(
         'rate-limit:user:user-123',
@@ -121,7 +138,7 @@ describe('UserRateLimitGuard', () => {
 
       // Should set the block key
       expect(mockCacheManager.set).toHaveBeenCalledWith(
-        'rate-limit:block:user-123',
+        'rate-limit:block:user:user-123',
         true,
         60000,
       );
@@ -136,7 +153,7 @@ describe('UserRateLimitGuard', () => {
       await guard.canActivate(context1);
 
       expect(mockCacheManager.get).toHaveBeenCalledWith(
-        'rate-limit:block:user-123',
+        'rate-limit:block:user:user-123',
       );
       expect(mockCacheManager.get).toHaveBeenCalledWith(
         'rate-limit:user:user-123',
@@ -153,7 +170,7 @@ describe('UserRateLimitGuard', () => {
       await guard.canActivate(context2);
 
       expect(mockCacheManager.get).toHaveBeenCalledWith(
-        'rate-limit:block:user-456',
+        'rate-limit:block:user:user-456',
       );
       expect(mockCacheManager.get).toHaveBeenCalledWith(
         'rate-limit:user:user-456',
@@ -310,6 +327,25 @@ describe('UserRateLimitGuard', () => {
       const context = createMockContext({ id: 'user-123' });
 
       await expect(guard.canActivate(context)).rejects.toThrow(HttpException);
+    });
+
+    it('should use x-forwarded-for when ip is behind proxy', async () => {
+      mockReflector.get.mockReturnValue({ points: 5, duration: 60 });
+      mockCacheManager.get.mockResolvedValueOnce(null).mockResolvedValueOnce(0);
+      const context = createMockContext(undefined, {
+        ip: undefined,
+        headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' },
+      });
+
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockCacheManager.get).toHaveBeenCalledWith(
+        'rate-limit:block:ip:203.0.113.7',
+      );
+      expect(mockCacheManager.get).toHaveBeenCalledWith(
+        'rate-limit:ip:203.0.113.7',
+      );
     });
   });
 });

@@ -44,6 +44,8 @@ export class CustomerOrdersController {
   @ApiQuery({ name: 'status', description: '주문 상태 필터', required: false })
   @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
   @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
+  @ApiQuery({ name: 'dateStart', description: '조회 시작일(YYYY-MM-DD)', required: false })
+  @ApiQuery({ name: 'dateEnd', description: '조회 종료일(YYYY-MM-DD)', required: false })
   @ApiResponse({ status: 200, description: '주문 목록 조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 403, description: '권한 없음' })
@@ -53,7 +55,7 @@ export class CustomerOrdersController {
   ) {
     if (!req.user) throw new Error('Missing user');
 
-    const { branchId, status, page, limit } = query ?? {};
+    const { branchId, status, page, limit, dateStart, dateEnd } = query ?? {};
     const paginationDto: PaginationDto = { page, limit };
 
     this.logger.log(
@@ -66,6 +68,8 @@ export class CustomerOrdersController {
       req.branchMemberships || [],
       paginationDto,
       status,
+      dateStart,
+      dateEnd,
     );
   }
 

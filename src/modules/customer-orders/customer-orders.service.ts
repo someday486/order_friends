@@ -201,6 +201,17 @@ export class CustomerOrdersService {
     return Array.from(branchIds);
   }
 
+
+  private toUtcDayStart(value: string): string {
+    return `${value}T00:00:00.000Z`;
+  }
+
+  private addOneDay(value: string): string {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + 1);
+    return date.toISOString().slice(0, 10);
+  }
+
   /**
    * 내 지점의 주문 목록 조회 (페이지네이션 지원)
    */
@@ -211,6 +222,8 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
+    dateStart?: string,
+    dateEnd?: string,
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -248,6 +261,13 @@ export class CustomerOrdersService {
     if (status) {
       countQuery = countQuery.eq('status', status);
     }
+    if (dateStart) {
+      countQuery = countQuery.gte('created_at', this.toUtcDayStart(dateStart));
+    }
+    if (dateEnd) {
+      const endExclusive = this.addOneDay(dateEnd);
+      countQuery = countQuery.lt('created_at', this.toUtcDayStart(endExclusive));
+    }
 
     const { count, error: countError } = await countQuery;
 
@@ -268,6 +288,13 @@ export class CustomerOrdersService {
 
     if (status) {
       dataQuery = dataQuery.eq('status', status);
+    }
+    if (dateStart) {
+      dataQuery = dataQuery.gte('created_at', this.toUtcDayStart(dateStart));
+    }
+    if (dateEnd) {
+      const endExclusive = this.addOneDay(dateEnd);
+      dataQuery = dataQuery.lt('created_at', this.toUtcDayStart(endExclusive));
     }
 
     const { data, error } = await dataQuery;

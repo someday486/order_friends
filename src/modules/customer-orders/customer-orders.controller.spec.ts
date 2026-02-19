@@ -49,6 +49,8 @@ describe('CustomerOrdersController', () => {
       status: 'COMPLETED',
       page: 1,
       limit: 10,
+      dateStart: '2026-02-17',
+      dateEnd: '2026-02-18',
     } as any);
 
     expect(result).toEqual([{ id: 'order-1' }]);
@@ -59,6 +61,8 @@ describe('CustomerOrdersController', () => {
       [],
       { page: 1, limit: 10 },
       'COMPLETED',
+      '2026-02-17',
+      '2026-02-18',
     );
   });
 
@@ -76,6 +80,8 @@ describe('CustomerOrdersController', () => {
     const result = await controller.getOrders(makeReq(), {
       page: 1,
       limit: 10,
+      dateStart: '2026-02-17',
+      dateEnd: '2026-02-18',
     } as any);
 
     expect(result).toEqual([{ id: 'order-1' }]);
@@ -85,6 +91,8 @@ describe('CustomerOrdersController', () => {
       [],
       [],
       { page: 1, limit: 10 },
+      undefined,
+      undefined,
       undefined,
     );
   });
@@ -153,6 +161,8 @@ describe('CustomerOrdersController', () => {
             status: 'COMPLETED',
             page: 1,
             limit: 10,
+            dateStart: '2026-02-17',
+            dateEnd: '2026-02-18',
           } as any,
         ),
       expectCall: () =>
@@ -163,6 +173,8 @@ describe('CustomerOrdersController', () => {
           [],
           { page: 1, limit: 10 },
           'COMPLETED',
+          '2026-02-17',
+          '2026-02-18',
         ),
     },
     {

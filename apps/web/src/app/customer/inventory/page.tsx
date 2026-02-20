@@ -232,17 +232,17 @@ export default function CustomerInventoryPage() {
   if (loading && branches.length === 0) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">재고 관리</h1>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">재고관리</h1>
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[840px]">
             <thead className="bg-bg-tertiary">
               <tr>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">가능재고</th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">판매됨</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">최소 재고</th>
+                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">최소재고</th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
               </tr>
             </thead>

@@ -4,9 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { PencilIcon } from "@/components/ui/icons";
 import { DragHandle, SortableList } from "@/components/ui/SortableList";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Pencil, X } from "lucide-react";
 
 // ============================================================
 // Types
@@ -28,6 +27,16 @@ type Branch = {
   myRole: string;
 };
 
+type CategoryGroup = {
+  key: string;
+  name: string;
+  items: Category[];
+  branchNames: string[];
+  allActive: boolean;
+  someActive: boolean;
+  minSortOrder: number;
+};
+
 function canManageCategory(role: string | null | undefined) {
   return (
     role === "OWNER" ||
@@ -38,12 +47,54 @@ function canManageCategory(role: string | null | undefined) {
 }
 
 // ============================================================
-// Constants
-// ============================================================
-
-// ============================================================
 // Helpers
 // ============================================================
+
+function normalizeKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function groupCategories(categories: Category[], branches: Branch[]): CategoryGroup[] {
+  const map = new Map<string, CategoryGroup>();
+
+  for (const cat of categories) {
+    const key = normalizeKey(cat.name);
+    const branchName = branches.find((b) => b.id === cat.branchId)?.name ?? "";
+
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        name: cat.name,
+        items: [],
+        branchNames: [],
+        allActive: true,
+        someActive: false,
+        minSortOrder: cat.sortOrder,
+      });
+    }
+
+    const group = map.get(key)!;
+    group.items.push(cat);
+    if (branchName && !group.branchNames.includes(branchName)) {
+      group.branchNames.push(branchName);
+    }
+    if (cat.sortOrder < group.minSortOrder) {
+      group.minSortOrder = cat.sortOrder;
+    }
+  }
+
+  for (const group of map.values()) {
+    group.allActive = group.items.every((item) => item.isActive);
+    group.someActive = group.items.some((item) => item.isActive);
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.minSortOrder !== b.minSortOrder) {
+      return a.minSortOrder - b.minSortOrder;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
 
 // ============================================================
 // Component
@@ -137,13 +188,24 @@ export default function CustomerCategoriesPage() {
     [branches, selectedBranchIds],
   );
 
+  const isSingleBranchMode = selectedBranchIds.size === 1;
+
   const canManage =
     selectedBranches.length > 0 &&
     selectedBranches.every((branch) => canManageCategory(branch.myRole));
-  const canReorder = canManage && selectedBranchIds.size === 1;
-  const canBulkStatus = canManage && selectedBranchIds.size === 1;
-  const activeCategoryCount = categories.filter((category) => category.isActive).length;
-  const inactiveCategoryCount = categories.length - activeCategoryCount;
+  const canReorder = canManage && isSingleBranchMode;
+  const canBulkStatus = canManage && isSingleBranchMode;
+
+  const groupedCategories = useMemo(
+    () => groupCategories(categories, branches),
+    [categories, branches],
+  );
+
+  const displayCategoryCount = isSingleBranchMode ? categories.length : groupedCategories.length;
+  const activeCategoryCount = isSingleBranchMode
+    ? categories.filter((c) => c.isActive).length
+    : groupedCategories.filter((g) => g.allActive).length;
+  const inactiveCategoryCount = displayCategoryCount - activeCategoryCount;
 
   // Add category
   const handleAdd = async () => {
@@ -190,6 +252,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleUpdate = async (categoryId: string) => {
+    if (!isSingleBranchMode) {
+      toast.error("이름 수정은 단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     if (!editName.trim()) return;
     try {
       setEditLoading(true);
@@ -200,13 +266,17 @@ export default function CustomerCategoriesPage() {
       setEditingId(null);
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "카테고리 추가에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "카테고리 수정에 실패했습니다");
     } finally {
       setEditLoading(false);
     }
   };
 
   const handleToggleActive = async (category: Category) => {
+    if (!isSingleBranchMode) {
+      toast.error("활성/비활성 변경은 단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     try {
       const updated = await apiClient.patch<Category>("/customer/products/categories/" + category.id, {
         isActive: !category.isActive,
@@ -219,6 +289,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleDelete = async (categoryId: string) => {
+    if (!isSingleBranchMode) {
+      toast.error("삭제는 단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     if (!confirm("이 카테고리를 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.")) return;
     try {
       await apiClient.delete("/customer/products/categories/" + categoryId);
@@ -226,6 +300,66 @@ export default function CustomerCategoriesPage() {
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "카테고리 삭제에 실패했습니다");
+    }
+  };
+
+  const handleGroupToggleActive = async (group: CategoryGroup) => {
+    const nextActive = !group.allActive;
+    try {
+      await Promise.all(
+        group.items.map((item) =>
+          apiClient.patch(`/customer/products/categories/${item.id}`, {
+            isActive: nextActive,
+          }),
+        ),
+      );
+      await loadSelectedBranchCategories();
+      toast.success(
+        `"${group.name}" 카테고리를 선택 지점 전체에서 ${nextActive ? "활성화" : "비활성화"}했습니다.`,
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "그룹 상태 변경에 실패했습니다");
+    }
+  };
+
+  const openGroupEdit = async (group: CategoryGroup) => {
+    const newName = prompt("새 카테고리 이름을 입력하세요:", group.name);
+    if (!newName || !newName.trim() || newName.trim() === group.name) return;
+
+    try {
+      await Promise.all(
+        group.items.map((item) =>
+          apiClient.patch(`/customer/products/categories/${item.id}`, {
+            name: newName.trim(),
+          }),
+        ),
+      );
+      await loadSelectedBranchCategories();
+      toast.success(`"${group.name}" 카테고리 이름을 선택 지점 전체에서 변경했습니다.`);
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "그룹 이름 변경에 실패했습니다");
+    }
+  };
+
+  const handleGroupDelete = async (group: CategoryGroup) => {
+    if (
+      !confirm(
+        `"${group.name}" 카테고리를 선택한 모든 지점에서 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.`,
+      )
+    )
+      return;
+
+    try {
+      await Promise.all(
+        group.items.map((item) => apiClient.delete(`/customer/products/categories/${item.id}`)),
+      );
+      await loadSelectedBranchCategories();
+      toast.success(`"${group.name}" 카테고리를 선택 지점 전체에서 삭제했습니다.`);
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "그룹 삭제에 실패했습니다");
     }
   };
 
@@ -299,15 +433,18 @@ export default function CustomerCategoriesPage() {
     }
   }, [canManage]);
 
+  useEffect(() => {
+    if (!isSingleBranchMode) {
+      setSelectedCatIds(new Set());
+      setEditingId(null);
+    }
+  }, [isSingleBranchMode]);
+
   const renderCategoryRow = (
     category: Category,
     index: number,
     dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>,
   ) => {
-    const branchName = selectedBranchIds.size > 1
-      ? branches.find((b) => b.id === category.branchId)?.name
-      : null;
-
     return (
       <div
         key={category.id}
@@ -370,11 +507,6 @@ export default function CustomerCategoriesPage() {
           ) : (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-sm text-foreground">{category.name}</span>
-              {branchName && (
-                <span className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border">
-                  {branchName}
-                </span>
-              )}
               <span
                 className={`inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold ${
                   category.isActive
@@ -388,18 +520,8 @@ export default function CustomerCategoriesPage() {
           )}
         </div>
 
-        {canManage && editingId !== category.id && (
+        {isSingleBranchMode && canManage && editingId !== category.id && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              onClick={() => {
-                setEditingId(category.id);
-                setEditName(category.name);
-              }}
-              className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
-              title="이름 수정"
-            >
-              <PencilIcon size={14} />
-            </button>
             <button
               onClick={() => handleToggleActive(category)}
               className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
@@ -417,10 +539,140 @@ export default function CustomerCategoriesPage() {
               />
             </button>
             <button
-              onClick={() => handleDelete(category.id)}
-              className="px-2.5 py-1.5 rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer text-xs font-medium transition-colors"
+              onClick={() => {
+                setEditingId(category.id);
+                setEditName(category.name);
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
+              title="이름 수정"
+              aria-label="이름 수정"
             >
-              삭제
+              <Pencil className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => handleDelete(category.id)}
+              className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
+              title="삭제"
+              aria-label="삭제"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCategoryGroupRow = (group: CategoryGroup, index: number) => {
+    const MAX_VISIBLE_BRANCH_CHIPS = 1;
+    const visibleBranchNames = group.branchNames.slice(0, MAX_VISIBLE_BRANCH_CHIPS);
+    const remainingBranchCount = group.branchNames.length - visibleBranchNames.length;
+    const allBranchNamesText = group.branchNames.join(", ");
+    const tooltipLines = group.branchNames;
+    const tooltipText = tooltipLines.join(", ");
+
+    return (
+      <div
+        key={group.key}
+        className="flex items-center gap-3 p-3 rounded-md border border-border bg-bg-secondary"
+      >
+        <span className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-tertiary text-sm font-bold text-text-secondary flex-shrink-0">
+          {index + 1}
+        </span>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-sm text-foreground">{group.name}</span>
+            {visibleBranchNames.map((branchName) => (
+              <div key={branchName} className="relative group">
+                <span
+                  className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border"
+                  aria-label={`포함 지점: ${tooltipText}`}
+                >
+                  {branchName}
+                </span>
+
+                {/* Tooltip */}
+                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                  {tooltipLines.map((line) => (
+                    <div key={line} className="leading-5">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {remainingBranchCount > 0 && (
+              <div className="relative group">
+                <span
+                  className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold bg-bg-tertiary text-text-secondary border border-border"
+                  aria-label={`외 ${remainingBranchCount}개 지점 (전체: ${tooltipText})`}
+                >
+                  +{remainingBranchCount}
+                </span>
+
+                {/* Tooltip */}
+                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                  {tooltipLines.map((line) => (
+                    <div key={line} className="leading-5">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
+
+
+            <span
+              className={`inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold ${
+                group.allActive
+                  ? "bg-success/20 text-success"
+                  : "bg-neutral-500/20 text-text-secondary"
+              }`}
+            >
+              {group.allActive ? "활성" : "비활성"}
+            </span>
+          </div>
+        </div>
+
+        {canManage && (
+          <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+            <button
+              onClick={() => handleGroupToggleActive(group)}
+              className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
+                group.allActive
+                  ? "bg-success/80 hover:bg-success"
+                  : "bg-neutral-400/70 hover:bg-neutral-500/70"
+              }`}
+              title={group.allActive ? "전체 비활성화" : "전체 활성화"}
+              aria-label={`${group.name} ${group.allActive ? "전체 비활성화" : "전체 활성화"}`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-sm pointer-events-none transition-transform ${
+                  group.allActive ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+            <button
+              onClick={() => openGroupEdit(group)}
+              className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
+              title="그룹 이름 수정"
+              aria-label="그룹 이름 수정"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => handleGroupDelete(group)}
+              className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
+              title="그룹 삭제"
+              aria-label="그룹 삭제"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -441,7 +693,7 @@ export default function CustomerCategoriesPage() {
     );
   }
 
-  const modeBadge = selectedBranchIds.size === 1
+  const modeBadge = isSingleBranchMode
     ? { label: "단일 매장 모드 (정렬/일괄상태 변경 가능)", color: "bg-success/20 text-success" }
     : selectedBranchIds.size > 1
       ? { label: "다중 매장 모드 (카테고리 추가만 일괄 등록)", color: "bg-bg-tertiary text-text-secondary" }
@@ -453,7 +705,7 @@ export default function CustomerCategoriesPage() {
         <div>
           <h1 className="text-2xl font-extrabold m-0 text-foreground">카테고리 관리</h1>
           <p className="text-text-secondary text-sm mt-1">
-            선택 매장 {selectedBranchIds.size}개 · 카테고리 {categories.length}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
+            선택 매장 {selectedBranchIds.size}개 · 카테고리 {displayCategoryCount}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
           </p>
         </div>
         {canManage && selectedBranchIds.size > 0 && (
@@ -471,7 +723,7 @@ export default function CustomerCategoriesPage() {
         <div className="rounded-xl border border-border bg-bg-secondary p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <label className="text-sm text-text-secondary font-semibold">매장 선택 (여러 개 가능)</label>
+              <label className="text-sm text-text-secondary font-semibold">매장 선택 (다중선택가능)</label>
 
               <div className="relative group cursor-pointer">
                 <HelpCircle
@@ -481,7 +733,7 @@ export default function CustomerCategoriesPage() {
 
                 <div className="absolute left-6 top-1/2 -translate-y-1/2 w-72 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
                   여러 매장을 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다.<br/>
-                  정렬 변경과 이름 수정, 삭제, 활성/비활성 변경은 단일 매장 선택에서만 가능합니다.
+                  정렬 변경, 이름 수정, 삭제, 활성/비활성 변경(일괄 포함)은 단일 매장 선택에서만 가능합니다.
                 </div>
               </div>
             </div>
@@ -513,7 +765,7 @@ export default function CustomerCategoriesPage() {
               className="input-field w-full"
             />
 
-            {selectedBranchIds.size > 0 ? (
+            {/* {selectedBranchIds.size > 0 ? (
               <div className="flex flex-wrap gap-2 p-2 bg-background rounded-lg border border-border">
                 {Array.from(selectedBranchIds).map((branchId) => {
                   const branch = branches.find((b) => b.id === branchId);
@@ -543,7 +795,7 @@ export default function CustomerCategoriesPage() {
               </div>
             ) : (
               <div className="p-2 text-xs text-text-tertiary italic">매장을 1개 이상 선택하세요</div>
-            )}
+            )} */}
 
             <div className="max-h-44 overflow-y-auto border border-border rounded-lg p-2 bg-background">
               <div className="flex flex-col gap-1">
@@ -580,7 +832,7 @@ export default function CustomerCategoriesPage() {
         </div>
 
         {/* Right column: Add form + list */}
-        <div>
+        <div className="max-w-[980px] w-full">
           {/* Capabilities indicator */}
           {selectedBranchIds.size > 0 && (
             <div className="flex items-center gap-2 mb-4">
@@ -613,7 +865,7 @@ export default function CustomerCategoriesPage() {
 
           {/* Add Form */}
           {showAddForm && (
-            <div className="mb-6 p-4 rounded-lg border border-primary-500/30 bg-primary-500/5">
+            <div className="mb-6 p-4 rounded-lg border border-primary-500/30 bg-primary-500/5 w-full">
               <div className="text-sm font-semibold text-foreground mb-1">새 카테고리</div>
               <div className="text-xs text-text-secondary mb-3">
                 {selectedBranchIds.size > 1
@@ -648,43 +900,43 @@ export default function CustomerCategoriesPage() {
           )}
 
           {/* Category List */}
-          <div className="max-w-[980px]">
-            {selectedBranchIds.size === 0 ? (
-              <div className="card p-12 text-center text-text-tertiary">
-                <div className="text-base mb-2">매장을 1개 이상 선택하세요</div>
+          {selectedBranchIds.size === 0 ? (
+            <div className="card p-12 text-center text-text-tertiary">
+              <div className="text-base mb-2">매장을 1개 이상 선택하세요</div>
+            </div>
+          ) : loading ? (
+            <div className="card p-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-1/2" />
               </div>
-            ) : loading ? (
-              <div className="card p-6">
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-2/3" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              </div>
-            ) : categories.length === 0 ? (
-              <div className="card p-12 text-center text-text-tertiary">
-                <div className="text-base mb-2">등록된 카테고리가 없습니다</div>
-                {canManage && <div className="text-sm">카테고리 추가 버튼을 클릭하여 등록하세요</div>}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {/* Bulk action bar */}
-                {canBulkStatus && (
-                  selectedCatIds.size > 0 ? (
-                    <div className="flex items-center gap-2 mb-2 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
-                      <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
-                      <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
-                      <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
-                      <button className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors" onClick={() => setSelectedCatIds(new Set())}>선택 해제</button>
-                    </div>
-                  ) : (
-                    <div className="mb-2 p-3 rounded-lg bg-bg-tertiary/40 border border-border text-xs text-text-secondary italic text-center">
-                      카테고리를 선택하면 일괄 활성/비활성이 가능합니다.
-                    </div>
-                  )
-                )}
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="card p-12 text-center text-text-tertiary">
+              <div className="text-base mb-2">등록된 카테고리가 없습니다</div>
+              {canManage && <div className="text-sm">카테고리 추가 버튼을 클릭하여 등록하세요</div>}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {/* Bulk action bar */}
+              {canBulkStatus && (
+                selectedCatIds.size > 0 ? (
+                  <div className="flex items-center gap-2 mb-2 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
+                    <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
+                    <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
+                    <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
+                    <button className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors" onClick={() => setSelectedCatIds(new Set())}>선택 해제</button>
+                  </div>
+                ) : (
+                  <div className="mb-2 p-3 rounded-lg bg-bg-tertiary/40 border border-border text-xs text-text-secondary italic text-center">
+                    카테고리를 선택하면 일괄 활성/비활성이 가능합니다.
+                  </div>
+                )
+              )}
 
-                {canReorder ? (
+              {isSingleBranchMode ? (
+                canReorder ? (
                   <SortableList
                     items={categories}
                     keyExtractor={(item) => item.id}
@@ -696,10 +948,12 @@ export default function CustomerCategoriesPage() {
                   />
                 ) : (
                   categories.map((category, index) => renderCategoryRow(category, index))
-                )}
-              </div>
-            )}
-          </div>
+                )
+              ) : (
+                groupedCategories.map((group, index) => renderCategoryGroupRow(group, index))
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

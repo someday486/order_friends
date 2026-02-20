@@ -69,7 +69,7 @@ export default function CustomerBrandsPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">Brand Management</h1>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">브랜드관리</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 2 }).map((_, index) => (
             <CardSkeleton key={index} />
@@ -82,7 +82,7 @@ export default function CustomerBrandsPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">Brand Management</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">브랜드관리</h1>
         <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500">{error}</div>
       </div>
     );
@@ -91,13 +91,13 @@ export default function CustomerBrandsPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">Brand Management</h1>
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">브랜드관리</h1>
         {allowAdd ? (
           <button
             onClick={() => setShowAddModal(true)}
             className="btn-primary px-5 py-2.5 text-sm"
           >
-            + Add Brand
+            + 브랜드등록
           </button>
         ) : null}
       </div>
@@ -224,22 +224,22 @@ function AddBrandModal({
         className="bg-bg-secondary border border-border rounded-md p-8 max-w-[520px] w-[90%] text-foreground"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="text-xl font-bold mb-6">Add Brand</h2>
+        <h2 className="text-xl font-bold mb-6">브랜드등록</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-5">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Name</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드명</label>
             <input
               type="text"
               value={formData.name}
               onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
               className="input-field"
-              placeholder="Enter brand name"
+              placeholder="브랜드명은 사업자명과 달라도 됩니다."
               required
             />
           </div>
 
           <div className="mb-5">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Brand URL</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">사용 URL</label>
             <input
               type="text"
               value={formData.slug}
@@ -247,13 +247,13 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, slug: event.target.value.toLowerCase() }))
               }
               className="input-field"
-              placeholder="brand-url"
+              placeholder="사용하실 url을 입력해주세요."
             />
-            <div className="text-xs text-text-tertiary mt-1">Letters, numbers, and hyphens only.</div>
+            <div className="text-xs text-text-tertiary mt-1">문자, 숫자, 하이픈(-)만 사용</div>
           </div>
 
           <div className="mb-5">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Business Name</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">사업자명</label>
             <input
               type="text"
               value={formData.biz_name}
@@ -261,12 +261,12 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, biz_name: event.target.value }))
               }
               className="input-field"
-              placeholder="Business name (optional)"
+              placeholder="사업자등록증에 명시된 사업자명을 입력해주세요."
             />
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">Business Registration No.</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">사업자번호</label>
             <input
               type="text"
               value={formData.biz_reg_no}
@@ -284,7 +284,7 @@ function AddBrandModal({
               disabled={saving}
               className="btn-primary flex-1 py-2.5"
             >
-              {saving ? 'Adding...' : 'Add'}
+              {saving ? 'Adding...' : '저장'}
             </button>
             <button
               type="button"
@@ -292,7 +292,7 @@ function AddBrandModal({
               disabled={saving}
               className="flex-1 py-2.5 rounded border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
             >
-              Cancel
+              취소
             </button>
           </div>
         </form>

@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { PencilIcon } from "@/components/ui/icons";
 import { DragHandle, SortableList } from "@/components/ui/SortableList";
+import { Pencil, Trash2 } from "lucide-react";
 
 // ============================================================
 // Types
@@ -139,8 +139,9 @@ export default function CustomerCategoriesPage() {
   const canManage =
     selectedBranches.length > 0 &&
     selectedBranches.every((branch) => canManageCategory(branch.myRole));
-  const canReorder = canManage && selectedBranchIds.size === 1;
-  const canBulkStatus = canManage && selectedBranchIds.size === 1;
+  const isSingleBranchMode = selectedBranchIds.size === 1;
+  const canReorder = canManage && isSingleBranchMode;
+  const canBulkStatus = canManage && isSingleBranchMode;
   const activeCategoryCount = categories.filter((category) => category.isActive).length;
   const inactiveCategoryCount = categories.length - activeCategoryCount;
 
@@ -189,6 +190,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleUpdate = async (categoryId: string) => {
+    if (!isSingleBranchMode) {
+      toast.error("단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     if (!editName.trim()) return;
     try {
       setEditLoading(true);
@@ -206,6 +211,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleToggleActive = async (category: Category) => {
+    if (!isSingleBranchMode) {
+      toast.error("단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     try {
       const updated = await apiClient.patch<Category>("/customer/products/categories/" + category.id, {
         isActive: !category.isActive,
@@ -218,6 +227,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleDelete = async (categoryId: string) => {
+    if (!isSingleBranchMode) {
+      toast.error("단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     if (!confirm("이 카테고리를 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.")) return;
     try {
       await apiClient.delete("/customer/products/categories/" + categoryId);
@@ -229,6 +242,10 @@ export default function CustomerCategoriesPage() {
   };
 
   const handleBulkToggle = async (active: boolean) => {
+    if (!isSingleBranchMode) {
+      toast.error("단일 매장 선택에서만 가능합니다.");
+      return;
+    }
     if (!canBulkStatus) {
       toast.error("일괄 활성/비활성은 단일 매장 선택에서만 가능합니다.");
       return;
@@ -360,20 +377,22 @@ export default function CustomerCategoriesPage() {
         ) : (
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm text-foreground">{category.name}</span>
-            <span
-              className={`inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold ${
-                category.isActive
-                  ? "bg-success/20 text-success"
-                  : "bg-neutral-500/20 text-text-secondary"
-              }`}
-            >
-              {category.isActive ? "활성" : "비활성"}
-            </span>
+            {isSingleBranchMode && (
+              <span
+                className={`inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold ${
+                  category.isActive
+                    ? "bg-success/20 text-success"
+                    : "bg-neutral-500/20 text-text-secondary"
+                }`}
+              >
+                {category.isActive ? "활성" : "비활성"}
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      {canManage && editingId !== category.id && (
+      {canManage && isSingleBranchMode && editingId !== category.id && (
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => {
@@ -383,7 +402,7 @@ export default function CustomerCategoriesPage() {
             className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
             title="이름 수정"
           >
-            <PencilIcon size={14} />
+            <Pencil size={14} />
           </button>
           <button
             onClick={() => handleToggleActive(category)}
@@ -403,9 +422,10 @@ export default function CustomerCategoriesPage() {
           </button>
           <button
             onClick={() => handleDelete(category.id)}
-            className="px-2.5 py-1.5 rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer text-xs font-medium transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 transition-colors"
+            aria-label="삭제"
           >
-            삭제
+            <Trash2 size={14} />
           </button>
         </div>
       )}
@@ -445,7 +465,7 @@ export default function CustomerCategoriesPage() {
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-bg-secondary p-4 text-[13px] text-text-secondary">
-        여러 매장을 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다. 정렬 변경과 일괄 활성/비활성은 단일 매장 선택에서만 가능합니다.
+        여러 매장을 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다. 정렬 변경, 이름 수정, 삭제, 활성/비활성 변경은 단일 매장 선택에서만 가능합니다.
       </div>
 
       {/* Branch Filter */}
@@ -496,87 +516,89 @@ export default function CustomerCategoriesPage() {
         <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4">{error}</div>
       )}
 
-      {/* Add Form */}
-      {showAddForm && (
-        <div className="mb-6 p-4 rounded-lg border border-primary-500/30 bg-primary-500/5">
-          <div className="text-sm font-semibold text-foreground mb-1">새 카테고리</div>
-          <div className="text-xs text-text-secondary mb-3">
-            {selectedBranchIds.size > 1
-              ? `선택한 ${selectedBranchIds.size}개 매장에 동일한 카테고리를 등록합니다.`
-              : "선택한 매장에 카테고리를 등록합니다."}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="카테고리 이름"
-              className="input-field flex-1"
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              autoFocus
-            />
-            <button
-              onClick={handleAdd}
-              disabled={addLoading || !newCategoryName.trim()}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              {addLoading ? "..." : "추가"}
-            </button>
-            <button
-              onClick={() => { setShowAddForm(false); setNewCategoryName(""); }}
-              className="px-4 py-2 text-sm rounded-lg border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Category List */}
-      {selectedBranchIds.size === 0 ? (
-        <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">매장을 1개 이상 선택하세요</div>
-        </div>
-      ) : loading ? (
-        <div className="card p-6">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-        </div>
-      ) : categories.length === 0 ? (
-        <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">등록된 카테고리가 없습니다</div>
-          {canManage && <div className="text-sm">카테고리 추가 버튼을 클릭하여 등록하세요</div>}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {/* Bulk action bar */}
-          {canBulkStatus && selectedCatIds.size > 0 && (
-            <div className="flex items-center gap-2 mb-2 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
-              <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
-              <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
-              <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
-              <button className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors" onClick={() => setSelectedCatIds(new Set())}>선택 해제</button>
+      <div className="max-w-[980px] w-full">
+        {/* Add Form */}
+        {showAddForm && (
+          <div className="mb-6 w-full p-4 rounded-lg border border-primary-500/30 bg-primary-500/5">
+            <div className="text-sm font-semibold text-foreground mb-1">새 카테고리</div>
+            <div className="text-xs text-text-secondary mb-3">
+              {selectedBranchIds.size > 1
+                ? `선택한 ${selectedBranchIds.size}개 매장에 동일한 카테고리를 등록합니다.`
+                : "선택한 매장에 카테고리를 등록합니다."}
             </div>
-          )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="카테고리 이름"
+                className="input-field flex-1"
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                autoFocus
+              />
+              <button
+                onClick={handleAdd}
+                disabled={addLoading || !newCategoryName.trim()}
+                className="btn-primary px-4 py-2 text-sm"
+              >
+                {addLoading ? "..." : "추가"}
+              </button>
+              <button
+                onClick={() => { setShowAddForm(false); setNewCategoryName(""); }}
+                className="px-4 py-2 text-sm rounded-lg border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
 
-          {canReorder ? (
-            <SortableList
-              items={categories}
-              keyExtractor={(item) => item.id}
-              onReorder={handleReorder}
-              className="flex flex-col gap-2"
-              renderItem={(category, index, dragHandleProps) =>
-                renderCategoryRow(category, index, dragHandleProps)
-              }
-            />
-          ) : (
-            categories.map((category, index) => renderCategoryRow(category, index))
-          )}
-        </div>
-      )}
+        {/* Category List */}
+        {selectedBranchIds.size === 0 ? (
+          <div className="card p-12 text-center text-text-tertiary">
+            <div className="text-base mb-2">매장을 1개 이상 선택하세요</div>
+          </div>
+        ) : loading ? (
+          <div className="card p-6">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="card p-12 text-center text-text-tertiary">
+            <div className="text-base mb-2">등록된 카테고리가 없습니다</div>
+            {canManage && <div className="text-sm">카테고리 추가 버튼을 클릭하여 등록하세요</div>}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {/* Bulk action bar */}
+            {canBulkStatus && selectedCatIds.size > 0 && (
+              <div className="flex items-center gap-2 mb-2 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
+                <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
+                <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
+                <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
+                <button className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors" onClick={() => setSelectedCatIds(new Set())}>선택 해제</button>
+              </div>
+            )}
+
+            {canReorder ? (
+              <SortableList
+                items={categories}
+                keyExtractor={(item) => item.id}
+                onReorder={handleReorder}
+                className="flex flex-col gap-2"
+                renderItem={(category, index, dragHandleProps) =>
+                  renderCategoryRow(category, index, dragHandleProps)
+                }
+              />
+            ) : (
+              categories.map((category, index) => renderCategoryRow(category, index))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

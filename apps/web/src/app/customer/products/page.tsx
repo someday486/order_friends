@@ -6,6 +6,8 @@ import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { Switch } from "@/components/common/Switch";
+import { HelpCircle, Pencil, Search, X } from "lucide-react";
+
 
 type Brand = {
   id: string;
@@ -271,7 +273,9 @@ export default function CustomerProductsPage() {
   const [bulkOnlineShopChecked, setBulkOnlineShopChecked] = useState(true);
   const [bulkStatus, setBulkStatus] = useState<BulkStatus>("keep");
   const [bulkInventoryMode, setBulkInventoryMode] = useState<BulkInventoryMode>("keep");
-  const [applyBulkBranchChecks, setApplyBulkBranchChecks] = useState(false);
+  const [bulkChangeStatus, setBulkChangeStatus] = useState(false);
+  const [bulkChangeInventory, setBulkChangeInventory] = useState(false);
+  const [bulkChangeChannels, setBulkChangeChannels] = useState(false);
   const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
 
   const selectedBrand = useMemo(
@@ -282,6 +286,11 @@ export default function CustomerProductsPage() {
     () => getShopUrl(selectedBrand?.slug),
     [selectedBrand?.slug],
   );
+
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const selectedFilterBranchId = useMemo(
     () => getBranchIdFromSalesChannelFilter(salesChannelFilter),
@@ -310,11 +319,75 @@ export default function CustomerProductsPage() {
     [filteredTemplates],
   );
 
+  const searchedTemplates = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return filteredTemplates;
+    }
+    const query = searchQuery.toLowerCase();
+    return filteredTemplates.filter((template) => {
+      const name = (template.name ?? "").toLowerCase();
+      const description = (template.description ?? "").toLowerCase();
+      return name.includes(query) || description.includes(query);
+    });
+  }, [filteredTemplates, searchQuery]);
+
+  const searchedTemplateIdSet = useMemo(
+    () => new Set(searchedTemplates.map((template) => template.id)),
+    [searchedTemplates],
+  );
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(searchedTemplates.length / PAGE_SIZE));
+  }, [searchedTemplates.length]);
+
+  const pagedTemplates = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return searchedTemplates.slice(start, start + PAGE_SIZE);
+  }, [searchedTemplates, page]);
+
+  // 판매 채널/브랜드/검색어 바뀌면 1페이지로 리셋
+  useEffect(() => {
+    setPage(1);
+  }, [salesChannelFilter, selectedBrandId, searchQuery]);
+
+  // page가 totalPages보다 커지면 보정
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  // 검색 결과에서 사라진 항목 자동 제거
+  useEffect(() => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set([...prev].filter((id) => searchedTemplateIdSet.has(id)));
+      if (next.size === prev.size) {
+        return prev;
+      }
+      return next;
+    });
+  }, [searchedTemplateIdSet]);
+
+  // 검색 input debounce (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // 선택된 메뉴가 0개가 되면 일괄변경 플래그 리셋
+  useEffect(() => {
+    if (selectedTemplateIds.size === 0) {
+      setBulkChangeStatus(false);
+      setBulkChangeInventory(false);
+      setBulkChangeChannels(false);
+    }
+  }, [selectedTemplateIds.size]);
+
   const canManage = canManageBrandTemplate(selectedBrand?.myRole);
   const hasSelectedTemplates = selectedTemplateIds.size > 0;
   const allTemplatesChecked =
-    filteredTemplates.length > 0 &&
-    filteredTemplates.every((template) => selectedTemplateIds.has(template.id));
+    searchedTemplates.length > 0 &&
+    searchedTemplates.every((template) => selectedTemplateIds.has(template.id));
   const createSelectedCount = createBranchIds.size + (createOnlineShopChecked ? 1 : 0);
   const createTotalCount = branches.length + 1;
   const hasCreateImage = Boolean(createForm.imageUrl);
@@ -403,7 +476,9 @@ export default function CustomerProductsPage() {
     setSelectedTemplateIds(new Set());
     setBulkStatus("keep");
     setBulkInventoryMode("keep");
-    setApplyBulkBranchChecks(false);
+    setBulkChangeStatus(false);
+    setBulkChangeInventory(false);
+    setBulkChangeChannels(false);
     setSalesChannelFilter("ALL");
   }, [loadBranchCategories, loadTemplates]);
 
@@ -633,6 +708,50 @@ export default function CustomerProductsPage() {
     }
   };
 
+  const handleToggleTemplateInventory = async (
+    template: BrandTemplate,
+    nextEnabled: boolean,
+  ) => {
+    const previousMode = template.inventoryMode ?? "PRODUCT";
+    const nextMode: InventoryMode = nextEnabled ? "PRODUCT" : "NONE";
+
+    // MIXED는 여기로 못 들어오게 UI에서 막을 예정(안전장치)
+    setTemplates((prev) =>
+      prev.map((item) =>
+        item.id === template.id ? { ...item, inventoryMode: nextMode } : item,
+      ),
+    );
+
+    if (editingTemplateId === template.id) {
+      setEditForm((prev) => ({ ...prev, inventoryMode: nextMode }));
+    }
+
+    try {
+      await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
+        inventoryMode: nextMode,
+      });
+      toast.success(nextEnabled ? "재고관리를 사용합니다." : "재고관리를 미사용합니다.");
+    } catch (e) {
+      console.error(e);
+
+      // 롤백
+      setTemplates((prev) =>
+        prev.map((item) =>
+          item.id === template.id ? { ...item, inventoryMode: previousMode } : item,
+        ),
+      );
+      if (editingTemplateId === template.id) {
+        setEditForm((prev) => ({
+          ...prev,
+          inventoryMode: previousMode === "NONE" ? "NONE" : "PRODUCT",
+        }));
+      }
+
+      toast.error(e instanceof Error ? e.message : "재고관리 변경에 실패했습니다.");
+    }
+  };
+
+
   const toggleTemplateSelection = (templateId: string) => {
     setSelectedTemplateIds((prev) => toggleSetValue(prev, templateId));
   };
@@ -642,7 +761,7 @@ export default function CustomerProductsPage() {
       setSelectedTemplateIds(new Set());
       return;
     }
-    setSelectedTemplateIds(new Set(filteredTemplates.map((template) => template.id)));
+    setSelectedTemplateIds(new Set(searchedTemplates.map((template) => template.id)));
   };
 
   const handleToggleTemplateForSalesChannel = async (template: BrandTemplate) => {
@@ -688,6 +807,11 @@ export default function CustomerProductsPage() {
       return;
     }
 
+    if (!bulkChangeStatus && !bulkChangeInventory && !bulkChangeChannels) {
+      toast.error("일괄 변경할 항목을 하나 이상 선택해주세요.");
+      return;
+    }
+
     const payload: {
       brandId: string;
       templateIds: string[];
@@ -700,24 +824,23 @@ export default function CustomerProductsPage() {
       templateIds: Array.from(selectedTemplateIds),
     };
 
-    if (bulkStatus !== "keep") {
+    if (bulkChangeStatus) {
+      if (bulkStatus === "keep") {
+        toast.error("상태 변경이 선택되었지만 '변경 안함'으로 설정되어 있습니다. 활성 또는 비활성을 선택하세요.");
+        return;
+      }
       payload.isActive = bulkStatus === "active";
     }
-    if (bulkInventoryMode !== "keep") {
+    if (bulkChangeInventory) {
+      if (bulkInventoryMode === "keep") {
+        toast.error("재고관리 변경이 선택되었지만 '변경 안함'으로 설정되어 있습니다. 사용 또는 미사용을 선택하세요.");
+        return;
+      }
       payload.inventoryMode = bulkInventoryMode;
     }
-    if (applyBulkBranchChecks) {
+    if (bulkChangeChannels) {
       payload.branchIds = Array.from(bulkBranchIds);
       payload.isOnlineShopVisible = bulkOnlineShopChecked;
-    }
-    if (
-      payload.isActive === undefined &&
-      payload.isOnlineShopVisible === undefined &&
-      payload.branchIds === undefined &&
-      payload.inventoryMode === undefined
-    ) {
-      toast.error("일괄 변경할 항목(상태/재고관리/매장 체크/온라인샵)을 선택해주세요.");
-      return;
     }
 
     try {
@@ -725,7 +848,9 @@ export default function CustomerProductsPage() {
       await apiClient.patch("/customer/products/brand-templates/bulk/update", payload);
       await loadTemplates(selectedBrandId);
       setSelectedTemplateIds(new Set());
-      setBulkInventoryMode("keep");
+      setBulkChangeStatus(false);
+      setBulkChangeInventory(false);
+      setBulkChangeChannels(false);
       toast.success("선택한 메뉴를 일괄 변경했습니다.");
     } catch (e) {
       console.error(e);
@@ -744,42 +869,78 @@ export default function CustomerProductsPage() {
         </p>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-        <div>
-        <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드 선택</label>
-        <select
-          value={selectedBrandId}
-          onChange={(event) => setSelectedBrandId(event.target.value)}
-          className="input-field max-w-[420px]"
-        >
-          <option value="">브랜드를 선택하세요</option>
-          {brands.map((brand) => (
-            <option key={brand.id} value={brand.id}>
-              {brand.name}
-            </option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드 선택</label>
+          <select
+            value={selectedBrandId}
+            onChange={(event) => setSelectedBrandId(event.target.value)}
+            className="input-field w-full"
+          >
+            <option value="">브랜드를 선택하세요</option>
+            {brands.map((brand) => (
+              <option key={brand.id} value={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
         </div>
+
         {selectedBrandId && (
-          <div>
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">판매 채널</label>
-            <select
-              value={salesChannelFilter}
-              onChange={(event) => setSalesChannelFilter(event.target.value as SalesChannelFilter)}
-              className="input-field"
-            >
-              <option value="ALL">전체 채널</option>
-              <option value="ONLINE_SHOP">온라인샵</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={toBranchSalesChannelFilter(branch.id)}>
-                  지점 주문 - {branch.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-text-secondary mt-1">
-              현재 채널 기준 {filteredTemplates.length}개 메뉴
-            </p>
-          </div>
+          <>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm text-text-secondary mb-2 font-semibold">판매 채널</label>
+              <select
+                value={salesChannelFilter}
+                onChange={(event) => setSalesChannelFilter(event.target.value as SalesChannelFilter)}
+                className="input-field w-full"
+              >
+                <option value="ALL">전체 채널</option>
+                <option value="ONLINE_SHOP">온라인샵</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={toBranchSalesChannelFilter(branch.id)}>
+                    지점 주문 - {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="w-80">
+              <label className="block text-sm text-text-secondary mb-2 font-semibold">검색</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setSearchInput("");
+                    }
+                  }}
+                  placeholder="메뉴명/설명 검색"
+                  className="input-field w-full pl-9 pr-9"
+                  aria-label="메뉴 검색"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchInput("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-foreground transition-colors"
+                    aria-label="검색어 지우기"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center h-10">
+              <span className="text-sm text-text-secondary whitespace-nowrap">
+                총 {searchedTemplates.length}개
+              </span>
+            </div>
+          </>
         )}
       </div>
 
@@ -927,7 +1088,7 @@ export default function CustomerProductsPage() {
                     disabled={saving}
                     className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors disabled:opacity-60"
                   >
-                    메뉴 등록
+                    저장
                   </button>
                 </div>
               </>
@@ -942,18 +1103,30 @@ export default function CustomerProductsPage() {
             <>
               <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
-                    <p className="text-xs text-text-secondary mt-1">
-                      1) 표에서 메뉴 체크 → 2) 변경 항목 선택 → 3) 일괄 변경 실행
-                    </p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
+
+                  <div className="relative group cursor-pointer">
+                    <HelpCircle
+                      size={16}
+                      className="text-text-secondary hover:text-foreground transition-colors"
+                    />
+
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                      1) 표에서 메뉴 체크 <br />
+                      2) 변경할 항목 선택 (체크박스) <br />
+                      3) 일괄 변경 실행
+                    </div>
                   </div>
+                </div>
                   <button
                     onClick={handleBulkUpdateTemplates}
                     disabled={saving || !hasSelectedTemplates}
                     className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
                   >
-                    선택한 메뉴 일괄 변경 실행
+                    {hasSelectedTemplates
+                      ? `${selectedTemplateIds.size}개 메뉴 일괄 변경`
+                      : "일괄 변경"}
                   </button>
                 </div>
 
@@ -963,19 +1136,31 @@ export default function CustomerProductsPage() {
                   </span>
                   {!hasSelectedTemplates && (
                     <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-warning/20 text-warning">
-                      먼저 표에서 메뉴를 선택하세요
+                      메뉴를 선택하세요
                     </span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
-                    <label className="block text-xs text-text-secondary mb-1">상태 일괄 변경</label>
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="checkbox"
+                        id="bulk-change-status"
+                        checked={bulkChangeStatus}
+                        onChange={(event) => setBulkChangeStatus(event.target.checked)}
+                        disabled={saving || !hasSelectedTemplates}
+                        className="w-4 h-4 rounded accent-primary"
+                      />
+                      <label htmlFor="bulk-change-status" className="text-xs text-text-secondary font-semibold cursor-pointer">
+                        상태 변경
+                      </label>
+                    </div>
                     <select
                       value={bulkStatus}
                       onChange={(event) => setBulkStatus(event.target.value as BulkStatus)}
                       className="input-field"
-                      disabled={saving || !hasSelectedTemplates}
+                      disabled={saving || !hasSelectedTemplates || !bulkChangeStatus}
                     >
                       <option value="keep">변경 안함</option>
                       <option value="active">활성으로 변경</option>
@@ -983,14 +1168,26 @@ export default function CustomerProductsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs text-text-secondary mb-1">재고관리 일괄 변경</label>
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="checkbox"
+                        id="bulk-change-inventory"
+                        checked={bulkChangeInventory}
+                        onChange={(event) => setBulkChangeInventory(event.target.checked)}
+                        disabled={saving || !hasSelectedTemplates}
+                        className="w-4 h-4 rounded accent-primary"
+                      />
+                      <label htmlFor="bulk-change-inventory" className="text-xs text-text-secondary font-semibold cursor-pointer">
+                        재고관리 변경
+                      </label>
+                    </div>
                     <select
                       value={bulkInventoryMode}
                       onChange={(event) =>
                         setBulkInventoryMode(event.target.value as BulkInventoryMode)
                       }
                       className="input-field"
-                      disabled={saving || !hasSelectedTemplates}
+                      disabled={saving || !hasSelectedTemplates || !bulkChangeInventory}
                     >
                       <option value="keep">변경 안함</option>
                       <option value="PRODUCT">재고관리 사용</option>
@@ -999,21 +1196,21 @@ export default function CustomerProductsPage() {
                   </div>
                 </div>
 
-                <div className="mb-3 flex items-end">
-                  <label className="flex items-center gap-2 text-sm text-text-secondary h-10">
+                <div className="mb-3">
+                  <label className="flex items-center gap-2 text-sm text-text-secondary font-semibold cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={applyBulkBranchChecks}
-                      onChange={(event) => setApplyBulkBranchChecks(event.target.checked)}
+                      checked={bulkChangeChannels}
+                      onChange={(event) => setBulkChangeChannels(event.target.checked)}
                       disabled={saving || !hasSelectedTemplates}
                       className="w-4 h-4 rounded accent-primary"
                     />
-                    매장 체크와 온라인샵 노출 상태도 함께 일괄 반영
+                    판매 채널 (매장/온라인샵) 변경
                   </label>
                 </div>
 
-                {applyBulkBranchChecks && (
-                  <div>
+                {bulkChangeChannels && (
+                  <div className="mb-3">
                     <label className="block text-sm text-text-secondary mb-2 font-semibold">
                       일괄 적용할 채널 체크
                     </label>
@@ -1037,6 +1234,31 @@ export default function CustomerProductsPage() {
                     />
                   </div>
                 )}
+
+                {hasSelectedTemplates && (bulkChangeStatus || bulkChangeInventory || bulkChangeChannels) && (
+                  <div className="mt-3 p-2.5 rounded-md bg-primary-500/10 border border-primary-500/30">
+                    <div className="text-xs font-semibold text-primary-500 mb-1">적용 내용</div>
+                    <div className="text-xs text-text-secondary space-y-0.5">
+                      {bulkChangeStatus && bulkStatus !== "keep" && (
+                        <div>• 상태: {bulkStatus === "active" ? "활성" : "비활성"}으로 변경</div>
+                      )}
+                      {bulkChangeInventory && bulkInventoryMode !== "keep" && (
+                        <div>• 재고관리: {bulkInventoryMode === "PRODUCT" ? "사용" : "미사용"}으로 변경</div>
+                      )}
+                      {bulkChangeChannels && (
+                        <div>
+                          • 판매 채널: {bulkBranchIds.size}개 지점 + {bulkOnlineShopChecked ? "온라인샵 노출" : "온라인샵 미노출"}
+                        </div>
+                      )}
+                      {bulkChangeStatus && bulkStatus === "keep" && (
+                        <div className="text-warning">• 상태: "변경 안함" 선택됨 - 값을 선택하세요</div>
+                      )}
+                      {bulkChangeInventory && bulkInventoryMode === "keep" && (
+                        <div className="text-warning">• 재고관리: "변경 안함" 선택됨 - 값을 선택하세요</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border border-border rounded-xl overflow-hidden">
@@ -1048,7 +1270,7 @@ export default function CustomerProductsPage() {
                           type="checkbox"
                           checked={allTemplatesChecked}
                           onChange={(event) => toggleAllTemplateSelection(event.target.checked)}
-                          disabled={saving || filteredTemplates.length === 0}
+                          disabled={saving || searchedTemplates.length === 0}
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
@@ -1061,7 +1283,7 @@ export default function CustomerProductsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTemplates.map((template) => {
+                    {pagedTemplates.map((template) => {
                       const isEditing = editingTemplateId === template.id;
                       const appliedCount =
                         template.appliedBranchCount ?? template.appliedBranchIds?.length ?? 0;
@@ -1125,22 +1347,28 @@ export default function CustomerProductsPage() {
                               )}
                             </td>
                             <td className="py-3 px-4 text-sm">
-                              <span
-                                className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
-                                  template.inventoryMode === "NONE"
-                                    ? "bg-warning/20 text-warning"
-                                    : template.inventoryMode === "MIXED"
-                                      ? "bg-primary-500/20 text-primary-500"
-                                      : "bg-success/20 text-success"
-                                }`}
-                              >
-                                {template.inventoryMode === "NONE"
-                                  ? "미사용"
-                                  : template.inventoryMode === "MIXED"
-                                    ? "혼합"
-                                    : "사용"}
-                              </span>
+                              {template.inventoryMode === "MIXED" ? (
+                                <div className="inline-flex items-center gap-2">
+                                  <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
+                                    혼합
+                                  </span>
+                                  <Switch
+                                    checked={true}
+                                    onChange={() => {}}
+                                    disabled={true}
+                                    ariaLabel={`${template.name} 재고관리 혼합 상태`}
+                                  />
+                                </div>
+                              ) : (
+                                <Switch
+                                  checked={template.inventoryMode !== "NONE"}
+                                  onChange={(nextChecked) => handleToggleTemplateInventory(template, nextChecked)}
+                                  disabled={saving}
+                                  ariaLabel={`${template.name} 재고관리 토글`}
+                                />
+                              )}
                             </td>
+
                             <td className="py-3 px-4 text-sm">
                               <Switch
                                 checked={template.isActive}
@@ -1168,15 +1396,20 @@ export default function CustomerProductsPage() {
                                         : "지점 노출"}
                                   </button>
                                 )}
-                                <button
-                                  onClick={() =>
-                                    isEditing ? cancelEditTemplate() : startEditTemplate(template)
-                                  }
-                                  disabled={saving}
-                                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                                >
-                                  {isEditing ? "편집 닫기" : "수정"}
-                                </button>
+                                <div className="relative group">
+                                  <button
+                                    onClick={() => (isEditing ? cancelEditTemplate() : startEditTemplate(template))}
+                                    disabled={saving}
+                                    aria-label={isEditing ? "편집 닫기" : "수정"}
+                                    className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+
+                                  <div className="absolute right-0 top-full mt-2 whitespace-nowrap rounded-md border border-border bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                                    {isEditing ? "편집 닫기" : "수정"}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -1230,23 +1463,20 @@ export default function CustomerProductsPage() {
                                         ariaLabel={`${template.name} 편집 판매 상태 토글`}
                                       />
                                     </div>
-                                    <div>
-                                      <label className="block text-xs text-text-secondary mb-1">재고관리</label>
-                                      <select
-                                        value={editForm.inventoryMode}
-                                        onChange={(event) =>
-                                          setEditForm((prev) => ({
-                                            ...prev,
-                                            inventoryMode:
-                                              event.target.value === "NONE" ? "NONE" : "PRODUCT",
-                                          }))
-                                        }
-                                        className="input-field"
-                                      >
-                                        <option value="PRODUCT">재고관리 사용</option>
-                                        <option value="NONE">재고관리 미사용</option>
-                                      </select>
-                                    </div>
+
+                                      <div>
+                                        <label className="block text-xs text-text-secondary mb-1">재고관리</label>
+                                        <Switch
+                                          checked={editForm.inventoryMode !== "NONE"}
+                                          onChange={(nextChecked) =>
+                                            setEditForm((prev) => ({ ...prev, inventoryMode: nextChecked ? "PRODUCT" : "NONE" }))
+                                          }
+                                          disabled={saving}
+                                          ariaLabel={`${template.name} 편집 재고관리 토글`}
+                                        />
+                                      </div>
+
+                                   
                                   </div>
                                 </div>
 
@@ -1316,16 +1546,48 @@ export default function CustomerProductsPage() {
                         </Fragment>
                       );
                     })}
-                    {filteredTemplates.length === 0 && (
+                    {searchedTemplates.length === 0 && (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-sm text-text-secondary">
-                          선택한 판매 채널에 노출된 메뉴가 없습니다.
+                          {searchQuery.trim()
+                            ? "검색 결과가 없습니다."
+                            : "선택한 판매 채널에 노출된 메뉴가 없습니다."}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              <div className="flex items-center justify-between mt-3 px-1">
+              <div className="text-xs text-text-secondary">
+                {searchedTemplates.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-
+                {Math.min(page * PAGE_SIZE, searchedTemplates.length)} / {searchedTemplates.length}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                >
+                  이전
+                </button>
+
+                <div className="text-xs text-text-secondary min-w-[64px] text-center">
+                  {page} / {totalPages}
+                </div>
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                >
+                  다음
+                </button>
+              </div>
+            </div>
+
             </>
           )}
         </>

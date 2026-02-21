@@ -407,6 +407,22 @@ export default function CustomerOrdersPage() {
     }
   }, [branchFilter]);
 
+  useEffect(() => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    // staged inputs
+    setDateStartInput(today);
+    setDateEndInput(today);
+
+    // applied (즉시 조회 조건에 반영)
+    setAppliedDateStart(today);
+    setAppliedDateEnd(today);
+
+    setPage(1);
+  }, []);
+
   // Load orders — fires on filter changes and 조회 button (via appliedDate* / reloadToken)
   useEffect(() => {
     const loadOrders = async () => {
@@ -483,6 +499,25 @@ export default function CustomerOrdersPage() {
   const allVisibleSelected =
     orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
 
+  const statusCounts = useMemo(() => {
+    const init: Record<OrderStatus, number> = {
+      CREATED: 0,
+      CONFIRMED: 0,
+      PREPARING: 0,
+      READY: 0,
+      COMPLETED: 0,
+      CANCELLED: 0,
+      REFUNDED: 0,
+    };
+
+    for (const o of orders) {
+      init[o.status] = (init[o.status] ?? 0) + 1;
+    }
+
+    return init;
+  }, [orders]);
+
+  
   // 조회 버튼: staged → applied + page reset
   const handleApplyFilter = () => {
     setAppliedDateStart(dateStartInput);
@@ -596,6 +631,44 @@ export default function CustomerOrdersPage() {
           )}
         </div>
       </div>
+
+      {/* ── Section 1.5: Today Status Summary Cards ── */}
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {([
+          { key: "CREATED", label: "주문접수" },
+          { key: "CONFIRMED", label: "확인" },
+          { key: "PREPARING", label: "준비중" },
+          { key: "READY", label: "준비완료" },
+          { key: "COMPLETED", label: "완료" },
+          { key: "CANCELLED", label: "취소" },
+        ] as const).map((c) => {
+          const k = c.key as OrderStatus;
+          const count = statusCounts[k] ?? 0;
+
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => {
+                setStatusFilter(k);
+                setPage(1);
+              }}
+              className="text-left rounded-xl border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors p-3"
+            >
+              <div className="text-xs font-semibold text-text-secondary">
+                {c.label}
+              </div>
+              <div className="mt-1 text-2xl font-extrabold text-foreground">
+                {count}
+              </div>
+              <div className="mt-1 text-[11px] text-text-tertiary">
+                오늘 기준
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
 
       {/* ── Section 2: OrderFiltersBar ── */}
       <div className="flex flex-wrap items-end gap-2 mb-4 p-3 rounded-xl border border-border bg-bg-secondary">

@@ -1038,7 +1038,7 @@ export default function CustomerProductsPage() {
  
                     {!hasSelectedTemplates && (
                       <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-warning/20 text-warning">
-                        메뉴를 선택하세요
+                        상품을 선택하세요
                       </span>
                     )}
 

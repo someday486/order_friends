@@ -126,31 +126,48 @@ function isUuidFormat(value: string): boolean {
   return UUID_FORMAT_REGEX.test(value);
 }
 
+function getTotalQty(order: Order): number | null {
+  const items = order.items ?? order.order_items;
+  if (items && items.length > 0) {
+    return items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+  }
+
+  // 백엔드가 총수량을 내려주는 경우(이 필드 의미가 총수량이면 그대로 사용)
+  const fallback = order.item_count ?? order.itemCount;
+  return typeof fallback === "number" ? fallback : null;
+}
+
 function getItemSummary(order: Order): string {
   const firstName = order.firstItemName ?? order.first_item_name;
-  const firstQty = order.firstItemQty ?? order.first_item_qty;
-  const itemCount = order.item_count ?? order.itemCount;
+
+  const firstQtyRaw = order.firstItemQty ?? order.first_item_qty;
+  const firstQty = typeof firstQtyRaw === "number" ? firstQtyRaw : 1;
+
+  const totalQty = getTotalQty(order);
 
   if (firstName) {
-    const qtyLabel = firstQty ? `${firstQty}개` : '1개';
-    if (itemCount && itemCount > 1) {
-      return `${firstName} ${qtyLabel} 외 ${itemCount - 1}개`;
+    const qtyLabel = `${firstQty}개`;
+
+    // totalQty가 있으면 "총 수량" 기준으로 "외 N개" 계산
+    if (totalQty && totalQty > firstQty) {
+      return `${firstName} ${qtyLabel} 외 ${totalQty - firstQty}개`;
     }
     return `${firstName} ${qtyLabel}`;
   }
 
+  // firstItem 정보가 없으면 items로 대체
   const items = order.items ?? order.order_items;
   if (items && items.length > 0) {
     const first = items[0];
-    const qtyLabel = first.qty ? `${first.qty}개` : '1개';
-    if (items.length > 1) {
-      return `${first.name} ${qtyLabel} 외 ${items.length - 1}개`;
-    }
-    return `${first.name} ${qtyLabel}`;
+    const fq = Number(first.qty) || 1;
+    const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+
+    if (total > fq) return `${first.name} ${fq}개 외 ${total - fq}개`;
+    return `${first.name} ${fq}개`;
   }
 
-  if (itemCount) return `총 ${itemCount}개`;
-  return '-';
+  if (totalQty) return `총 ${totalQty}개`;
+  return "-";
 }
 
 function formatYmdHm(iso: string) {
@@ -161,6 +178,7 @@ function formatYmdHm(iso: string) {
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
 }
+
 
 // ============================================================
 // Sub-components
@@ -202,6 +220,12 @@ function TableRowSkeleton({ cols }: { cols: number }) {
       ))}
     </tr>
   );
+}
+
+function getTodayYmd(): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 // ── ExportDialog ─────────────────────────────────────────────
@@ -351,10 +375,10 @@ export default function CustomerOrdersPage() {
   >('ALL');
 
   // Date range: input (staged) vs applied (active)
-  const [dateStartInput, setDateStartInput] = useState('');
-  const [dateEndInput, setDateEndInput] = useState('');
-  const [appliedDateStart, setAppliedDateStart] = useState('');
-  const [appliedDateEnd, setAppliedDateEnd] = useState('');
+  const [dateStartInput, setDateStartInput] = useState(() => getTodayYmd());
+  const [dateEndInput, setDateEndInput] = useState(() => getTodayYmd());
+  const [appliedDateStart, setAppliedDateStart] = useState(() => getTodayYmd());
+  const [appliedDateEnd, setAppliedDateEnd] = useState(() => getTodayYmd());
 
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -386,6 +410,19 @@ export default function CustomerOrdersPage() {
     return new Map(branches.map((b) => [b.id, b.name]));
   }, [branches]);
 
+  // Summary (기간/지점/방식 기준 고정)
+  const [summaryCounts, setSummaryCounts] = useState<Record<OrderStatus, number>>({
+    CREATED: 0,
+    CONFIRMED: 0,
+    PREPARING: 0,
+    READY: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+    REFUNDED: 0,
+  });
+  const [summaryTotal, setSummaryTotal] = useState(0);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
   // Load branches
   useEffect(() => {
     const loadBranches = async () => {
@@ -401,27 +438,91 @@ export default function CustomerOrdersPage() {
   }, []);
 
   useEffect(() => {
+    const loadSummary = async () => {
+      try {
+        setSummaryLoading(true);
+
+        const baseParams = new URLSearchParams({
+          page: "1",
+          limit: "1", // 총 개수만 필요
+        });
+
+        if (branchFilter !== "ALL" && isUuidFormat(branchFilter)) {
+          baseParams.append("branchId", branchFilter);
+        }
+        if (fulfillmentFilter !== "ALL") {
+          baseParams.append("fulfillmentType", fulfillmentFilter);
+        }
+        if (appliedDateStart) baseParams.append("dateStart", appliedDateStart);
+        if (appliedDateEnd) baseParams.append("dateEnd", appliedDateEnd);
+
+        // 총합(상태 ALL)
+        const totalRes = await apiClient.get<OrderListResponse | Order[]>(
+          `/customer/orders?${baseParams.toString()}`,
+        );
+        const totalCount = Array.isArray(totalRes)
+          ? totalRes.length
+          : totalRes.pagination?.total || totalRes.total || 0;
+
+        // 상태별 카운트
+        const STATUSES: OrderStatus[] = [
+          "CREATED",
+          "CONFIRMED",
+          "PREPARING",
+          "READY",
+          "COMPLETED",
+          "CANCELLED",
+          // 필요하면 "REFUNDED"도 카드로 넣을 때만 포함
+        ];
+
+        const results = await Promise.all(
+          STATUSES.map(async (s) => {
+            const p = new URLSearchParams(baseParams);
+            p.append("status", s);
+
+            const res = await apiClient.get<OrderListResponse | Order[]>(
+              `/customer/orders?${p.toString()}`,
+            );
+
+            const count = Array.isArray(res)
+              ? res.length
+              : res.pagination?.total || res.total || 0;
+
+            return [s, count] as const;
+          }),
+        );
+
+        setSummaryTotal(totalCount);
+        setSummaryCounts((prev) => {
+          const next = { ...prev };
+          for (const [s, c] of results) next[s] = c;
+          return next;
+        });
+      } catch (e) {
+        console.error(e);
+        // 요약 실패해도 리스트는 동작해야 하니 error state는 건드리지 않는 걸 추천
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    void loadSummary();
+  }, [
+    branchFilter,
+    fulfillmentFilter,
+    appliedDateStart,
+    appliedDateEnd,
+    reloadToken,
+  ]);
+
+
+  useEffect(() => {
     if (branchFilter !== 'ALL' && !isUuidFormat(branchFilter)) {
       setBranchFilter('ALL');
       setPage(1);
     }
   }, [branchFilter]);
 
-  useEffect(() => {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const now = new Date();
-    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
-    // staged inputs
-    setDateStartInput(today);
-    setDateEndInput(today);
-
-    // applied (즉시 조회 조건에 반영)
-    setAppliedDateStart(today);
-    setAppliedDateEnd(today);
-
-    setPage(1);
-  }, []);
 
   // Load orders — fires on filter changes and 조회 button (via appliedDate* / reloadToken)
   useEffect(() => {
@@ -492,30 +593,16 @@ export default function CustomerOrdersPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  const activeCount = orders.filter(
-    (o) => !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status),
-  ).length;
+  const activeCount =
+    (summaryCounts.CREATED ?? 0) +
+    (summaryCounts.CONFIRMED ?? 0) +
+    (summaryCounts.PREPARING ?? 0) +
+    (summaryCounts.READY ?? 0);
   const selectedCount = selectedOrderIds.size;
   const allVisibleSelected =
     orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
 
-  const statusCounts = useMemo(() => {
-    const init: Record<OrderStatus, number> = {
-      CREATED: 0,
-      CONFIRMED: 0,
-      PREPARING: 0,
-      READY: 0,
-      COMPLETED: 0,
-      CANCELLED: 0,
-      REFUNDED: 0,
-    };
 
-    for (const o of orders) {
-      init[o.status] = (init[o.status] ?? 0) + 1;
-    }
-
-    return init;
-  }, [orders]);
 
   
   // 조회 버튼: staged → applied + page reset
@@ -621,7 +708,7 @@ export default function CustomerOrdersPage() {
         </h1>
         <div className="flex items-center gap-3 mt-1.5">
           <span className="text-[13px] text-text-secondary">
-            총 <span className="font-bold text-foreground">{total}</span>건
+            총 <span className="font-bold text-foreground">{summaryTotal}</span>건
           </span>
           {activeCount > 0 && (
             <span className="inline-flex items-center gap-1.5 text-[13px] text-primary-500 font-semibold">
@@ -643,7 +730,7 @@ export default function CustomerOrdersPage() {
           { key: "CANCELLED", label: "취소" },
         ] as const).map((c) => {
           const k = c.key as OrderStatus;
-          const count = statusCounts[k] ?? 0;
+          const count = summaryCounts[k] ?? 0;
 
           return (
             <button
@@ -1028,24 +1115,82 @@ export default function CustomerOrdersPage() {
                       </div>
                     </td>
 
+           
                     {/* 상품 */}
                     <td
                       className="py-3 px-3.5 text-[13px] text-text-secondary relative group/item"
                       onClick={(e) => {
-                        if (fullItemsSummary) {
-                          e.stopPropagation();
-                        }
+                        const items = order.items ?? order.order_items;
+                        const hasTooltip = (items && items.length > 0) || !!fullItemsSummary;
+                        if (hasTooltip) e.stopPropagation();
                       }}
                     >
-                      <span className={fullItemsSummary ? 'cursor-help' : ''}>
-                        {itemSummary}
-                      </span>
-                      {fullItemsSummary && (
-                        <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover/item:block bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs whitespace-nowrap max-w-xs">
-                          {fullItemsSummary}
-                        </div>
-                      )}
-                    </td>
+                      {(() => {
+                        const items = order.items ?? order.order_items;
+                        const totalQty = getTotalQty(order);
+                        const hasTooltip = (items && items.length > 0) || !!fullItemsSummary;
+
+                        return (
+                          <>
+                            <span className={hasTooltip ? "cursor-help" : ""}>{itemSummary}</span>
+
+                            {/* 1) items 배열이 있으면: 세로 리스트 툴팁 */}
+                            {items && items.length > 0 ? (
+                              <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover/item:block">
+                                <div className="bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs w-[280px]">
+                                  {typeof totalQty === "number" && (
+                                    <div className="mb-2 font-semibold text-foreground">
+                                      총 {totalQty}개
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col gap-1">
+                                    {items.map((it, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-start justify-between gap-3"
+                                      >
+                                        <span className="text-text-secondary break-words whitespace-normal">
+                                          {it.name}
+                                        </span>
+                                        <span className="text-foreground font-semibold shrink-0">
+                                          {Number(it.qty) || 1}개
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : fullItemsSummary ? (
+                              // 2) items가 없고 fullItemsSummary 문자열만 있으면: 쉼표 기준으로 줄바꿈
+                              <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover/item:block">
+                                <div className="bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs w-[280px]">
+                                  {typeof totalQty === "number" && (
+                                    <div className="mb-2 font-semibold text-foreground">
+                                      총 {totalQty}개
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col gap-1">
+                                    {fullItemsSummary
+                                      .split(",")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean)
+                                      .map((line, i) => (
+                                        <div
+                                          key={i}
+                                          className="text-text-secondary break-words whitespace-normal"
+                                        >
+                                          {line}
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </td>                    
+
 
                     {/* 지점 (multi-branch only) */}
                     {showMultiBranch && (

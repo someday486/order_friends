@@ -15,39 +15,34 @@ export class CacheService {
    * Cache TTL constants (in seconds)
    */
   static readonly TTL = {
-    STATIC: 3600, // 1 hour - Static data (branches, categories)
-    PRODUCTS: 300, // 5 minutes - Product listings
-    INVENTORY: 60, // 1 minute - Inventory status
-    ORDERS: 30, // 30 seconds - Order listings
-    ANALYTICS: 600, // 10 minutes - Analytics data
-    SHORT: 10, // 10 seconds - Very dynamic data
+    STATIC: 3600,
+    PRODUCTS: 300,
+    INVENTORY: 60,
+    ORDERS: 30,
+    ANALYTICS: 600,
+    SHORT: 10,
   };
 
   /**
    * Cache key generators
    */
   static keys = {
-    // Products
     products: (branchId: string) => `products:${branchId}`,
     product: (id: string) => `product:${id}`,
     productSearch: (branchId: string, query: string) =>
       `products:search:${branchId}:${query}`,
 
-    // Orders
     orders: (branchId: string, page: number, limit: number) =>
       `orders:${branchId}:${page}:${limit}`,
     order: (id: string) => `order:${id}`,
 
-    // Inventory
     inventory: (branchId: string) => `inventory:${branchId}`,
     productInventory: (branchId: string, productId: string) =>
       `inventory:${branchId}:${productId}`,
 
-    // Branches
     branch: (id: string) => `branch:${id}`,
     branches: (brandId: string) => `branches:${brandId}`,
 
-    // Analytics
     analytics: (branchId: string, metric: string) =>
       `analytics:${branchId}:${metric}`,
     dashboard: (branchId: string) => `dashboard:${branchId}`,
@@ -59,12 +54,14 @@ export class CacheService {
   async get<T>(key: string): Promise<T | undefined> {
     try {
       const value = await this.cacheManager.get<T>(key);
-      if (value) {
+
+      if (value !== null && value !== undefined) {
         this.logger.debug(`Cache HIT: ${key}`);
-      } else {
-        this.logger.debug(`Cache MISS: ${key}`);
+        return value as T;
       }
-      return value;
+
+      this.logger.debug(`Cache MISS: ${key}`);
+      return undefined; // 🔥 null → undefined 정규화
     } catch (error) {
       this.logger.error(`Cache GET error for key ${key}:`, error);
       return undefined;
@@ -100,12 +97,13 @@ export class CacheService {
    */
   async delPattern(pattern: string): Promise<void> {
     try {
-      const store = this.cacheManager.store as any;
+      const store = (this.cacheManager as any).stores?.[0];
 
-      // If store has keys() method (memory cache, Redis)
-      if (typeof store.keys === 'function') {
+      if (store && typeof store.keys === 'function') {
         const keys = await store.keys();
-        const matchedKeys = keys.filter((key: string) => key.includes(pattern));
+        const matchedKeys = keys.filter((key: string) =>
+          key.includes(pattern),
+        );
 
         await Promise.all(matchedKeys.map((key: string) => this.del(key)));
         this.logger.debug(
@@ -129,7 +127,16 @@ export class CacheService {
    */
   async reset(): Promise<void> {
     try {
-      await this.cacheManager.reset();
+      const stores = (this.cacheManager as any).stores as any[] | undefined;
+
+      if (stores?.length) {
+        await Promise.all(
+          stores.map((s) =>
+            typeof s.clear === 'function' ? s.clear() : Promise.resolve(),
+          ),
+        );
+      }
+
       this.logger.debug('Cache RESET: All keys cleared');
     } catch (error) {
       this.logger.error('Cache RESET error:', error);
@@ -144,16 +151,12 @@ export class CacheService {
     factory: () => Promise<T>,
     ttl?: number,
   ): Promise<T> {
-    // Try to get from cache
     const cached = await this.get<T>(key);
     if (cached !== undefined) {
       return cached;
     }
 
-    // Execute factory function
     const value = await factory();
-
-    // Store in cache
     await this.set(key, value, ttl);
 
     return value;
@@ -207,7 +210,6 @@ export class CacheService {
       await this.del(CacheService.keys.branches(brandId));
     }
 
-    // Invalidate all branch-related caches
     await this.delPattern(`products:${branchId}`);
     await this.delPattern(`orders:${branchId}`);
     await this.delPattern(`inventory:${branchId}`);
@@ -219,13 +221,13 @@ export class CacheService {
    */
   async getStats(): Promise<any> {
     try {
-      const store = this.cacheManager.store as any;
+      const store = (this.cacheManager as any).stores?.[0];
 
-      if (typeof store.keys === 'function') {
+      if (store && typeof store.keys === 'function') {
         const keys = await store.keys();
         return {
           totalKeys: keys.length,
-          keys: keys.slice(0, 10), // First 10 keys as sample
+          keys: keys.slice(0, 10),
         };
       }
 

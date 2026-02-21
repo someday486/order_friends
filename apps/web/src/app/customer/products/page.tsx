@@ -62,6 +62,36 @@ type BulkStatus = "keep" | "active" | "inactive";
 type BulkInventoryMode = "keep" | "PRODUCT" | "NONE";
 type SalesChannelFilter = "ALL" | "ONLINE_SHOP" | `BRANCH:${string}`;
 
+type CategoryFilter =
+  | "ALL"
+  | "UNCATEGORIZED"
+  | `CATEGORY:${string}`          // 지점 선택 시 (id 기준)
+  | `CATEGORY_NAME:${string}`;    // 전체/온라인샵 (이름 기준)
+
+function normalizeCategoryName(name: string) {
+  return (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function toCategoryFilter(categoryId: string): CategoryFilter {
+  return `CATEGORY:${categoryId}`;
+}
+
+function toCategoryNameFilter(categoryName: string): CategoryFilter {
+  return `CATEGORY_NAME:${normalizeCategoryName(categoryName)}`;
+}
+
+function getCategoryIdFromFilter(filter: CategoryFilter): string | null {
+  if (!filter.startsWith("CATEGORY:")) return null;
+  const id = filter.replace("CATEGORY:", "").trim();
+  return id || null;
+}
+
+function getCategoryNameKeyFromFilter(filter: CategoryFilter): string | null {
+  if (!filter.startsWith("CATEGORY_NAME:")) return null;
+  const key = filter.replace("CATEGORY_NAME:", "").trim();
+  return key || null;
+}
+
 const EMPTY_FORM: TemplateForm = {
   name: "",
   description: "",
@@ -309,6 +339,7 @@ export default function CustomerProductsPage() {
   const [bulkChangeInventory, setBulkChangeInventory] = useState(false);
   const [bulkChangeChannels, setBulkChangeChannels] = useState(false);
   const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [isEditChannelOpen, setIsEditChannelOpen] = useState(false);
 
   const selectedBrand = useMemo(
@@ -333,6 +364,48 @@ export default function CustomerProductsPage() {
     () => branches.find((branch) => branch.id === selectedFilterBranchId)?.name ?? null,
     [branches, selectedFilterBranchId],
   );
+  const availableCategories = useMemo(() => {
+    const branchId = getBranchIdFromSalesChannelFilter(salesChannelFilter);
+
+    // 지점 선택이면: 해당 지점 카테고리만 (id 기준 중복 제거)
+    if (branchId) {
+      const list = branchCategories[branchId] ?? [];
+      const byId = new Map<string, ProductCategory>();
+      for (const c of list) {
+        if (c?.id && c.isActive !== false && !byId.has(c.id)) byId.set(c.id, c);
+      }
+      return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    }
+
+    // 전체/온라인샵이면: 여러 지점 카테고리 합쳐서 "이름" 기준 중복 제거
+    const list = Object.values(branchCategories).flat();
+    const byName = new Map<string, ProductCategory>();
+
+    for (const c of list) {
+      if (!c?.id) continue;
+      if (c.isActive === false) continue;
+
+      const key = normalizeCategoryName(c.name);
+      if (!key) continue;
+
+      if (!byName.has(key)) byName.set(key, c); // 같은 이름이면 1개만 유지
+    }
+
+    return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  }, [branchCategories, salesChannelFilter]);
+
+  const categoryIdToNameKey = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const categories of Object.values(branchCategories)) {
+      for (const c of categories ?? []) {
+        if (!c?.id) continue;
+        if (c.isActive === false) continue;
+        map[c.id] = normalizeCategoryName(c.name);
+      }
+    }
+    return map;
+  }, [branchCategories]);
+
   const filteredTemplates = useMemo(() => {
     if (salesChannelFilter === "ALL") {
       return templates;
@@ -346,23 +419,68 @@ export default function CustomerProductsPage() {
     return templates.filter((template) =>
       (template.appliedBranchIds ?? []).includes(selectedFilterBranchId),
     );
-  }, [templates, salesChannelFilter, selectedFilterBranchId]);
+  }, [templates, salesChannelFilter, selectedFilterBranchId]);  
   const filteredTemplateIdSet = useMemo(
     () => new Set(filteredTemplates.map((template) => template.id)),
     [filteredTemplates],
   );
 
+  const categoryFilteredTemplates = useMemo(() => {
+    if (categoryFilter === "ALL") return filteredTemplates;
+
+    // 카테고리 없음
+    if (categoryFilter === "UNCATEGORIZED") {
+      if (selectedFilterBranchId) {
+        // 지점 선택 시: 해당 지점에 카테고리 미지정인 템플릿
+        return filteredTemplates.filter((t) => {
+          const map = t.appliedBranchCategoryIds ?? {};
+          return !map[selectedFilterBranchId];
+        });
+      }
+
+      // 전체/온라인샵: 모든 지점에서 카테고리 지정이 하나도 없는 템플릿
+      return filteredTemplates.filter((t) => {
+        const values = Object.values(t.appliedBranchCategoryIds ?? {});
+        return values.filter(Boolean).length === 0;
+      });
+    }
+
+    // 1) 지점 선택이면: CATEGORY:id 기준 필터
+    const cid = getCategoryIdFromFilter(categoryFilter);
+    if (cid) {
+      if (selectedFilterBranchId) {
+        return filteredTemplates.filter(
+          (t) => (t.appliedBranchCategoryIds ?? {})[selectedFilterBranchId] === cid,
+        );
+      }
+
+      // (이 경우는 사실상 잘 안 옴: 전체인데 CATEGORY:id를 선택할 일이 없게 UI를 만들 거라)
+      return filteredTemplates.filter((t) =>
+        Object.values(t.appliedBranchCategoryIds ?? {}).some((v) => v === cid),
+      );
+    }
+
+    // 2) 전체/온라인샵이면: CATEGORY_NAME:key 기준 필터
+    const nameKey = getCategoryNameKeyFromFilter(categoryFilter);
+    if (!nameKey) return filteredTemplates;
+
+    return filteredTemplates.filter((t) => {
+      const ids = Object.values(t.appliedBranchCategoryIds ?? {});
+      return ids.some((id) => id && categoryIdToNameKey[id] === nameKey);
+    });
+  }, [filteredTemplates, categoryFilter, selectedFilterBranchId]);  
+
   const searchedTemplates = useMemo(() => {
     if (!searchQuery.trim()) {
-      return filteredTemplates;
+      return categoryFilteredTemplates;
     }
     const query = searchQuery.toLowerCase();
-    return filteredTemplates.filter((template) => {
+    return categoryFilteredTemplates.filter((template) => {
       const name = (template.name ?? "").toLowerCase();
       const description = (template.description ?? "").toLowerCase();
       return name.includes(query) || description.includes(query);
     });
-  }, [filteredTemplates, searchQuery]);
+  }, [categoryFilteredTemplates, searchQuery]);
 
   const searchedTemplateIdSet = useMemo(
     () => new Set(searchedTemplates.map((template) => template.id)),
@@ -378,10 +496,15 @@ export default function CustomerProductsPage() {
     return searchedTemplates.slice(start, start + PAGE_SIZE);
   }, [searchedTemplates, page]);
 
-  // 판매 채널/브랜드/검색어 바뀌면 1페이지로 리셋
+  // 판매 채널/브랜드/카테고리/검색어 바뀌면 1페이지로 리셋
   useEffect(() => {
     setPage(1);
-  }, [salesChannelFilter, selectedBrandId, searchQuery]);
+  }, [salesChannelFilter, selectedBrandId, categoryFilter, searchQuery]);
+
+  useEffect(() => {
+    // 브랜드/판매채널 바뀌면 카테고리 필터는 안전하게 전체로
+    setCategoryFilter("ALL");
+  }, [selectedBrandId, salesChannelFilter]);
 
   // page가 totalPages보다 커지면 보정
   useEffect(() => {
@@ -957,6 +1080,26 @@ export default function CustomerProductsPage() {
               </select>
             </div>
 
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm text-text-secondary mb-2 font-semibold">카테고리</label>
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value as CategoryFilter)}
+                className="input-field w-full"
+              >
+                <option value="ALL">전체</option>
+                <option value="UNCATEGORIZED">카테고리 없음</option>
+                {availableCategories.map((c) => (
+                  <option
+                    key={c.id}
+                    value={selectedFilterBranchId ? toCategoryFilter(c.id) : toCategoryNameFilter(c.name)}
+                  >
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="w-80">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">검색</label>
               <div className="relative">
@@ -1174,7 +1317,7 @@ export default function CustomerProductsPage() {
                 )}
               </div>
 
-              <div className="border border-border rounded-xl overflow-hidden">
+              <div className="border border-border rounded-xl overflow-visible">
                 <table className="w-full border-collapse">
                   <thead className="bg-bg-tertiary">
                     <tr>
@@ -1254,23 +1397,21 @@ export default function CustomerProductsPage() {
                                   }`}
                                 >
                                   {selectedBranchApplied
-                                    ? `${selectedFilterBranchName ?? "선택 지점"} 노출`
-                                    : `${selectedFilterBranchName ?? "선택 지점"} 미노출`}
+                                    ? `${selectedFilterBranchName ?? "선택 지점"}`
+                                    : `${selectedFilterBranchName ?? "선택 지점"}`}
                                 </span>
                               )}
                             </td>
                             <td className="py-3 px-4 text-sm">
                               {template.inventoryMode === "MIXED" ? (
-                                <div className="inline-flex items-center gap-2">
+                                <div className="relative group inline-flex items-center">
                                   <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
-                                    혼합
+                                    지점별
                                   </span>
-                                  <Switch
-                                    checked={true}
-                                    onChange={() => {}}
-                                    disabled={true}
-                                    ariaLabel={`${template.name} 재고관리 혼합 상태`}
-                                  />
+
+                                  <div className="absolute left-0 top-full mt-2 whitespace-nowrap rounded-md border border-border bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                                    지점마다 재고관리 사용 여부가 다릅니다
+                                  </div>
                                 </div>
                               ) : (
                                 <Switch

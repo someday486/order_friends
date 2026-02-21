@@ -1,5 +1,6 @@
 "use client";
 
+import type { HTMLAttributes } from "react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
@@ -538,7 +539,7 @@ export default function CustomerCategoriesPage() {
   const renderCategoryRow = (
     category: Category,
     index: number,
-    dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>,
+    dragHandleProps?: HTMLAttributes<HTMLButtonElement>,
   ) => (
     <div
       className={`flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 hover:bg-bg-tertiary/30 transition-colors ${
@@ -654,7 +655,7 @@ export default function CustomerCategoriesPage() {
   const renderGroupRow = (
     group: CategoryGroup,
     index: number,
-    dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>,
+    dragHandleProps?: HTMLAttributes<HTMLButtonElement>,
   ) => {
     const MAX_VISIBLE_BRANCH_CHIPS = 1;
     const visibleBranchNames = group.branchNames.slice(0, MAX_VISIBLE_BRANCH_CHIPS);
@@ -867,7 +868,13 @@ export default function CustomerCategoriesPage() {
                     ? "bg-success/20 text-success"
                     : "bg-bg-tertiary text-text-tertiary cursor-help"
                 }`}
-                title={canReorder ? "정렬 변경 가능" : "매장을 선택해 주세요"}
+                title={
+                  isSearchActive
+                    ? "검색 중에는 정렬 변경이 비활성화됩니다"
+                    : canReorder
+                      ? "정렬 변경 가능"
+                      : "매장을 선택해 주세요"
+                }
               >
                 정렬 변경
               </span>
@@ -1103,101 +1110,17 @@ export default function CustomerCategoriesPage() {
                     <div className="py-8 text-center text-sm text-text-tertiary">
                       {categorySearch ? "검색 결과가 없습니다" : "카테고리가 없습니다"}
                     </div>
+                  ) : isSearchActive ? (
+                    filteredGroupedCategories.map((group, index) => renderGroupRow(group, index))
                   ) : (
-                    filteredGroupedCategories.map((group, index) => {
-                      const MAX_VISIBLE_BRANCH_CHIPS = 1;
-                      const visibleBranchNames = group.branchNames.slice(0, MAX_VISIBLE_BRANCH_CHIPS);
-                      const remainingBranchCount = group.branchNames.length - visibleBranchNames.length;
-                      const tooltipLines = group.branchNames;
-                      const tooltipText = tooltipLines.join(", ");
-
-                      return (
-                        <div
-                          key={group.key}
-                          className="flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 hover:bg-bg-tertiary/30 transition-colors"
-                        >
-                          <span className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-tertiary text-sm font-bold text-text-secondary flex-shrink-0">
-                            {index + 1}
-                          </span>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-foreground">{group.name}</span>
-                              {visibleBranchNames.map((branchName) => (
-                                <div key={branchName} className="relative group">
-                                  <span
-                                    className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border"
-                                    aria-label={`포함 지점: ${tooltipText}`}
-                                  >
-                                    {branchName}
-                                  </span>
-                                  <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                                    {tooltipLines.map((line) => (
-                                      <div key={line} className="leading-5">{line}</div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                              {remainingBranchCount > 0 && (
-                                <div className="relative group">
-                                  <span
-                                    className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold bg-bg-tertiary text-text-secondary border border-border"
-                                    aria-label={`외 ${remainingBranchCount}개 지점 (전체: ${tooltipText})`}
-                                  >
-                                    +{remainingBranchCount}
-                                  </span>
-                                  <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                                    {tooltipLines.map((line) => (
-                                      <div key={line} className="leading-5">{line}</div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            {canManage && (
-                              <>
-                                <button
-                                  onClick={() => handleGroupToggleActive(group)}
-                                  className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
-                                    group.allActive
-                                      ? "bg-success/80 hover:bg-success"
-                                      : "bg-neutral-400/70 hover:bg-neutral-500/70"
-                                  }`}
-                                  title={group.allActive ? "전체 비활성화" : "전체 활성화"}
-                                  aria-label={`${group.name} ${group.allActive ? "전체 비활성화" : "전체 활성화"}`}
-                                >
-                                  <span
-                                    className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-sm pointer-events-none transition-transform ${
-                                      group.allActive ? "translate-x-4" : "translate-x-0"
-                                    }`}
-                                  />
-                                </button>
-                                <button
-                                  onClick={() => openGroupEdit(group)}
-                                  className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
-                                  title="그룹 이름 수정"
-                                  aria-label="그룹 이름 수정"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleGroupDelete(group)}
-                                  className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
-                                  title="그룹 삭제"
-                                  aria-label="그룹 삭제"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
+                    <SortableList
+                      items={filteredGroupedCategories}
+                      keyExtractor={(group) => group.key}
+                      onReorder={(next) => void handleGroupReorder(next)}
+                      renderItem={(group, index, dragHandleProps) =>
+                        renderGroupRow(group, index, canReorder ? dragHandleProps : undefined)
+                      }
+                    />
                   )
                 )}
               </div>

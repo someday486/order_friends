@@ -906,7 +906,7 @@ export default function CustomerProductsPage() {
               <HelpCircle className="w-4 h-4 text-text-secondary hover:text-foreground transition-colors" />
 
               <div className="absolute left-6 top-1/2 -translate-y-1/2 w-72 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                모든 메뉴는 브랜드 단위로 등록하며, 매장별 노출과 재고관리 여부를 함께 제어합니다.
+                상품은 브랜드 단위로 등록하며, 매장별 노출과 재고관리 전반적인 상품관련 설정을 할 수 있습니다.
               </div>
             </div>
           </div>

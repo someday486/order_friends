@@ -117,17 +117,12 @@ export class ExportsService {
     const dateStart = this.normalizeDateForRpc(dto.filters?.dateStart, false);
     const dateEnd = this.normalizeDateForRpc(dto.filters?.dateEnd, true);
 
-    if (!['CSV', 'XLSX'].includes(format)) {
-      throw new BadRequestException(
-        'Invalid format. Allowed values: csv, xlsx',
-      );
-    }
+    this.logger.log(
+      `createOrderExportJob received format=${dto.format}, scope=${dto.scope}`,
+    );
 
-    // XLSX not supported yet
-    if (format === 'XLSX') {
-      throw new BadRequestException(
-        'XLSX format not supported yet. Please use CSV.',
-      );
+    if (!['CSV', 'XLSX'].includes(format)) {
+      throw new BadRequestException('Invalid export format');
     }
 
     const { data, error } = await sb
@@ -188,16 +183,6 @@ export class ExportsService {
 
     if (['DONE', 'FAILED'].includes(data.status)) {
       return;
-    }
-
-    // Check format - only CSV supported
-    if (data.format === 'XLSX') {
-      await this.updateOrderExportRow(exportId, {
-        status: 'FAILED',
-        error_message: 'XLSX format not supported yet',
-        completed_at: new Date().toISOString(),
-      });
-      throw new BadRequestException('XLSX format not supported yet');
     }
 
     await this.updateOrderExportRow(exportId, {

@@ -39,6 +39,11 @@ export class ExportsController {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
+    console.log('[ExportsController] createOrdersExport request', {
+      format: dto.format,
+      scope: dto.scope,
+    });
+
     const job = await this.exportsService.createOrderExportJob(userId, dto);
 
     return { jobId: job.id };

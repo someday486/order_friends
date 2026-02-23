@@ -19,6 +19,8 @@
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: CORS_ORIGIN
+        sync: false
       - key: TOSS_SECRET_KEY
         sync: false
       - key: TOSS_CLIENT_KEY

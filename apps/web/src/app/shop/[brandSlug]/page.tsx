@@ -5,7 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
-import { saveLastOrderRecord } from "@/lib/order-session";
+import {
+  loadCustomerInfoDraft,
+  saveCustomerInfoDraft,
+  saveLastOrderRecord,
+} from "@/lib/order-session";
+import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 type ShopProduct = {
   id: string;
@@ -90,8 +95,39 @@ export default function ShopBrandPage() {
   const [customerAddress1, setCustomerAddress1] = useState("");
   const [customerAddress2, setCustomerAddress2] = useState("");
   const [customerMemo, setCustomerMemo] = useState("");
+  const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const saved = loadCustomerInfoDraft();
+    if (saved) {
+      setCustomerName(saved.customerName);
+      setCustomerPhone(saved.customerPhone);
+      setCustomerAddress1(saved.customerAddress1);
+      setCustomerAddress2(saved.customerAddress2);
+      setCustomerMemo(saved.customerMemo);
+    }
+    setCustomerInfoReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!customerInfoReady) return;
+    saveCustomerInfoDraft({
+      customerName,
+      customerPhone,
+      customerAddress1,
+      customerAddress2,
+      customerMemo,
+    });
+  }, [
+    customerAddress1,
+    customerAddress2,
+    customerInfoReady,
+    customerMemo,
+    customerName,
+    customerPhone,
+  ]);
 
   useEffect(() => {
     if (!brandSlug) return;
@@ -369,13 +405,26 @@ export default function ShopBrandPage() {
             )}
           </section>
 
-          <aside className="card p-4 h-fit sticky top-4">
-            <h2 className="text-base font-bold">배송 주문</h2>
-            <p className="mt-1 text-xs text-text-secondary">
-              선택 상품 {totalQty}개 · 총 {formatWon(totalAmount)}
-            </p>
+            <aside className="card p-4 h-fit sticky top-4">
+              <h2 className="text-base font-bold">배송 주문</h2>
+              <p className="mt-1 text-xs text-text-secondary">
+                선택 상품 {totalQty}개 · 총 {formatWon(totalAmount)}
+              </p>
 
-            <div className="mt-4 space-y-2 max-h-52 overflow-y-auto pr-1">
+              <KakaoQuickLoginButton
+                className="mt-3"
+                beforeLogin={() =>
+                  saveCustomerInfoDraft({
+                    customerName,
+                    customerPhone,
+                    customerAddress1,
+                    customerAddress2,
+                    customerMemo,
+                  })
+                }
+              />
+
+              <div className="mt-4 space-y-2 max-h-52 overflow-y-auto pr-1">
               {cartItems.length === 0 ? (
                 <div className="rounded-lg border border-border bg-bg-tertiary p-3 text-sm text-text-secondary">
                   장바구니가 비어 있습니다.

@@ -7,6 +7,7 @@ import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
 import { saveCheckoutDraft } from "@/lib/order-session";
 import toast from "react-hot-toast";
+import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 // ============================================================
 // Types
@@ -226,6 +227,7 @@ export default function OrderPage() {
           <div className="text-xs text-text-tertiary">{branch?.brandName}</div>
           <h1 className="mt-1 mb-0 text-xl font-bold text-foreground">{branch?.name}</h1>
         </div>
+        <KakaoQuickLoginButton className="mt-3" />
       </header>
 
       {/* Products */}

@@ -8,9 +8,12 @@ import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import {
   clearCheckoutDraft,
+  loadCustomerInfoDraft,
   loadCheckoutDraft,
+  saveCustomerInfoDraft,
   saveLastOrderRecord,
 } from "@/lib/order-session";
+import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -99,6 +102,37 @@ export default function CheckoutPage() {
   const [customerAddress1, setCustomerAddress1] = useState("");
   const [customerAddress2, setCustomerAddress2] = useState("");
   const [customerMemo, setCustomerMemo] = useState("");
+  const [customerInfoReady, setCustomerInfoReady] = useState(false);
+
+  useEffect(() => {
+    const saved = loadCustomerInfoDraft();
+    if (saved) {
+      setCustomerName(saved.customerName);
+      setCustomerPhone(saved.customerPhone);
+      setCustomerAddress1(saved.customerAddress1);
+      setCustomerAddress2(saved.customerAddress2);
+      setCustomerMemo(saved.customerMemo);
+    }
+    setCustomerInfoReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!customerInfoReady) return;
+    saveCustomerInfoDraft({
+      customerName,
+      customerPhone,
+      customerAddress1,
+      customerAddress2,
+      customerMemo,
+    });
+  }, [
+    customerAddress1,
+    customerAddress2,
+    customerInfoReady,
+    customerMemo,
+    customerName,
+    customerPhone,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -318,6 +352,18 @@ export default function CheckoutPage() {
 
           <section className="py-4 border-b border-border">
             <h2 className="text-sm font-bold text-text-secondary mb-3">고객 정보</h2>
+            <KakaoQuickLoginButton
+              className="mb-4"
+              beforeLogin={() =>
+                saveCustomerInfoDraft({
+                  customerName,
+                  customerPhone,
+                  customerAddress1,
+                  customerAddress2,
+                  customerMemo,
+                })
+              }
+            />
 
             <div className="mb-4">
               <label className="block text-xs text-text-secondary mb-1.5 font-medium">이름 *</label>

@@ -1,11 +1,13 @@
 const CHECKOUT_DRAFT_KEY = 'order:checkout-draft:v1';
 const LAST_ORDER_KEY = 'order:last-order:v1';
+const CUSTOMER_INFO_KEY = 'order:customer-info:v1';
 const LEGACY_CART_KEY = 'orderCart';
 const LEGACY_BRANCH_ID_KEY = 'orderBranchId';
 const LEGACY_BRAND_SLUG_KEY = 'orderBrandSlug';
 const LEGACY_BRANCH_SLUG_KEY = 'orderBranchSlug';
 const LEGACY_LAST_ORDER_KEY = 'lastOrder';
 const STORAGE_TTL_MS = 24 * 60 * 60 * 1000;
+const CUSTOMER_INFO_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 type CheckoutDraft = {
   cart: unknown[];
@@ -27,13 +29,22 @@ type LastOrderRecord = {
   savedAt: number;
 };
 
+type CustomerInfoDraft = {
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress1?: string | null;
+  customerAddress2?: string | null;
+  customerMemo?: string | null;
+  savedAt: number;
+};
+
 function now() {
   return Date.now();
 }
 
-function isExpired(savedAt?: number) {
+function isExpired(savedAt?: number, ttlMs = STORAGE_TTL_MS) {
   if (!savedAt) return true;
-  return now() - savedAt > STORAGE_TTL_MS;
+  return now() - savedAt > ttlMs;
 }
 
 function safeJsonParse<T>(raw: string | null): T | null {
@@ -57,6 +68,27 @@ function isCheckoutDraft(value: unknown): value is CheckoutDraft {
 function isLastOrderRecord(value: unknown): value is LastOrderRecord {
   if (!isObject(value)) return false;
   return 'order' in value;
+}
+
+function isStringOrNullOrUndefined(value: unknown) {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
+function isCustomerInfoDraft(value: unknown): value is CustomerInfoDraft {
+  if (!isObject(value)) return false;
+  return (
+    typeof value.savedAt === 'number' &&
+    isStringOrNullOrUndefined(value.customerName) &&
+    isStringOrNullOrUndefined(value.customerPhone) &&
+    isStringOrNullOrUndefined(value.customerAddress1) &&
+    isStringOrNullOrUndefined(value.customerAddress2) &&
+    isStringOrNullOrUndefined(value.customerMemo)
+  );
+}
+
+function normalizeText(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function saveLegacyCheckoutKeys(draft: CheckoutDraft) {
@@ -237,4 +269,54 @@ export function loadLastOrderRecord(context: {
   }
 
   return null;
+}
+
+export function saveCustomerInfoDraft(input: {
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress1?: string | null;
+  customerAddress2?: string | null;
+  customerMemo?: string | null;
+}) {
+  if (typeof window === 'undefined') return;
+
+  const draft: CustomerInfoDraft = {
+    customerName: normalizeText(input.customerName),
+    customerPhone: normalizeText(input.customerPhone),
+    customerAddress1: normalizeText(input.customerAddress1),
+    customerAddress2: normalizeText(input.customerAddress2),
+    customerMemo: normalizeText(input.customerMemo),
+    savedAt: now(),
+  };
+
+  if (
+    !draft.customerName &&
+    !draft.customerPhone &&
+    !draft.customerAddress1 &&
+    !draft.customerAddress2 &&
+    !draft.customerMemo
+  ) {
+    localStorage.removeItem(CUSTOMER_INFO_KEY);
+    return;
+  }
+
+  localStorage.setItem(CUSTOMER_INFO_KEY, JSON.stringify(draft));
+}
+
+export function loadCustomerInfoDraft() {
+  if (typeof window === 'undefined') return null;
+
+  const parsed = safeJsonParse<unknown>(
+    localStorage.getItem(CUSTOMER_INFO_KEY),
+  );
+  if (!isCustomerInfoDraft(parsed)) return null;
+  if (isExpired(parsed.savedAt, CUSTOMER_INFO_TTL_MS)) return null;
+
+  return {
+    customerName: parsed.customerName ?? '',
+    customerPhone: parsed.customerPhone ?? '',
+    customerAddress1: parsed.customerAddress1 ?? '',
+    customerAddress2: parsed.customerAddress2 ?? '',
+    customerMemo: parsed.customerMemo ?? '',
+  };
 }

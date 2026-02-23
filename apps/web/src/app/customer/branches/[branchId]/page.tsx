@@ -21,6 +21,11 @@ type Branch = {
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
   allowedPaymentMethods?: PaymentMethod[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
 };
 
 type Brand = {
@@ -32,15 +37,15 @@ const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
-  PICKUP: "포장",
-  DELIVERY: "배달",
-  DINE_IN: "매장",
+  PICKUP: "?ъ옣",
+  DELIVERY: "諛곕떖",
+  DINE_IN: "留ㅼ옣",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
-  CARD: "카드",
-  TRANSFER: "계좌이체",
-  CASH: "현금",
+  CARD: "移대뱶",
+  TRANSFER: "怨꾩쥖?댁껜",
+  CASH: "?꾧툑",
 };
 
 function normalizeSlug(value: string) {
@@ -86,6 +91,9 @@ export default function BranchDetailPage() {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+  const [transferBankName, setTransferBankName] = useState("");
+  const [transferAccountNumber, setTransferAccountNumber] = useState("");
+  const [transferAccountHolder, setTransferAccountHolder] = useState("");
 
   const canEdit = useMemo(
     () => branch && (branch.myRole === "OWNER" || branch.myRole === "ADMIN"),
@@ -110,6 +118,10 @@ export default function BranchDetailPage() {
     const samePayments =
       allowedPaymentMethods.length === originPayments.length &&
       allowedPaymentMethods.every((item) => originPayments.includes(item));
+    const sameTransferInfo =
+      transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
+      transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
+      transferAccountHolder.trim() === (branch.transferAccount?.accountHolder ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -117,9 +129,21 @@ export default function BranchDetailPage() {
       logoUrl !== (branch.logoUrl ?? null) ||
       coverImageUrl !== (branch.coverImageUrl ?? null) ||
       !sameFulfillment ||
-      !samePayments
+      !samePayments ||
+      !sameTransferInfo
     );
-  }, [allowedPaymentMethods, branch, coverImageUrl, enabledFulfillmentTypes, logoUrl, name, slug]);
+  }, [
+    allowedPaymentMethods,
+    branch,
+    coverImageUrl,
+    enabledFulfillmentTypes,
+    logoUrl,
+    name,
+    slug,
+    transferAccountHolder,
+    transferAccountNumber,
+    transferBankName,
+  ]);
 
   const resetForm = (source: Branch) => {
     setName(source.name ?? "");
@@ -136,6 +160,9 @@ export default function BranchDetailPage() {
         ? source.allowedPaymentMethods
         : ["CARD", "TRANSFER", "CASH"],
     );
+    setTransferBankName(source.transferAccount?.bankName ?? "");
+    setTransferAccountNumber(source.transferAccount?.accountNumber ?? "");
+    setTransferAccountHolder(source.transferAccount?.accountHolder ?? "");
   };
 
   useEffect(() => {
@@ -151,7 +178,7 @@ export default function BranchDetailPage() {
         resetForm(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "지점 정보를 불러오지 못했습니다.");
+        setError(err?.message ?? "吏???뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??");
       } finally {
         setLoading(false);
       }
@@ -180,22 +207,32 @@ export default function BranchDetailPage() {
     if (!branch) return;
 
     if (!name.trim()) {
-      toast.error("지점명을 입력하세요.");
+      toast.error("吏?먮챸???낅젰?섏꽭??");
       return;
     }
 
     if (!slug.trim()) {
-      toast.error("주문 URL 값을 입력하세요.");
+      toast.error("二쇰Ц URL 媛믪쓣 ?낅젰?섏꽭??");
       return;
     }
 
     if (enabledFulfillmentTypes.length === 0) {
-      toast.error("주문 방식을 최소 1개 이상 선택하세요.");
+      toast.error("二쇰Ц 諛⑹떇??理쒖냼 1媛??댁긽 ?좏깮?섏꽭??");
       return;
     }
 
     if (allowedPaymentMethods.length === 0) {
-      toast.error("결제 수단을 최소 1개 이상 선택하세요.");
+      toast.error("寃곗젣 ?섎떒??理쒖냼 1媛??댁긽 ?좏깮?섏꽭??");
+      return;
+    }
+
+    if (
+      allowedPaymentMethods.includes("TRANSFER") &&
+      (!transferBankName.trim() ||
+        !transferAccountNumber.trim() ||
+        !transferAccountHolder.trim())
+    ) {
+      toast.error("怨꾩쥖?댁껜 ?ъ슜 ????됰챸, 怨꾩쥖踰덊샇, ?덇툑二쇰? 紐⑤몢 ?낅젰??二쇱꽭??");
       return;
     }
 
@@ -209,15 +246,20 @@ export default function BranchDetailPage() {
         coverImageUrl,
         enabledFulfillmentTypes,
         allowedPaymentMethods,
+        transferAccount: {
+          bankName: transferBankName.trim(),
+          accountNumber: transferAccountNumber.trim(),
+          accountHolder: transferAccountHolder.trim(),
+        },
       });
 
       setBranch(updated);
       resetForm(updated);
       setIsEditing(false);
-      toast.success("지점 설정을 저장했습니다.");
+      toast.success("吏???ㅼ젙????ν뻽?듬땲??");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "지점 저장에 실패했습니다.");
+      toast.error(err?.message ?? "吏????μ뿉 ?ㅽ뙣?덉뒿?덈떎.");
     } finally {
       setSaving(false);
     }
@@ -226,7 +268,7 @@ export default function BranchDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 지점을 삭제할까요?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(`"${branch.name}" 吏?먯쓣 ??젣?좉퉴??\n??젣 ??蹂듦뎄?????놁뒿?덈떎.`);
     if (!confirmed) return;
 
     try {
@@ -234,15 +276,15 @@ export default function BranchDetailPage() {
       router.replace("/customer/branches");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "지점 삭제에 실패했습니다.");
+      toast.error(err?.message ?? "吏????젣???ㅽ뙣?덉뒿?덈떎.");
     }
   };
 
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">지점</h1>
-        <div className="text-text-secondary">로딩 중...</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">吏??</h1>
+        <div className="text-text-secondary">濡쒕뵫 以?..</div>
       </div>
     );
   }
@@ -254,11 +296,11 @@ export default function BranchDetailPage() {
           onClick={() => router.back()}
           className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
         >
-          ← 뒤로 가기
+          ???ㅻ줈 媛湲?
         </button>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">吏??</h1>
         <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
-          {error || "지점을 찾을 수 없습니다."}
+          {error || "吏?먯쓣 李얠쓣 ???놁뒿?덈떎."}
         </div>
       </div>
     );
@@ -270,24 +312,24 @@ export default function BranchDetailPage() {
         onClick={() => router.back()}
         className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
       >
-        ← 뒤로 가기
+        ???ㅻ줈 媛湲?
       </button>
 
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 상세</h1>
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">吏???곸꽭</h1>
         {canEdit && !isEditing && (
           <div className="flex gap-3">
             <button
               onClick={() => setIsEditing(true)}
               className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
             >
-              수정하기
+              ?섏젙?섍린
             </button>
             <button
               onClick={handleDelete}
               className="py-2.5 px-5 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm cursor-pointer font-semibold hover:bg-danger-500/10 transition-colors"
             >
-              삭제
+              ??젣
             </button>
           </div>
         )}
@@ -297,7 +339,7 @@ export default function BranchDetailPage() {
         {isEditing ? (
           <div>
             <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">지점명</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">吏?먮챸</label>
               <input
                 type="text"
                 value={name}
@@ -308,16 +350,16 @@ export default function BranchDetailPage() {
             </div>
 
             <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">주문 URL</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">二쇰Ц URL</label>
               <input
                 type="text"
                 value={slug}
                 onChange={(e) => setSlug(normalizeSlug(e.target.value))}
                 className="input-field w-full"
-                placeholder="예: gangnam-main"
+                placeholder="?? gangnam-main"
                 pattern="[a-z0-9-]+"
               />
-              <div className="text-xs text-text-tertiary mt-1">영문/숫자/하이픈(-)만 사용 가능합니다.</div>
+              <div className="text-xs text-text-tertiary mt-1">?곷Ц/?レ옄/?섏씠??-)留??ъ슜 媛?ν빀?덈떎.</div>
             </div>
 
             <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 mb-6">
@@ -325,20 +367,20 @@ export default function BranchDetailPage() {
                 value={logoUrl}
                 onChange={setLogoUrl}
                 folder="branches/logos"
-                label="로고"
+                label="濡쒓퀬"
                 aspectRatio="1/1"
               />
               <ImageUpload
                 value={coverImageUrl}
                 onChange={setCoverImageUrl}
                 folder="branches/covers"
-                label="커버 이미지"
+                label="而ㅻ쾭 ?대?吏"
                 aspectRatio="16/9"
               />
             </div>
 
             <div className="mb-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 주문 방식</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">?뚮퉬?먯뿉寃??몄텧??二쇰Ц 諛⑹떇</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_FULFILLMENT_TYPES.map((type) => (
                   <label
@@ -357,7 +399,7 @@ export default function BranchDetailPage() {
             </div>
 
             <div className="mb-6">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 결제 수단</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">?뚮퉬?먯뿉寃??몄텧??寃곗젣 ?섎떒</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_PAYMENT_METHODS.map((method) => (
                   <label
@@ -372,6 +414,30 @@ export default function BranchDetailPage() {
                     <span className="text-sm text-foreground">{PAYMENT_LABEL[method]}</span>
                   </label>
                 ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <div className="text-[13px] font-semibold text-foreground mb-2">怨꾩쥖?댁껜 ?낃툑 ?뺣낫</div>
+              <div className="grid gap-2">
+                <input
+                  value={transferBankName}
+                  onChange={(e) => setTransferBankName(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="??됰챸"
+                />
+                <input
+                  value={transferAccountNumber}
+                  onChange={(e) => setTransferAccountNumber(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="怨꾩쥖踰덊샇"
+                />
+                <input
+                  value={transferAccountHolder}
+                  onChange={(e) => setTransferAccountHolder(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="예금주"
+                />
               </div>
             </div>
 
@@ -391,7 +457,7 @@ export default function BranchDetailPage() {
                 disabled={saving}
                 className="flex-1 py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
               >
-                취소
+                痍⑥냼
               </button>
             </div>
           </div>
@@ -401,7 +467,7 @@ export default function BranchDetailPage() {
               <div className="mb-6">
                 <Image
                   src={branch.coverImageUrl}
-                  alt="커버 이미지"
+                  alt="而ㅻ쾭 ?대?吏"
                   width={1200}
                   height={675}
                   className="w-full rounded-lg object-cover"
@@ -421,42 +487,53 @@ export default function BranchDetailPage() {
                 />
               ) : (
                 <div className="w-20 h-20 rounded-xl bg-bg-tertiary flex items-center justify-center text-[40px]">
-                  🏪
+                  ?룵
                 </div>
               )}
               <div>
                 <h2 className="text-xl font-bold mb-2 text-foreground">{branch.name}</h2>
-                {branch.myRole && <div className="text-sm text-text-secondary">역할: {branch.myRole}</div>}
+                {branch.myRole && <div className="text-sm text-text-secondary">??븷: {branch.myRole}</div>}
               </div>
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">주문 URL</div>
+              <div className="text-[13px] text-text-secondary mb-2">二쇰Ц URL</div>
               <div className="text-[15px] text-foreground">{orderUrl}</div>
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">주문 방식</div>
+              <div className="text-[13px] text-text-secondary mb-2">二쇰Ц 諛⑹떇</div>
               <div className="text-[15px] text-foreground">
                 {(branch.enabledFulfillmentTypes ?? ["PICKUP"]).map((item) => FULFILLMENT_LABEL[item]).join(", ")}
               </div>
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">결제 수단</div>
+              <div className="text-[13px] text-text-secondary mb-2">寃곗젣 ?섎떒</div>
               <div className="text-[15px] text-foreground">
                 {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"]).map((item) => PAYMENT_LABEL[item]).join(", ")}
               </div>
             </div>
+            {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"]).includes("TRANSFER") ? (
+              <div className="mb-5">
+                <div className="text-[13px] text-text-secondary mb-2">계좌이체 입금 정보</div>
+                <div className="grid gap-1 text-[15px] text-foreground">
+                  <div>은행명: {branch.transferAccount?.bankName?.trim() || "-"}</div>
+                  <div>계좌번호: {branch.transferAccount?.accountNumber?.trim() || "-"}</div>
+                  <div>예금주: {branch.transferAccount?.accountHolder?.trim() || "-"}</div>
+                </div>
+              </div>
+            ) : null}
+
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">브랜드 ID</div>
+              <div className="text-[13px] text-text-secondary mb-2">釉뚮옖??ID</div>
               <div className="text-[15px] text-foreground font-mono">{branch.brandId}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-6">
               <div>
-                <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
+                <div className="text-[11px] text-text-tertiary mb-1">?깅줉??</div>
                 <div className="text-sm text-foreground">{new Date(branch.createdAt).toLocaleString()}</div>
               </div>
             </div>

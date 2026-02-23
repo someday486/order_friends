@@ -255,6 +255,7 @@ export class CustomerBranchesService {
       thumbnailUrl: branch.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
       createdAt: branch.created_at,
       myRole: branchMembership?.role || brandMembership?.role,
     };
@@ -317,6 +318,7 @@ export class CustomerBranchesService {
     await saveBranchOrderConfig(sb, data.id, {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
       allowedPaymentMethods: dto.allowedPaymentMethods,
+      transferAccount: dto.transferAccount,
     });
     const orderConfig = await getBranchOrderConfig(sb, data.id);
 
@@ -330,6 +332,7 @@ export class CustomerBranchesService {
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
       createdAt: data.created_at,
       myRole: membership.role,
     };
@@ -376,13 +379,15 @@ export class CustomerBranchesService {
       updateFields.thumbnail_url = dto.thumbnailUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
-      dto.allowedPaymentMethods !== undefined;
+      dto.allowedPaymentMethods !== undefined ||
+      dto.transferAccount !== undefined;
 
     if (Object.keys(updateFields).length === 0) {
       if (hasOrderConfigUpdate) {
         await saveBranchOrderConfig(sb, branchId, {
           enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
           allowedPaymentMethods: dto.allowedPaymentMethods,
+          transferAccount: dto.transferAccount,
         });
       }
       return this.getMyBranch(
@@ -417,6 +422,7 @@ export class CustomerBranchesService {
     await saveBranchOrderConfig(sb, branchId, {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
       allowedPaymentMethods: dto.allowedPaymentMethods,
+      transferAccount: dto.transferAccount,
     });
     const orderConfig = await getBranchOrderConfig(sb, branchId);
 
@@ -430,6 +436,7 @@ export class CustomerBranchesService {
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
       createdAt: data.created_at,
       myRole: role,
     };

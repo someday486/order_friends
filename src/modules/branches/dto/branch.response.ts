@@ -7,6 +7,11 @@ export class BranchListItemResponse {
   thumbnailUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
   createdAt: string;
 }
 
@@ -20,5 +25,10 @@ export class BranchDetailResponse {
   thumbnailUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
   createdAt: string;
 }

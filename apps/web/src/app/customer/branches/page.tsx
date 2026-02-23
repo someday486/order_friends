@@ -28,6 +28,8 @@ type Brand = {
   shop_payment_methods?: string[] | null;
 };
 
+type BranchPaymentMethod = "CARD" | "TRANSFER" | "CASH";
+
 // ============================================================
 // Constants
 // ============================================================
@@ -37,6 +39,12 @@ const SHOP_PAYMENT_METHOD_OPTIONS = [
   { value: "TRANSFER", label: "계좌이체" },
   { value: "CASH", label: "현금" },
 ] as const;
+
+const BRANCH_PAYMENT_METHOD_OPTIONS: Array<{ value: BranchPaymentMethod; label: string }> = [
+  { value: "CARD", label: "카드" },
+  { value: "TRANSFER", label: "계좌이체" },
+  { value: "CASH", label: "현금" },
+];
 
 // ============================================================
 // Helpers
@@ -406,14 +414,48 @@ function AddBranchModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [formData, setFormData] = useState({ name: "", slug: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    slug: "",
+    allowedPaymentMethods: ["CARD", "TRANSFER", "CASH"] as BranchPaymentMethod[],
+    transferBankName: "",
+    transferAccountNumber: "",
+    transferAccountHolder: "",
+  });
   const [saving, setSaving] = useState(false);
+
+  const isTransferEnabled = formData.allowedPaymentMethods.includes("TRANSFER");
+
+  const togglePaymentMethod = (method: BranchPaymentMethod) => {
+    setFormData((prev) => {
+      const next = new Set(prev.allowedPaymentMethods);
+      if (next.has(method)) {
+        next.delete(method);
+      } else {
+        next.add(method);
+      }
+      return { ...prev, allowedPaymentMethods: Array.from(next) as BranchPaymentMethod[] };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name || !formData.slug) {
       toast.error("모든 필드를 입력해주세요");
+      return;
+    }
+    if (formData.allowedPaymentMethods.length === 0) {
+      toast.error("결제수단은 1개 이상 선택해야 합니다.");
+      return;
+    }
+    if (
+      isTransferEnabled &&
+      (!formData.transferBankName.trim() ||
+        !formData.transferAccountNumber.trim() ||
+        !formData.transferAccountHolder.trim())
+    ) {
+      toast.error("계좌이체를 사용하려면 은행명, 계좌번호, 예금주를 입력해주세요.");
       return;
     }
 
@@ -423,6 +465,12 @@ function AddBranchModal({
         brandId,
         name: formData.name,
         slug: formData.slug,
+        allowedPaymentMethods: formData.allowedPaymentMethods,
+        transferAccount: {
+          bankName: formData.transferBankName.trim(),
+          accountNumber: formData.transferAccountNumber.trim(),
+          accountHolder: formData.transferAccountHolder.trim(),
+        },
       });
 
       toast.success("지점이 추가되었습니다.");
@@ -465,6 +513,56 @@ function AddBranchModal({
             />
             <div className="text-xs text-text-tertiary mt-1">
               소문자 영문, 숫자, 하이픈(-)만 사용 가능
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">결제수단 노출</label>
+            <div className="flex flex-wrap gap-2">
+              {BRANCH_PAYMENT_METHOD_OPTIONS.map((option) => {
+                const checked = formData.allowedPaymentMethods.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => togglePaymentMethod(option.value)}
+                    className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-colors ${
+                      checked
+                        ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                        : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">계좌이체 입금 정보</label>
+            <div className="grid gap-2">
+              <input
+                type="text"
+                value={formData.transferBankName}
+                onChange={(e) => setFormData({ ...formData, transferBankName: e.target.value })}
+                className="input-field"
+                placeholder="은행명"
+              />
+              <input
+                type="text"
+                value={formData.transferAccountNumber}
+                onChange={(e) => setFormData({ ...formData, transferAccountNumber: e.target.value })}
+                className="input-field"
+                placeholder="계좌번호"
+              />
+              <input
+                type="text"
+                value={formData.transferAccountHolder}
+                onChange={(e) => setFormData({ ...formData, transferAccountHolder: e.target.value })}
+                className="input-field"
+                placeholder="예금주"
+              />
             </div>
           </div>
 

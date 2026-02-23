@@ -10,9 +10,16 @@ export const ORDER_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'CASH'] as const;
 export type OrderFulfillmentType = (typeof ORDER_FULFILLMENT_TYPES)[number];
 export type OrderPaymentMethod = (typeof ORDER_PAYMENT_METHODS)[number];
 
+export type TransferAccountInfo = {
+  bankName: string | null;
+  accountNumber: string | null;
+  accountHolder: string | null;
+};
+
 export type BranchOrderConfig = {
   enabledFulfillmentTypes: OrderFulfillmentType[];
   allowedPaymentMethods: OrderPaymentMethod[];
+  transferAccount: TransferAccountInfo | null;
   channelByType: Partial<Record<OrderFulfillmentType, string>>;
 };
 
@@ -27,6 +34,37 @@ function normalizeStringArray(value: unknown): string[] {
   return value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0);
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeTransferAccount(value: unknown): TransferAccountInfo | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const bankName = normalizeOptionalString(
+    row.bankName ?? row.bank_name ?? row.transfer_bank_name,
+  );
+  const accountNumber = normalizeOptionalString(
+    row.accountNumber ?? row.account_number ?? row.transfer_account_number,
+  );
+  const accountHolder = normalizeOptionalString(
+    row.accountHolder ?? row.account_holder ?? row.transfer_account_holder,
+  );
+
+  if (!bankName && !accountNumber && !accountHolder) {
+    return null;
+  }
+
+  return {
+    bankName,
+    accountNumber,
+    accountHolder,
+  };
 }
 
 export function normalizeFulfillmentTypes(
@@ -105,6 +143,40 @@ function getPaymentMethodsFromBranchRow(
   return [...ORDER_PAYMENT_METHODS];
 }
 
+function getTransferAccountFromBranchRow(
+  branchRow: Record<string, unknown>,
+): TransferAccountInfo | null {
+  const direct = normalizeTransferAccount({
+    transfer_bank_name: branchRow.transfer_bank_name,
+    transfer_account_number: branchRow.transfer_account_number,
+    transfer_account_holder: branchRow.transfer_account_holder,
+    bank_name: branchRow.bank_name,
+    account_number: branchRow.account_number,
+    account_holder: branchRow.account_holder,
+  });
+  if (direct) return direct;
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const account = normalizeTransferAccount(
+      candidate.transferAccount ??
+        candidate.transfer_account ??
+        candidate.bankAccount ??
+        candidate.bank_account ??
+        candidate,
+    );
+    if (account) return account;
+  }
+
+  return null;
+}
+
 async function fetchBranchRow(
   sb: any,
   branchId: string,
@@ -166,10 +238,14 @@ export async function getBranchOrderConfig(
   const allowedPaymentMethods = branchRow
     ? getPaymentMethodsFromBranchRow(branchRow)
     : [...ORDER_PAYMENT_METHODS];
+  const transferAccount = branchRow
+    ? getTransferAccountFromBranchRow(branchRow)
+    : null;
 
   return {
     enabledFulfillmentTypes,
     allowedPaymentMethods,
+    transferAccount,
     channelByType,
   };
 }
@@ -287,12 +363,79 @@ async function persistPaymentMethodsToBranch(
   }
 }
 
+async function persistTransferAccountToBranch(
+  sb: any,
+  branchId: string,
+  transferAccount: TransferAccountInfo | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('transfer_bank_name' in branchRow) {
+    directPayload.transfer_bank_name = transferAccount?.bankName ?? null;
+  }
+  if ('transfer_account_number' in branchRow) {
+    directPayload.transfer_account_number =
+      transferAccount?.accountNumber ?? null;
+  }
+  if ('transfer_account_holder' in branchRow) {
+    directPayload.transfer_account_holder =
+      transferAccount?.accountHolder ?? null;
+  }
+  if ('bank_name' in branchRow) {
+    directPayload.bank_name = transferAccount?.bankName ?? null;
+  }
+  if ('account_number' in branchRow) {
+    directPayload.account_number = transferAccount?.accountNumber ?? null;
+  }
+  if ('account_holder' in branchRow) {
+    directPayload.account_holder = transferAccount?.accountHolder ?? null;
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    await sb.from('branches').update(directPayload).eq('id', branchId);
+    return;
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      transferAccount: transferAccount
+        ? {
+            bankName: transferAccount.bankName,
+            accountNumber: transferAccount.accountNumber,
+            accountHolder: transferAccount.accountHolder,
+          }
+        : null,
+      transfer_account: transferAccount
+        ? {
+            bank_name: transferAccount.bankName,
+            account_number: transferAccount.accountNumber,
+            account_holder: transferAccount.accountHolder,
+          }
+        : null,
+    };
+
+    await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    return;
+  }
+}
+
 export async function saveBranchOrderConfig(
   sb: any,
   branchId: string,
   input: {
     enabledFulfillmentTypes?: unknown;
     allowedPaymentMethods?: unknown;
+    transferAccount?: unknown;
   },
 ) {
   if (input.enabledFulfillmentTypes !== undefined) {
@@ -303,5 +446,10 @@ export async function saveBranchOrderConfig(
   if (input.allowedPaymentMethods !== undefined) {
     const methods = normalizePaymentMethods(input.allowedPaymentMethods);
     await persistPaymentMethodsToBranch(sb, branchId, methods);
+  }
+
+  if (input.transferAccount !== undefined) {
+    const transferAccount = normalizeTransferAccount(input.transferAccount);
+    await persistTransferAccountToBranch(sb, branchId, transferAccount);
   }
 }

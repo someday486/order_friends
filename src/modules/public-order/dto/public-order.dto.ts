@@ -22,6 +22,11 @@ export class PublicBranchResponse {
   coverImageUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
 }
 
 export class PublicBrandBranchResponse {
@@ -70,6 +75,20 @@ export class PublicOrderResponse {
   status: string;
   totalAmount: number;
   createdAt: string;
+  paymentMethod?: string | null;
+  fulfillmentType?: string | null;
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
+  customer?: {
+    name?: string | null;
+    phone?: string | null;
+    address1?: string | null;
+    address2?: string | null;
+    memo?: string | null;
+  };
   items: {
     productName: string;
     qty: number;

@@ -29,8 +29,8 @@ export function KakaoQuickLoginButton({
       setErrorMsg(null);
 
       const queryString = searchParams?.toString();
-      const pathWithQuery = `${pathname}${queryString ? `?${queryString}` : ""}`;
-      const redirectTo = `${window.location.origin}${pathWithQuery}`;
+      const nextPath = `${pathname}${queryString ? `?${queryString}` : ""}`;
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
       const provider = "kakao" as Parameters<
         typeof supabaseBrowser.auth.signInWithOAuth
       >[0]["provider"];

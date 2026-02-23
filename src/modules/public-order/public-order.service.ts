@@ -589,6 +589,8 @@ export class PublicOrderService {
         };
       })
       .filter(Boolean);
+    const chosenBranchConfig =
+      await this.getPublicBranchOrderConfig(chosenBranchId);
 
     return {
       brandId: context.brandId,
@@ -598,6 +600,7 @@ export class PublicOrderService {
       coverImageUrl: context.coverImageUrl,
       fulfillmentType: FulfillmentType.DELIVERY,
       paymentMethods: exposedPaymentMethods,
+      transferAccount: chosenBranchConfig.transferAccount,
       products: products as any[],
     };
   }
@@ -885,6 +888,7 @@ export class PublicOrderService {
       allowedPaymentMethods: normalizePaymentMethods(
         config.allowedPaymentMethods,
       ),
+      transferAccount: config.transferAccount ?? null,
       channelByType: config.channelByType,
     };
   }
@@ -1004,6 +1008,7 @@ export class PublicOrderService {
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
     };
   }
 
@@ -1054,6 +1059,7 @@ export class PublicOrderService {
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
     };
   }
 
@@ -1110,6 +1116,7 @@ export class PublicOrderService {
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
     };
   }
 
@@ -1417,8 +1424,36 @@ export class PublicOrderService {
       status: order.status,
       totalAmount: order.total_amount,
       createdAt: order.created_at,
+      paymentMethod: order.payment_method ?? null,
+      fulfillmentType: order.fulfillment_type ?? null,
+      transferAccount: order.transfer_account ?? null,
+      customer: {
+        name: order.customer_name ?? null,
+        phone: order.customer_phone ?? null,
+        address1: order.customer_address1 ?? null,
+        address2: order.customer_address2 ?? null,
+        memo: order.customer_memo ?? null,
+      },
       items,
     };
+  }
+
+  private async attachTransferAccount(
+    order: PublicOrderResponse,
+    branchId?: string | null,
+  ): Promise<PublicOrderResponse> {
+    if (!branchId) return order;
+    if (order.transferAccount) return order;
+
+    try {
+      const branchConfig = await this.getPublicBranchOrderConfig(branchId);
+      return {
+        ...order,
+        transferAccount: branchConfig.transferAccount ?? null,
+      };
+    } catch {
+      return order;
+    }
   }
 
   private async fetchOrderByIdempotencyKey(
@@ -1435,6 +1470,7 @@ export class PublicOrderService {
           .select(
             `
         id,
+        branch_id,
         order_no,
         status,
         total_amount,
@@ -1526,6 +1562,7 @@ export class PublicOrderService {
           .select(
             `
         id,
+        branch_id,
         order_no,
         status,
         total_amount,
@@ -1586,9 +1623,13 @@ export class PublicOrderService {
       this.logger.warn(
         `Duplicate order detected for ${dto.branchId} within window: ${order.id}`,
       );
+      const orderResponse = await this.attachTransferAccount(
+        this.buildOrderResponse(order),
+        order.branch_id ?? dto.branchId,
+      );
 
       return {
-        order: this.buildOrderResponse(order),
+        order: orderResponse,
         strategy: policy.strategy,
         metadata: {
           windowMs: policy.windowMs,
@@ -1693,6 +1734,9 @@ export class PublicOrderService {
     const customerPhone = this.normalizeOptional(dto.customerPhone) ?? null;
     const customerAddress1 =
       this.normalizeOptional(dto.customerAddress1) ?? null;
+    const customerAddress2 =
+      this.normalizeOptional(dto.customerAddress2) ?? null;
+    const customerMemo = this.normalizeOptional(dto.customerMemo) ?? null;
     const paymentMethod = (dto.paymentMethod ?? 'CARD').toUpperCase();
     const branchOrderConfig = await this.getPublicBranchOrderConfig(
       dto.branchId,
@@ -1824,7 +1868,10 @@ export class PublicOrderService {
           orderId: existingOrder.id,
           idempotencyKey,
         });
-        return this.buildOrderResponse(existingOrder);
+        return this.attachTransferAccount(
+          this.buildOrderResponse(existingOrder),
+          existingOrder.branch_id ?? dto.branchId,
+        );
       }
     }
 
@@ -2000,7 +2047,10 @@ export class PublicOrderService {
             orderId: existingOrder.id,
             idempotencyKey,
           });
-          return this.buildOrderResponse(existingOrder);
+          return this.attachTransferAccount(
+            this.buildOrderResponse(existingOrder),
+            existingOrder.branch_id ?? dto.branchId,
+          );
         }
       }
       throw new BadRequestException(`주문 생성 실패: ${orderError.message}`);
@@ -2219,6 +2269,16 @@ export class PublicOrderService {
       status: createdOrder.status,
       totalAmount: createdOrder.total_amount,
       createdAt: createdOrder.created_at,
+      paymentMethod,
+      fulfillmentType,
+      transferAccount: branchOrderConfig.transferAccount ?? null,
+      customer: {
+        name: customerName,
+        phone: customerPhone,
+        address1: customerAddress1,
+        address2: customerAddress2,
+        memo: customerMemo,
+      },
       items: orderItemResults,
     };
   }
@@ -2240,10 +2300,18 @@ export class PublicOrderService {
             .select(
               `
         id,
+        branch_id,
         order_no,
         status,
         total_amount,
         created_at,
+        payment_method,
+        fulfillment_type,
+        customer_name,
+        customer_phone,
+        customer_address1,
+        customer_address2,
+        customer_memo,
         order_items (
           product_name_snapshot,
           qty,
@@ -2266,10 +2334,18 @@ export class PublicOrderService {
               .select(
                 `
           id,
+          branch_id,
           order_no,
           status,
           total_amount,
           created_at,
+          payment_method,
+          fulfillment_type,
+          customer_name,
+          customer_phone,
+          customer_address1,
+          customer_address2,
+          customer_memo,
           order_items (
             product_name_snapshot,
             qty,
@@ -2312,21 +2388,10 @@ export class PublicOrderService {
       throw new NotFoundException('주문을 찾을 수 없습니다.');
     }
 
-    return {
-      id: data.id,
-      orderNo: data.order_no ?? data.id,
-      status: data.status,
-      totalAmount: data.total_amount,
-      createdAt: data.created_at,
-      items: (data.order_items ?? []).map((item: any) => ({
-        productName: item.product_name_snapshot,
-        qty: item.qty,
-        unitPrice: this.getOrderItemUnitPrice(item),
-        options: (item.order_item_options ?? []).map(
-          (o: any) => o.option_name_snapshot,
-        ),
-      })),
-    };
+    return this.attachTransferAccount(
+      this.buildOrderResponse(data),
+      data.branch_id,
+    );
   }
 
   /**

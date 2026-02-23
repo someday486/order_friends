@@ -4,7 +4,9 @@ import {
   Matches,
   IsArray,
   IsEnum,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum BranchFulfillmentType {
   PICKUP = 'PICKUP',
@@ -16,6 +18,20 @@ export enum BranchPaymentMethod {
   CARD = 'CARD',
   TRANSFER = 'TRANSFER',
   CASH = 'CASH',
+}
+
+export class TransferAccountRequest {
+  @IsString()
+  @IsOptional()
+  bankName?: string;
+
+  @IsString()
+  @IsOptional()
+  accountNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  accountHolder?: string;
 }
 
 export class CreateBranchRequest {
@@ -52,6 +68,11 @@ export class CreateBranchRequest {
   @IsEnum(BranchPaymentMethod, { each: true })
   @IsOptional()
   allowedPaymentMethods?: BranchPaymentMethod[];
+
+  @ValidateNested()
+  @Type(() => TransferAccountRequest)
+  @IsOptional()
+  transferAccount?: TransferAccountRequest;
 }
 
 export class UpdateBranchRequest {
@@ -87,4 +108,9 @@ export class UpdateBranchRequest {
   @IsEnum(BranchPaymentMethod, { each: true })
   @IsOptional()
   allowedPaymentMethods?: BranchPaymentMethod[];
+
+  @ValidateNested()
+  @Type(() => TransferAccountRequest)
+  @IsOptional()
+  transferAccount?: TransferAccountRequest;
 }

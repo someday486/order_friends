@@ -30,6 +30,11 @@ export class PublicShopBrandResponse {
   coverImageUrl?: string | null;
   fulfillmentType: 'DELIVERY';
   paymentMethods: string[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
   products: PublicShopBrandProductResponse[];
 }
 

@@ -1,15 +1,27 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { formatDateTimeFull, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 import { apiClient } from "@/lib/api-client";
 import { loadLastOrderRecord } from "@/lib/order-session";
 
-// ============================================================
-// Types
-// ============================================================
+type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
+
+type TransferAccountInfo = {
+  bankName?: string | null;
+  accountNumber?: string | null;
+  accountHolder?: string | null;
+} | null;
+
+type OrderItemInfo = {
+  name: string;
+  qty: number;
+  unitPrice: number;
+  options: string[];
+};
 
 type OrderInfo = {
   id: string;
@@ -17,106 +29,247 @@ type OrderInfo = {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
-  items: {
-    name: string;
-    qty: number;
-    unitPrice: number;
-  }[];
+  paymentMethod: PaymentMethod | null;
+  fulfillmentType: FulfillmentType | null;
+  transferAccount: TransferAccountInfo;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerAddress1: string | null;
+  customerAddress2: string | null;
+  customerMemo: string | null;
+  items: OrderItemInfo[];
 };
+
+const STATUS_STEPS: OrderStatus[] = [
+  "CREATED",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+];
+
+function isOrderStatus(value: unknown): value is OrderStatus {
+  return (
+    value === "CREATED" ||
+    value === "CONFIRMED" ||
+    value === "PREPARING" ||
+    value === "READY" ||
+    value === "COMPLETED" ||
+    value === "CANCELLED" ||
+    value === "REFUNDED"
+  );
+}
+
+function isPaymentMethod(value: unknown): value is PaymentMethod {
+  return value === "CARD" || value === "TRANSFER" || value === "CASH";
+}
+
+function isFulfillmentType(value: unknown): value is FulfillmentType {
+  return value === "PICKUP" || value === "DELIVERY" || value === "DINE_IN";
+}
+
+function toText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function extractCustomerValue(
+  source: Record<string, unknown>,
+  customer: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const direct = toText(source[key]);
+    if (direct) return direct;
+    const nested = toText(customer[key]);
+    if (nested) return nested;
+  }
+  return null;
+}
 
 function normalizeOrder(raw: unknown): OrderInfo | null {
   if (!raw || typeof raw !== "object") return null;
   const source = raw as Record<string, unknown>;
-  if (typeof source.id !== "string") return null;
 
-  const orderNo = source.orderNo ?? source.order_no ?? source.id;
+  const id = toText(source.id);
+  const orderNo = toText(source.orderNo ?? source.order_no ?? source.id);
   const status = source.status;
-  const totalAmount = source.totalAmount ?? source.total_amount;
-  const createdAt = source.createdAt ?? source.created_at;
+  const totalAmount = toNumber(source.totalAmount ?? source.total_amount);
+  const createdAt = toText(source.createdAt ?? source.created_at);
+
+  if (!id || !orderNo || !isOrderStatus(status) || totalAmount === null || !createdAt) {
+    return null;
+  }
+
+  const customerRaw =
+    source.customer && typeof source.customer === "object"
+      ? (source.customer as Record<string, unknown>)
+      : {};
+
+  const paymentMethodRaw = toText(source.paymentMethod ?? source.payment_method);
+  const fulfillmentTypeRaw = toText(source.fulfillmentType ?? source.fulfillment_type);
+
+  const transferAccountRaw =
+    source.transferAccount && typeof source.transferAccount === "object"
+      ? (source.transferAccount as Record<string, unknown>)
+      : source.transfer_account && typeof source.transfer_account === "object"
+        ? (source.transfer_account as Record<string, unknown>)
+        : null;
+
   const items = Array.isArray(source.items) ? source.items : [];
 
-  if (typeof orderNo !== "string") return null;
-  if (typeof status !== "string") return null;
-  if (typeof totalAmount !== "number") return null;
-  if (typeof createdAt !== "string") return null;
-
   return {
-    id: source.id,
+    id,
     orderNo,
-    status: status as OrderStatus,
+    status,
     totalAmount,
     createdAt,
+    paymentMethod: isPaymentMethod(paymentMethodRaw) ? paymentMethodRaw : null,
+    fulfillmentType: isFulfillmentType(fulfillmentTypeRaw) ? fulfillmentTypeRaw : null,
+    transferAccount: transferAccountRaw
+      ? {
+          bankName: toText(transferAccountRaw.bankName ?? transferAccountRaw.bank_name) || null,
+          accountNumber:
+            toText(transferAccountRaw.accountNumber ?? transferAccountRaw.account_number) || null,
+          accountHolder:
+            toText(transferAccountRaw.accountHolder ?? transferAccountRaw.account_holder) || null,
+        }
+      : null,
+    customerName: extractCustomerValue(source, customerRaw, ["customerName", "customer_name", "name"]),
+    customerPhone: extractCustomerValue(source, customerRaw, ["customerPhone", "customer_phone", "phone"]),
+    customerAddress1: extractCustomerValue(source, customerRaw, [
+      "customerAddress1",
+      "customer_address1",
+      "address1",
+    ]),
+    customerAddress2: extractCustomerValue(source, customerRaw, [
+      "customerAddress2",
+      "customer_address2",
+      "address2",
+    ]),
+    customerMemo: extractCustomerValue(source, customerRaw, ["customerMemo", "customer_memo", "memo"]),
     items: items.map((item) => {
       const row = (item ?? {}) as Record<string, unknown>;
       const name =
-        typeof row.name === "string"
-          ? row.name
-          : typeof row.productName === "string"
-            ? row.productName
-            : typeof row.product_name_snapshot === "string"
-              ? row.product_name_snapshot
-              : "-";
-      const qty = typeof row.qty === "number" ? row.qty : 0;
-      const unitPrice =
-        typeof row.unitPrice === "number"
-          ? row.unitPrice
-          : typeof row.unit_price === "number"
-            ? row.unit_price
-            : 0;
-      return { name, qty, unitPrice };
+        toText(row.name) ??
+        toText(row.productName) ??
+        toText(row.product_name_snapshot) ??
+        "-";
+      const qty = toNumber(row.qty) ?? 0;
+      const unitPrice = toNumber(row.unitPrice ?? row.unit_price) ?? 0;
+      const options = Array.isArray(row.options)
+        ? row.options
+            .map((option) => toText(option))
+            .filter((option): option is string => Boolean(option))
+        : [];
+
+      return { name, qty, unitPrice, options };
     }),
   };
 }
 
-// ============================================================
-// Constants
-// ============================================================
+function mergeOrder(primary: OrderInfo, fallback: OrderInfo | null): OrderInfo {
+  if (!fallback || fallback.id !== primary.id) return primary;
 
-const statusBadgeClasses: Record<string, string> = {
-  CREATED: "bg-primary-500/30 text-primary-500",
-  CONFIRMED: "bg-purple-500/30 text-purple-400",
-  PREPARING: "bg-warning-500/30 text-warning-500",
-  READY: "bg-success/30 text-success",
-  COMPLETED: "bg-neutral-500/30 text-neutral-500",
-  CANCELLED: "bg-danger-500/30 text-danger-500",
-  REFUNDED: "bg-pink-500/30 text-pink-400",
-};
+  return {
+    ...primary,
+    paymentMethod: primary.paymentMethod ?? fallback.paymentMethod,
+    fulfillmentType: primary.fulfillmentType ?? fallback.fulfillmentType,
+    transferAccount: primary.transferAccount ?? fallback.transferAccount,
+    customerName: primary.customerName ?? fallback.customerName,
+    customerPhone: primary.customerPhone ?? fallback.customerPhone,
+    customerAddress1: primary.customerAddress1 ?? fallback.customerAddress1,
+    customerAddress2: primary.customerAddress2 ?? fallback.customerAddress2,
+    customerMemo: primary.customerMemo ?? fallback.customerMemo,
+    items: primary.items.length > 0 ? primary.items : fallback.items,
+  };
+}
 
-const STATUS_STEPS = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
+function paymentMethodLabel(method: PaymentMethod | null): string {
+  if (method === "CARD") return "카드";
+  if (method === "TRANSFER") return "계좌이체";
+  if (method === "CASH") return "현금";
+  return "미확인";
+}
 
-// ============================================================
-// Helpers
-// ============================================================
+function fulfillmentTypeLabel(type: FulfillmentType | null): string {
+  if (type === "PICKUP") return "포장";
+  if (type === "DELIVERY") return "배달";
+  if (type === "DINE_IN") return "매장";
+  return "-";
+}
 
-// ============================================================
-// Component
-// ============================================================
+function statusHint(status: OrderStatus): string {
+  if (status === "CREATED") return "주문이 접수되었습니다.";
+  if (status === "CONFIRMED") return "주문 확인이 완료되었습니다.";
+  if (status === "PREPARING") return "상품을 준비하고 있습니다.";
+  if (status === "READY") return "수령 가능한 상태입니다.";
+  if (status === "COMPLETED") return "주문이 정상 완료되었습니다.";
+  if (status === "CANCELLED") return "주문이 취소되었습니다.";
+  return "환불이 완료되었습니다.";
+}
+
+function paymentGuide(method: PaymentMethod | null): { title: string; description: string } {
+  if (method === "CARD") {
+    return {
+      title: "카드 결제 안내",
+      description: "카드 승인/취소 내역은 카드사 또는 결제 알림에서 확인해 주세요.",
+    };
+  }
+  if (method === "TRANSFER") {
+    return {
+      title: "계좌이체 안내",
+      description: "입금자명은 주문자명과 동일하게 맞춰 주세요. 입금 확인 후 주문 상태가 변경됩니다.",
+    };
+  }
+  if (method === "CASH") {
+    return {
+      title: "현금 결제 안내",
+      description: "현장 결제 유형입니다. 수령 시 매장 안내에 따라 결제를 진행해 주세요.",
+    };
+  }
+  return {
+    title: "결제 안내",
+    description: "결제 유형을 확인할 수 없습니다. 결제 관련 문의는 매장으로 연락해 주세요.",
+  };
+}
 
 export default function TrackOrderPage() {
   const params = useParams();
   const orderId = params?.orderId as string;
+  const cachedOrder = useMemo(() => normalizeOrder(loadLastOrderRecord({})), []);
 
   const [order, setOrder] = useState<OrderInfo | null>(() => {
-    const cached = normalizeOrder(loadLastOrderRecord({}));
-    if (cached?.id === orderId) return cached;
+    if (cachedOrder?.id === orderId) return cachedOrder;
     return null;
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 주문 조회
   const fetchOrder = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const data = await apiClient.get<OrderInfo>(`/public/orders/${orderId}`, { auth: false });
-      setOrder(normalizeOrder(data));
+      const data = await apiClient.get<unknown>(`/public/orders/${orderId}`, { auth: false });
+      const normalized = normalizeOrder(data);
+      if (!normalized) {
+        throw new Error("주문 정보를 확인할 수 없습니다.");
+      }
+
+      setOrder(mergeOrder(normalized, cachedOrder));
     } catch (e: unknown) {
       const message = (e as Error)?.message ?? "조회 중 오류가 발생했습니다.";
-      const cached = normalizeOrder(loadLastOrderRecord({}));
-      if (cached?.id === orderId) {
-        setOrder(cached);
+      if (cachedOrder?.id === orderId) {
+        setOrder(cachedOrder);
         setError(null);
         return;
       }
@@ -124,29 +277,21 @@ export default function TrackOrderPage() {
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [cachedOrder, orderId]);
 
   useEffect(() => {
     if (orderId) {
-      fetchOrder();
+      void fetchOrder();
     }
-  }, [orderId, fetchOrder]);
+  }, [fetchOrder, orderId]);
 
-  // 자동 새로고침 (30초마다)
   useEffect(() => {
     if (!orderId) return;
-
-    const interval = setInterval(fetchOrder, 30000);
-
+    const interval = setInterval(() => {
+      void fetchOrder();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [orderId, fetchOrder]);
-
-  // 현재 상태 인덱스
-  const currentStepIndex = order ? STATUS_STEPS.indexOf(order.status) : -1;
-
-  // ============================================================
-  // Render
-  // ============================================================
+  }, [fetchOrder, orderId]);
 
   if (loading && !order) {
     return (
@@ -161,7 +306,12 @@ export default function TrackOrderPage() {
       <div className="min-h-screen bg-background text-foreground">
         <div className="p-10 text-center">
           <p className="text-danger-500 mb-4">{error}</p>
-          <button onClick={fetchOrder} className="py-2 px-4 rounded-lg border border-border bg-transparent text-foreground text-[13px] cursor-pointer hover:bg-bg-tertiary transition-colors">
+          <button
+            onClick={() => {
+              void fetchOrder();
+            }}
+            className="py-2 px-4 rounded-lg border border-border bg-transparent text-foreground text-[13px] cursor-pointer hover:bg-bg-tertiary transition-colors"
+          >
             다시 시도
           </button>
         </div>
@@ -178,109 +328,154 @@ export default function TrackOrderPage() {
   }
 
   const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+  const currentStepIndex = STATUS_STEPS.indexOf(order.status);
+  const guide = paymentGuide(order.paymentMethod);
+
+  const timeline = isCancelled
+    ? [
+        {
+          id: "CREATED",
+          title: ORDER_STATUS_LABEL_LONG.CREATED,
+          description: statusHint("CREATED"),
+          state: "done" as const,
+        },
+        {
+          id: order.status,
+          title: ORDER_STATUS_LABEL_LONG[order.status] ?? order.status,
+          description: statusHint(order.status),
+          state: "current" as const,
+        },
+      ]
+    : STATUS_STEPS.map((step, idx) => ({
+        id: step,
+        title: ORDER_STATUS_LABEL_LONG[step] ?? step,
+        description: statusHint(step),
+        state: (idx < currentStepIndex
+          ? "done"
+          : idx === currentStepIndex
+            ? "current"
+            : "upcoming") as "done" | "current" | "upcoming",
+      }));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border">
-        <h1 className="m-0 text-xl font-bold text-foreground">주문 상태</h1>
-        <button onClick={fetchOrder} className="py-2 px-4 rounded-lg border border-border bg-transparent text-foreground text-[13px] cursor-pointer hover:bg-bg-tertiary transition-colors">
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
+        <h1 className="m-0 text-lg font-bold text-foreground">주문 진행 현황</h1>
+        <button
+          onClick={() => {
+            void fetchOrder();
+          }}
+          className="py-2 px-3 rounded-lg border border-border bg-transparent text-foreground text-xs cursor-pointer hover:bg-bg-tertiary transition-colors"
+        >
           새로고침
         </button>
       </header>
 
-      {/* Order Number */}
-      <div className="p-4 text-center">
-        <div className="text-[13px] text-text-tertiary">주문번호</div>
-        <div className="text-2xl font-extrabold font-mono mt-1 text-foreground">
-          {order.orderNo}
-        </div>
-      </div>
-
-      {/* Status */}
-      <div className="px-4 pb-6">
-        {isCancelled ? (
-          <div className="p-5 rounded-xl bg-danger-500/20 text-center">
-            <div className="text-[32px]">❌</div>
-            <div className="mt-2 text-lg font-bold text-danger-500">
-              {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
-            </div>
+      <div className="max-w-xl mx-auto p-4 space-y-4">
+        <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+          <div className="text-xs text-text-tertiary">주문번호</div>
+          <div className="text-2xl font-extrabold font-mono text-foreground mt-1">{order.orderNo}</div>
+          <div className="mt-3 text-xs text-text-secondary">주문일시: {formatDateTimeFull(order.createdAt)}</div>
+          <div className="mt-3 inline-flex items-center rounded-full bg-primary-500/20 px-3 py-1 text-xs font-semibold text-primary-500">
+            {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
           </div>
-        ) : (
-          <div>
-            {/* Progress Steps */}
-            <div className="flex justify-between relative">
-              {STATUS_STEPS.map((step, idx) => {
-                const isActive = idx <= currentStepIndex;
-                const isCurrent = idx === currentStepIndex;
+        </section>
 
-                return (
-                  <div key={step} className="text-center flex-1">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm font-bold ${
-                        isActive ? "bg-success text-white" : "bg-bg-tertiary text-text-secondary"
-                      } ${isCurrent ? "ring-2 ring-foreground" : ""}`}
-                    >
-                      {isActive ? "✓" : idx + 1}
-                    </div>
-                    <div
-                      className={`mt-2 text-[11px] ${
-                        isActive ? "text-foreground" : "text-text-tertiary"
-                      } ${isCurrent ? "font-bold" : "font-normal"}`}
-                    >
-                      {ORDER_STATUS_LABEL_LONG[step as OrderStatus] ?? step}
-                    </div>
+        <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">진행 타임라인</h2>
+          <div className="relative pl-6">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
+            {timeline.map((step, idx) => {
+              const isCurrent = step.state === "current";
+              const isDone = step.state === "done";
+              const dotClass = isDone
+                ? "bg-success border-success"
+                : isCurrent
+                  ? "bg-primary-500 border-primary-500"
+                  : "bg-bg-tertiary border-border";
+
+              return (
+                <div key={step.id} className={idx === timeline.length - 1 ? "relative" : "relative pb-4"}>
+                  <div className={`absolute -left-6 top-1.5 h-3.5 w-3.5 rounded-full border-2 ${dotClass}`} />
+                  <div
+                    className={`rounded-xl border p-3 ${
+                      isCurrent
+                        ? "border-primary-500/50 bg-primary-500/10"
+                        : isDone
+                          ? "border-success/50 bg-success/10"
+                          : "border-border bg-background"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-foreground">{step.title}</div>
+                    <div className="mt-1 text-xs text-text-secondary">{step.description}</div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-              {/* Progress Line (background) */}
-              <div className="absolute top-4 left-[10%] right-[10%] h-0.5 bg-bg-tertiary -z-10" />
-              {/* Progress Line (active) */}
-              <div
-                className="absolute top-4 left-[10%] h-0.5 bg-success -z-10 transition-all duration-300"
-                style={{ width: `${Math.max(0, currentStepIndex) * 20}%` }}
-              />
+        <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">{guide.title}</h2>
+          <div className="text-xs text-text-secondary leading-5">{guide.description}</div>
+          {order.paymentMethod === "TRANSFER" ? (
+            <div className="mt-2 text-xs text-text-secondary leading-5">
+              <div>은행명: {order.transferAccount?.bankName?.trim() || "-"}</div>
+              <div>계좌번호: {order.transferAccount?.accountNumber?.trim() || "-"}</div>
+              <div>예금주: {order.transferAccount?.accountHolder?.trim() || "-"}</div>
             </div>
+          ) : null}
+          <div className="mt-3 text-xs text-text-tertiary">
+            결제수단: {paymentMethodLabel(order.paymentMethod)} | 주문방식: {fulfillmentTypeLabel(order.fulfillmentType)}
+          </div>
+        </section>
 
-            {/* Current Status Message */}
-            <div className="mt-6 p-4 rounded-xl bg-bg-secondary text-center">
-              <span className={`inline-block py-1.5 px-4 rounded-full font-bold ${statusBadgeClasses[order.status] || "bg-bg-tertiary text-foreground"}`}>
-                {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
+        <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">주문 정보</h2>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between gap-3">
+              <span className="text-text-tertiary">이름</span>
+              <span className="text-foreground text-right">{order.customerName ?? "-"}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-text-tertiary">연락처</span>
+              <span className="text-foreground text-right">{order.customerPhone ?? "-"}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-text-tertiary">주소</span>
+              <span className="text-foreground text-right">
+                {[order.customerAddress1, order.customerAddress2].filter(Boolean).join(" ") || "-"}
               </span>
-              <div className="mt-3 text-[13px] text-text-tertiary">
-                {order.status === "CREATED" && "주문이 접수되었습니다. 곧 확인해드릴게요!"}
-                {order.status === "CONFIRMED" && "주문이 확인되었습니다. 준비를 시작합니다."}
-                {order.status === "PREPARING" && "주문을 준비하고 있습니다. 잠시만 기다려주세요."}
-                {order.status === "READY" && "준비가 완료되었습니다! 픽업해주세요."}
-                {order.status === "COMPLETED" && "주문이 완료되었습니다. 감사합니다!"}
-              </div>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-text-tertiary">요청사항</span>
+              <span className="text-foreground text-right">{order.customerMemo ?? "-"}</span>
             </div>
           </div>
-        )}
-      </div>
+        </section>
 
-      {/* Order Details */}
-      <div className="m-4 p-4 rounded-[14px] border border-border bg-bg-secondary">
-        <h3 className="text-sm font-semibold text-text-tertiary mb-3">주문 내역</h3>
-
-        {order.items.map((item, idx) => (
-          <div key={idx} className="flex justify-between py-2">
-            <span className="text-foreground">
-              {item.name} × {item.qty}
-            </span>
-            <span className="text-text-secondary">{formatWon(item.unitPrice * item.qty)}</span>
+        <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">주문 내역</h2>
+          <div className="space-y-2">
+            {order.items.map((item, idx) => (
+              <div key={`${item.name}-${idx}`} className="rounded-lg bg-background px-3 py-2">
+                <div className="flex justify-between gap-3">
+                  <div className="text-sm text-foreground">
+                    {item.name} x {item.qty}
+                  </div>
+                  <div className="text-sm font-semibold text-foreground">{formatWon(item.unitPrice * item.qty)}</div>
+                </div>
+                {item.options.length > 0 ? (
+                  <div className="mt-1 text-xs text-text-tertiary">{item.options.join(", ")}</div>
+                ) : null}
+              </div>
+            ))}
           </div>
-        ))}
-
-        <div className="flex justify-between py-2 border-t border-border pt-3 mt-2">
-          <span className="font-semibold text-foreground">총 결제금액</span>
-          <span className="text-lg font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
-        </div>
-
-        <div className="mt-3 text-xs text-text-tertiary">
-          주문일시: {formatDateTimeFull(order.createdAt)}
-        </div>
+          <div className="mt-3 pt-3 border-t border-border flex justify-between">
+            <span className="text-sm font-semibold text-foreground">총 결제금액</span>
+            <span className="text-lg font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
+          </div>
+        </section>
       </div>
     </div>
   );

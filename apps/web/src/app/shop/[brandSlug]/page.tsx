@@ -2,14 +2,22 @@
 
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  loadCustomerInfoFromAuthenticatedUser,
+  loadCustomerInfoFromLatestOrder,
+  persistCustomerInfoToUserMetadata,
+} from "@/lib/customer-info-autofill";
 import {
   loadCustomerInfoDraft,
   saveCustomerInfoDraft,
   saveLastOrderRecord,
 } from "@/lib/order-session";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 type ShopProduct = {
@@ -31,6 +39,11 @@ type ShopBrandResponse = {
   coverImageUrl?: string | null;
   fulfillmentType: "DELIVERY";
   paymentMethods: string[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
   products: ShopProduct[];
 };
 
@@ -41,6 +54,11 @@ type CreatedOrder = {
   status: string;
   totalAmount: number;
   createdAt: string;
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
   items: {
     productName: string;
     qty: number;
@@ -83,6 +101,7 @@ export default function ShopBrandPage() {
   const router = useRouter();
   const params = useParams();
   const brandSlug = String(params?.brandSlug ?? "");
+  const { status, user } = useAuth();
 
   const [data, setData] = useState<ShopBrandResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +115,10 @@ export default function ShopBrandPage() {
   const [customerAddress2, setCustomerAddress2] = useState("");
   const [customerMemo, setCustomerMemo] = useState("");
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
+  const [authInfoLoaded, setAuthInfoLoaded] = useState(false);
+  const authInfoRequestedRef = useRef(false);
+  const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -128,6 +151,104 @@ export default function ShopBrandPage() {
     customerName,
     customerPhone,
   ]);
+
+  useEffect(() => {
+    if (status !== "authenticated") {
+      authInfoRequestedRef.current = false;
+      setAuthInfoLoaded(false);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    if (!customerInfoReady) return;
+    if (authInfoRequestedRef.current) return;
+
+    authInfoRequestedRef.current = true;
+    let cancelled = false;
+
+    const fillFromAuthenticatedUser = async () => {
+      const next = await loadCustomerInfoFromAuthenticatedUser(user?.user_metadata);
+      if (cancelled) return;
+
+      setCustomerName((prev) => prev || next.customerName || "");
+      setCustomerPhone((prev) => prev || next.customerPhone || "");
+      setCustomerAddress1((prev) => prev || next.customerAddress1 || "");
+      setCustomerAddress2((prev) => prev || next.customerAddress2 || "");
+      setCustomerMemo((prev) => prev || next.customerMemo || "");
+      setAuthInfoLoaded(true);
+    };
+
+    void fillFromAuthenticatedUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerInfoReady, status, user?.user_metadata]);
+
+  const handleLoadLastOrderInfo = async () => {
+    if (status !== "authenticated") {
+      toast("간편로그인 후 이용해 주세요.");
+      return;
+    }
+
+    setLoadingLastOrderInfo(true);
+    const next = await loadCustomerInfoFromLatestOrder();
+    setLoadingLastOrderInfo(false);
+
+    const draft = loadCustomerInfoDraft();
+    const merged = {
+      customerName: next.customerName || draft?.customerName || "",
+      customerPhone: next.customerPhone || draft?.customerPhone || "",
+      customerAddress1: next.customerAddress1 || draft?.customerAddress1 || "",
+      customerAddress2: next.customerAddress2 || draft?.customerAddress2 || "",
+      customerMemo: next.customerMemo || draft?.customerMemo || "",
+    };
+
+    const hasData = Boolean(
+      merged.customerName ||
+        merged.customerPhone ||
+        merged.customerAddress1 ||
+        merged.customerAddress2 ||
+        merged.customerMemo,
+    );
+
+    if (!hasData) {
+      toast("불러올 지난 주문 정보가 없습니다.");
+      return;
+    }
+
+    setCustomerName((prev) => merged.customerName || prev);
+    setCustomerPhone((prev) => merged.customerPhone || prev);
+    setCustomerAddress1((prev) => merged.customerAddress1 || prev);
+    setCustomerAddress2((prev) => merged.customerAddress2 || prev);
+    setCustomerMemo((prev) => merged.customerMemo || prev);
+    setAuthInfoLoaded(true);
+    toast.success("지난 주문 정보를 불러왔습니다.");
+  };
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      saveCustomerInfoDraft({
+        customerName,
+        customerPhone,
+        customerAddress1,
+        customerAddress2,
+        customerMemo,
+      });
+
+      const { error: signOutError } = await supabaseBrowser.auth.signOut();
+      if (signOutError) {
+        toast.error(signOutError.message || "로그아웃에 실패했습니다.");
+        return;
+      }
+
+      toast.success("로그아웃되었습니다.");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   useEffect(() => {
     if (!brandSlug) return;
@@ -222,6 +343,13 @@ export default function ShopBrandPage() {
     try {
       setSubmitting(true);
       setSubmitError(null);
+      saveCustomerInfoDraft({
+        customerName,
+        customerPhone,
+        customerAddress1,
+        customerAddress2,
+        customerMemo,
+      });
 
       const response = await apiClient.post<CreatedOrder>(
         `/public/shop/brands/${encodeURIComponent(data.brandSlug)}/orders`,
@@ -241,9 +369,28 @@ export default function ShopBrandPage() {
       );
 
       saveLastOrderRecord({
-        order: response,
+        order: {
+          ...response,
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
+          customerAddress1: customerAddress1.trim(),
+          customerAddress2: customerAddress2 || null,
+          customerMemo: customerMemo || null,
+          paymentMethod,
+          fulfillmentType: "DELIVERY",
+          transferAccount: response.transferAccount ?? data.transferAccount ?? null,
+        },
         brandSlug: data.brandSlug,
       });
+      if (status === "authenticated") {
+        void persistCustomerInfoToUserMetadata({
+          customerName,
+          customerPhone,
+          customerAddress1,
+          customerAddress2,
+          customerMemo,
+        });
+      }
       router.push(`/order/track/${encodeURIComponent(response.id)}`);
     } catch (e) {
       setSubmitError(parseApiErrorMessage(e, "주문 생성에 실패했습니다."));
@@ -423,6 +570,31 @@ export default function ShopBrandPage() {
                   })
                 }
               />
+              {status === "authenticated" ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleLoadLastOrderInfo}
+                    disabled={loadingLastOrderInfo || loggingOut}
+                    className="h-10 rounded-lg border border-border bg-bg-tertiary text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loadingLastOrderInfo ? "불러오는 중..." : "지난 주문 정보 불러오기"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={loggingOut || loadingLastOrderInfo}
+                    className="h-10 rounded-lg border border-border bg-bg-tertiary text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loggingOut ? "로그아웃 중..." : "로그아웃"}
+                  </button>
+                </div>
+              ) : null}
+              {status === "authenticated" && authInfoLoaded ? (
+                <p className="mt-2 text-xs text-text-secondary">
+                  로그인 정보 기반으로 고객 정보가 자동 입력되었습니다.
+                </p>
+              ) : null}
 
               <div className="mt-4 space-y-2 max-h-52 overflow-y-auto pr-1">
               {cartItems.length === 0 ? (
@@ -502,6 +674,14 @@ export default function ShopBrandPage() {
                     </label>
                   ))}
                 </div>
+                {paymentMethod === "TRANSFER" ? (
+                  <div className="mt-2 rounded-lg border border-border bg-bg-tertiary p-3 text-xs text-text-secondary leading-5">
+                    <div className="font-semibold text-foreground mb-1">입금 계좌 정보</div>
+                    <div>은행명: {data.transferAccount?.bankName?.trim() || "-"}</div>
+                    <div>계좌번호: {data.transferAccount?.accountNumber?.trim() || "-"}</div>
+                    <div>예금주: {data.transferAccount?.accountHolder?.trim() || "-"}</div>
+                  </div>
+                ) : null}
               </div>
 
               {submitError ? <p className="text-sm text-danger-500">{submitError}</p> : null}

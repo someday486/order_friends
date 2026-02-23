@@ -822,6 +822,13 @@ describe('PublicOrderService - Branch Coverage', () => {
           status: 'CREATED',
           total_amount: 1000,
           created_at: 't',
+          payment_method: 'TRANSFER',
+          fulfillment_type: 'DELIVERY',
+          customer_name: 'Kim',
+          customer_phone: '010-0000-0000',
+          customer_address1: 'Seoul',
+          customer_address2: '101',
+          customer_memo: 'memo',
           order_items: [
             {
               product_name_snapshot: 'P1',
@@ -842,6 +849,9 @@ describe('PublicOrderService - Branch Coverage', () => {
 
     const result = await service.getOrder('O-1');
     expect(result.orderNo).toBe('O-1');
+    expect(result.paymentMethod).toBe('TRANSFER');
+    expect(result.fulfillmentType).toBe('DELIVERY');
+    expect(result.customer?.name).toBe('Kim');
     expect(result.items[0].options).toEqual(['Opt']);
   });
 

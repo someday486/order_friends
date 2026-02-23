@@ -19,6 +19,11 @@ type Branch = {
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
   allowedPaymentMethods?: PaymentMethod[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
 };
 
 type Brand = {
@@ -39,15 +44,15 @@ const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
-  PICKUP: "포장",
-  DELIVERY: "배달",
-  DINE_IN: "매장",
+  PICKUP: "?ъ옣",
+  DELIVERY: "諛곕떖",
+  DINE_IN: "留ㅼ옣",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
-  CARD: "카드",
-  TRANSFER: "계좌이체",
-  CASH: "현금",
+  CARD: "移대뱶",
+  TRANSFER: "怨꾩쥖?댁껜",
+  CASH: "?꾧툑",
 };
 
 function isValidSlug(value: string) {
@@ -98,6 +103,9 @@ export default function StoreDetailPage() {
   const [slug, setSlug] = useState("");
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+  const [transferBankName, setTransferBankName] = useState("");
+  const [transferAccountNumber, setTransferAccountNumber] = useState("");
+  const [transferAccountHolder, setTransferAccountHolder] = useState("");
 
   const [members, setMembers] = useState<BranchMember[]>([]);
 
@@ -121,14 +129,28 @@ export default function StoreDetailPage() {
     const samePayments =
       allowedPaymentMethods.length === branchPayments.length &&
       allowedPaymentMethods.every((item) => branchPayments.includes(item));
+    const sameTransferInfo =
+      transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
+      transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
+      transferAccountHolder.trim() === (branch.transferAccount?.accountHolder ?? "");
 
     return (
       name.trim() !== branch.name ||
       slug.trim() !== (branch.slug ?? "") ||
       !sameFulfillment ||
-      !samePayments
+      !samePayments ||
+      !sameTransferInfo
     );
-  }, [allowedPaymentMethods, branch, enabledFulfillmentTypes, name, slug]);
+  }, [
+    allowedPaymentMethods,
+    branch,
+    enabledFulfillmentTypes,
+    name,
+    slug,
+    transferAccountHolder,
+    transferAccountNumber,
+    transferBankName,
+  ]);
 
   useEffect(() => {
     if (!ready) return;
@@ -156,10 +178,13 @@ export default function StoreDetailPage() {
             ? data.allowedPaymentMethods
             : ["CARD", "TRANSFER", "CASH"],
         );
+        setTransferBankName(data.transferAccount?.bankName ?? "");
+        setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
+        setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "매장 정보를 불러오지 못했습니다.");
+        setError(err?.message ?? "留ㅼ옣 ?뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??");
       } finally {
         setLoading(false);
       }
@@ -195,7 +220,7 @@ export default function StoreDetailPage() {
         setMembers(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setMembersError(err?.message ?? "매장 멤버를 불러오지 못했습니다.");
+        setMembersError(err?.message ?? "留ㅼ옣 硫ㅻ쾭瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??");
       } finally {
         setMembersLoading(false);
       }
@@ -218,34 +243,47 @@ export default function StoreDetailPage() {
         ? branch.allowedPaymentMethods
         : ["CARD", "TRANSFER", "CASH"],
     );
+    setTransferBankName(branch.transferAccount?.bankName ?? "");
+    setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
+    setTransferAccountHolder(branch.transferAccount?.accountHolder ?? "");
   };
 
   const handleSave = async () => {
     if (!branch) return;
 
     if (!name.trim()) {
-      toast.error("매장명을 입력하세요.");
+      toast.error("留ㅼ옣紐낆쓣 ?낅젰?섏꽭??");
       return;
     }
 
     const normalizedSlug = normalizeSlug(slug);
     if (!normalizedSlug) {
-      toast.error("주문 URL 값을 입력하세요.");
+      toast.error("二쇰Ц URL 媛믪쓣 ?낅젰?섏꽭??");
       return;
     }
 
     if (!isValidSlug(normalizedSlug)) {
-      toast.error("주문 URL은 영문/숫자/하이픈(-)만 사용할 수 있습니다.");
+      toast.error("二쇰Ц URL? ?곷Ц/?レ옄/?섏씠??-)留??ъ슜?????덉뒿?덈떎.");
       return;
     }
 
     if (enabledFulfillmentTypes.length === 0) {
-      toast.error("주문 방식을 최소 1개 이상 선택하세요.");
+      toast.error("二쇰Ц 諛⑹떇??理쒖냼 1媛??댁긽 ?좏깮?섏꽭??");
       return;
     }
 
     if (allowedPaymentMethods.length === 0) {
-      toast.error("결제 수단을 최소 1개 이상 선택하세요.");
+      toast.error("寃곗젣 ?섎떒??理쒖냼 1媛??댁긽 ?좏깮?섏꽭??");
+      return;
+    }
+
+    if (
+      allowedPaymentMethods.includes("TRANSFER") &&
+      (!transferBankName.trim() ||
+        !transferAccountNumber.trim() ||
+        !transferAccountHolder.trim())
+    ) {
+      toast.error("怨꾩쥖?댁껜 ?ъ슜 ????됰챸, 怨꾩쥖踰덊샇, ?덇툑二쇰? 紐⑤몢 ?낅젰??二쇱꽭??");
       return;
     }
 
@@ -256,6 +294,11 @@ export default function StoreDetailPage() {
         slug: normalizedSlug,
         enabledFulfillmentTypes,
         allowedPaymentMethods,
+        transferAccount: {
+          bankName: transferBankName.trim(),
+          accountNumber: transferAccountNumber.trim(),
+          accountHolder: transferAccountHolder.trim(),
+        },
       });
 
       setBranch(updated);
@@ -271,11 +314,14 @@ export default function StoreDetailPage() {
           ? updated.allowedPaymentMethods
           : ["CARD", "TRANSFER", "CASH"],
       );
+      setTransferBankName(updated.transferAccount?.bankName ?? "");
+      setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");
+      setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
 
-      toast.success("매장 설정을 저장했습니다.");
+      toast.success("留ㅼ옣 ?ㅼ젙????ν뻽?듬땲??");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 저장에 실패했습니다.");
+      toast.error(err?.message ?? "留ㅼ옣 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.");
     } finally {
       setSaving(false);
     }
@@ -284,7 +330,7 @@ export default function StoreDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 매장을 삭제할까요?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(`"${branch.name}" 留ㅼ옣????젣?좉퉴??\n??젣 ??蹂듦뎄?????놁뒿?덈떎.`);
     if (!confirmed) return;
 
     try {
@@ -293,7 +339,7 @@ export default function StoreDetailPage() {
       router.replace("/admin/stores");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 삭제에 실패했습니다.");
+      toast.error(err?.message ?? "留ㅼ옣 ??젣???ㅽ뙣?덉뒿?덈떎.");
     } finally {
       setDeleting(false);
     }
@@ -306,21 +352,21 @@ export default function StoreDetailPage() {
     <div>
       <div className="mb-4">
         <Link href="/admin/stores" className="text-text-secondary text-xs hover:text-foreground transition-colors">
-          ← 매장 목록으로 돌아가기
+          ??留ㅼ옣 紐⑸줉?쇰줈 ?뚯븘媛湲?
         </Link>
-        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">{branch?.name ?? "매장 상세"}</h1>
+        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">{branch?.name ?? "留ㅼ옣 ?곸꽭"}</h1>
         <p className="text-text-secondary mt-1 text-[13px]">
           {branch ? buildOrderUrl(brandSlug, branch.slug, branch.id) : "-"}
         </p>
       </div>
 
-      {loading && <p className="text-text-tertiary">불러오는 중...</p>}
+      {loading && <p className="text-text-tertiary">遺덈윭?ㅻ뒗 以?..</p>}
       {error && <p className="text-danger-500">{error}</p>}
 
       {!loading && branch && (
         <div className="grid gap-3">
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">매장 기본 정보</div>
+            <div className="text-xs text-text-secondary">留ㅼ옣 湲곕낯 ?뺣낫</div>
             <div className="mt-2 grid gap-2.5">
               <div>
                 <label className="block mb-1.5 text-xs text-text-secondary">매장명</label>
@@ -333,20 +379,20 @@ export default function StoreDetailPage() {
               </div>
 
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">주문 URL</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">二쇰Ц URL</label>
                 <input
                   value={slug}
                   onChange={(e) => setSlug(normalizeSlug(e.target.value))}
                   className="input-field w-full"
-                  placeholder="예: gangnam-main"
+                  placeholder="?? gangnam-main"
                 />
                 <div className="text-xs text-text-tertiary mt-1.5">
-                  영문/숫자/하이픈(-)만 가능합니다.
+                  ?곷Ц/?レ옄/?섏씠??-)留?媛?ν빀?덈떎.
                 </div>
               </div>
 
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">매장 ID</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">留ㅼ옣 ID</label>
                 <div className="text-[13px] text-foreground font-mono">{branch.id}</div>
               </div>
 
@@ -358,10 +404,10 @@ export default function StoreDetailPage() {
           </div>
 
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">주문 설정</div>
+            <div className="text-xs text-text-secondary">二쇰Ц ?ㅼ젙</div>
 
             <div className="mt-3">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 주문 방식</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">?뚮퉬?먯뿉寃??몄텧??二쇰Ц 諛⑹떇</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_FULFILLMENT_TYPES.map((type) => {
                   const checked = enabledFulfillmentTypes.includes(type);
@@ -383,7 +429,7 @@ export default function StoreDetailPage() {
             </div>
 
             <div className="mt-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 결제 수단</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">?뚮퉬?먯뿉寃??몄텧??寃곗젣 ?섎떒</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_PAYMENT_METHODS.map((method) => {
                   const checked = allowedPaymentMethods.includes(method);
@@ -403,6 +449,33 @@ export default function StoreDetailPage() {
                 })}
               </div>
             </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">怨꾩쥖?댁껜 ?낃툑 ?뺣낫</div>
+              <div className="grid gap-2">
+                <input
+                  value={transferBankName}
+                  onChange={(e) => setTransferBankName(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="??됰챸"
+                />
+                <input
+                  value={transferAccountNumber}
+                  onChange={(e) => setTransferAccountNumber(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="怨꾩쥖踰덊샇"
+                />
+                <input
+                  value={transferAccountHolder}
+                  onChange={(e) => setTransferAccountHolder(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="예금주"
+                />
+              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                怨꾩쥖?댁껜 寃곗젣 ?붾㈃???몄텧?섎뒗 ?뺣낫?낅땲??
+              </div>
+            </div>
           </div>
 
           <div className="card p-4">
@@ -419,24 +492,24 @@ export default function StoreDetailPage() {
                 onClick={handleReset}
                 disabled={saving || deleting || !isDirty}
               >
-                변경 취소
+                蹂寃?痍⑥냼
               </button>
               <button
                 className="h-9 px-4 rounded-lg border border-danger-500 bg-transparent text-danger-500 font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
                 onClick={handleDelete}
                 disabled={saving || deleting}
               >
-                {deleting ? "삭제 중..." : "매장 삭제"}
+                {deleting ? "??젣 以?.." : "留ㅼ옣 ??젣"}
               </button>
             </div>
           </div>
 
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">매장 멤버</div>
-            {membersLoading && <p className="text-text-tertiary mt-2">불러오는 중...</p>}
+            <div className="text-xs text-text-secondary">留ㅼ옣 硫ㅻ쾭</div>
+            {membersLoading && <p className="text-text-tertiary mt-2">遺덈윭?ㅻ뒗 以?..</p>}
             {membersError && <p className="text-danger-500 mt-2">{membersError}</p>}
             {!membersLoading && !membersError && members.length === 0 && (
-              <p className="text-text-tertiary mt-2">등록된 멤버가 없습니다.</p>
+              <p className="text-text-tertiary mt-2">?깅줉??硫ㅻ쾭媛 ?놁뒿?덈떎.</p>
             )}
             {!membersLoading && members.length > 0 && (
               <div className="mt-2 grid gap-1.5">
@@ -452,7 +525,7 @@ export default function StoreDetailPage() {
                       <div className="text-xs text-text-tertiary">{member.userId}</div>
                     </div>
                     <div className="text-xs text-text-secondary">
-                      {member.role} · {member.status}
+                      {member.role} 쨌 {member.status}
                     </div>
                   </div>
                 ))}

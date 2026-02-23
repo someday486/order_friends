@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 type PublicBrandBranch = {
   id: string;
@@ -129,6 +130,9 @@ export default function BrandOrderPage() {
               <h1 className="text-lg font-bold text-foreground leading-tight">{brandName}</h1>
               <p className="text-xs text-text-secondary mt-0.5">주문할 지점을 선택해 주세요.</p>
             </div>
+          </div>
+          <div className="px-4 pb-4">
+            <KakaoQuickLoginButton />
           </div>
         </header>
 

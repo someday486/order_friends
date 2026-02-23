@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 type PublicBrandItem = {
   id: string;
@@ -64,6 +65,7 @@ export default function ShopPage() {
           <p className="mt-2 text-sm text-text-secondary">
             브랜드를 선택하고 배송 주문을 시작하세요.
           </p>
+          <KakaoQuickLoginButton className="mt-4 max-w-md" />
         </header>
 
         <div className="mb-6">

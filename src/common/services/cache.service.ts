@@ -101,9 +101,7 @@ export class CacheService {
 
       if (store && typeof store.keys === 'function') {
         const keys = await store.keys();
-        const matchedKeys = keys.filter((key: string) =>
-          key.includes(pattern),
-        );
+        const matchedKeys = keys.filter((key: string) => key.includes(pattern));
 
         await Promise.all(matchedKeys.map((key: string) => this.del(key)));
         this.logger.debug(

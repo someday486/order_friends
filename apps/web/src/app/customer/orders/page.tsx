@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -10,8 +10,7 @@ import {
   type FulfillmentType,
   type OrderStatus,
 } from '@/types/common';
-import Modal from '@/components/ui/Modal';
-import { createOrderExportJob, getOrderExportJobStatus } from '@/lib/exports';
+import { createOrderExportJob } from '@/lib/exports';
 
 // ============================================================
 // Types
@@ -89,14 +88,16 @@ const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   REFUNDED: '환불',
 };
 
+// Active statuses: filled + ring (high visual weight)
+// Terminal statuses: muted (low visual weight)
 const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
-  CREATED: 'bg-blue-500/10 text-blue-500',
-  CONFIRMED: 'bg-indigo-500/10 text-indigo-500',
-  PREPARING: 'bg-yellow-500/10 text-yellow-600',
-  READY: 'bg-green-500/10 text-green-600',
-  COMPLETED: 'bg-gray-500/10 text-gray-600',
-  CANCELLED: 'bg-red-500/10 text-red-600',
-  REFUNDED: 'bg-purple-500/10 text-purple-600',
+  CREATED:   'bg-blue-500/15 text-blue-600 ring-1 ring-inset ring-blue-500/40',
+  CONFIRMED: 'bg-indigo-500/15 text-indigo-600 ring-1 ring-inset ring-indigo-500/40',
+  PREPARING: 'bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/40',
+  READY:     'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
+  COMPLETED: 'bg-gray-500/10 text-gray-500',
+  CANCELLED: 'bg-red-500/10 text-red-500',
+  REFUNDED:  'bg-purple-500/10 text-purple-500',
 };
 
 const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
@@ -107,10 +108,11 @@ const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
     { value: 'DINE_IN', label: '매장' },
   ];
 
+// Outlined style: subordinate visual weight compared to status badges
 const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
-  PICKUP: 'bg-blue-500/10 text-blue-500',
-  DELIVERY: 'bg-orange-500/10 text-orange-500',
-  DINE_IN: 'bg-neutral-500/10 text-neutral-600',
+  PICKUP:   'border border-sky-400/70 text-sky-600',
+  DELIVERY: 'border border-orange-400/70 text-orange-600',
+  DINE_IN:  'border border-neutral-400/70 text-neutral-500',
 };
 
 // ============================================================
@@ -124,31 +126,48 @@ function isUuidFormat(value: string): boolean {
   return UUID_FORMAT_REGEX.test(value);
 }
 
+function getTotalQty(order: Order): number | null {
+  const items = order.items ?? order.order_items;
+  if (items && items.length > 0) {
+    return items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+  }
+
+  // 백엔드가 총수량을 내려주는 경우(이 필드 의미가 총수량이면 그대로 사용)
+  const fallback = order.item_count ?? order.itemCount;
+  return typeof fallback === "number" ? fallback : null;
+}
+
 function getItemSummary(order: Order): string {
   const firstName = order.firstItemName ?? order.first_item_name;
-  const firstQty = order.firstItemQty ?? order.first_item_qty;
-  const itemCount = order.item_count ?? order.itemCount;
+
+  const firstQtyRaw = order.firstItemQty ?? order.first_item_qty;
+  const firstQty = typeof firstQtyRaw === "number" ? firstQtyRaw : 1;
+
+  const totalQty = getTotalQty(order);
 
   if (firstName) {
-    const qtyLabel = firstQty ? `${firstQty}개` : '1개';
-    if (itemCount && itemCount > 1) {
-      return `${firstName} ${qtyLabel} 외 ${itemCount - 1}개`;
+    const qtyLabel = `${firstQty}개`;
+
+    // totalQty가 있으면 "총 수량" 기준으로 "외 N개" 계산
+    if (totalQty && totalQty > firstQty) {
+      return `${firstName} ${qtyLabel} 외 ${totalQty - firstQty}개`;
     }
     return `${firstName} ${qtyLabel}`;
   }
 
+  // firstItem 정보가 없으면 items로 대체
   const items = order.items ?? order.order_items;
   if (items && items.length > 0) {
     const first = items[0];
-    const qtyLabel = first.qty ? `${first.qty}개` : '1개';
-    if (items.length > 1) {
-      return `${first.name} ${qtyLabel} 외 ${items.length - 1}개`;
-    }
-    return `${first.name} ${qtyLabel}`;
+    const fq = Number(first.qty) || 1;
+    const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+
+    if (total > fq) return `${first.name} ${fq}개 외 ${total - fq}개`;
+    return `${first.name} ${fq}개`;
   }
 
-  if (itemCount) return `총 ${itemCount}개`;
-  return '-';
+  if (totalQty) return `총 ${totalQty}개`;
+  return "-";
 }
 
 function formatYmdHm(iso: string) {
@@ -159,6 +178,7 @@ function formatYmdHm(iso: string) {
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
 }
+
 
 // ============================================================
 // Sub-components
@@ -202,6 +222,140 @@ function TableRowSkeleton({ cols }: { cols: number }) {
   );
 }
 
+function getTodayYmd(): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+// ── ExportDialog ─────────────────────────────────────────────
+
+type ExportDialogProps = {
+  selectedCount: number;
+  exporting: boolean;
+  onClose: () => void;
+  onDownload: (format: 'csv' | 'xlsx', scope: 'filter' | 'selected') => void;
+};
+
+function ExportDialog({
+  selectedCount,
+  exporting,
+  onClose,
+  onDownload,
+}: ExportDialogProps) {
+  const [format, setFormat] = useState<'csv' | 'xlsx'>('csv');
+  const [scope, setScope] = useState<'filter' | 'selected'>('filter');
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !exporting) onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [exporting, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => { if (!exporting) onClose(); }}
+    >
+      <div
+        className="relative w-full max-w-sm bg-bg-primary rounded-2xl border border-border shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-foreground mb-5">주문 내보내기</h2>
+
+        {/* Format */}
+        <fieldset className="mb-5">
+          <legend className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+            형식
+          </legend>
+          <div className="flex gap-4">
+            {(['csv', 'xlsx'] as const).map((f) => (
+              <label key={f} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export-format"
+                  value={f}
+                  checked={format === f}
+                  onChange={() => setFormat(f)}
+                  className="accent-primary"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  {f === 'csv' ? 'CSV' : 'Excel (.xlsx)'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* Scope */}
+        <fieldset className="mb-6">
+          <legend className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+            범위
+          </legend>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="export-scope"
+                value="filter"
+                checked={scope === 'filter'}
+                onChange={() => setScope('filter')}
+                className="accent-primary"
+              />
+              <span className="text-sm font-medium text-foreground">현재 필터 결과</span>
+            </label>
+            <label
+              className={`flex items-center gap-2 ${
+                selectedCount === 0 ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+            >
+              <input
+                type="radio"
+                name="export-scope"
+                value="selected"
+                checked={scope === 'selected'}
+                onChange={() => setScope('selected')}
+                disabled={selectedCount === 0}
+                className="accent-primary"
+              />
+              <span className="text-sm font-medium text-foreground">
+                선택 주문
+                {selectedCount > 0 && (
+                  <span className="ml-1.5 text-xs text-text-secondary">
+                    ({selectedCount}건)
+                  </span>
+                )}
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        {/* Actions */}
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={exporting}
+            className="h-9 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-medium text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => onDownload(format, scope)}
+            disabled={exporting}
+            className="h-9 px-5 rounded-lg bg-foreground text-background text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 min-w-[80px]"
+          >
+            {exporting ? '처리 중...' : '다운로드'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // Main Component
 // ============================================================
@@ -213,34 +367,61 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filters
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
     FulfillmentType | 'ALL'
   >('ALL');
+
+  // Date range: input (staged) vs applied (active)
+  const [dateStartInput, setDateStartInput] = useState(() => getTodayYmd());
+  const [dateEndInput, setDateEndInput] = useState(() => getTodayYmd());
+  const [appliedDateStart, setAppliedDateStart] = useState(() => getTodayYmd());
+  const [appliedDateEnd, setAppliedDateEnd] = useState(() => getTodayYmd());
+
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportDateStart, setExportDateStart] = useState('');
-  const [exportDateEnd, setExportDateEnd] = useState('');
+
+  // Export
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Bulk update
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
   const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
-  const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
-  const isInvalidExportDateRange = useMemo(() => {
-    if (!exportDateStart || !exportDateEnd) return false;
-    return exportDateEnd < exportDateStart;
-  }, [exportDateStart, exportDateEnd]);
 
-  // 지점 ID -> 지점명 매핑
+  const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
+  const showMultiBranch = validBranches.length > 1;
+  // cols: checkbox + 주문/고객 + 상품 + (지점) + 방식 + 상태 + 금액
+  const tableCols = showMultiBranch ? 7 : 6;
+
+  const isInvalidDateRange = useMemo(() => {
+    if (!dateStartInput || !dateEndInput) return false;
+    return dateEndInput < dateStartInput;
+  }, [dateStartInput, dateEndInput]);
+
   const branchMap = useMemo(() => {
     return new Map(branches.map((b) => [b.id, b.name]));
   }, [branches]);
+
+  // Summary (기간/지점/방식 기준 고정)
+  const [summaryCounts, setSummaryCounts] = useState<Record<OrderStatus, number>>({
+    CREATED: 0,
+    CONFIRMED: 0,
+    PREPARING: 0,
+    READY: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+    REFUNDED: 0,
+  });
+  const [summaryTotal, setSummaryTotal] = useState(0);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // Load branches
   useEffect(() => {
@@ -257,13 +438,93 @@ export default function CustomerOrdersPage() {
   }, []);
 
   useEffect(() => {
+    const loadSummary = async () => {
+      try {
+        setSummaryLoading(true);
+
+        const baseParams = new URLSearchParams({
+          page: "1",
+          limit: "1", // 총 개수만 필요
+        });
+
+        if (branchFilter !== "ALL" && isUuidFormat(branchFilter)) {
+          baseParams.append("branchId", branchFilter);
+        }
+        if (fulfillmentFilter !== "ALL") {
+          baseParams.append("fulfillmentType", fulfillmentFilter);
+        }
+        if (appliedDateStart) baseParams.append("dateStart", appliedDateStart);
+        if (appliedDateEnd) baseParams.append("dateEnd", appliedDateEnd);
+
+        // 총합(상태 ALL)
+        const totalRes = await apiClient.get<OrderListResponse | Order[]>(
+          `/customer/orders?${baseParams.toString()}`,
+        );
+        const totalCount = Array.isArray(totalRes)
+          ? totalRes.length
+          : totalRes.pagination?.total || totalRes.total || 0;
+
+        // 상태별 카운트
+        const STATUSES: OrderStatus[] = [
+          "CREATED",
+          "CONFIRMED",
+          "PREPARING",
+          "READY",
+          "COMPLETED",
+          "CANCELLED",
+          // 필요하면 "REFUNDED"도 카드로 넣을 때만 포함
+        ];
+
+        const results = await Promise.all(
+          STATUSES.map(async (s) => {
+            const p = new URLSearchParams(baseParams);
+            p.append("status", s);
+
+            const res = await apiClient.get<OrderListResponse | Order[]>(
+              `/customer/orders?${p.toString()}`,
+            );
+
+            const count = Array.isArray(res)
+              ? res.length
+              : res.pagination?.total || res.total || 0;
+
+            return [s, count] as const;
+          }),
+        );
+
+        setSummaryTotal(totalCount);
+        setSummaryCounts((prev) => {
+          const next = { ...prev };
+          for (const [s, c] of results) next[s] = c;
+          return next;
+        });
+      } catch (e) {
+        console.error(e);
+        // 요약 실패해도 리스트는 동작해야 하니 error state는 건드리지 않는 걸 추천
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    void loadSummary();
+  }, [
+    branchFilter,
+    fulfillmentFilter,
+    appliedDateStart,
+    appliedDateEnd,
+    reloadToken,
+  ]);
+
+
+  useEffect(() => {
     if (branchFilter !== 'ALL' && !isUuidFormat(branchFilter)) {
       setBranchFilter('ALL');
       setPage(1);
     }
   }, [branchFilter]);
 
-  // Load orders
+
+  // Load orders — fires on filter changes and 조회 button (via appliedDate* / reloadToken)
   useEffect(() => {
     const loadOrders = async () => {
       try {
@@ -278,12 +539,17 @@ export default function CustomerOrdersPage() {
         if (branchFilter !== 'ALL' && isUuidFormat(branchFilter)) {
           params.append('branchId', branchFilter);
         }
-
         if (statusFilter !== 'ALL') {
           params.append('status', statusFilter);
         }
         if (fulfillmentFilter !== 'ALL') {
           params.append('fulfillmentType', fulfillmentFilter);
+        }
+        if (appliedDateStart) {
+          params.append('dateStart', appliedDateStart);
+        }
+        if (appliedDateEnd) {
+          params.append('dateEnd', appliedDateEnd);
         }
 
         const data = await apiClient.get<OrderListResponse | Order[]>(
@@ -314,17 +580,37 @@ export default function CustomerOrdersPage() {
     };
 
     void loadOrders();
-  }, [page, limit, branchFilter, statusFilter, fulfillmentFilter, reloadToken]);
+  }, [
+    page,
+    limit,
+    branchFilter,
+    statusFilter,
+    fulfillmentFilter,
+    appliedDateStart,
+    appliedDateEnd,
+    reloadToken,
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 
-  // Count active orders (not completed/cancelled/refunded)
-  const activeCount = orders.filter(
-    (o) => !['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(o.status),
-  ).length;
+  const activeCount =
+    (summaryCounts.CREATED ?? 0) +
+    (summaryCounts.CONFIRMED ?? 0) +
+    (summaryCounts.PREPARING ?? 0) +
+    (summaryCounts.READY ?? 0);
   const selectedCount = selectedOrderIds.size;
   const allVisibleSelected =
     orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
+
+
+
+  
+  // 조회 버튼: staged → applied + page reset
+  const handleApplyFilter = () => {
+    setAppliedDateStart(dateStartInput);
+    setAppliedDateEnd(dateEndInput);
+    setPage(1);
+  };
 
   const toggleSelectAllVisible = (checked: boolean) => {
     setSelectedOrderIds((prev) => {
@@ -375,16 +661,15 @@ export default function CustomerOrdersPage() {
     }
   };
 
-  const handleCreateExportJob = async () => {
-    if (isInvalidExportDateRange) {
-      alert('종료일은 시작일보다 빠를 수 없습니다.');
-      return;
-    }
-
+  const handleDownload = async (
+    format: 'csv' | 'xlsx',
+    _scope: 'filter' | 'selected',
+  ) => {
     try {
       setExporting(true);
-      const createResponse = await createOrderExportJob({
-        format: 'csv',
+      // createOrderExportJob polls internally until DONE (45s) and returns downloadUrl
+      const result = await createOrderExportJob({
+        format,
         scope: 'detail',
         filters: {
           ...(branchFilter !== 'ALL' && isUuidFormat(branchFilter)
@@ -394,45 +679,18 @@ export default function CustomerOrdersPage() {
           ...(fulfillmentFilter !== 'ALL'
             ? { fulfillmentType: fulfillmentFilter }
             : {}),
-          ...(exportDateStart ? { dateStart: exportDateStart } : {}),
-          ...(exportDateEnd ? { dateEnd: exportDateEnd } : {}),
+          ...(appliedDateStart ? { dateStart: appliedDateStart } : {}),
+          ...(appliedDateEnd ? { dateEnd: appliedDateEnd } : {}),
         },
       });
-      const jobId = createResponse.jobId;
 
-      if (!jobId) {
-        throw new Error('Export 작업 ID를 확인할 수 없습니다.');
+      const url = result?.downloadUrl;
+      if (url) {
+        window.open(url, '_blank');
+        setShowExportDialog(false);
+      } else {
+        alert('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
       }
-
-      const maxAttempts = 30;
-      let downloadUrl: string | null = null;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const statusResponse = await getOrderExportJobStatus(jobId);
-
-        if (statusResponse.status === 'COMPLETED') {
-          downloadUrl = statusResponse.downloadUrl ?? null;
-          break;
-        }
-
-        if (statusResponse.status === 'FAILED') {
-          alert(statusResponse.error || 'Export 생성에 실패했습니다.');
-          return;
-        }
-
-        if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      }
-
-      if (downloadUrl) {
-        window.open(downloadUrl, '_blank');
-        setShowExportModal(false);
-        return;
-      }
-
-      alert('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
-      setShowExportModal(false);
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : 'Export 생성에 실패했습니다');
@@ -443,43 +701,72 @@ export default function CustomerOrdersPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-extrabold text-foreground m-0">
-            주문 관리
-          </h1>
-          <p className="text-text-secondary mt-1 mb-0 text-[13px]">
-            총 <span className="font-bold text-foreground">{total}</span>건
-            {activeCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-sm text-primary-500 font-semibold ml-3">
-                <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
-                진행중 {activeCount}건
-              </span>
-            )}
-          </p>
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground hover:bg-bg-tertiary transition-colors"
-          >
-            Export 다운로드
-          </button>
+      {/* ── Section 1: OrderPageHeader ── */}
+      <div className="mb-5">
+        <h1 className="text-2xl font-extrabold text-foreground m-0">
+          주문 관리
+        </h1>
+        <div className="flex items-center gap-3 mt-1.5">
+          <span className="text-[13px] text-text-secondary">
+            총 <span className="font-bold text-foreground">{summaryTotal}</span>건
+          </span>
+          {activeCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-[13px] text-primary-500 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
+              진행중 {activeCount}건
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Branch filter (dropdown) */}
-      {validBranches.length > 1 && (
-        <div className="mb-4">
-          <label className="block text-[13px] text-text-secondary mb-2 font-semibold">
-            지점 필터
-          </label>
+      {/* ── Section 1.5: Today Status Summary Cards ── */}
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {([
+          { key: "CREATED", label: "주문접수" },
+          { key: "CONFIRMED", label: "확인" },
+          { key: "PREPARING", label: "준비중" },
+          { key: "READY", label: "준비완료" },
+          { key: "COMPLETED", label: "완료" },
+          { key: "CANCELLED", label: "취소" },
+        ] as const).map((c) => {
+          const k = c.key as OrderStatus;
+          const count = summaryCounts[k] ?? 0;
+
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => {
+                setStatusFilter(k);
+                setPage(1);
+              }}
+              className="text-left rounded-xl border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors p-3"
+            >
+              <div className="text-xs font-semibold text-text-secondary">
+                {c.label}
+              </div>
+              <div className="mt-1 text-2xl font-extrabold text-foreground">
+                {count}
+              </div>
+              <div className="mt-1 text-[11px] text-text-tertiary">
+                오늘 기준
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+
+      {/* ── Section 2: OrderFiltersBar ── */}
+      <div className="flex flex-wrap items-end gap-2 mb-4 p-3 rounded-xl border border-border bg-bg-secondary">
+        {showMultiBranch && (
           <select
             value={branchFilter}
             onChange={(e) => {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="input-field max-w-[280px]"
+            className="input-field h-9 text-sm min-w-[140px] max-w-[200px]"
           >
             <option value="ALL">모든 지점</option>
             {validBranches.map((branch) => (
@@ -488,61 +775,122 @@ export default function CustomerOrdersPage() {
               </option>
             ))}
           </select>
-        </div>
-      )}
+        )}
 
-      {/* Status filter chips */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-4">
-        {STATUS_FILTERS.map((opt) => {
-          const isActive = statusFilter === opt.value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => {
-                setStatusFilter(opt.value);
-                setPage(1);
-              }}
-              className={`
-                shrink-0 h-8 px-4 rounded-full text-sm font-medium
-                border transition-all duration-150 cursor-pointer
-                ${
-                  isActive
-                    ? 'bg-foreground text-background border-foreground font-bold'
-                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                }
-              `}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={dateStartInput}
+            onChange={(e) => setDateStartInput(e.target.value)}
+            className="input-field h-9 text-sm w-[140px]"
+            placeholder="시작일"
+          />
+          <span className="text-text-tertiary text-sm select-none">~</span>
+          <input
+            type="date"
+            value={dateEndInput}
+            min={dateStartInput || undefined}
+            onChange={(e) => setDateEndInput(e.target.value)}
+            className="input-field h-9 text-sm w-[140px]"
+            placeholder="종료일"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleApplyFilter}
+          disabled={isInvalidDateRange}
+          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity"
+        >
+          조회
+        </button>
+
+        <div className="hidden sm:block w-px h-7 bg-border mx-1" />
+
+        <button
+          type="button"
+          onClick={() => setShowExportDialog(true)}
+          className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="7,10 12,15 17,10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          내보내기
+        </button>
+
+        {isInvalidDateRange && (
+          <p className="w-full mt-0.5 text-xs text-danger-500">
+            종료일은 시작일보다 빠를 수 없습니다.
+          </p>
+        )}
       </div>
 
-      {/* Fulfillment filter chips */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-4">
-        {FULFILLMENT_FILTERS.map((opt) => {
-          const isActive = fulfillmentFilter === opt.value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => {
-                setFulfillmentFilter(opt.value);
-                setPage(1);
-              }}
-              className={`
-                shrink-0 h-8 px-4 rounded-full text-sm font-medium
-                border transition-all duration-150 cursor-pointer
-                ${
-                  isActive
-                    ? 'bg-foreground text-background border-foreground font-bold'
-                    : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                }
-              `}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+      {/* ── Section 3: OrderQuickChips ── */}
+      <div className="mb-4 space-y-1.5">
+        {/* Status chips */}
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+          {STATUS_FILTERS.map((opt) => {
+            const isActive = statusFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setStatusFilter(opt.value);
+                  setPage(1);
+                }}
+                className={`
+                  shrink-0 h-7 px-3.5 rounded-full text-xs font-medium
+                  border transition-all duration-150 cursor-pointer
+                  ${
+                    isActive
+                      ? 'bg-foreground text-background border-foreground font-bold'
+                      : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                  }
+                `}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Fulfillment chips */}
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+          {FULFILLMENT_FILTERS.map((opt) => {
+            const isActive = fulfillmentFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setFulfillmentFilter(opt.value);
+                  setPage(1);
+                }}
+                className={`
+                  shrink-0 h-7 px-3.5 rounded-full text-xs font-medium
+                  border transition-all duration-150 cursor-pointer
+                  ${
+                    isActive
+                      ? 'bg-foreground text-background border-foreground font-bold'
+                      : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
+                  }
+                `}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Error */}
@@ -552,20 +900,18 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      {orders.length > 0 && (
-        <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-4">
+      {/* ── BulkActionBar — sticky, only when selectedCount > 0 ── */}
+      {selectedCount > 0 && (
+        <div className="sticky top-0 z-20 mb-3 rounded-xl border border-border bg-bg-secondary/95 backdrop-blur-sm p-3 shadow-md">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-sm font-bold text-foreground">주문 일괄 처리</div>
-              <div className="text-xs text-text-secondary mt-1">
-                선택 {selectedCount}건
-              </div>
-            </div>
+            <span className="text-sm font-bold text-foreground">
+              {selectedCount}건 선택됨
+            </span>
             <div className="flex items-center gap-2 flex-wrap">
               <select
                 value={bulkStatus}
                 onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
-                className="input-field h-9 min-w-[150px]"
+                className="input-field h-8 text-sm min-w-[130px]"
                 disabled={bulkUpdating}
               >
                 {BULK_STATUS_OPTIONS.map((status) => (
@@ -579,16 +925,16 @@ export default function CustomerOrdersPage() {
                 onClick={() => {
                   void handleBulkStatusUpdate();
                 }}
-                disabled={selectedCount === 0 || bulkUpdating}
-                className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+                disabled={bulkUpdating}
+                className="h-8 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
               >
-                {bulkUpdating ? '변경 중...' : '선택 주문 일괄 변경'}
+                {bulkUpdating ? '변경 중...' : '일괄 변경'}
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedOrderIds(new Set())}
-                disabled={selectedCount === 0 || bulkUpdating}
-                className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+                disabled={bulkUpdating}
+                className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
               >
                 선택 해제
               </button>
@@ -597,31 +943,28 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      {/* Order table */}
+      {/* ── Order Table ── */}
       {loading && orders.length === 0 ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[720px]">
+          <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">
+                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
                   선택
                 </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  주문번호
-                </th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  고객명
+                  주문 / 고객
                 </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                   상품
                 </th>
-                {validBranches.length > 1 && (
+                {showMultiBranch && (
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                     지점
                   </th>
                 )}
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  주문 방식
+                  방식
                 </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                   상태
@@ -629,17 +972,11 @@ export default function CustomerOrdersPage() {
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">
                   금액
                 </th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  주문시간
-                </th>
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: 5 }).map((_, index) => (
-                <TableRowSkeleton
-                  key={index}
-                  cols={validBranches.length > 1 ? 9 : 8}
-                />
+                <TableRowSkeleton key={index} cols={tableCols} />
               ))}
             </tbody>
           </table>
@@ -648,10 +985,10 @@ export default function CustomerOrdersPage() {
         <EmptyState />
       ) : (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[720px]">
+          <table className="w-full border-collapse min-w-[640px]">
             <thead className="bg-bg-tertiary">
               <tr>
-                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">
+                <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
@@ -661,30 +998,24 @@ export default function CustomerOrdersPage() {
                   />
                 </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  주문번호
-                </th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  고객명
+                  주문 / 고객
                 </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                   상품
                 </th>
-                {validBranches.length > 1 && (
+                {showMultiBranch && (
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                     지점
                   </th>
                 )}
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  주문 방식
+                  방식
                 </th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                   상태
                 </th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">
                   금액
-                </th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                  주문시간
                 </th>
               </tr>
             </thead>
@@ -693,10 +1024,7 @@ export default function CustomerOrdersPage() {
                 const itemSummary = getItemSummary(order);
                 const fullItemsSummary =
                   order.itemsSummary ?? order.items_summary;
-
-                // 지점 ID 추출 (snake_case 또는 camelCase)
                 const branchId = order.branch_id ?? order.branchId;
-                // 지점명 매핑 (branchMap -> order.branchName -> "-")
                 const branchName = branchId
                   ? (branchMap.get(branchId) ?? order.branchName ?? '-')
                   : (order.branchName ?? '-');
@@ -706,9 +1034,10 @@ export default function CustomerOrdersPage() {
                 return (
                   <tr
                     key={order.id}
-                    className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
+                    className="group border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
                     onClick={() => router.push(`/customer/orders/${order.id}`)}
                   >
+                    {/* Checkbox */}
                     <td
                       className="py-3 px-3.5 text-center"
                       onClick={(e) => e.stopPropagation()}
@@ -729,40 +1058,152 @@ export default function CustomerOrdersPage() {
                         aria-label={`주문 ${order.orderNo ?? order.id.slice(0, 8)} 선택`}
                       />
                     </td>
-                    <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      <span className="font-mono font-bold">
-                        {order.orderNo ?? order.id.slice(0, 8)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      {order.customerName || '-'}
-                    </td>
+
+                    {/* 주문번호 + 고객명 · 주문시간 (2-line) */}
                     <td
-                      className="py-3 px-3.5 text-[13px] text-text-secondary relative group"
-                      onClick={(e) => {
-                        if (fullItemsSummary) {
-                          e.stopPropagation();
+                      className="py-2.5 px-3.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Line 1: 주문번호 + 복사 버튼 */}
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="font-mono text-[13px] font-bold text-foreground cursor-pointer hover:text-primary-500 transition-colors"
+                          onClick={() =>
+                            router.push(`/customer/orders/${order.id}`)
+                          }
+                        >
+                          {order.orderNo ?? order.id.slice(0, 8)}
+                        </span>
+                        <button
+                          type="button"
+                          title="주문번호 복사"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(
+                              order.orderNo ?? order.id,
+                            );
+                          }}
+                          className="opacity-0 group-hover:opacity-60 hover:!opacity-100 text-text-tertiary hover:text-foreground transition-all p-0.5 rounded"
+                        >
+                          <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                          </svg>
+                        </button>
+                      </div>
+                      {/* Line 2: 고객명 · 주문시간 */}
+                      <div
+                        className="text-xs text-text-secondary mt-0.5 cursor-pointer"
+                        onClick={() =>
+                          router.push(`/customer/orders/${order.id}`)
                         }
+                      >
+                        {order.customerName || '-'}
+                        <span className="mx-1 text-text-tertiary">·</span>
+                        {formatYmdHm(order.orderedAt)}
+                        <span className="ml-1.5 text-text-tertiary">
+                          {formatRelativeTime(order.orderedAt)}
+                        </span>
+                      </div>
+                    </td>
+
+           
+                    {/* 상품 */}
+                    <td
+                      className="py-3 px-3.5 text-[13px] text-text-secondary relative group/item"
+                      onClick={(e) => {
+                        const items = order.items ?? order.order_items;
+                        const hasTooltip = (items && items.length > 0) || !!fullItemsSummary;
+                        if (hasTooltip) e.stopPropagation();
                       }}
                     >
-                      <span className={fullItemsSummary ? 'cursor-help' : ''}>
-                        {itemSummary}
-                      </span>
-                      {fullItemsSummary && (
-                        <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover:block bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs whitespace-nowrap max-w-xs">
-                          {fullItemsSummary}
-                        </div>
-                      )}
-                    </td>
-                    {validBranches.length > 1 && (
+                      {(() => {
+                        const items = order.items ?? order.order_items;
+                        const totalQty = getTotalQty(order);
+                        const hasTooltip = (items && items.length > 0) || !!fullItemsSummary;
+
+                        return (
+                          <>
+                            <span className={hasTooltip ? "cursor-help" : ""}>{itemSummary}</span>
+
+                            {/* 1) items 배열이 있으면: 세로 리스트 툴팁 */}
+                            {items && items.length > 0 ? (
+                              <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover/item:block">
+                                <div className="bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs w-[280px]">
+                                  {typeof totalQty === "number" && (
+                                    <div className="mb-2 font-semibold text-foreground">
+                                      총 {totalQty}개
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col gap-1">
+                                    {items.map((it, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-start justify-between gap-3"
+                                      >
+                                        <span className="text-text-secondary break-words whitespace-normal">
+                                          {it.name}
+                                        </span>
+                                        <span className="text-foreground font-semibold shrink-0">
+                                          {Number(it.qty) || 1}개
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : fullItemsSummary ? (
+                              // 2) items가 없고 fullItemsSummary 문자열만 있으면: 쉼표 기준으로 줄바꿈
+                              <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover/item:block">
+                                <div className="bg-bg-secondary border border-border rounded-lg shadow-lg p-3 text-xs w-[280px]">
+                                  {typeof totalQty === "number" && (
+                                    <div className="mb-2 font-semibold text-foreground">
+                                      총 {totalQty}개
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col gap-1">
+                                    {fullItemsSummary
+                                      .split(",")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean)
+                                      .map((line, i) => (
+                                        <div
+                                          key={i}
+                                          className="text-text-secondary break-words whitespace-normal"
+                                        >
+                                          {line}
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </td>                    
+
+
+                    {/* 지점 (multi-branch only) */}
+                    {showMultiBranch && (
                       <td className="py-3 px-3.5 text-[13px] text-foreground whitespace-nowrap">
                         {branchName}
                       </td>
                     )}
+
+                    {/* 방식 */}
                     <td className="py-3 px-3.5 text-[13px]">
                       {fulfillmentType ? (
                         <span
-                          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${FULFILLMENT_BADGE_CLASS[fulfillmentType]}`}
+                          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-medium ${FULFILLMENT_BADGE_CLASS[fulfillmentType]}`}
                         >
                           {FULFILLMENT_TYPE_LABEL[fulfillmentType]}
                         </span>
@@ -770,6 +1211,8 @@ export default function CustomerOrdersPage() {
                         '-'
                       )}
                     </td>
+
+                    {/* 상태 */}
                     <td className="py-3 px-3.5 text-[13px]">
                       <span
                         className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
@@ -777,14 +1220,10 @@ export default function CustomerOrdersPage() {
                         {ORDER_STATUS_LABEL[order.status]}
                       </span>
                     </td>
+
+                    {/* 금액 */}
                     <td className="py-3 px-3.5 text-[13px] text-right font-bold text-foreground">
                       {formatWon(order.totalAmount)}
-                    </td>
-                    <td className="py-3 px-3.5 text-[13px] text-text-secondary whitespace-nowrap">
-                      <div>{formatYmdHm(order.orderedAt)}</div>
-                      <div className="text-xs text-text-tertiary">
-                        {formatRelativeTime(order.orderedAt)}
-                      </div>
                     </td>
                   </tr>
                 );
@@ -857,64 +1296,17 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      <Modal
-        open={showExportModal}
-        title="Export 다운로드"
-        onClose={() => {
-          if (!exporting) setShowExportModal(false);
-        }}
-        footer={
-          <>
-            <button
-              onClick={() => setShowExportModal(false)}
-              disabled={exporting}
-              className="h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
-            >
-              취소
-            </button>
-            <button
-              onClick={() => {
-                void handleCreateExportJob();
-              }}
-              disabled={exporting || isInvalidExportDateRange}
-              className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
-            >
-              {exporting ? '생성 중...' : 'Export 생성'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              시작일 (dateStart)
-            </label>
-            <input
-              type="date"
-              value={exportDateStart}
-              onChange={(e) => setExportDateStart(e.target.value)}
-              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              종료일 (dateEnd)
-            </label>
-            <input
-              type="date"
-              value={exportDateEnd}
-              onChange={(e) => setExportDateEnd(e.target.value)}
-              min={exportDateStart || undefined}
-              className="w-full h-9 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground"
-            />
-          </div>
-          {isInvalidExportDateRange && (
-            <p className="text-xs text-danger-500">
-              종료일은 시작일보다 빠를 수 없습니다.
-            </p>
-          )}
-        </div>
-      </Modal>
+      {/* ExportDialog */}
+      {showExportDialog && (
+        <ExportDialog
+          selectedCount={selectedCount}
+          exporting={exporting}
+          onClose={() => setShowExportDialog(false)}
+          onDownload={(format, scope) => {
+            void handleDownload(format, scope);
+          }}
+        />
+      )}
     </div>
   );
 }

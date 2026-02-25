@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
   createContext,
@@ -13,11 +13,11 @@ import { getInitialSession, subscribeAuth } from "@/lib/auth/client";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type AuthContextValue = AuthState & {
-  /** 호환용: 기존 코드가 loading을 쓰면 그대로 동작 */
+  /** 기존 코드 호환용 로딩 상태 */
   loading: boolean;
-  /** 로그인/로그아웃 직후 등, 세션을 강제로 재동기화할 때 사용 */
+  /** 로그인/로그아웃 직후 세션 상태 강제 동기화 */
   refresh: () => Promise<void>;
-  /** 로그아웃 함수 */
+  /** 로그아웃 */
   signOut: () => Promise<void>;
 };
 
@@ -49,14 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1) 최초 1회만: loading -> authenticated|unauthenticated
+    // 최초 1회 로드: loading -> authenticated|unauthenticated
     (async () => {
       const session = await getInitialSession();
       if (!mounted) return;
       setState(derive(session));
     })();
 
-    // 2) 이후 이벤트: 곧바로 최종 상태 반영 (loading으로 되돌리지 않음)
+    // 이후 인증 이벤트를 최종 상태로 반영
     const unsubscribe = subscribeAuth((session) => {
       setState(derive(session));
     });

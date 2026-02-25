@@ -2,13 +2,17 @@ import { CacheService } from './cache.service';
 
 describe('CacheService', () => {
   const makeService = (overrides: Partial<Record<string, any>> = {}) => {
-    const store = overrides.store ?? { keys: jest.fn().mockResolvedValue([]) };
+    const store =
+      overrides.store ??
+      ({
+        keys: jest.fn().mockResolvedValue([]),
+        clear: jest.fn(),
+      } as any);
     const cacheManager = {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
-      reset: jest.fn(),
-      store,
+      stores: [store],
       ...overrides,
     };
     return { service: new CacheService(cacheManager as any), cacheManager };
@@ -110,16 +114,20 @@ describe('CacheService', () => {
   });
 
   it('reset should clear cache', async () => {
-    const { service, cacheManager } = makeService();
+    const store = { keys: jest.fn().mockResolvedValue([]), clear: jest.fn() };
+    const { service } = makeService({ store });
 
     await service.reset();
 
-    expect(cacheManager.reset).toHaveBeenCalled();
+    expect(store.clear).toHaveBeenCalled();
   });
 
   it('reset should handle errors', async () => {
-    const { service, cacheManager } = makeService();
-    cacheManager.reset.mockRejectedValueOnce(new Error('boom'));
+    const store = {
+      keys: jest.fn().mockResolvedValue([]),
+      clear: jest.fn().mockRejectedValueOnce(new Error('boom')),
+    };
+    const { service } = makeService({ store });
 
     await service.reset();
   });

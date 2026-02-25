@@ -37,15 +37,15 @@ const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
-  PICKUP: "?ъ옣",
-  DELIVERY: "諛곕떖",
-  DINE_IN: "留ㅼ옣",
+  PICKUP: "포장",
+  DELIVERY: "배달",
+  DINE_IN: "매장",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
-  CARD: "移대뱶",
-  TRANSFER: "怨꾩쥖?댁껜",
-  CASH: "?꾧툑",
+  CARD: "카드",
+  TRANSFER: "계좌이체",
+  CASH: "현금",
 };
 
 function normalizeSlug(value: string) {
@@ -178,7 +178,7 @@ export default function BranchDetailPage() {
         resetForm(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "吏???뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??");
+        setError(err?.message ?? "지점 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -207,22 +207,22 @@ export default function BranchDetailPage() {
     if (!branch) return;
 
     if (!name.trim()) {
-      toast.error("吏?먮챸???낅젰?섏꽭??");
+      toast.error("지점명을 입력하세요.");
       return;
     }
 
     if (!slug.trim()) {
-      toast.error("二쇰Ц URL 媛믪쓣 ?낅젰?섏꽭??");
+      toast.error("주문 URL 값을 입력하세요.");
       return;
     }
 
     if (enabledFulfillmentTypes.length === 0) {
-      toast.error("二쇰Ц 諛⑹떇??理쒖냼 1媛??댁긽 ?좏깮?섏꽭??");
+      toast.error("주문 방식을 최소 1개 이상 선택하세요.");
       return;
     }
 
     if (allowedPaymentMethods.length === 0) {
-      toast.error("寃곗젣 ?섎떒??理쒖냼 1媛??댁긽 ?좏깮?섏꽭??");
+      toast.error("결제 수단을 최소 1개 이상 선택하세요.");
       return;
     }
 
@@ -232,7 +232,7 @@ export default function BranchDetailPage() {
         !transferAccountNumber.trim() ||
         !transferAccountHolder.trim())
     ) {
-      toast.error("怨꾩쥖?댁껜 ?ъ슜 ????됰챸, 怨꾩쥖踰덊샇, ?덇툑二쇰? 紐⑤몢 ?낅젰??二쇱꽭??");
+      toast.error("계좌이체를 사용하려면 은행명, 계좌번호, 예금주를 모두 입력해 주세요.");
       return;
     }
 
@@ -256,10 +256,10 @@ export default function BranchDetailPage() {
       setBranch(updated);
       resetForm(updated);
       setIsEditing(false);
-      toast.success("吏???ㅼ젙????ν뻽?듬땲??");
+      toast.success("지점을 수정했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "吏????μ뿉 ?ㅽ뙣?덉뒿?덈떎.");
+      toast.error(err?.message ?? "지점 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -268,7 +268,7 @@ export default function BranchDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 吏?먯쓣 ??젣?좉퉴??\n??젣 ??蹂듦뎄?????놁뒿?덈떎.`);
+    const confirmed = confirm(`"${branch.name}" 지점을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`);
     if (!confirmed) return;
 
     try {
@@ -276,15 +276,15 @@ export default function BranchDetailPage() {
       router.replace("/customer/branches");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "吏????젣???ㅽ뙣?덉뒿?덈떎.");
+      toast.error(err?.message ?? "지점 삭제에 실패했습니다.");
     }
   };
 
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">吏??</h1>
-        <div className="text-text-secondary">濡쒕뵫 以?..</div>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">지점</h1>
+        <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
   }
@@ -296,11 +296,11 @@ export default function BranchDetailPage() {
           onClick={() => router.back()}
           className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
         >
-          ???ㅻ줈 媛湲?
+          뒤로 가기
         </button>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">吏??</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점</h1>
         <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
-          {error || "吏?먯쓣 李얠쓣 ???놁뒿?덈떎."}
+          {error || "지점을 찾을 수 없습니다."}
         </div>
       </div>
     );
@@ -312,24 +312,24 @@ export default function BranchDetailPage() {
         onClick={() => router.back()}
         className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
       >
-        ???ㅻ줈 媛湲?
+        뒤로 가기
       </button>
 
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">吏???곸꽭</h1>
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 상세</h1>
         {canEdit && !isEditing && (
           <div className="flex gap-3">
             <button
               onClick={() => setIsEditing(true)}
               className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
             >
-              ?섏젙?섍린
+              수정하기
             </button>
             <button
               onClick={handleDelete}
               className="py-2.5 px-5 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm cursor-pointer font-semibold hover:bg-danger-500/10 transition-colors"
             >
-              ??젣
+              삭제
             </button>
           </div>
         )}
@@ -339,7 +339,7 @@ export default function BranchDetailPage() {
         {isEditing ? (
           <div>
             <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">吏?먮챸</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">지점명</label>
               <input
                 type="text"
                 value={name}
@@ -350,16 +350,16 @@ export default function BranchDetailPage() {
             </div>
 
             <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">二쇰Ц URL</label>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">주문 URL</label>
               <input
                 type="text"
                 value={slug}
                 onChange={(e) => setSlug(normalizeSlug(e.target.value))}
                 className="input-field w-full"
-                placeholder="?? gangnam-main"
+                placeholder="예: gangnam-main"
                 pattern="[a-z0-9-]+"
               />
-              <div className="text-xs text-text-tertiary mt-1">?곷Ц/?レ옄/?섏씠??-)留??ъ슜 媛?ν빀?덈떎.</div>
+              <div className="text-xs text-text-tertiary mt-1">영문/숫자/하이픈(-)만 사용할 수 있습니다.</div>
             </div>
 
             <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 mb-6">
@@ -367,20 +367,20 @@ export default function BranchDetailPage() {
                 value={logoUrl}
                 onChange={setLogoUrl}
                 folder="branches/logos"
-                label="濡쒓퀬"
+                label="로고"
                 aspectRatio="1/1"
               />
               <ImageUpload
                 value={coverImageUrl}
                 onChange={setCoverImageUrl}
                 folder="branches/covers"
-                label="而ㅻ쾭 ?대?吏"
+                label="커버 이미지"
                 aspectRatio="16/9"
               />
             </div>
 
             <div className="mb-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">?뚮퉬?먯뿉寃??몄텧??二쇰Ц 諛⑹떇</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 주문 방식</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_FULFILLMENT_TYPES.map((type) => (
                   <label
@@ -399,7 +399,7 @@ export default function BranchDetailPage() {
             </div>
 
             <div className="mb-6">
-              <div className="text-[13px] font-semibold text-foreground mb-2">?뚮퉬?먯뿉寃??몄텧??寃곗젣 ?섎떒</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 결제 수단</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_PAYMENT_METHODS.map((method) => (
                   <label
@@ -418,19 +418,19 @@ export default function BranchDetailPage() {
             </div>
 
             <div className="mb-6">
-              <div className="text-[13px] font-semibold text-foreground mb-2">怨꾩쥖?댁껜 ?낃툑 ?뺣낫</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">계좌이체 입금 정보</div>
               <div className="grid gap-2">
                 <input
                   value={transferBankName}
                   onChange={(e) => setTransferBankName(e.target.value)}
                   className="input-field w-full"
-                  placeholder="??됰챸"
+                  placeholder="은행명"
                 />
                 <input
                   value={transferAccountNumber}
                   onChange={(e) => setTransferAccountNumber(e.target.value)}
                   className="input-field w-full"
-                  placeholder="怨꾩쥖踰덊샇"
+                  placeholder="계좌번호"
                 />
                 <input
                   value={transferAccountHolder}
@@ -457,7 +457,7 @@ export default function BranchDetailPage() {
                 disabled={saving}
                 className="flex-1 py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
               >
-                痍⑥냼
+                취소
               </button>
             </div>
           </div>
@@ -467,7 +467,7 @@ export default function BranchDetailPage() {
               <div className="mb-6">
                 <Image
                   src={branch.coverImageUrl}
-                  alt="而ㅻ쾭 ?대?吏"
+                  alt="커버 이미지"
                   width={1200}
                   height={675}
                   className="w-full rounded-lg object-cover"
@@ -487,29 +487,29 @@ export default function BranchDetailPage() {
                 />
               ) : (
                 <div className="w-20 h-20 rounded-xl bg-bg-tertiary flex items-center justify-center text-[40px]">
-                  ?룵
+                  점
                 </div>
               )}
               <div>
                 <h2 className="text-xl font-bold mb-2 text-foreground">{branch.name}</h2>
-                {branch.myRole && <div className="text-sm text-text-secondary">??븷: {branch.myRole}</div>}
+                {branch.myRole && <div className="text-sm text-text-secondary">역할: {branch.myRole}</div>}
               </div>
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">二쇰Ц URL</div>
+              <div className="text-[13px] text-text-secondary mb-2">주문 URL</div>
               <div className="text-[15px] text-foreground">{orderUrl}</div>
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">二쇰Ц 諛⑹떇</div>
+              <div className="text-[13px] text-text-secondary mb-2">주문 방식</div>
               <div className="text-[15px] text-foreground">
                 {(branch.enabledFulfillmentTypes ?? ["PICKUP"]).map((item) => FULFILLMENT_LABEL[item]).join(", ")}
               </div>
             </div>
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">寃곗젣 ?섎떒</div>
+              <div className="text-[13px] text-text-secondary mb-2">결제 수단</div>
               <div className="text-[15px] text-foreground">
                 {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"]).map((item) => PAYMENT_LABEL[item]).join(", ")}
               </div>
@@ -527,13 +527,13 @@ export default function BranchDetailPage() {
 
 
             <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">釉뚮옖??ID</div>
+              <div className="text-[13px] text-text-secondary mb-2">브랜드 ID</div>
               <div className="text-[15px] text-foreground font-mono">{branch.brandId}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-6">
               <div>
-                <div className="text-[11px] text-text-tertiary mb-1">?깅줉??</div>
+                <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
                 <div className="text-sm text-foreground">{new Date(branch.createdAt).toLocaleString()}</div>
               </div>
             </div>

@@ -124,6 +124,8 @@ export default function CustomerCategoriesPage() {
 
   // Category search
   const [categorySearch, setCategorySearch] = useState("");
+  const [debouncedCategorySearch, setDebouncedCategorySearch] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load branches
   useEffect(() => {
@@ -153,19 +155,37 @@ export default function CustomerCategoriesPage() {
     try {
       setLoading(true);
       setError(null);
+      setLoadError(null);
 
       const branchIds = Array.from(selectedBranchIds);
-      const results = await Promise.all(
+      const settled = await Promise.allSettled(
         branchIds.map((branchId) =>
           apiClient.get<Category[]>(
             `/customer/products/categories?branchId=${encodeURIComponent(branchId)}`,
           ),
         ),
       );
-      const merged = results
+
+      const successResults: Category[][] = [];
+      const failedBranchIds: string[] = [];
+
+      settled.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          successResults.push(result.value);
+        } else {
+          failedBranchIds.push(branchIds[idx]);
+          console.error(`카테고리 로드 실패 (branchId: ${branchIds[idx]}):`, result.reason);
+        }
+      });
+
+      const merged = successResults
         .flat()
         .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
       setCategories(merged);
+
+      if (failedBranchIds.length > 0) {
+        setLoadError(`일부 매장(${failedBranchIds.length}개)의 카테고리를 불러오지 못했습니다.`);
+      }
 
       if (branchIds.length === 1) {
         const activeBranchId = branchIds[0];
@@ -212,16 +232,16 @@ export default function CustomerCategoriesPage() {
 
   // Filtered categories for search
   const filteredCategories = useMemo(() => {
-    if (!categorySearch.trim()) return categories;
-    const q = categorySearch.toLowerCase();
+    if (!debouncedCategorySearch) return categories;
+    const q = debouncedCategorySearch.toLowerCase();
     return categories.filter((c) => c.name.toLowerCase().includes(q));
-  }, [categories, categorySearch]);
+  }, [categories, debouncedCategorySearch]);
 
   const filteredGroupedCategories = useMemo(() => {
-    if (!categorySearch.trim()) return groupedCategories;
-    const q = categorySearch.toLowerCase();
+    if (!debouncedCategorySearch) return groupedCategories;
+    const q = debouncedCategorySearch.toLowerCase();
     return groupedCategories.filter((g) => g.name.toLowerCase().includes(q));
-  }, [groupedCategories, categorySearch]);
+  }, [groupedCategories, debouncedCategorySearch]);
 
   // Add category
   const handleAdd = async () => {
@@ -448,10 +468,10 @@ export default function CustomerCategoriesPage() {
         const orderedCats: Category[] = [];
 
         for (const group of nextGroups) {
-          const matching = branchCats
-            .filter((c) => normalizeKey(c.name) === group.key && !used.has(c.id))
+          const groupBranchItems = group.items
+            .filter((i) => i.branchId === branchId && !used.has(i.id))
             .sort((a, b) => a.sortOrder - b.sortOrder);
-          for (const cat of matching) {
+          for (const cat of groupBranchItems) {
             orderedCats.push(cat);
             used.add(cat.id);
           }
@@ -520,6 +540,14 @@ export default function CustomerCategoriesPage() {
     }
   }, [isSingleBranchMode]);
 
+  // Debounce category search (250ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCategorySearch(categorySearch.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [categorySearch]);
+
   if (loading && branches.length === 0) {
     return (
       <div>
@@ -533,7 +561,7 @@ export default function CustomerCategoriesPage() {
     );
   }
 
-  const isSearchActive = !!categorySearch.trim();
+  const isSearchActive = !!debouncedCategorySearch;
 
   const renderCategoryRow = (
     category: Category,
@@ -676,14 +704,14 @@ export default function CustomerCategoriesPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-foreground">{group.name}</span>
             {visibleBranchNames.map((branchName) => (
-              <div key={branchName} className="relative group">
+              <div key={branchName} className="relative group" tabIndex={0}>
                 <span
                   className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border"
                   aria-label={`포함 지점: ${tooltipText}`}
                 >
                   {branchName}
                 </span>
-                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg max-h-48 overflow-y-auto">
                   {tooltipLines.map((line) => (
                     <div key={line} className="leading-5">{line}</div>
                   ))}
@@ -691,14 +719,14 @@ export default function CustomerCategoriesPage() {
               </div>
             ))}
             {remainingBranchCount > 0 && (
-              <div className="relative group">
+              <div className="relative group" tabIndex={0}>
                 <span
                   className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold bg-bg-tertiary text-text-secondary border border-border"
                   aria-label={`외 ${remainingBranchCount}개 지점 (전체: ${tooltipText})`}
                 >
                   +{remainingBranchCount}
                 </span>
-                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg max-h-48 overflow-y-auto">
                   {tooltipLines.map((line) => (
                     <div key={line} className="leading-5">{line}</div>
                   ))}
@@ -782,13 +810,13 @@ export default function CustomerCategoriesPage() {
             <div className="flex items-center gap-2">
               <label className="text-sm text-text-secondary font-semibold">매장 선택 (다중선택가능)</label>
 
-              <div className="relative group cursor-pointer">
+              <div className="relative group cursor-pointer" tabIndex={0}>
                 <HelpCircle
                   size={16}
                   className="text-text-secondary hover:text-foreground transition-colors"
                 />
 
-                <div className="absolute left-6 top-1/2 -translate-y-1/2 w-72 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                <div className="absolute left-6 top-1/2 -translate-y-1/2 w-72 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
                   여러 매장을 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다.<br/>
                   정렬 변경은 선택한 매장 전체에 동일 순서로 반영됩니다.
                 </div>
@@ -945,7 +973,7 @@ export default function CustomerCategoriesPage() {
           ) : (
             <div>
               {/* Bulk action bar */}
-              {canBulkStatus && (
+              {canBulkStatus ? (
                 selectedCatIds.size > 0 ? (
                   <div className="flex items-center gap-2 mb-3 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
                     <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
@@ -958,7 +986,11 @@ export default function CustomerCategoriesPage() {
                     카테고리를 선택하면 일괄 활성/비활성이 가능합니다.
                   </div>
                 )
-              )}
+              ) : selectedBranchIds.size > 1 && canManage ? (
+                <div className="mb-3 p-3 rounded-lg bg-bg-tertiary/40 border border-border text-xs text-text-secondary italic text-center" title="단일 매장을 선택하면 일괄 활성/비활성이 가능합니다">
+                  다중 매장 모드에서는 개별 선택/일괄 상태변경이 불가합니다. 1개 매장만 선택해 주세요.
+                </div>
+              ) : null}
 
               {/* Category search */}
               <div className="mb-3 relative">
@@ -971,6 +1003,18 @@ export default function CustomerCategoriesPage() {
                   className="input-field w-full pl-9"
                 />
               </div>
+
+              {isSearchActive && (
+                <div className="mb-3 text-xs text-text-tertiary italic text-center">
+                  검색 중에는 드래그 정렬이 비활성화됩니다.
+                </div>
+              )}
+
+              {loadError && (
+                <div className="mb-3 p-2.5 rounded-md border border-warning/30 bg-warning/10 text-xs text-warning text-center">
+                  {loadError}
+                </div>
+              )}
 
               {/* Category List */}
               <div className="rounded-xl border border-border bg-bg-secondary overflow-hidden">

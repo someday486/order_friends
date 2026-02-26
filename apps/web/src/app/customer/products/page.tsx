@@ -1300,31 +1300,6 @@ export default function CustomerProductsPage() {
 
                 {isBulkOpen && (
                   <>
-                <div className="flex items-center justify-end gap-2 mt-3 mb-3">
-                  <button
-                    onClick={() => {
-                      setIsBulkOpen((prev) => {
-                        const next = !prev;
-                        // 사용자가 직접 "접기"를 누른 경우: 자동오픈 비활성화
-                        if (prev === true && next === false) {
-                          setBulkAutoOpenDisabled(true);
-                        }
-                        return next;
-                      });
-                    }}
-                    disabled={saving || !hasSelectedTemplates}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-50 ${
-                      hasSelectedTemplates
-                        ? "bg-primary-500 text-white hover:bg-primary-600"
-                        : "bg-bg-tertiary text-text-secondary"
-                    }`}
-                  >
-                    {hasSelectedTemplates
-                      ? `${selectedTemplateIds.size}개 메뉴 일괄 변경`
-                      : "일괄변경"}
-                  </button>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -1447,8 +1422,9 @@ export default function CustomerProductsPage() {
                 )}
               </div>
 
-              <div className="border border-border rounded-xl overflow-visible">
-                <table className="w-full border-collapse">
+              <div className="pb-24">
+                <div className="border border-border rounded-xl overflow-visible">
+                  <table className="w-full border-collapse">
                   <thead className="bg-bg-tertiary">
                     <tr>
                       <th className="w-12 py-2 px-3 text-left">
@@ -1766,10 +1742,10 @@ export default function CustomerProductsPage() {
                       </tr>
                     )}
                   </tbody>
-                </table>
-              </div>
+                  </table>
+                </div>
 
-              <div className="flex items-center justify-between mt-3 px-1">
+                <div className="flex items-center justify-between mt-3 px-1">
               <div className="text-xs text-text-secondary">
                 {searchedTemplates.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-
                 {Math.min(page * PAGE_SIZE, searchedTemplates.length)} / {searchedTemplates.length}
@@ -1795,12 +1771,56 @@ export default function CustomerProductsPage() {
                 >
                   다음
                 </button>
+                  </div>
+                </div>
               </div>
-            </div>
 
             </>
           )}
         </>
+      )}
+
+
+      {isBulkOpen && hasSelectedTemplates && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur border-t border-border shadow-lg">
+          <div className="max-w-[1200px] mx-auto px-6 py-3 flex items-center justify-between gap-3">
+            <div className="text-sm text-text-secondary">
+              <span className="font-semibold text-foreground">
+                {selectedTemplateIds.size}개 메뉴 선택됨
+              </span>
+              {(bulkChangeStatus || bulkChangeInventory || bulkChangeChannels) && (
+                <span className="ml-2 text-primary-500 font-semibold">· 변경항목 있음</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  // 사용자가 직접 접은 경우: 다음 선택 시 자동오픈 막기
+                  setBulkAutoOpenDisabled(true);
+                  setIsBulkOpen(false);
+                }}
+                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-text-secondary text-sm font-semibold hover:bg-bg-tertiary transition-colors"
+              >
+                접기
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBulkUpdateTemplates}
+                disabled={
+                  saving ||
+                  !hasSelectedTemplates ||
+                  (!bulkChangeStatus && !bulkChangeInventory && !bulkChangeChannels)
+                }
+                className="px-5 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors"
+              >
+                일괄 변경 실행
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 상품등록 모달 */}

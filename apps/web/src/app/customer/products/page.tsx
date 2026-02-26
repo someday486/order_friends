@@ -171,13 +171,35 @@ function BranchChecklistTable({
   brandSlug?: string | null;
   disabled?: boolean;
 }) {
-  const allBranchesChecked = branches.length > 0 && branches.every((b) => selectedIds.has(b.id));
+  const [branchSearch, setBranchSearch] = useState("");
+
+  const filteredBranches = useMemo(() => {
+    if (!branchSearch.trim()) return branches;
+    const keyword = branchSearch.toLowerCase();
+    return branches.filter((b) =>
+      (b.name ?? "").toLowerCase().includes(keyword)
+    );
+  }, [branches, branchSearch]);
+
+  const allBranchesChecked =
+    filteredBranches.length > 0 &&
+    filteredBranches.every((b) => selectedIds.has(b.id));
+
   const allChecked = onToggleOnlineShop
     ? allBranchesChecked && (onlineShopChecked ?? false)
     : allBranchesChecked;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
+      <div className="p-3 border-b border-border bg-bg-tertiary">
+        <input
+          type="text"
+          value={branchSearch}
+          onChange={(e) => setBranchSearch(e.target.value)}
+          placeholder="매장명 검색"
+          className="input-field w-full text-xs"
+        />
+      </div>
       <table className="w-full border-collapse">
         <thead className="bg-bg-tertiary">
           <tr>
@@ -200,7 +222,7 @@ function BranchChecklistTable({
           </tr>
         </thead>
         <tbody>
-          {branches.map((branch) => (
+          {filteredBranches.map((branch) => (  //여기수정함
             <tr key={branch.id} className="border-t border-border">
               <td className="py-2.5 px-3">
                 <input
@@ -309,6 +331,7 @@ function BranchChecklistTable({
 }
 
 export default function CustomerProductsPage() {
+  const [bulkAutoOpenDisabled, setBulkAutoOpenDisabled] = useState(false);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -338,6 +361,8 @@ export default function CustomerProductsPage() {
   const [bulkChangeStatus, setBulkChangeStatus] = useState(false);
   const [bulkChangeInventory, setBulkChangeInventory] = useState(false);
   const [bulkChangeChannels, setBulkChangeChannels] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [openAppliedPopoverId, setOpenAppliedPopoverId] = useState<string | null>(null);
   const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [isEditChannelOpen, setIsEditChannelOpen] = useState(false);
@@ -349,6 +374,10 @@ export default function CustomerProductsPage() {
   const selectedBrandShopUrl = useMemo(
     () => getShopUrl(selectedBrand?.slug),
     [selectedBrand?.slug],
+  );
+  const branchesById = useMemo(
+    () => new Map(branches.map((b) => [b.id, b])),
+    [branches],
   );
 
   const PAGE_SIZE = 10;
@@ -530,6 +559,18 @@ export default function CustomerProductsPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  useEffect(() => {
+    // 0 -> 1 이상 되는 순간에만 자동으로 펼치기
+    if (selectedTemplateIds.size > 0 && !isBulkOpen && !bulkAutoOpenDisabled) {
+      setIsBulkOpen(true);
+    }
+
+    // 선택이 0이 되면, 다음 선택 때는 다시 자동오픈 허용
+    if (selectedTemplateIds.size === 0 && bulkAutoOpenDisabled) {
+      setBulkAutoOpenDisabled(false);
+    }
+  }, [selectedTemplateIds.size, isBulkOpen, bulkAutoOpenDisabled]);
+
   // 선택된 메뉴가 0개가 되면 일괄변경 플래그 리셋
   useEffect(() => {
     if (selectedTemplateIds.size === 0) {
@@ -538,6 +579,28 @@ export default function CustomerProductsPage() {
       setBulkChangeChannels(false);
     }
   }, [selectedTemplateIds.size]);
+
+  // 팝오버 닫기: ESC + 바깥 클릭
+  useEffect(() => {
+    if (!openAppliedPopoverId) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenAppliedPopoverId(null);
+    };
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest("[data-applied-popover-root]")) {
+        setOpenAppliedPopoverId(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    window.addEventListener("mousedown", handleClick);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("mousedown", handleClick);
+    };
+  }, [openAppliedPopoverId]);
 
   const canManage = canManageBrandTemplate(selectedBrand?.myRole);
   const hasSelectedTemplates = selectedTemplateIds.size > 0;
@@ -958,6 +1021,35 @@ export default function CustomerProductsPage() {
     }
   };
 
+  const handleToggleOnlineShopVisibleFromAll = async (template: BrandTemplate) => {
+    if (!selectedBrandId) return;
+
+    const nextVisible = template.isOnlineShopVisible === false;
+    const prevVisible = template.isOnlineShopVisible !== false;
+
+    // optimistic update (해당 항목만)
+    setTemplates((ts) =>
+      ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: nextVisible } : t)),
+    );
+
+    try {
+      setSaving(true);
+      await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
+        isOnlineShopVisible: nextVisible,
+      });
+      toast.success(nextVisible ? "온라인샵에 노출했습니다." : "온라인샵에서 숨겼습니다.");
+    } catch (e) {
+      // rollback (해당 항목만)
+      setTemplates((ts) =>
+        ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: prevVisible } : t)),
+      );
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "온라인샵 노출 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleBulkUpdateTemplates = async () => {
     if (!selectedBrandId || selectedTemplateIds.size === 0) {
       return;
@@ -1044,7 +1136,8 @@ export default function CustomerProductsPage() {
         )}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-4 mb-4">
+      <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[200px]">
           <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
           <select
@@ -1114,7 +1207,7 @@ export default function CustomerProductsPage() {
                     }
                   }}
                   placeholder="메뉴명/설명 검색"
-                  className="input-field w-full pl-9 pr-9"
+                  className="input-field w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
                   aria-label="메뉴 검색"
                 />
                 {searchInput && (
@@ -1137,6 +1230,7 @@ export default function CustomerProductsPage() {
             </div>
           </>
         )}
+      </div>
       </div>
 
       {error && (
@@ -1162,34 +1256,68 @@ export default function CustomerProductsPage() {
           ) : (
             <>
               <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
 
-                  <div className="relative group cursor-pointer">
-                    <HelpCircle
-                      size={16}
-                      className="text-text-secondary hover:text-foreground transition-colors"
-                    />
+                    <div className="relative group cursor-pointer">
+                      <HelpCircle
+                        size={16}
+                        className="text-text-secondary hover:text-foreground transition-colors"
+                      />
 
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                      1) 표에서 메뉴 체크 <br />
-                      2) 변경할 항목 선택 (체크박스) <br />
-                      3) 일괄변경 버튼 클릭
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                        1) 표에서 메뉴 체크 <br />
+                        2) 변경할 항목 선택 (체크박스) <br />
+                        3) 일괄변경 버튼 클릭
+                      </div>
                     </div>
-                  </div>
- 
-                    {!hasSelectedTemplates && (
+
+                    {!isBulkOpen && !hasSelectedTemplates && (
                       <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-warning/20 text-warning">
                         상품을 선택하세요
                       </span>
                     )}
 
+                    {!isBulkOpen && hasSelectedTemplates && (
+                      <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
+                        {selectedTemplateIds.size}개 선택됨
+                        {(bulkChangeStatus || bulkChangeInventory || bulkChangeChannels) && " · 변경항목 있음"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkOpen((prev) => !prev)}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
+                    >
+                      {isBulkOpen ? "접기" : "펼치기"}
+                    </button>
+                  </div>
                 </div>
+
+                {isBulkOpen && (
+                  <>
+                <div className="flex items-center justify-end gap-2 mt-3 mb-3">
                   <button
-                    onClick={handleBulkUpdateTemplates}
+                    onClick={() => {
+                      setIsBulkOpen((prev) => {
+                        const next = !prev;
+                        // 사용자가 직접 "접기"를 누른 경우: 자동오픈 비활성화
+                        if (prev === true && next === false) {
+                          setBulkAutoOpenDisabled(true);
+                        }
+                        return next;
+                      });
+                    }}
                     disabled={saving || !hasSelectedTemplates}
-                    className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-50 ${
+                      hasSelectedTemplates
+                        ? "bg-primary-500 text-white hover:bg-primary-600"
+                        : "bg-bg-tertiary text-text-secondary"
+                    }`}
                   >
                     {hasSelectedTemplates
                       ? `${selectedTemplateIds.size}개 메뉴 일괄 변경`
@@ -1209,7 +1337,7 @@ export default function CustomerProductsPage() {
                         className="w-4 h-4 rounded accent-primary"
                       />
                       <label htmlFor="bulk-change-status" className="text-xs text-text-secondary font-semibold cursor-pointer">
-                        상태
+                        노출상태
                       </label>
                     </div>
                     <select
@@ -1315,13 +1443,15 @@ export default function CustomerProductsPage() {
                     </div>
                   </div>
                 )}
+                  </>
+                )}
               </div>
 
               <div className="border border-border rounded-xl overflow-visible">
                 <table className="w-full border-collapse">
                   <thead className="bg-bg-tertiary">
                     <tr>
-                      <th className="w-12 py-3 px-4 text-left">
+                      <th className="w-12 py-2 px-3 text-left">
                         <input
                           type="checkbox"
                           checked={allTemplatesChecked}
@@ -1330,12 +1460,12 @@ export default function CustomerProductsPage() {
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">메뉴</th>
-                      <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">기본가</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">판매채널</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">재고관리</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">노출상태</th>
-                      <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">편집</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">메뉴</th>
+                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">기본가</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">판매채널</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">노출상태</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">재고관리</th>
+                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">편집</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1351,8 +1481,8 @@ export default function CustomerProductsPage() {
 
                       return (
                         <Fragment key={template.id}>
-                          <tr className="border-t border-border">
-                            <td className="py-3 px-4">
+                          <tr className="border-t border-border hover:bg-bg-secondary/40 transition-colors">
+                            <td className="py-2 px-3">
                               <input
                                 type="checkbox"
                                 checked={selectedTemplateIds.has(template.id)}
@@ -1361,23 +1491,60 @@ export default function CustomerProductsPage() {
                                 className="w-4 h-4 rounded accent-primary"
                               />
                             </td>
-                            <td className="py-3 px-4 text-sm text-foreground">
+                            <td className="py-2 px-3 text-sm text-foreground">
                               <div className="font-semibold">{template.name}</div>
                               {template.description && (
                                 <div className="text-xs text-text-secondary mt-0.5">{template.description}</div>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-sm text-foreground text-right">
+                            <td className="py-2 px-3 text-sm text-foreground text-right">
                               {formatWon(template.price)}
                             </td>
-                            <td className="py-3 px-4 text-sm text-foreground">
+                            <td className="py-2 px-3 text-sm text-foreground">
                               {salesChannelFilter === "ALL" ? (
-                                <>
-                                  <div>{appliedCount} / {totalCount} 매장</div>
-                                  <div className="text-xs text-text-secondary mt-0.5">
-                                    {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
-                                  </div>
-                                </>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="relative" data-applied-popover-root>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setOpenAppliedPopoverId((prev) =>
+                                        prev === template.id ? null : template.id,
+                                      )
+                                    }
+                                    className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
+                                  >
+                                    {appliedCount}/{totalCount} 매장
+                                  </button>
+
+                                  {openAppliedPopoverId === template.id && (
+                                    <div className="absolute left-0 top-full mt-1 z-50 w-56 rounded-md border border-border bg-bg-tertiary shadow-lg p-3">
+                                      <div className="text-xs font-semibold text-foreground mb-2">
+                                        적용 매장 ({(template.appliedBranchIds ?? []).length})
+                                      </div>
+                                      {(template.appliedBranchIds ?? []).length === 0 ? (
+                                        <div className="text-xs text-text-secondary">적용된 매장이 없습니다.</div>
+                                      ) : (
+                                        <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                          {(template.appliedBranchIds ?? []).map((bid) => (
+                                            <li key={bid} className="text-xs text-text-secondary truncate">
+                                              {branchesById.get(bid)?.name ?? bid}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleOnlineShopVisibleFromAll(template)}
+                                  disabled={saving}
+                                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                >
+                                  {isOnlineShopVisible ? "온라인샵 숨김" : "온라인샵 노출"}
+                                </button>
+                              </div>
                               ) : salesChannelFilter === "ONLINE_SHOP" ? (
                                 <span
                                   className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
@@ -1402,7 +1569,18 @@ export default function CustomerProductsPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-sm">
+
+                            <td className="py-2 px-3 text-sm">
+                              <Switch
+                                checked={template.isActive}
+                                onChange={(nextChecked) =>
+                                  handleToggleTemplateActive(template, nextChecked)
+                                }
+                                disabled={saving}
+                                ariaLabel={`${template.name} 판매 상태 토글`}
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-sm">
                               {template.inventoryMode === "MIXED" ? (
                                 <div className="relative group inline-flex items-center">
                                   <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
@@ -1423,17 +1601,7 @@ export default function CustomerProductsPage() {
                               )}
                             </td>
 
-                            <td className="py-3 px-4 text-sm">
-                              <Switch
-                                checked={template.isActive}
-                                onChange={(nextChecked) =>
-                                  handleToggleTemplateActive(template, nextChecked)
-                                }
-                                disabled={saving}
-                                ariaLabel={`${template.name} 판매 상태 토글`}
-                              />
-                            </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-2 px-3 text-right">
                               <div className="inline-flex items-center gap-2">
                                 {salesChannelFilter !== "ALL" && (
                                   <button

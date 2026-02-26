@@ -979,225 +979,34 @@ export default function CustomerCategoriesPage() {
                     <div className="py-8 text-center text-sm text-text-tertiary">
                       {categorySearch ? "검색 결과가 없습니다" : "카테고리가 없습니다"}
                     </div>
-                  ) : (
+                  ) : !isSearchActive && canReorder ? (
                     <SortableList
                       items={filteredCategories}
                       keyExtractor={(c) => c.id}
                       onReorder={(next) => void handleReorder(next)}
-                      renderItem={(category, index, dragHandleProps) => (
-                        <div
-                          className={`flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 hover:bg-bg-tertiary/30 transition-colors ${
-                            !category.isActive ? "opacity-60" : ""
-                          }`}
-                        >
-                          {canBulkStatus && (
-                            <input
-                              type="checkbox"
-                              checked={selectedCatIds.has(category.id)}
-                              onChange={() => {
-                                setSelectedCatIds((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(category.id)) next.delete(category.id);
-                                  else next.add(category.id);
-                                  return next;
-                                });
-                              }}
-                              className="w-4 h-4 rounded accent-primary flex-shrink-0"
-                            />
-                          )}
-
-                          {canReorder ? (
-                            <DragHandle {...dragHandleProps} className="flex-shrink-0" />
-                          ) : (
-                            <span className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-tertiary text-sm font-bold text-text-secondary flex-shrink-0">
-                              {index + 1}
-                            </span>
-                          )}
-
-                          <div className="flex-1 min-w-0">
-                            {editingId === category.id ? (
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="input-field text-sm flex-1"
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleUpdate(category.id);
-                                    if (e.key === "Escape") setEditingId(null);
-                                  }}
-                                  autoFocus
-                                />
-                                <button
-                                  onClick={() => handleUpdate(category.id)}
-                                  disabled={editLoading}
-                                  className="btn-primary px-3 py-1.5 text-xs"
-                                >
-                                  {editLoading ? "..." : "저장"}
-                                </button>
-                                <button
-                                  onClick={() => setEditingId(null)}
-                                  className="px-3 py-1.5 text-xs rounded border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
-                                >
-                                  취소
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-foreground">{category.name}</span>
-
-                              </div>
-                            )}
-                          </div>
-
-                          {editingId !== category.id && (
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              <button
-                                onClick={() => handleToggleActive(category)}
-                                className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
-                                  category.isActive
-                                    ? "bg-success/80 hover:bg-success"
-                                    : "bg-neutral-400/70 hover:bg-neutral-500/70"
-                                }`}
-                                title={category.isActive ? "비활성화" : "활성화"}
-                                aria-label={`${category.name} ${category.isActive ? "비활성화" : "활성화"}`}
-                              >
-                                <span
-                                  className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-sm pointer-events-none transition-transform ${
-                                    category.isActive ? "translate-x-4" : "translate-x-0"
-                                  }`}
-                                />
-                              </button>
-
-                              {canManage && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setEditingId(category.id);
-                                      setEditName(category.name);
-                                    }}
-                                    className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
-                                    title="이름 수정"
-                                    aria-label="이름 수정"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(category.id)}
-                                    className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
-                                    title="삭제"
-                                    aria-label="삭제"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      renderItem={renderCategoryRow}
                     />
+                  ) : (
+                    filteredCategories.map((category, index) => (
+                      <Fragment key={category.id}>{renderCategoryRow(category, index)}</Fragment>
+                    ))
                   )
                 ) : (
                   filteredGroupedCategories.length === 0 ? (
                     <div className="py-8 text-center text-sm text-text-tertiary">
                       {categorySearch ? "검색 결과가 없습니다" : "카테고리가 없습니다"}
                     </div>
+                  ) : !isSearchActive && canReorder ? (
+                    <SortableList
+                      items={filteredGroupedCategories}
+                      keyExtractor={(g) => g.key}
+                      onReorder={(nextGroups) => void handleGroupReorder(nextGroups)}
+                      renderItem={renderGroupRow}
+                    />
                   ) : (
-                    filteredGroupedCategories.map((group, index) => {
-                      const MAX_VISIBLE_BRANCH_CHIPS = 1;
-                      const visibleBranchNames = group.branchNames.slice(0, MAX_VISIBLE_BRANCH_CHIPS);
-                      const remainingBranchCount = group.branchNames.length - visibleBranchNames.length;
-                      const tooltipLines = group.branchNames;
-                      const tooltipText = tooltipLines.join(", ");
-
-                      return (
-                        <div
-                          key={group.key}
-                          className="flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 hover:bg-bg-tertiary/30 transition-colors"
-                        >
-                          <span className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-tertiary text-sm font-bold text-text-secondary flex-shrink-0">
-                            {index + 1}
-                          </span>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-foreground">{group.name}</span>
-                              {visibleBranchNames.map((branchName) => (
-                                <div key={branchName} className="relative group">
-                                  <span
-                                    className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border"
-                                    aria-label={`포함 지점: ${tooltipText}`}
-                                  >
-                                    {branchName}
-                                  </span>
-                                  <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                                    {tooltipLines.map((line) => (
-                                      <div key={line} className="leading-5">{line}</div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                              {remainingBranchCount > 0 && (
-                                <div className="relative group">
-                                  <span
-                                    className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold bg-bg-tertiary text-text-secondary border border-border"
-                                    aria-label={`외 ${remainingBranchCount}개 지점 (전체: ${tooltipText})`}
-                                  >
-                                    +{remainingBranchCount}
-                                  </span>
-                                  <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                                    {tooltipLines.map((line) => (
-                                      <div key={line} className="leading-5">{line}</div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            {canManage && (
-                              <>
-                                <button
-                                  onClick={() => handleGroupToggleActive(group)}
-                                  className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
-                                    group.allActive
-                                      ? "bg-success/80 hover:bg-success"
-                                      : "bg-neutral-400/70 hover:bg-neutral-500/70"
-                                  }`}
-                                  title={group.allActive ? "전체 비활성화" : "전체 활성화"}
-                                  aria-label={`${group.name} ${group.allActive ? "전체 비활성화" : "전체 활성화"}`}
-                                >
-                                  <span
-                                    className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-sm pointer-events-none transition-transform ${
-                                      group.allActive ? "translate-x-4" : "translate-x-0"
-                                    }`}
-                                  />
-                                </button>
-                                <button
-                                  onClick={() => openGroupEdit(group)}
-                                  className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
-                                  title="그룹 이름 수정"
-                                  aria-label="그룹 이름 수정"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleGroupDelete(group)}
-                                  className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
-                                  title="그룹 삭제"
-                                  aria-label="그룹 삭제"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
+                    filteredGroupedCategories.map((group, index) => (
+                      <Fragment key={group.key}>{renderGroupRow(group, index)}</Fragment>
+                    ))
                   )
                 )}
               </div>

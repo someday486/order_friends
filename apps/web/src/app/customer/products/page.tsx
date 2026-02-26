@@ -497,7 +497,7 @@ export default function CustomerProductsPage() {
       const ids = Object.values(t.appliedBranchCategoryIds ?? {});
       return ids.some((id) => id && categoryIdToNameKey[id] === nameKey);
     });
-  }, [filteredTemplates, categoryFilter, selectedFilterBranchId]);  
+  }, [filteredTemplates, categoryFilter, selectedFilterBranchId, categoryIdToNameKey]);  
 
   const searchedTemplates = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -1421,10 +1421,10 @@ export default function CustomerProductsPage() {
                         </div>
                       )}
                       {bulkChangeStatus && bulkStatus === "keep" && (
-                        <div className="text-warning">• 상태: "변경 안함" 선택됨 - 값을 선택하세요</div>
+                        <div className="text-warning">• 상태: &quot;변경 안함&quot; 선택됨 - 값을 선택하세요</div>
                       )}
                       {bulkChangeInventory && bulkInventoryMode === "keep" && (
-                        <div className="text-warning">• 재고관리: "변경 안함" 선택됨 - 값을 선택하세요</div>
+                        <div className="text-warning">• 재고관리: &quot;변경 안함&quot; 선택됨 - 값을 선택하세요</div>
                       )}
                     </div>
                   </div>

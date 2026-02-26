@@ -219,7 +219,8 @@ export class CacheService {
    */
   async getStats(): Promise<any> {
     try {
-      const store = (this.cacheManager as any).stores?.[0];
+      const store =
+        (this.cacheManager as any).stores?.[0] ?? (this.cacheManager as any).store;
 
       if (store && typeof store.keys === 'function') {
         const keys = await store.keys();
@@ -232,7 +233,12 @@ export class CacheService {
       return { message: 'Stats not supported by current cache store' };
     } catch (error) {
       this.logger.error('Cache stats error:', error);
-      return { error: 'Failed to get cache stats' };
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        totalKeys: 0,
+        keys: [],
+        error: `Failed to get cache stats: ${message}`,
+      };
     }
   }
 }

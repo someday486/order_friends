@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import {
@@ -31,6 +31,8 @@ type MenuSection = {
   title: string;
   items: MenuItem[];
 };
+
+
 
 const menuSections: MenuSection[] = [
   {
@@ -114,6 +116,12 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark, toggle } = useDarkMode();
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
     return pathname?.startsWith(href);
@@ -130,6 +138,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       }))
       .filter((section) => section.items.length > 0);
   }, [role, roleLoading]);
+  
 
   return (
     <NotificationProvider>
@@ -171,7 +180,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         `}
         >
           {/* Logo */}
-          <div className="p-4 border-b border-border flex items-center justify-between">
+          <div className="h-[72px] px-4 border-b border-border flex items-center justify-between">
             <Link href="/customer" className="no-underline text-foreground">
               <div className="font-extrabold text-base">주문프렌즈</div>
               <div className="text-2xs text-text-tertiary mt-0.5">Customer</div>
@@ -245,12 +254,14 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               마이페이지
             </Link>
 
-            <button
-              onClick={toggle}
-              className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
-            >
-              {isDark ? "라이트 모드" : "다크 모드"}
-            </button>
+            {mounted && (
+              <button
+                onClick={toggle}
+                className="py-2 px-3 rounded text-sm ..."
+              >
+                {isDark ? "라이트 모드" : "다크 모드"}
+              </button>
+            )}
             <button
               onClick={signOut}
               className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer"
@@ -261,13 +272,14 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         </aside>
 
         <main className="bg-background min-h-screen">
-          <div className="hidden md:flex sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3 items-center justify-end gap-2">
-            <button
-              onClick={toggle}
-              className="h-9 px-3 rounded border border-border bg-transparent text-sm text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
-            >
-              {isDark ? "라이트 모드" : "다크 모드"}
-            </button>
+          <div className="hidden md:flex h-[72px] sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 items-center justify-end gap-2">
+            {mounted && (
+              <button
+                onClick={toggle}
+                className="py-2 px-4 rounded-md border border-border bg-transparent text-sm text-foreground hover:bg-bg-tertiary transition-colors">
+                {isDark ? "라이트 모드" : "다크 모드"}
+              </button>
+            )}
             <NotificationBell />
           </div>
           <div className="p-4 md:p-6">{children}</div>

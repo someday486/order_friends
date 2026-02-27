@@ -410,6 +410,17 @@ export default function CustomerOrdersPage() {
     return new Map(branches.map((b) => [b.id, b.name]));
   }, [branches]);
 
+  const [summaryBranch, setSummaryBranch] = useState<string>("ALL");
+  const [summaryFulfillment, setSummaryFulfillment] = useState<FulfillmentType | "ALL">("ALL");
+
+  //카드 기준 레이블: "오늘 기준" vs "조회 기준"
+  const isTodayRange = useMemo(() => {
+    const today = getTodayYmd();
+    return appliedDateStart === today && appliedDateEnd === today;
+  }, [appliedDateStart, appliedDateEnd]);
+
+  const cardBasisLabel = isTodayRange ? "오늘 기준" : "조회 기준";
+
   // Summary (기간/지점/방식 기준 고정)
   const [summaryCounts, setSummaryCounts] = useState<Record<OrderStatus, number>>({
     CREATED: 0,
@@ -447,11 +458,11 @@ export default function CustomerOrdersPage() {
           limit: "1", // 총 개수만 필요
         });
 
-        if (branchFilter !== "ALL" && isUuidFormat(branchFilter)) {
-          baseParams.append("branchId", branchFilter);
+        if (summaryBranch !== "ALL" && isUuidFormat(summaryBranch)) {
+          baseParams.append("branchId", summaryBranch);
         }
-        if (fulfillmentFilter !== "ALL") {
-          baseParams.append("fulfillmentType", fulfillmentFilter);
+        if (summaryFulfillment !== "ALL") {
+          baseParams.append("fulfillmentType", summaryFulfillment);
         }
         if (appliedDateStart) baseParams.append("dateStart", appliedDateStart);
         if (appliedDateEnd) baseParams.append("dateEnd", appliedDateEnd);
@@ -508,8 +519,8 @@ export default function CustomerOrdersPage() {
 
     void loadSummary();
   }, [
-    branchFilter,
-    fulfillmentFilter,
+    summaryBranch,
+    summaryFulfillment,
     appliedDateStart,
     appliedDateEnd,
     reloadToken,
@@ -609,6 +620,11 @@ export default function CustomerOrdersPage() {
   const handleApplyFilter = () => {
     setAppliedDateStart(dateStartInput);
     setAppliedDateEnd(dateEndInput);
+
+    // ✅ 요약은 조회 버튼 눌렀을 때만 고정 업데이트
+    setSummaryBranch(branchFilter);
+    setSummaryFulfillment(fulfillmentFilter);
+
     setPage(1);
   };
 
@@ -740,7 +756,7 @@ export default function CustomerOrdersPage() {
                 setStatusFilter(k);
                 setPage(1);
               }}
-              className="text-left rounded-xl border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors p-3"
+              className="text-left rounded-xl border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors py-7 px-8"
             >
               <div className="text-xs font-semibold text-text-secondary">
                 {c.label}
@@ -749,7 +765,7 @@ export default function CustomerOrdersPage() {
                 {count}
               </div>
               <div className="mt-1 text-[11px] text-text-tertiary">
-                오늘 기준
+                {cardBasisLabel}
               </div>
             </button>
           );
@@ -839,7 +855,7 @@ export default function CustomerOrdersPage() {
       {/* ── Section 3: OrderQuickChips ── */}
       <div className="mb-4 space-y-1.5">
         {/* Status chips */}
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+        {/* <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
           {STATUS_FILTERS.map((opt) => {
             const isActive = statusFilter === opt.value;
             return (
@@ -863,7 +879,7 @@ export default function CustomerOrdersPage() {
               </button>
             );
           })}
-        </div>
+        </div> */}
 
         {/* Fulfillment chips */}
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
@@ -900,50 +916,8 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      {/* ── BulkActionBar — sticky, only when selectedCount > 0 ── */}
-      {selectedCount > 0 && (
-        <div className="sticky top-0 z-20 mb-3 rounded-xl border border-border bg-bg-secondary/95 backdrop-blur-sm p-3 shadow-md">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-sm font-bold text-foreground">
-              {selectedCount}건 선택됨
-            </span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={bulkStatus}
-                onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
-                className="input-field h-8 text-sm min-w-[130px]"
-                disabled={bulkUpdating}
-              >
-                {BULK_STATUS_OPTIONS.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleBulkStatusUpdate();
-                }}
-                disabled={bulkUpdating}
-                className="h-8 px-3 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
-              >
-                {bulkUpdating ? '변경 중...' : '일괄 변경'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedOrderIds(new Set())}
-                disabled={bulkUpdating}
-                className="h-8 px-3 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
-              >
-                선택 해제
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Order Table ── */}
+      <div className={selectedCount > 0 ? "pb-24" : ""}>
       {loading && orders.length === 0 ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[640px]">
@@ -1295,6 +1269,62 @@ export default function CustomerOrdersPage() {
           </button>
         </div>
       )}
+      </div>
+
+      {/* ── Bulk Bottom Bar — fixed, only when selectedCount > 0 ── */}
+      {selectedCount > 0 && (
+        <div className="
+            fixed bottom-0 z-[9999]
+            left-0 w-full
+            lg:left-[260px] lg:w-[calc(100%-260px)]
+            border-t border-border bg-bg-secondary/95 backdrop-blur shadow-lg
+          ">
+          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-3">
+            <div className="flex items-center justify-between gap-4">
+              {/* 왼쪽: 선택 건수 */}
+              <div className="flex items-center gap-3 flex-shrink-0 text-sm text-text-secondary">
+                <span className="font-semibold text-foreground">
+                  {selectedCount}건 선택됨
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderIds(new Set())}
+                  disabled={bulkUpdating}
+                  className="h-9 px-4 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50 whitespace-nowrap shrink-0"
+                >
+                  선택 해제
+                </button>
+              </div>
+
+
+              {/* 오른쪽: 컨트롤 */}
+              <div className="flex items-center gap-4 justify-end flex-nowrap">
+                <select
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+                  className="input-field h-9 text-sm min-w-[55px]"
+                  disabled={bulkUpdating}
+                >
+                  {BULK_STATUS_OPTIONS.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => void handleBulkStatusUpdate()}
+                  disabled={bulkUpdating}
+                  className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 whitespace-nowrap shrink-0"
+                >
+                  {bulkUpdating ? "변경 중..." : "일괄 변경"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ExportDialog */}
       {showExportDialog && (
@@ -1307,6 +1337,7 @@ export default function CustomerOrdersPage() {
           }}
         />
       )}
-    </div>
+      </div>
+
   );
 }

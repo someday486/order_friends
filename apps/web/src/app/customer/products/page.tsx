@@ -1,12 +1,13 @@
 ﻿"use client";
 
+import type React from "react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { Switch } from "@/components/common/Switch";
-import { HelpCircle, Pencil, Search, X, ExternalLink  } from "lucide-react";
+import { HelpCircle, Pencil, Search, X, ExternalLink, Star, ChevronDown } from "lucide-react";
 
 
 type Brand = {
@@ -334,6 +335,28 @@ export default function CustomerProductsPage() {
   const [bulkAutoOpenDisabled, setBulkAutoOpenDisabled] = useState(false);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
+  
+  // ============================
+  // Brand favorites (localStorage)
+  // ============================
+  const [favoriteBrandIds, setFavoriteBrandIds] = useState<string[]>([]);
+  const [isBrandOpen, setIsBrandOpen] = useState(false); // (다음 단계 UI에서 사용)
+  const [brandSearch, setBrandSearch] = useState("");   // (다음 단계 UI에서 사용)
+
+  const toggleFavoriteBrand = useCallback((brandId: string) => {
+    setFavoriteBrandIds((prev) => {
+      const idx = prev.indexOf(brandId);
+      // 이미 즐겨찾기면 제거
+      if (idx !== -1) {
+        const next = prev.slice();
+        next.splice(idx, 1);
+        return next;
+      }
+      // 아니면 "끝에 추가" => 즐겨찾기한 순서 유지
+      return [...prev, brandId];
+    });
+  }, []);
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchCategories, setBranchCategories] = useState<Record<string, ProductCategory[]>>({});
   const [templates, setTemplates] = useState<BrandTemplate[]>([]);
@@ -365,14 +388,42 @@ export default function CustomerProductsPage() {
   const [appliedDrawerTemplateId, setAppliedDrawerTemplateId] = useState<string | null>(null);
   const [drawerBranchSearch, setDrawerBranchSearch] = useState("");
   const lastSelectedTemplateIdRef = useRef<string | null>(null);
+  const brandDropdownRef = useRef<HTMLDivElement | null>(null);
   const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [isEditChannelOpen, setIsEditChannelOpen] = useState(false);
-
+  const brandSearchInputRef = useRef<HTMLInputElement | null>(null);
   const selectedBrand = useMemo(
     () => brands.find((brand) => brand.id === selectedBrandId) ?? null,
     [brands, selectedBrandId],
   );
+  
+  const favoriteSet = useMemo(
+    () => new Set(favoriteBrandIds),
+    [favoriteBrandIds],
+  );
+
+  const filteredBrands = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase();
+    if (!q) return brands;
+    return brands.filter((b) => (b.name ?? "").toLowerCase().includes(q));
+  }, [brands, brandSearch]);
+
+  const sortedBrands = useMemo(() => {
+    const byId = new Map(filteredBrands.map((b) => [b.id, b]));
+
+    const favoritesInOrder = favoriteBrandIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as Brand[];
+
+    const rest = filteredBrands
+      .filter((b) => !favoriteSet.has(b.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+    return [...favoritesInOrder, ...rest];
+  }, [filteredBrands, favoriteBrandIds, favoriteSet]);
+  
   const selectedBrandShopUrl = useMemo(
     () => getShopUrl(selectedBrand?.slug),
     [selectedBrand?.slug],
@@ -526,6 +577,68 @@ export default function CustomerProductsPage() {
     const start = (page - 1) * PAGE_SIZE;
     return searchedTemplates.slice(start, start + PAGE_SIZE);
   }, [searchedTemplates, page]);
+
+  // mount 시 즐겨찾기 로드
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("customerProducts.favoriteBrandIds");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+        setFavoriteBrandIds(parsed);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // 변경 시 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "customerProducts.favoriteBrandIds",
+        JSON.stringify(favoriteBrandIds),
+      );
+    } catch {
+      // ignore
+    }
+  }, [favoriteBrandIds]);
+
+  useEffect(() => {
+    if (!isBrandOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const el = brandDropdownRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setIsBrandOpen(false);
+        setBrandSearch("");
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsBrandOpen(false);
+        setBrandSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isBrandOpen]);
+
+  useEffect(() => {
+    if (isBrandOpen) {
+      setTimeout(() => {
+        brandSearchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [isBrandOpen]);  
 
   // 판매 채널/브랜드/카테고리/검색어 바뀌면 1페이지로 리셋
   useEffect(() => {
@@ -723,7 +836,7 @@ export default function CustomerProductsPage() {
         const initialBrand = brandRows[0];
         const initialBrandId = initialBrand.id;
         setSelectedBrandId(initialBrandId);
-        await loadBrandContext(initialBrandId, initialBrand.name);
+        // await loadBrandContext(initialBrandId, initialBrand.name);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "브랜드 메뉴 정보를 불러오지 못했습니다.");
@@ -1157,20 +1270,88 @@ export default function CustomerProductsPage() {
 
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-4 mb-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
+        <div ref={brandDropdownRef} className="flex-1 min-w-[200px] relative">
           <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
-          <select
-            value={selectedBrandId}
-            onChange={(event) => setSelectedBrandId(event.target.value)}
-            className="input-field w-full"
+
+          {/* Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsBrandOpen((v) => !v)}
+            className="input-field w-full flex items-center justify-between gap-2"
+            aria-haspopup="listbox"
+            aria-expanded={isBrandOpen}
           >
-            <option value="">브랜드를 선택하세요</option>
-            {brands.map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </select>
+            <span className="truncate">
+              {selectedBrand ? selectedBrand.name : "브랜드를 선택하세요"}
+            </span>
+            <ChevronDown className="w-4 h-4 text-text-secondary flex-shrink-0" />
+          </button>
+
+          {/* Dropdown */}
+          {isBrandOpen && (
+            <div
+              className="absolute left-0 top-full mt-2 w-full z-30 rounded-lg border border-border bg-bg-secondary shadow-lg overflow-hidden"
+              role="listbox"
+            >
+              {/* (선택) 검색 input: 다음 단계에서 필터링 연결할 거라 지금은 UI만 */}
+              <div className="p-2 border-b border-border bg-bg-tertiary">
+                <input
+                  ref={brandSearchInputRef}
+                  value={brandSearch}
+                  onChange={(e) => setBrandSearch(e.target.value)}
+                  placeholder="브랜드 검색"
+                  className="input-field w-full text-xs"
+                />
+              </div>
+
+              <div className="max-h-72 overflow-y-auto">
+                {sortedBrands.map((brand) => {
+                  const isFav = favoriteSet.has(brand.id);
+                  const isSelected = brand.id === selectedBrandId;
+
+                  return (
+                    <div
+                      key={brand.id}
+                      className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-bg-tertiary ${
+                        isSelected ? "bg-bg-tertiary/60" : ""
+                      }`}
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedBrandId(brand.id);
+                        setBrandSearch("");       // 🔥 검색어 초기화
+                        setIsBrandOpen(false);
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-foreground">{brand.name}</div>
+                      </div>
+
+                      {/* 즐겨찾기 버튼: 행 선택(onClick) 방지 위해 stopPropagation */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteBrand(brand.id);
+                        }}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
+                        aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                        title={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      >
+                        <Star className={`w-4 h-4 ${isFav ? "fill-current text-yellow-500" : ""}`} />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {sortedBrands.length === 0 && (
+                  <div className="px-3 py-6 text-center text-sm text-text-secondary">
+                    브랜드가 없습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {selectedBrandId && (
@@ -1744,33 +1925,54 @@ export default function CustomerProductsPage() {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between mt-3 px-1">
-              <div className="text-xs text-text-secondary">
-                {searchedTemplates.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-
-                {Math.min(page * PAGE_SIZE, searchedTemplates.length)} / {searchedTemplates.length}
-              </div>
+                <div className="flex items-center justify-center mt-4 gap-1">
+                  <button
+                    onClick={() => setPage(1)}
+                    disabled={page === 1}
+                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
+                  >
+                    «
+                  </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                >
-                  이전
-                </button>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
 
-                <div className="text-xs text-text-secondary min-w-[64px] text-center">
-                  {page} / {totalPages}
-                </div>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .slice(Math.max(0, page - 3), Math.min(totalPages, page + 2))
+                    .map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`h-8 min-w-[32px] px-3 rounded-md text-xs font-semibold border transition-colors ${
+                          p === page
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
 
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                >
-                  다음
-                </button>
-                  </div>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
+                  >
+                    ›
+                  </button>
+
+                  <button
+                    onClick={() => setPage(totalPages)}
+                    disabled={page === totalPages}
+                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
+                  >
+                    »
+                  </button>
                 </div>
               </div>
 

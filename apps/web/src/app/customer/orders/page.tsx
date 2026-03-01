@@ -621,6 +621,9 @@ export default function CustomerOrdersPage() {
     setAppliedDateStart(dateStartInput);
     setAppliedDateEnd(dateEndInput);
 
+    // ✅ 조회 버튼 누르면 상태는 전체로 초기화
+    setStatusFilter("ALL");
+
     // ✅ 요약은 조회 버튼 눌렀을 때만 고정 업데이트
     setSummaryBranch(branchFilter);
     setSummaryFulfillment(fulfillmentFilter);
@@ -756,7 +759,13 @@ export default function CustomerOrdersPage() {
                 setStatusFilter(k);
                 setPage(1);
               }}
-              className="text-left rounded-xl border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors py-7 px-8"
+              className={`
+                text-left rounded-xl border transition-colors py-7 px-8
+                ${statusFilter === k
+                  ? "border-foreground bg-foreground/5"
+                  : "border-border bg-bg-secondary hover:bg-bg-tertiary"
+                }
+              `}
             >
               <div className="text-xs font-semibold text-text-secondary">
                 {c.label}

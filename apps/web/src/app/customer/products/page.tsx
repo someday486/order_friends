@@ -1623,7 +1623,7 @@ export default function CustomerProductsPage() {
               </div>
 
               <div className="pb-24">
-                <div className="border border-border rounded-xl overflow-visible">
+                <div className="border border-border rounded-xl overflow-hidden">
                   <table className="w-full border-collapse">
                   <thead className="bg-bg-tertiary">
                     <tr>
@@ -1983,8 +1983,8 @@ export default function CustomerProductsPage() {
 
 
       {isBulkOpen && hasSelectedTemplates && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur border-t border-border shadow-lg">
-          <div className="max-w-[1200px] mx-auto px-6 py-3 flex items-center justify-between gap-3">
+        <div className="fixed bottom-0 right-0 left-0 md:left-64 z-40 bg-background/95 backdrop-blur border-t border-border shadow-lg">
+          <div className="w-full px-6 py-3 flex items-center justify-between gap-3">
             <div className="text-sm text-text-secondary">
               <span className="font-semibold text-foreground">
                 {selectedTemplateIds.size}개 메뉴 선택됨

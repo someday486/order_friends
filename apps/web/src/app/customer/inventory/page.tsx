@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Search, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -273,13 +274,30 @@ export default function CustomerInventoryPage() {
       <div className="mb-6">
         <label className="block text-[13px] text-text-secondary mb-2 font-semibold">매장 선택</label>
         <div className="max-w-[520px] space-y-2">
-          <input
-            type="text"
-            value={branchSearch}
-            onChange={(e) => setBranchSearch(e.target.value)}
-            placeholder="매장 검색..."
-            className="input-field w-full"
-          />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+            <input
+              type="text"
+              value={branchSearch}
+              onChange={(e) => setBranchSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setBranchSearch("");
+              }}
+              placeholder="매장 검색"
+              className="input-field w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
+              aria-label="매장 검색"
+            />
+            {branchSearch && (
+              <button
+                type="button"
+                onClick={() => setBranchSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-foreground transition-colors"
+                aria-label="검색어 지우기"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <div className="max-h-44 overflow-y-auto border border-border rounded-lg p-2 bg-bg-secondary">
             <div className="flex flex-col gap-1">
               {filteredBranches.map((branch) => (

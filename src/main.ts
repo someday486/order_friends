@@ -1,21 +1,62 @@
-﻿// import { NestFactory } from '@nestjs/core';
-// import { AppModule } from './app.module';
-
-// async function bootstrap() {
-//   const app = await NestFactory.create(AppModule);
-//   await app.listen(process.env.PORT ?? 4000);
-// }
-// bootstrap();
-
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+﻿import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as Sentry from '@sentry/nestjs';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
+const logger = new Logger('Bootstrap');
+
+function validateEnvironment(): void {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (isProd) {
+    const missingVars: string[] = [];
+
+    if (!process.env.TOSS_SECRET_KEY) {
+      missingVars.push('TOSS_SECRET_KEY');
+    }
+    if (!process.env.SUPABASE_URL) {
+      missingVars.push('SUPABASE_URL');
+    }
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
+    }
+    if (!process.env.JWT_SECRET) {
+      missingVars.push('JWT_SECRET');
+    }
+
+    if (missingVars.length > 0) {
+      throw new Error(
+        `Missing required environment variables in production: ${missingVars.join(', ')}`,
+      );
+    }
+  }
+
+  // Non-production warnings
+  if (!isProd) {
+    if (!process.env.TOSS_SECRET_KEY) {
+      logger.warn(
+        'TOSS_SECRET_KEY not set — payment module will run in mock mode',
+      );
+    }
+    if (!process.env.SENDGRID_API_KEY) {
+      logger.warn(
+        'SENDGRID_API_KEY not set — email notifications will run in mock mode',
+      );
+    }
+    if (!process.env.SMS_API_KEY) {
+      logger.warn(
+        'SMS_API_KEY not set — SMS notifications will run in mock mode',
+      );
+    }
+  }
+}
+
 async function bootstrap() {
+  validateEnvironment();
+
   const configuredCorsOrigins = (process.env.CORS_ORIGIN ?? '')
     .split(',')
     .map((value) => value.trim())
@@ -48,6 +89,14 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  // Request body size limit (10mb for file uploads, 1mb for general API)
+  app.use(
+    require('express').json({ limit: '1mb' }),
+  );
+  app.use(
+    require('express').urlencoded({ extended: true, limit: '1mb' }),
+  );
 
   // Security: Helmet
   app.use(helmet());

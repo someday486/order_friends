@@ -50,6 +50,10 @@ jest.mock('@nestjs/swagger', () => {
 
 jest.mock('helmet', () => jest.fn(() => 'helmet-middleware'));
 jest.mock('@sentry/nestjs', () => ({ init: jest.fn() }));
+jest.mock('express', () => ({
+  json: jest.fn(() => 'json-middleware'),
+  urlencoded: jest.fn(() => 'urlencoded-middleware'),
+}));
 
 const flushPromises = async () =>
   new Promise((resolve) => setImmediate(resolve));
@@ -89,6 +93,10 @@ describe('main bootstrap', () => {
     delete process.env.SENTRY_DSN;
     delete process.env.NODE_ENV;
     delete process.env.PORT;
+    delete process.env.TOSS_SECRET_KEY;
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.JWT_SECRET;
   });
 
   it('should initialize app with middleware and swagger', async () => {
@@ -115,6 +123,32 @@ describe('main bootstrap', () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method
     const listenMock = app.listen as jest.Mock;
     expect(listenMock).toHaveBeenCalledWith('4001');
+  });
+
+  it('should throw in production when required env vars are missing', async () => {
+    const app = makeApp();
+
+    process.env.NODE_ENV = 'production';
+    // No TOSS_SECRET_KEY, SUPABASE_URL etc.
+
+    const { nestFactoryMock } = await runMain(app);
+
+    // bootstrap threw before NestFactory.create, so create was never called
+    expect(nestFactoryMock.create).not.toHaveBeenCalled();
+  });
+
+  it('should start successfully in production when all required env vars are set', async () => {
+    const app = makeApp();
+
+    process.env.NODE_ENV = 'production';
+    process.env.TOSS_SECRET_KEY = 'test_secret';
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test_role_key';
+    process.env.JWT_SECRET = 'test_jwt_secret';
+
+    const { nestFactoryMock } = await runMain(app);
+
+    expect(nestFactoryMock.create).toHaveBeenCalled();
   });
 
   it('should allow and block cors origins', async () => {

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { formatWon } from "@/lib/format";
-import { saveCheckoutDraft } from "@/lib/order-session";
+import { saveCheckoutDraft, loadLastOrderRecord } from "@/lib/order-session";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 import {
   ProductCard,
@@ -83,6 +83,32 @@ export default function OrderPageClient({
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
+
+  // 재주문 배너
+  const [lastOrderCart, setLastOrderCart] = useState<CartItem[] | null>(null);
+  const [reorderDismissed, setReorderDismissed] = useState(false);
+
+  useEffect(() => {
+    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
+    if (lastRecord && typeof lastRecord === "object") {
+      const rec = lastRecord as Record<string, unknown>;
+      if (Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0) {
+        setLastOrderCart(rec.cartSnapshot as CartItem[]);
+      }
+    }
+  }, [brandSlug, branchSlug]);
+
+  const handleReorder = () => {
+    if (!lastOrderCart) return;
+    const newQuantities: Record<string, number> = {};
+    for (const item of lastOrderCart) {
+      newQuantities[item.product.id] = (newQuantities[item.product.id] || 0) + item.qty;
+    }
+    setCart(lastOrderCart);
+    setQuantities(newQuantities);
+    setReorderDismissed(true);
+    toast.success("저번 주문 내역을 장바구니에 담았어요!");
+  };
 
   const filteredProducts = useMemo(() => {
     if (!selectedCategory) return products;
@@ -238,6 +264,33 @@ export default function OrderPageClient({
             <KakaoQuickLoginButton />
           </div>
         </header>
+
+        {/* ── 재주문 배너 ── */}
+        {lastOrderCart && lastOrderCart.length > 0 && !reorderDismissed && cart.length === 0 && (
+          <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary p-3 flex items-center gap-3">
+            <div className="text-xl">🔄</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-foreground">저번 주문 다시 담기</div>
+              <div className="text-xs text-text-tertiary truncate">
+                {lastOrderCart.map((i) => `${i.product.name}×${i.qty}`).join(", ")}
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={handleReorder}
+                className="text-xs font-bold text-white bg-foreground px-3 py-1.5 rounded-lg"
+              >
+                담기
+              </button>
+              <button
+                onClick={() => setReorderDismissed(true)}
+                className="text-xs text-text-tertiary px-2 py-1.5"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Category Tabs */}
         {categories.length > 0 && (

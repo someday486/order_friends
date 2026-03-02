@@ -8,6 +8,16 @@ import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 import { apiClient } from "@/lib/api-client";
 import { loadLastOrderRecord } from "@/lib/order-session";
 
+type StampInfo = {
+  config: {
+    stampsPerOrder: number;
+    rewardThreshold: number;
+    rewardDescription: string;
+  } | null;
+  currentStamps: number;
+  rewardsAvailable: number;
+};
+
 type OrderResult = {
   id: string;
   orderNo: string;
@@ -163,6 +173,7 @@ export default function CompletePage() {
   const [loading, setLoading] = useState<boolean>(!order && Boolean(orderId));
   const [error, setError] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [stampInfo, setStampInfo] = useState<StampInfo | null>(null);
 
   useEffect(() => {
     if (order || !orderId) return;
@@ -195,6 +206,21 @@ export default function CompletePage() {
       return () => clearTimeout(timer);
     }
   }, [order]);
+
+  // 스탬프 정보 조회
+  useEffect(() => {
+    if (!order || !branchId) return;
+    const phone = (order as any)?.customer?.phone;
+    if (!phone) return;
+
+    apiClient
+      .get(`/public/branch/${branchId}/stamp-info?phone=${encodeURIComponent(phone)}`, { auth: false })
+      .then((data: unknown) => {
+        const d = data as any;
+        if (d?.config) setStampInfo(d as StampInfo);
+      })
+      .catch(() => {/* non-fatal */});
+  }, [order, branchId]);
 
   if (loading) {
     return (
@@ -274,6 +300,35 @@ export default function CompletePage() {
             </div>
           </div>
         </div>
+
+        {/* ── 스탬프 카드 ── */}
+        {stampInfo?.config && (
+          <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🎫</span>
+              <div className="text-sm font-bold text-foreground">스탬프 적립</div>
+            </div>
+            <div className="mb-2">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-text-tertiary">
+                  {stampInfo.currentStamps} / {stampInfo.config.rewardThreshold}개
+                </span>
+                {stampInfo.rewardsAvailable > 0 && (
+                  <span className="text-xs font-bold text-success-600">🎉 보상 사용 가능!</span>
+                )}
+              </div>
+              <div className="w-full bg-bg-tertiary rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 rounded-full bg-foreground transition-all duration-700"
+                  style={{
+                    width: `${Math.min(100, (stampInfo.currentStamps / stampInfo.config.rewardThreshold) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-text-tertiary">{stampInfo.config.rewardDescription}</p>
+          </div>
+        )}
 
         {/* ── 계좌이체 안내 ── */}
         {order.paymentMethod === "TRANSFER" && order.transferAccount && (

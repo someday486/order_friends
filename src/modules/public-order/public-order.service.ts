@@ -8,6 +8,7 @@
 import { createHash } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
 import {
   PublicBranchResponse,
   PublicBrandBranchesResponse,
@@ -38,6 +39,7 @@ export class PublicOrderService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly inventoryService: InventoryService,
+    private readonly stampsService: StampsService,
   ) {
     const windowMs = Number(process.env.PUBLIC_ORDER_DUPLICATE_WINDOW_MS);
     this.duplicateWindowMs =
@@ -2262,6 +2264,17 @@ export class PublicOrderService {
       totalAmount: createdOrder.total_amount,
       idempotencyKey,
     });
+
+    // Non-blocking: earn stamps after successful order
+    if (customerPhone) {
+      this.stampsService
+        .earnStamps({
+          branchId: dto.branchId,
+          customerPhone,
+          orderId: createdOrder.id,
+        })
+        .catch((err) => this.logger.warn('earnStamps error', err));
+    }
 
     return {
       id: createdOrder.id,

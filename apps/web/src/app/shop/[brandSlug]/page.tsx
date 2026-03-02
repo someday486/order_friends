@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
@@ -68,9 +68,9 @@ type CreatedOrder = {
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
-  CARD: "카드",
-  CASH: "현금",
-  TRANSFER: "계좌이체",
+  CARD: "💳 카드",
+  CASH: "💵 현금",
+  TRANSFER: "🏦 계좌이체",
 };
 
 function parseApiErrorMessage(error: unknown, fallback: string): string {
@@ -97,11 +97,26 @@ function parseApiErrorMessage(error: unknown, fallback: string): string {
   return raw || fallback;
 }
 
+// ── 상품 이미지 폴백 아이콘 ──
+function ProductImageFallback() {
+  return (
+    <div className="w-20 h-20 rounded-xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 01-8 0" />
+      </svg>
+    </div>
+  );
+}
+
 export default function ShopBrandPage() {
   const router = useRouter();
   const params = useParams();
   const brandSlug = String(params?.brandSlug ?? "");
   const { status, user } = useAuth();
+
+  const checkoutRef = useRef<HTMLElement>(null);
 
   const [data, setData] = useState<ShopBrandResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -403,7 +418,7 @@ export default function ShopBrandPage() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="h-40 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
+          <div className="h-44 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
             <div className="h-96 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
             <div className="h-96 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
@@ -417,7 +432,8 @@ export default function ShopBrandPage() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="max-w-4xl mx-auto p-6">
-          <div className="card p-6 text-center">
+          <div className="card p-10 text-center">
+            <div className="text-3xl mb-3">😕</div>
             <div className="text-base font-semibold mb-2">온라인샵을 불러올 수 없습니다.</div>
             <p className="text-sm text-text-secondary">{error ?? "잠시 후 다시 시도해주세요."}</p>
             {error?.includes("온라인샵 주문을 처리할 지점이 설정되지 않았습니다.") ? (
@@ -433,7 +449,8 @@ export default function ShopBrandPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 py-6 pb-28 lg:pb-6">
+        {/* ── 브랜드 헤더 ── */}
         <header className="overflow-hidden rounded-2xl border border-border bg-bg-secondary">
           <div className="relative h-36 md:h-44">
             {data.coverImageUrl ? (
@@ -467,26 +484,41 @@ export default function ShopBrandPage() {
             )}
             <div>
               <h1 className="text-xl font-extrabold">{data.brandName} 온라인샵</h1>
-              <p className="text-sm text-text-secondary">브랜드 상품을 온라인으로 간편하게 배송 주문하세요.</p>
+              <p className="text-sm text-text-secondary">온라인으로 간편하게 배송 주문하세요.</p>
             </div>
           </div>
         </header>
 
         <main className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+          {/* ── 상품 목록 ── */}
           <section className="card p-4">
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h2 className="text-base font-bold">상품 선택</h2>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="상품 검색"
-                className="input-field h-10 w-full max-w-xs"
-                aria-label="상품 검색"
-              />
+              <h2 className="text-base font-bold whitespace-nowrap">상품 선택</h2>
+              <div className="relative flex-1 max-w-xs">
+                <svg
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="상품 검색"
+                  className="input-field h-10 w-full pl-8"
+                  aria-label="상품 검색"
+                />
+              </div>
             </div>
 
             {filteredProducts.length === 0 ? (
-              <div className="rounded-xl border border-border bg-bg-tertiary p-5 text-sm text-text-secondary">
+              <div className="rounded-xl border border-border bg-bg-tertiary p-8 text-center text-sm text-text-secondary">
                 표시할 상품이 없습니다.
               </div>
             ) : (
@@ -502,47 +534,62 @@ export default function ShopBrandPage() {
                         <Image
                           src={product.imageUrl}
                           alt={product.name}
-                          width={88}
-                          height={88}
-                          className="w-20 h-20 md:w-22 md:h-22 rounded-lg object-cover border border-border"
+                          width={80}
+                          height={80}
+                          className="w-20 h-20 rounded-xl object-cover border border-border flex-shrink-0"
                           unoptimized
                         />
                       ) : (
-                        <div className="w-20 h-20 rounded-lg border border-border bg-bg-tertiary" />
+                        <ProductImageFallback />
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <h3 className="text-sm md:text-base font-bold truncate">{product.name}</h3>
                             {product.categoryName ? (
-                              <p className="text-xs text-text-tertiary mt-1">{product.categoryName}</p>
+                              <p className="text-xs text-text-tertiary mt-0.5">{product.categoryName}</p>
                             ) : null}
                           </div>
-                          <div className="text-sm font-semibold whitespace-nowrap">{formatWon(product.price)}</div>
+                          <div className="text-sm font-bold whitespace-nowrap text-foreground">{formatWon(product.price)}</div>
                         </div>
                         {product.description ? (
-                          <p className="mt-2 text-sm text-text-secondary line-clamp-2">{product.description}</p>
+                          <p className="mt-1.5 text-sm text-text-secondary line-clamp-2">{product.description}</p>
                         ) : null}
 
-                        <div className="mt-3 flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            className="w-8 h-8 rounded-md border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors"
-                            onClick={() => updateQty(product.id, qty - 1)}
-                            aria-label={`${product.name} 수량 감소`}
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center text-sm font-semibold">{qty}</span>
-                          <button
-                            type="button"
-                            className="w-8 h-8 rounded-md border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors"
-                            onClick={() => updateQty(product.id, qty + 1)}
-                            aria-label={`${product.name} 수량 증가`}
-                          >
-                            +
-                          </button>
+                        <div className="mt-3 flex items-center justify-end">
+                          {qty === 0 ? (
+                            /* qty=0: "담기" 버튼 */
+                            <button
+                              type="button"
+                              onClick={() => updateQty(product.id, 1)}
+                              className="h-9 px-4 rounded-xl border border-primary-500 text-primary-500 text-sm font-semibold bg-primary-500/5 hover:bg-primary-500/15 transition-colors"
+                              aria-label={`${product.name} 장바구니에 담기`}
+                            >
+                              담기
+                            </button>
+                          ) : (
+                            /* qty>0: 수량 조절 */
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                className="w-11 h-11 rounded-xl border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors text-lg font-bold"
+                                onClick={() => updateQty(product.id, qty - 1)}
+                                aria-label={`${product.name} 수량 감소`}
+                              >
+                                −
+                              </button>
+                              <span className="w-10 text-center text-sm font-bold">{qty}</span>
+                              <button
+                                type="button"
+                                className="w-11 h-11 rounded-xl border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors text-lg font-bold"
+                                onClick={() => updateQty(product.id, qty + 1)}
+                                aria-label={`${product.name} 수량 증가`}
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </article>
@@ -552,113 +599,124 @@ export default function ShopBrandPage() {
             )}
           </section>
 
-            <aside className="card p-4 h-fit sticky top-4">
-              <h2 className="text-base font-bold">배송 주문</h2>
-              <p className="mt-1 text-xs text-text-secondary">
-                선택 상품 {totalQty}개 · 총 {formatWon(totalAmount)}
+          {/* ── 주문 사이드바 ── */}
+          <aside ref={checkoutRef} className="card p-4 h-fit lg:sticky lg:top-4">
+            <h2 className="text-base font-bold">배송 주문</h2>
+
+            <KakaoQuickLoginButton
+              className="mt-3"
+              beforeLogin={() =>
+                saveCustomerInfoDraft({
+                  customerName,
+                  customerPhone,
+                  customerAddress1,
+                  customerAddress2,
+                  customerMemo,
+                })
+              }
+            />
+            {status === "authenticated" ? (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleLoadLastOrderInfo}
+                  disabled={loadingLastOrderInfo || loggingOut}
+                  className="h-10 rounded-xl border border-border bg-bg-tertiary text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loadingLastOrderInfo ? "불러오는 중..." : "이전 주문 불러오기"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut || loadingLastOrderInfo}
+                  className="h-10 rounded-xl border border-border bg-bg-tertiary text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loggingOut ? "로그아웃 중..." : "로그아웃"}
+                </button>
+              </div>
+            ) : null}
+            {status === "authenticated" && authInfoLoaded ? (
+              <p className="mt-1.5 text-xs text-text-secondary">
+                로그인 정보 기반으로 고객 정보가 자동 입력되었습니다.
               </p>
+            ) : null}
 
-              <KakaoQuickLoginButton
-                className="mt-3"
-                beforeLogin={() =>
-                  saveCustomerInfoDraft({
-                    customerName,
-                    customerPhone,
-                    customerAddress1,
-                    customerAddress2,
-                    customerMemo,
-                  })
-                }
-              />
-              {status === "authenticated" ? (
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadLastOrderInfo}
-                    disabled={loadingLastOrderInfo || loggingOut}
-                    className="h-10 rounded-lg border border-border bg-bg-tertiary text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {loadingLastOrderInfo ? "불러오는 중..." : "지난 주문 정보 불러오기"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    disabled={loggingOut || loadingLastOrderInfo}
-                    className="h-10 rounded-lg border border-border bg-bg-tertiary text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {loggingOut ? "로그아웃 중..." : "로그아웃"}
-                  </button>
-                </div>
-              ) : null}
-              {status === "authenticated" && authInfoLoaded ? (
-                <p className="mt-2 text-xs text-text-secondary">
-                  로그인 정보 기반으로 고객 정보가 자동 입력되었습니다.
-                </p>
-              ) : null}
-
-              <div className="mt-4 space-y-2 max-h-52 overflow-y-auto pr-1">
+            {/* 장바구니 요약 */}
+            <div className="mt-4 rounded-2xl border border-border bg-bg-tertiary overflow-hidden">
               {cartItems.length === 0 ? (
-                <div className="rounded-lg border border-border bg-bg-tertiary p-3 text-sm text-text-secondary">
-                  장바구니가 비어 있습니다.
+                <div className="p-4 text-center">
+                  <p className="text-sm text-text-tertiary">상품을 선택하면 여기에 표시됩니다.</p>
                 </div>
               ) : (
-                cartItems.map((item) => (
-                  <div key={item.id} className="rounded-lg border border-border bg-bg-tertiary p-3">
-                    <div className="text-sm font-semibold">{item.name}</div>
-                    <div className="mt-1 text-xs text-text-secondary">
-                      {item.qty}개 · {formatWon(item.price * item.qty)}
+                <div className="max-h-48 overflow-y-auto divide-y divide-border">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                      <span className="text-sm truncate">{item.name}</span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs text-text-tertiary">×{item.qty}</span>
+                        <span className="text-sm font-semibold">{formatWon(item.price * item.qty)}</span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
+              )}
+              {cartItems.length > 0 && (
+                <div className="flex justify-between items-center px-4 py-3 border-t border-border bg-bg-secondary">
+                  <span className="text-sm font-semibold">합계</span>
+                  <span className="text-base font-extrabold">{formatWon(totalAmount)}</span>
+                </div>
               )}
             </div>
 
-            <div className="mt-4 space-y-3">
+            {/* 주문자 정보 */}
+            <div className="mt-4 space-y-2.5">
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="input-field h-10 w-full"
-                placeholder="주문자 이름"
+                className="input-field h-11 w-full"
+                placeholder="주문자 이름 *"
                 aria-label="주문자 이름"
               />
               <input
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                className="input-field h-10 w-full"
-                placeholder="연락처"
+                className="input-field h-11 w-full"
+                placeholder="연락처 *"
                 aria-label="연락처"
+                inputMode="tel"
               />
               <input
                 value={customerAddress1}
                 onChange={(e) => setCustomerAddress1(e.target.value)}
-                className="input-field h-10 w-full"
-                placeholder="배송 주소"
+                className="input-field h-11 w-full"
+                placeholder="배송 주소 *"
                 aria-label="배송 주소"
               />
               <input
                 value={customerAddress2}
                 onChange={(e) => setCustomerAddress2(e.target.value)}
-                className="input-field h-10 w-full"
+                className="input-field h-11 w-full"
                 placeholder="상세 주소 (선택)"
                 aria-label="상세 주소"
               />
               <textarea
                 value={customerMemo}
                 onChange={(e) => setCustomerMemo(e.target.value)}
-                className="input-field min-h-[80px] w-full"
+                className="input-field min-h-[72px] w-full"
                 placeholder="요청사항 (선택)"
                 aria-label="요청사항"
               />
 
+              {/* 결제수단 */}
               <div>
                 <div className="text-sm font-semibold mb-2">결제수단</div>
                 <div className="grid grid-cols-1 gap-2">
                   {data.paymentMethods.map((method) => (
                     <label
                       key={method}
-                      className={`rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                      className={`rounded-xl border px-3 py-2.5 text-sm cursor-pointer transition-colors ${
                         paymentMethod === method
-                          ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                          ? "border-primary-500 bg-primary-500/10 text-primary-500 font-semibold"
                           : "border-border bg-bg-tertiary"
                       }`}
                     >
@@ -674,30 +732,78 @@ export default function ShopBrandPage() {
                     </label>
                   ))}
                 </div>
-                {paymentMethod === "TRANSFER" ? (
-                  <div className="mt-2 rounded-lg border border-border bg-bg-tertiary p-3 text-xs text-text-secondary leading-5">
-                    <div className="font-semibold text-foreground mb-1">입금 계좌 정보</div>
-                    <div>은행명: {data.transferAccount?.bankName?.trim() || "-"}</div>
-                    <div>계좌번호: {data.transferAccount?.accountNumber?.trim() || "-"}</div>
-                    <div>예금주: {data.transferAccount?.accountHolder?.trim() || "-"}</div>
+                {paymentMethod === "TRANSFER" && data.transferAccount ? (
+                  <div className="mt-2 rounded-xl border border-warning-200 bg-warning-50 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-sm">🏦</span>
+                      <div className="text-xs font-bold text-foreground">입금 계좌 정보</div>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-text-tertiary">은행명</span>
+                        <span className="font-semibold">{data.transferAccount?.bankName?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-tertiary">계좌번호</span>
+                        <span className="font-semibold font-mono">{data.transferAccount?.accountNumber?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-tertiary">예금주</span>
+                        <span className="font-semibold">{data.transferAccount?.accountHolder?.trim() || "-"}</span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-warning-600">
+                      입금 확인 후 주문이 처리됩니다.
+                    </p>
                   </div>
                 ) : null}
               </div>
 
-              {submitError ? <p className="text-sm text-danger-500">{submitError}</p> : null}
+              {submitError ? (
+                <p className="text-sm text-danger-500 bg-danger-500/5 rounded-xl px-3 py-2">{submitError}</p>
+              ) : null}
 
               <button
                 type="button"
                 onClick={submitOrder}
-                disabled={submitting}
-                className="w-full h-11 rounded-lg bg-primary-500 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={submitting || cartItems.length === 0}
+                className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {submitting ? "주문 처리 중..." : `배송 주문하기 (${formatWon(totalAmount)})`}
+                {submitting ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    주문 처리 중...
+                  </>
+                ) : (
+                  `배송 주문하기${totalAmount > 0 ? ` (${formatWon(totalAmount)})` : ""}`
+                )}
               </button>
             </div>
           </aside>
         </main>
       </div>
+
+      {/* ── 모바일 전용 스티키 장바구니 바 ── */}
+      {totalQty > 0 && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-4 pb-4 pt-2 bg-background/95 backdrop-blur-sm border-t border-border">
+          <button
+            type="button"
+            onClick={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer flex items-center justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold">
+                {totalQty}
+              </span>
+              장바구니 보기
+            </span>
+            <span className="font-extrabold">{formatWon(totalAmount)}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

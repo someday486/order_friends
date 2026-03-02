@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { formatRelativeTime, formatWon } from '@/lib/format';
+import toast from 'react-hot-toast';
+import Modal from '@/components/ui/Modal';
 import {
   FULFILLMENT_TYPE_LABEL,
   type Branch,
@@ -59,16 +61,6 @@ type BulkUpdateStatusResponse = {
 // Constants
 // ============================================================
 
-const STATUS_FILTERS: { value: OrderStatus | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: '전체' },
-  { value: 'CREATED', label: '주문접수' },
-  { value: 'CONFIRMED', label: '확인' },
-  { value: 'PREPARING', label: '준비중' },
-  { value: 'READY', label: '준비완료' },
-  { value: 'COMPLETED', label: '완료' },
-  { value: 'CANCELLED', label: '취소' },
-];
-
 const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'CREATED', label: '주문접수' },
   { value: 'CONFIRMED', label: '확인' },
@@ -114,6 +106,16 @@ const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
   DELIVERY: 'border border-orange-400/70 text-orange-600',
   DINE_IN:  'border border-neutral-400/70 text-neutral-500',
 };
+
+type AutoRefreshMode = 'FAST' | 'DEFAULT' | 'SAVE';
+
+const AUTO_REFRESH_INTERVAL_BY_MODE: Record<AutoRefreshMode, number> = {
+  FAST: 5_000,
+  DEFAULT: 10_000,
+  SAVE: 30_000,
+};
+
+const DELAY_THRESHOLD_MS = 20 * 60 * 1000;
 
 // ============================================================
 // Helpers
@@ -234,7 +236,7 @@ type ExportDialogProps = {
   selectedCount: number;
   exporting: boolean;
   onClose: () => void;
-  onDownload: (format: 'csv' | 'xlsx', scope: 'filter' | 'selected') => void;
+  onDownload: (format: 'csv' | 'xlsx') => void;
 };
 
 function ExportDialog({
@@ -244,7 +246,6 @@ function ExportDialog({
   onDownload,
 }: ExportDialogProps) {
   const [format, setFormat] = useState<'csv' | 'xlsx'>('csv');
-  const [scope, setScope] = useState<'filter' | 'selected'>('filter');
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -262,8 +263,11 @@ function ExportDialog({
       <div
         className="relative w-full max-w-sm bg-bg-primary rounded-2xl border border-border shadow-2xl p-6"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="order-export-dialog-title"
       >
-        <h2 className="text-lg font-bold text-foreground mb-5">주문 내보내기</h2>
+        <h2 id="order-export-dialog-title" className="text-lg font-bold text-foreground mb-5">주문 내보내기</h2>
 
         {/* Format */}
         <fieldset className="mb-5">
@@ -289,48 +293,12 @@ function ExportDialog({
           </div>
         </fieldset>
 
-        {/* Scope */}
-        <fieldset className="mb-6">
-          <legend className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
-            범위
-          </legend>
-          <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="export-scope"
-                value="filter"
-                checked={scope === 'filter'}
-                onChange={() => setScope('filter')}
-                className="accent-primary"
-              />
-              <span className="text-sm font-medium text-foreground">현재 필터 결과</span>
-            </label>
-            <label
-              className={`flex items-center gap-2 ${
-                selectedCount === 0 ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-              }`}
-            >
-              <input
-                type="radio"
-                name="export-scope"
-                value="selected"
-                checked={scope === 'selected'}
-                onChange={() => setScope('selected')}
-                disabled={selectedCount === 0}
-                className="accent-primary"
-              />
-              <span className="text-sm font-medium text-foreground">
-                선택 주문
-                {selectedCount > 0 && (
-                  <span className="ml-1.5 text-xs text-text-secondary">
-                    ({selectedCount}건)
-                  </span>
-                )}
-              </span>
-            </label>
-          </div>
-        </fieldset>
+        <div className="mb-6 rounded-lg border border-border bg-bg-secondary p-3 text-sm text-text-secondary">
+          현재 버전에서는 <strong className="text-foreground">필터 결과 전체</strong>만 내보내기를 지원합니다.
+          {selectedCount > 0 && (
+            <span className="ml-1">선택된 {selectedCount}건은 다음 업데이트에서 지원 예정입니다.</span>
+          )}
+        </div>
 
         {/* Actions */}
         <div className="flex gap-2 justify-end">
@@ -344,7 +312,7 @@ function ExportDialog({
           </button>
           <button
             type="button"
-            onClick={() => onDownload(format, scope)}
+            onClick={() => onDownload(format)}
             disabled={exporting}
             className="h-9 px-5 rounded-lg bg-foreground text-background text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 min-w-[80px]"
           >
@@ -394,7 +362,11 @@ export default function CustomerOrdersPage() {
   );
   const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [autoRefreshMode, setAutoRefreshMode] = useState<AutoRefreshMode>('DEFAULT');
+  const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState<Date | null>(null);
 
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
   const showMultiBranch = validBranches.length > 1;
@@ -534,6 +506,19 @@ export default function CustomerOrdersPage() {
     }
   }, [branchFilter]);
 
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+
+    const intervalMs = AUTO_REFRESH_INTERVAL_BY_MODE[autoRefreshMode];
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      setReloadToken((prev) => prev + 1);
+      setLastAutoRefreshAt(new Date());
+    }, intervalMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [autoRefreshEnabled, autoRefreshMode]);
+
 
   // Load orders — fires on filter changes and 조회 button (via appliedDate* / reloadToken)
   useEffect(() => {
@@ -609,6 +594,20 @@ export default function CustomerOrdersPage() {
     (summaryCounts.CONFIRMED ?? 0) +
     (summaryCounts.PREPARING ?? 0) +
     (summaryCounts.READY ?? 0);
+  const newOrderCount = summaryCounts.CREATED ?? 0;
+  const unhandledCount =
+    (summaryCounts.CREATED ?? 0) + (summaryCounts.CONFIRMED ?? 0);
+  const delayedCount = useMemo(() => {
+    const now = Date.now();
+    return orders.filter((order) => {
+      if (!['CREATED', 'CONFIRMED', 'PREPARING'].includes(order.status)) {
+        return false;
+      }
+      const orderedAtMs = new Date(order.orderedAt).getTime();
+      if (!Number.isFinite(orderedAtMs)) return false;
+      return now - orderedAtMs >= DELAY_THRESHOLD_MS;
+    }).length;
+  }, [orders]);
   const selectedCount = selectedOrderIds.size;
   const allVisibleSelected =
     orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
@@ -647,14 +646,16 @@ export default function CustomerOrdersPage() {
     });
   };
 
-  const handleBulkStatusUpdate = async () => {
+  const handleBulkStatusUpdate = () => {
     if (selectedCount === 0) return;
+    setShowBulkConfirmModal(true);
+  };
 
-    const confirmed = window.confirm(
-      `선택한 ${selectedCount}건의 주문 상태를 "${ORDER_STATUS_LABEL[bulkStatus]}"(으)로 변경하시겠습니까?`,
-    );
-    if (!confirmed) return;
-
+  const executeBulkStatusUpdate = async () => {
+    if (selectedCount === 0) {
+      setShowBulkConfirmModal(false);
+      return;
+    }
     try {
       setBulkUpdating(true);
       setError(null);
@@ -669,21 +670,21 @@ export default function CustomerOrdersPage() {
 
       setSelectedOrderIds(new Set());
       setReloadToken((prev) => prev + 1);
-      window.alert(
+      toast.success(
         `${response.updatedCount}건의 주문 상태를 "${ORDER_STATUS_LABEL[bulkStatus]}"(으)로 변경했습니다.`,
       );
+      setShowBulkConfirmModal(false);
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : '일괄 상태 변경에 실패했습니다');
+      const message = e instanceof Error ? e.message : '일괄 상태 변경에 실패했습니다';
+      setError(message);
+      toast.error(message);
     } finally {
       setBulkUpdating(false);
     }
   };
 
-  const handleDownload = async (
-    format: 'csv' | 'xlsx',
-    _scope: 'filter' | 'selected',
-  ) => {
+  const handleDownload = async (format: 'csv' | 'xlsx') => {
     try {
       setExporting(true);
       // createOrderExportJob polls internally until DONE (45s) and returns downloadUrl
@@ -707,12 +708,13 @@ export default function CustomerOrdersPage() {
       if (url) {
         window.open(url, '_blank');
         setShowExportDialog(false);
+        toast.success('다운로드 링크를 새 탭에서 열었습니다.');
       } else {
-        alert('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
+        toast('아직 처리중입니다. 잠시 후 Export 목록에서 다운로드해 주세요.');
       }
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Export 생성에 실패했습니다');
+      toast.error(e instanceof Error ? e.message : 'Export 생성에 실패했습니다');
     } finally {
       setExporting(false);
     }
@@ -729,17 +731,29 @@ export default function CustomerOrdersPage() {
           <span className="text-[13px] text-text-secondary">
             총 <span className="font-bold text-foreground">{summaryTotal}</span>건
           </span>
+          {summaryLoading && (
+            <span className="text-[12px] text-text-tertiary">집계 갱신 중...</span>
+          )}
           {activeCount > 0 && (
             <span className="inline-flex items-center gap-1.5 text-[13px] text-primary-500 font-semibold">
               <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse-slow" />
               진행중 {activeCount}건
             </span>
           )}
+          <span className="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+            신규 {newOrderCount}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+            지연 {delayedCount}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-semibold text-red-600">
+            미처리 {unhandledCount}
+          </span>
         </div>
       </div>
 
       {/* ── Section 1.5: Today Status Summary Cards ── */}
-      <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" aria-busy={summaryLoading}>
         {([
           { key: "CREATED", label: "주문접수" },
           { key: "CONFIRMED", label: "확인" },
@@ -755,12 +769,13 @@ export default function CustomerOrdersPage() {
             <button
               key={c.key}
               type="button"
+              disabled={summaryLoading}
               onClick={() => {
                 setStatusFilter(k);
                 setPage(1);
               }}
               className={`
-                text-left rounded-xl border transition-colors py-7 px-8
+                text-left rounded-xl border transition-colors py-7 px-8 disabled:opacity-70 disabled:cursor-not-allowed
                 ${statusFilter === k
                   ? "border-foreground bg-foreground/5"
                   : "border-border bg-bg-secondary hover:bg-bg-tertiary"
@@ -830,6 +845,34 @@ export default function CustomerOrdersPage() {
           조회
         </button>
 
+        <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={autoRefreshEnabled}
+            onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+            className="w-4 h-4 rounded accent-primary cursor-pointer"
+            aria-label="자동 새로고침"
+          />
+          자동갱신
+        </label>
+        <select
+          value={autoRefreshMode}
+          onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
+          className="input-field h-9 text-sm min-w-[124px] max-w-[140px]"
+          aria-label="자동갱신 속도"
+          disabled={!autoRefreshEnabled}
+        >
+          <option value="FAST">빠름(5초)</option>
+          <option value="DEFAULT">기본(10초)</option>
+          <option value="SAVE">절전(30초)</option>
+        </select>
+
+        {lastAutoRefreshAt && (
+          <span className="text-xs text-text-tertiary whitespace-nowrap">
+            최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
+        )}
+
         <div className="hidden sm:block w-px h-7 bg-border mx-1" />
 
         <button
@@ -862,34 +905,7 @@ export default function CustomerOrdersPage() {
       </div>
 
       {/* ── Section 3: OrderQuickChips ── */}
-      <div className="mb-4 space-y-1.5">
-        {/* Status chips */}
-        {/* <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-          {STATUS_FILTERS.map((opt) => {
-            const isActive = statusFilter === opt.value;
-            return (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  setStatusFilter(opt.value);
-                  setPage(1);
-                }}
-                className={`
-                  shrink-0 h-7 px-3.5 rounded-full text-xs font-medium
-                  border transition-all duration-150 cursor-pointer
-                  ${
-                    isActive
-                      ? 'bg-foreground text-background border-foreground font-bold'
-                      : 'bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary'
-                  }
-                `}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div> */}
-
+      <div className="mb-4">
         {/* Fulfillment chips */}
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
           {FULFILLMENT_FILTERS.map((opt) => {
@@ -1341,11 +1357,44 @@ export default function CustomerOrdersPage() {
           selectedCount={selectedCount}
           exporting={exporting}
           onClose={() => setShowExportDialog(false)}
-          onDownload={(format, scope) => {
-            void handleDownload(format, scope);
+          onDownload={(format) => {
+            void handleDownload(format);
           }}
         />
       )}
+
+      <Modal
+        open={showBulkConfirmModal}
+        title="주문 상태 일괄 변경"
+        onClose={() => {
+          if (!bulkUpdating) setShowBulkConfirmModal(false);
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              className="h-9 px-4 rounded-md border border-border bg-bg-secondary text-sm text-foreground disabled:opacity-50"
+              onClick={() => setShowBulkConfirmModal(false)}
+              disabled={bulkUpdating}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50"
+              onClick={() => void executeBulkStatusUpdate()}
+              disabled={bulkUpdating}
+            >
+              {bulkUpdating ? '변경 중...' : '변경'}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          선택한 <strong className="text-foreground">{selectedCount}건</strong>의 주문 상태를{' '}
+          <strong className="text-foreground">&quot;{ORDER_STATUS_LABEL[bulkStatus]}&quot;</strong>으로 변경하시겠습니까?
+        </p>
+      </Modal>
       </div>
 
   );

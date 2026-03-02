@@ -105,7 +105,7 @@ describe('CustomerOrdersService', () => {
       'b1',
       'user-1',
       [],
-      [{ branch_id: 'b1', role: 'STAFF' }],
+      [{ branch_id: 'b1', role: 'STAFF', status: 'ACTIVE' }],
     );
 
     expect(result.branchMembership.role).toBe('STAFF');
@@ -120,7 +120,7 @@ describe('CustomerOrdersService', () => {
     const result = await (service as any).checkBranchAccess(
       'b1',
       'user-1',
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -219,7 +219,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
     );
 
@@ -255,7 +255,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       undefined as any,
     );
 
@@ -279,7 +279,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
     );
 
@@ -317,7 +317,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
     );
 
@@ -374,7 +374,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
     );
 
@@ -429,7 +429,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
     );
 
@@ -472,7 +472,7 @@ describe('CustomerOrdersService', () => {
         'user-1',
         'b1',
         [],
-        [{ branch_id: 'b1', role: 'OWNER' }],
+        [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
         {},
       ),
     ).rejects.toThrow('Failed to fetch order item summaries');
@@ -505,8 +505,8 @@ describe('CustomerOrdersService', () => {
     const result = await service.getMyOrders(
       'user-1',
       undefined,
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
     );
 
@@ -544,7 +544,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
       OrderStatus.CONFIRMED,
     );
@@ -568,7 +568,7 @@ describe('CustomerOrdersService', () => {
         'user-1',
         'b1',
         [],
-        [{ branch_id: 'b1', role: 'OWNER' }],
+        [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
         {},
       ),
     ).rejects.toThrow('Failed to count orders');
@@ -594,7 +594,7 @@ describe('CustomerOrdersService', () => {
         'user-1',
         'b1',
         [],
-        [{ branch_id: 'b1', role: 'OWNER' }],
+        [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
         {},
       ),
     ).rejects.toThrow('Failed to fetch orders');
@@ -632,7 +632,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'b1',
       [],
-      [{ branch_id: 'b1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
       { page: 1, limit: 10 },
       undefined,
       'DELIVERY',
@@ -664,7 +664,7 @@ describe('CustomerOrdersService', () => {
       'ORD-1',
       'user-1',
       [],
-      [{ branch_id: 'b1', role: 'ADMIN' }],
+      [{ branch_id: 'b1', role: 'ADMIN', status: 'ACTIVE' }],
     );
 
     expect(result.role).toBe('ADMIN');
@@ -737,7 +737,7 @@ describe('CustomerOrdersService', () => {
     const result = await service.getMyOrder(
       'user-1',
       'o1',
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -786,7 +786,7 @@ describe('CustomerOrdersService', () => {
     const result = await service.getMyOrder(
       'user-1',
       'o1',
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -843,7 +843,7 @@ describe('CustomerOrdersService', () => {
     const result = await service.getMyOrder(
       'user-1',
       'o1',
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -879,7 +879,7 @@ describe('CustomerOrdersService', () => {
     const result = await service.getMyOrder(
       'user-1',
       'o1',
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -899,7 +899,7 @@ describe('CustomerOrdersService', () => {
       service.getMyOrder(
         'user-1',
         'o1',
-        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
         [],
       ),
     ).rejects.toThrow(NotFoundException);
@@ -953,7 +953,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'o1',
       OrderStatus.READY,
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -986,7 +986,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       'o1',
       OrderStatus.READY,
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -1026,7 +1026,7 @@ describe('CustomerOrdersService', () => {
         'o1',
         OrderStatus.READY,
         [],
-        [{ branch_id: 'b1', role: 'VIEWER' }],
+        [{ branch_id: 'b1', role: 'VIEWER', status: 'ACTIVE' }],
       ),
     ).rejects.toThrow(ForbiddenException);
   });
@@ -1048,7 +1048,7 @@ describe('CustomerOrdersService', () => {
         'user-1',
         'o1',
         OrderStatus.READY,
-        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
         [],
       ),
     ).rejects.toThrow('Failed to update order status');
@@ -1072,7 +1072,7 @@ describe('CustomerOrdersService', () => {
       'user-1',
       ['o1', 'o2'],
       OrderStatus.READY,
-      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
       [],
     );
 
@@ -1098,7 +1098,7 @@ describe('CustomerOrdersService', () => {
         ['o1'],
         OrderStatus.READY,
         [],
-        [{ branch_id: 'b1', role: 'VIEWER' }],
+        [{ branch_id: 'b1', role: 'VIEWER', status: 'ACTIVE' }],
       ),
     ).rejects.toThrow(ForbiddenException);
   });
@@ -1122,7 +1122,7 @@ describe('CustomerOrdersService', () => {
         'user-1',
         ['o1'],
         OrderStatus.READY,
-        [{ brand_id: 'brand-1', role: 'OWNER' }],
+        [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
         [],
       ),
     ).rejects.toThrow('Failed to bulk update order status');

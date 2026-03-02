@@ -1,6 +1,58 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import { TossPaymentsClient } from './toss-payments.client';
+import { TossPaymentsClient, TossConfirmResponse } from './toss-payments.client';
+
+/** Shape returned by getOrderForPayment */
+interface OrderForPayment {
+  id: string;
+  order_no: string | null;
+  branch_id: string;
+  total_amount: number;
+  customer_name: string | null;
+  customer_phone: string | null;
+  status: string;
+  payment_status: string | null;
+  items: Array<{
+    id: string;
+    product_name_snapshot: string | null;
+    qty: number;
+  }>;
+}
+
+/** Minimal payment record fetched during confirmation flow */
+interface ExistingPaymentRecord {
+  id: string;
+  order_id: string;
+  status: string;
+  amount: number | null;
+  paid_at: string | null;
+  idempotency_key: string | null;
+}
+
+/** Minimal payment record fetched during webhook processing */
+interface WebhookPaymentRecord {
+  id: string;
+  order_id: string;
+  status: string;
+  amount: number | null;
+  provider_payment_key: string | null;
+  refund_amount: number;
+}
+
+/** Minimal payment row returned by payments list query */
+interface PaymentListRow {
+  id: string;
+  order_id: string;
+  amount: number;
+  status: string;
+  provider: string;
+  payment_method: string | null;
+  paid_at: string | null;
+  created_at: string;
+  /** Supabase !inner join returns single object (filtered) */
+  orders: { order_no: string | null; branch_id: string } | null;
+}
 import {
   PreparePaymentRequest,
   PreparePaymentResponse,
@@ -82,7 +134,7 @@ export class PaymentsService {
    * orderId 또는 orderNo를 실제 UUID로 변환
    */
   private async resolveOrderId(
-    sb: any,
+    sb: SupabaseClient,
     orderIdOrNo: string,
     branchId?: string,
   ): Promise<string | null> {
@@ -106,7 +158,7 @@ export class PaymentsService {
   /**
    * 주문 정보 조회 (결제 준비용)
    */
-  private async getOrderForPayment(orderId: string): Promise<any> {
+  private async getOrderForPayment(orderId: string): Promise<OrderForPayment> {
     const sb = this.supabase.adminClient();
 
     const { data, error } = await sb
@@ -152,7 +204,7 @@ export class PaymentsService {
   }
 
   private async updateOrderPaymentStatus(
-    sb: any,
+    sb: SupabaseClient,
     orderId: string,
     paymentStatus: string,
     source: string,
@@ -177,7 +229,7 @@ export class PaymentsService {
     }
   }
 
-  private logMetric(event: string, payload: Record<string, any>) {
+  private logMetric(event: string, payload: Record<string, unknown>) {
     this.logger.log(`[METRIC] ${event} ${JSON.stringify(payload)}`);
   }
 
@@ -283,7 +335,7 @@ export class PaymentsService {
     }
 
     // 4. idempotency key 기반 결제 중복 처리
-    let existingPayment: any = null;
+    let existingPayment: ExistingPaymentRecord | null = null;
 
     if (idempotencyKey) {
       const { data: idempotentPayment } = await sb
@@ -374,12 +426,12 @@ export class PaymentsService {
         };
       }
 
-      existingPayment = paymentByOrder;
+      existingPayment = paymentByOrder as ExistingPaymentRecord | null;
     }
 
     // 5. Toss Payments API call
     let providerPaymentId: string | null = null;
-    let providerResponse: any = null;
+    let providerResponse: TossConfirmResponse | null = null;
 
     if (this.tossMockMode) {
       this.logger.warn(
@@ -400,8 +452,10 @@ export class PaymentsService {
         );
         providerPaymentId =
           (providerResponse?.paymentKey as string) || dto.paymentKey;
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.logger.error('Toss Payments API call failed', error);
+        const errMsg =
+          error instanceof Error ? error.message : 'Payment confirmation failed';
 
         // 결제 실패 레코드 생성
         if (existingPayment) {
@@ -412,7 +466,7 @@ export class PaymentsService {
               provider_payment_key: dto.paymentKey,
               payment_method: PaymentMethod.CARD,
               failed_at: new Date().toISOString(),
-              failure_reason: error?.message || 'Payment confirmation failed',
+              failure_reason: errMsg,
               idempotency_key:
                 idempotencyKey ?? existingPayment.idempotency_key ?? null,
             })
@@ -427,7 +481,7 @@ export class PaymentsService {
             status: PaymentStatus.FAILED,
             payment_method: PaymentMethod.CARD,
             failed_at: new Date().toISOString(),
-            failure_reason: error?.message || 'Payment confirmation failed',
+            failure_reason: errMsg,
             idempotency_key: idempotencyKey ?? null,
           });
         }
@@ -441,12 +495,11 @@ export class PaymentsService {
         this.logMetric('payment.confirm.provider_error', {
           orderId: resolvedId,
           idempotencyKey,
-          error: error?.message || 'Payment confirmation failed',
+          error: errMsg,
         });
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
-          error?.message || 'Payment confirmation failed',
-          error?.response,
+          errMsg,
         );
       }
     }
@@ -665,7 +718,7 @@ export class PaymentsService {
       );
     }
 
-    const payments = (data || []).map((row: any) => ({
+    const payments = ((data || []) as unknown as PaymentListRow[]).map((row) => ({
       id: row.id,
       orderId: row.order_id,
       orderNo: row.orders?.order_no || null,
@@ -826,15 +879,14 @@ export class PaymentsService {
           refundAmount,
           dto.reason,
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error instanceof PaymentProviderException) {
           throw error;
         }
         this.logger.error('Toss Payments refund API call failed', error);
         throw new PaymentProviderException(
           PaymentProvider.TOSS,
-          error?.message || 'Refund failed',
-          error?.response,
+          error instanceof Error ? error.message : 'Refund failed',
         );
       }
     } else {
@@ -943,13 +995,13 @@ export class PaymentsService {
         case 'PAYMENT_CONFIRMED':
           await this.handlePaymentConfirmedWebhook(
             webhookData,
-            payment || null,
+            (payment as WebhookPaymentRecord | null) || null,
           );
           break;
         case 'PAYMENT_CANCELLED':
           await this.handlePaymentCancelledWebhook(
             webhookData,
-            payment || null,
+            (payment as WebhookPaymentRecord | null) || null,
           );
           break;
         // TODO: Add more event types as needed
@@ -967,14 +1019,17 @@ export class PaymentsService {
           .eq('payment_id', paymentId)
           .eq('event_type', webhookData.eventType);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Webhook processing failed', error);
 
       // 에러 로그 저장
       if (paymentId) {
         await sb
           .from('payment_webhook_logs')
-          .update({ error_message: error.message })
+          .update({
+            error_message:
+              error instanceof Error ? error.message : 'Unknown error',
+          })
           .eq('payment_id', paymentId)
           .eq('event_type', webhookData.eventType);
       }
@@ -988,7 +1043,7 @@ export class PaymentsService {
    */
   private async handlePaymentConfirmedWebhook(
     webhookData: TossWebhookRequest,
-    payment: any,
+    payment: WebhookPaymentRecord | null,
   ): Promise<void> {
     const { orderId, paymentKey, amount } = webhookData.data;
 
@@ -1123,7 +1178,7 @@ export class PaymentsService {
    */
   private async handlePaymentCancelledWebhook(
     webhookData: TossWebhookRequest,
-    payment: any,
+    payment: WebhookPaymentRecord | null,
   ): Promise<void> {
     const { orderId, paymentKey } = webhookData.data;
 

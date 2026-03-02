@@ -220,7 +220,7 @@ describe('MembershipGuard', () => {
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
     branchMembersChain.maybeSingle.mockResolvedValueOnce({
-      data: { role: BranchRole.MANAGER, status: MemberStatus.ACTIVE },
+      data: { role: BranchRole.BRANCH_ADMIN, status: MemberStatus.ACTIVE },
       error: null,
     });
 
@@ -251,7 +251,7 @@ describe('MembershipGuard', () => {
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
     branchMembersChain.maybeSingle.mockResolvedValueOnce({
-      data: { role: BranchRole.MANAGER, status: MemberStatus.SUSPENDED },
+      data: { role: BranchRole.BRANCH_ADMIN, status: MemberStatus.SUSPENDED },
       error: null,
     });
 

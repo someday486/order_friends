@@ -55,13 +55,13 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: "/customer/brands",
-        label: "브랜드 관리",
+        label: "브랜드관리",
         icon: BrandIcon,
         allowedRoles: ["system_admin", "brand_owner"],
       },
       {
         href: "/customer/branches",
-        label: "매장 관리",
+        label: "매장관리",
         icon: StoreIcon,
         allowedRoles: ["system_admin", "brand_owner"],
       },
@@ -72,7 +72,7 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: "/customer/products",
-        label: "상품 관리",
+        label: "상품관리",
         icon: ProductIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
       },
@@ -84,7 +84,7 @@ const menuSections: MenuSection[] = [
       },
       {
         href: "/customer/inventory",
-        label: "재고 관리",
+        label: "재고관리",
         icon: InventoryIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
       },
@@ -95,13 +95,13 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: "/customer/orders",
-        label: "주문 관리",
+        label: "주문관리",
         icon: OrderIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
       },
       {
         href: "/customer/order",
-        label: "주문 페이지",
+        label: "주문페이지",
         icon: OrderIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
       },
@@ -195,7 +195,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             )}
             {visibleSections.map((section) => (
               <div key={section.title}>
-                <div className="px-3 pb-2 text-2xs text-text-tertiary uppercase tracking-wide">
+                <div className="px-3 pb-2 text-2xs text-text-tertiary uppercase tracking-wider">
                   {section.title}
                 </div>
                 <div className="space-y-1">

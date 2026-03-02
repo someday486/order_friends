@@ -257,11 +257,11 @@ function ExportDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4"
       onClick={() => { if (!exporting) onClose(); }}
     >
       <div
-        className="relative w-full max-w-sm bg-bg-primary rounded-2xl border border-border shadow-2xl p-6"
+        className="relative w-full max-w-sm bg-[#FAFAFA] dark:bg-neutral-900 rounded-2xl border border-border shadow-2xl p-6"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

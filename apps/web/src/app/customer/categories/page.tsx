@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -116,6 +116,7 @@ export default function CustomerCategoriesPage() {
 
   // Bulk selection
   const [selectedCatIds, setSelectedCatIds] = useState<Set<string>>(new Set());
+  const [selectedGroupKeys, setSelectedGroupKeys] = useState<Set<string>>(new Set());
 
   // Inline edit
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -126,6 +127,8 @@ export default function CustomerCategoriesPage() {
   const [categorySearch, setCategorySearch] = useState("");
   const [debouncedCategorySearch, setDebouncedCategorySearch] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const selectAllGroupRef = useRef<HTMLInputElement>(null);
 
   // Load branches
   useEffect(() => {
@@ -217,7 +220,7 @@ export default function CustomerCategoriesPage() {
     selectedBranches.length > 0 &&
     selectedBranches.every((branch) => canManageCategory(branch.myRole));
   const canReorder = canManage && selectedBranchIds.size > 0;
-  const canBulkStatus = canManage && isSingleBranchMode;
+  const canBulkStatus = canManage && selectedBranchIds.size > 0;
 
   const groupedCategories = useMemo(
     () => groupCategories(categories, branches),
@@ -428,6 +431,62 @@ export default function CustomerCategoriesPage() {
     }
   };
 
+  const handleBulkToggleMulti = async (active: boolean) => {
+    if (selectedGroupKeys.size === 0) return;
+
+    const branchIds = Array.from(selectedBranchIds);
+    const selectedGroups = groupedCategories.filter((g) => selectedGroupKeys.has(g.key));
+
+    // Build per-branch payloads: only include categories that exist for that branch
+    const perBranch = new Map<string, string[]>();
+    for (const branchId of branchIds) {
+      const catIds: string[] = [];
+      for (const group of selectedGroups) {
+        for (const item of group.items) {
+          if (item.branchId === branchId) catIds.push(item.id);
+        }
+      }
+      if (catIds.length > 0) perBranch.set(branchId, catIds);
+    }
+
+    if (perBranch.size === 0) {
+      toast.error("변경 대상 카테고리가 없습니다.");
+      return;
+    }
+
+    const settled = await Promise.allSettled(
+      Array.from(perBranch.entries()).map(([branchId, categoryIds]) =>
+        apiClient.patch("/customer/products/categories/bulk-status", {
+          branchId,
+          categoryIds,
+          isActive: active,
+        }),
+      ),
+    );
+
+    let successCount = 0;
+    let failCount = 0;
+    settled.forEach((r) => {
+      if (r.status === "fulfilled") successCount++;
+      else failCount++;
+    });
+
+    const skippedCount = branchIds.length - perBranch.size;
+    const parts: string[] = [];
+    if (successCount > 0) parts.push(`${active ? "활성화" : "비활성화"} 완료: ${successCount}개 매장`);
+    if (skippedCount > 0) parts.push(`스킵: ${skippedCount}개 매장`);
+    if (failCount > 0) parts.push(`실패: ${failCount}개 매장`);
+
+    if (failCount > 0) {
+      toast.error(parts.join(", "));
+    } else {
+      toast.success(parts.join(", "));
+    }
+
+    await loadSelectedBranchCategories();
+    setSelectedGroupKeys(new Set());
+  };
+
   const handleReorder = async (newList: Category[]) => {
     setCategories(newList);
 
@@ -518,6 +577,11 @@ export default function CustomerCategoriesPage() {
     return branches.filter((b) => b.name.toLowerCase().includes(q));
   }, [branches, branchSearch]);
 
+  const allFilteredBranchSelected = useMemo(() => {
+    if (filteredBranches.length === 0) return false;
+    return filteredBranches.every((b) => selectedBranchIds.has(b.id));
+  }, [filteredBranches, selectedBranchIds]);
+
   useEffect(() => {
     setSelectedCatIds((prev) => {
       if (prev.size === 0) return prev;
@@ -534,7 +598,9 @@ export default function CustomerCategoriesPage() {
   }, [canManage]);
 
   useEffect(() => {
-    if (!isSingleBranchMode) {
+    if (isSingleBranchMode) {
+      setSelectedGroupKeys(new Set());
+    } else {
       setSelectedCatIds(new Set());
       setEditingId(null);
     }
@@ -547,6 +613,60 @@ export default function CustomerCategoriesPage() {
     }, 250);
     return () => clearTimeout(timer);
   }, [categorySearch]);
+
+  // Select all helpers (single branch mode)
+  const visibleCatIds = useMemo(
+    () => new Set(filteredCategories.map((c) => c.id)),
+    [filteredCategories],
+  );
+  const allVisibleSelected =
+    visibleCatIds.size > 0 && [...visibleCatIds].every((id) => selectedCatIds.has(id));
+  const someVisibleSelected = [...visibleCatIds].some((id) => selectedCatIds.has(id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [someVisibleSelected, allVisibleSelected]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCatIds((prev) => new Set([...prev, ...visibleCatIds]));
+    } else {
+      setSelectedCatIds((prev) => {
+        const next = new Set(prev);
+        for (const id of visibleCatIds) next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  // Select all helpers (multi-branch mode — group keys)
+  const visibleGroupKeys = useMemo(
+    () => new Set(filteredGroupedCategories.map((g) => g.key)),
+    [filteredGroupedCategories],
+  );
+  const allVisibleGroupsSelected =
+    visibleGroupKeys.size > 0 && [...visibleGroupKeys].every((k) => selectedGroupKeys.has(k));
+  const someVisibleGroupsSelected = [...visibleGroupKeys].some((k) => selectedGroupKeys.has(k));
+
+  useEffect(() => {
+    if (selectAllGroupRef.current) {
+      selectAllGroupRef.current.indeterminate = someVisibleGroupsSelected && !allVisibleGroupsSelected;
+    }
+  }, [someVisibleGroupsSelected, allVisibleGroupsSelected]);
+
+  const handleSelectAllGroups = (checked: boolean) => {
+    if (checked) {
+      setSelectedGroupKeys((prev) => new Set([...prev, ...visibleGroupKeys]));
+    } else {
+      setSelectedGroupKeys((prev) => {
+        const next = new Set(prev);
+        for (const k of visibleGroupKeys) next.delete(k);
+        return next;
+      });
+    }
+  };
 
   if (loading && branches.length === 0) {
     return (
@@ -569,9 +689,11 @@ export default function CustomerCategoriesPage() {
     dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>,
   ) => (
     <div
-      className={`flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 hover:bg-bg-tertiary/30 transition-colors ${
-        !category.isActive ? "opacity-60" : ""
-      }`}
+      className={`group/row flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 transition-colors ${
+        selectedCatIds.has(category.id)
+          ? "bg-primary-500/5 hover:bg-primary-500/10"
+          : "hover:bg-bg-tertiary/30"
+      } ${!category.isActive ? "opacity-60" : ""}`}
     >
       {canBulkStatus && (
         <input
@@ -633,26 +755,9 @@ export default function CustomerCategoriesPage() {
       </div>
 
       {editingId !== category.id && (
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <button
-            onClick={() => handleToggleActive(category)}
-            className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
-              category.isActive
-                ? "bg-success/80 hover:bg-success"
-                : "bg-neutral-400/70 hover:bg-neutral-500/70"
-            }`}
-            title={category.isActive ? "비활성화" : "활성화"}
-            aria-label={`${category.name} ${category.isActive ? "비활성화" : "활성화"}`}
-          >
-            <span
-              className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-sm pointer-events-none transition-transform ${
-                category.isActive ? "translate-x-4" : "translate-x-0"
-              }`}
-            />
-          </button>
-
+        <div className="flex items-center gap-2 flex-shrink-0">
           {canManage && (
-            <>
+            <div className="flex items-center gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
               <button
                 onClick={() => {
                   setEditingId(category.id);
@@ -672,8 +777,24 @@ export default function CustomerCategoriesPage() {
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-            </>
+            </div>
           )}
+          <button
+            onClick={() => handleToggleActive(category)}
+            className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
+              category.isActive
+                ? "bg-success/80 hover:bg-success"
+                : "bg-neutral-400/70 hover:bg-neutral-500/70"
+            }`}
+            title={category.isActive ? "비활성화" : "활성화"}
+            aria-label={`${category.name} ${category.isActive ? "비활성화" : "활성화"}`}
+          >
+            <span
+              className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-sm pointer-events-none transition-transform ${
+                category.isActive ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
         </div>
       )}
     </div>
@@ -684,14 +805,30 @@ export default function CustomerCategoriesPage() {
     index: number,
     dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>,
   ) => {
-    const MAX_VISIBLE_BRANCH_CHIPS = 1;
-    const visibleBranchNames = group.branchNames.slice(0, MAX_VISIBLE_BRANCH_CHIPS);
-    const remainingBranchCount = group.branchNames.length - visibleBranchNames.length;
-    const tooltipLines = group.branchNames;
-    const tooltipText = tooltipLines.join(", ");
+    const tooltipText = group.branchNames.join(", ");
 
     return (
-      <div className="flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 hover:bg-bg-tertiary/30 transition-colors">
+      <div className={`group/row flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 transition-colors ${
+        selectedGroupKeys.has(group.key)
+          ? "bg-primary-500/5 hover:bg-primary-500/10"
+          : "hover:bg-bg-tertiary/30"
+      }`}>
+        {canBulkStatus && !isSingleBranchMode && (
+          <input
+            type="checkbox"
+            checked={selectedGroupKeys.has(group.key)}
+            onChange={() => {
+              setSelectedGroupKeys((prev) => {
+                const next = new Set(prev);
+                if (next.has(group.key)) next.delete(group.key);
+                else next.add(group.key);
+                return next;
+              });
+            }}
+            className="w-4 h-4 rounded accent-primary flex-shrink-0"
+          />
+        )}
+
         {dragHandleProps ? (
           <DragHandle {...dragHandleProps} className="flex-shrink-0" />
         ) : (
@@ -703,31 +840,16 @@ export default function CustomerCategoriesPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-foreground">{group.name}</span>
-            {visibleBranchNames.map((branchName) => (
-              <div key={branchName} className="relative group" tabIndex={0}>
+            {group.branchNames.length > 0 && (
+              <div className="relative group" tabIndex={0}>
                 <span
                   className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border"
                   aria-label={`포함 지점: ${tooltipText}`}
                 >
-                  {branchName}
+                  {group.branchNames.length}개 매장
                 </span>
                 <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg max-h-48 overflow-y-auto">
-                  {tooltipLines.map((line) => (
-                    <div key={line} className="leading-5">{line}</div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {remainingBranchCount > 0 && (
-              <div className="relative group" tabIndex={0}>
-                <span
-                  className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-semibold bg-bg-tertiary text-text-secondary border border-border"
-                  aria-label={`외 ${remainingBranchCount}개 지점 (전체: ${tooltipText})`}
-                >
-                  +{remainingBranchCount}
-                </span>
-                <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg max-h-48 overflow-y-auto">
-                  {tooltipLines.map((line) => (
+                  {group.branchNames.map((line) => (
                     <div key={line} className="leading-5">{line}</div>
                   ))}
                 </div>
@@ -736,9 +858,27 @@ export default function CustomerCategoriesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {canManage && (
             <>
+              <div className="flex items-center gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                <button
+                  onClick={() => openGroupEdit(group)}
+                  className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
+                  title="그룹 이름 수정"
+                  aria-label="그룹 이름 수정"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleGroupDelete(group)}
+                  className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
+                  title="그룹 삭제"
+                  aria-label="그룹 삭제"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
               <button
                 onClick={() => handleGroupToggleActive(group)}
                 className={`relative w-9 h-5 p-0 rounded-full transition-colors cursor-pointer shrink-0 ${
@@ -755,22 +895,6 @@ export default function CustomerCategoriesPage() {
                   }`}
                 />
               </button>
-              <button
-                onClick={() => openGroupEdit(group)}
-                className="w-8 h-8 flex items-center justify-center rounded border border-border bg-bg-secondary text-foreground hover:bg-bg-tertiary cursor-pointer text-sm transition-colors"
-                title="그룹 이름 수정"
-                aria-label="그룹 이름 수정"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleGroupDelete(group)}
-                className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
-                title="그룹 삭제"
-                aria-label="그룹 삭제"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
             </>
           )}
         </div>
@@ -781,7 +905,7 @@ export default function CustomerCategoriesPage() {
   const modeBadge = isSingleBranchMode
     ? { label: "단일 매장 모드 (정렬/일괄상태 변경 가능)", color: "bg-success/20 text-success" }
     : selectedBranchIds.size > 1
-      ? { label: "다중 매장 모드 (정렬/추가 가능, 일괄상태 변경 불가)", color: "bg-bg-tertiary text-text-secondary" }
+      ? { label: "다중 매장 모드 (정렬/추가/일괄상태 변경 가능)", color: "bg-success/20 text-success" }
       : { label: "매장 선택 필요", color: "bg-bg-tertiary text-text-secondary" };
 
   return (
@@ -825,18 +949,27 @@ export default function CustomerCategoriesPage() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setSelectedBranchIds(new Set(filteredBranches.map((b) => b.id)))}
+                onClick={() => {
+                  if (allFilteredBranchSelected) {
+                    // 현재 보이는(필터된) 매장들만 해제
+                    setSelectedBranchIds((prev) => {
+                      const next = new Set(prev);
+                      for (const b of filteredBranches) next.delete(b.id);
+                      return next;
+                    });
+                  } else {
+                    // 현재 보이는(필터된) 매장들만 전체 선택
+                    setSelectedBranchIds((prev) => {
+                      const next = new Set(prev);
+                      for (const b of filteredBranches) next.add(b.id);
+                      return next;
+                    });
+                  }
+                }}
                 disabled={filteredBranches.length === 0}
                 className="text-xs px-2.5 py-1 rounded border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
               >
-                전체 선택
-              </button>
-              <button
-                onClick={() => setSelectedBranchIds(new Set())}
-                disabled={selectedBranchIds.size === 0}
-                className="text-xs px-2.5 py-1 rounded border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-              >
-                전체 해제
+                {allFilteredBranchSelected ? "전체 해제" : "전체 선택"}
               </button>
             </div>
           </div>
@@ -886,31 +1019,40 @@ export default function CustomerCategoriesPage() {
 
         {/* Right column: Add form + table */}
         <div className="max-w-[980px] w-full">
-          {/* Capabilities indicator */}
-          {selectedBranchIds.size > 0 && (
-            <div className="flex items-center gap-2 mb-4">
-              <span
-                className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
-                  canReorder
-                    ? "bg-success/20 text-success"
-                    : "bg-bg-tertiary text-text-tertiary cursor-help"
-                }`}
-                title={canReorder ? "정렬 변경 가능" : "매장을 선택해 주세요"}
-              >
-                정렬 변경
-              </span>
-              <span
-                className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
-                  canBulkStatus
-                    ? "bg-success/20 text-success"
-                    : "bg-bg-tertiary text-text-tertiary cursor-help"
-                }`}
-                title={canBulkStatus ? "일괄 활성/비활성 가능" : "단일 매장 선택에서만 가능"}
-              >
-                일괄 활성/비활성
-              </span>
-            </div>
-          )}
+          {/* Mode guide */}
+          <div className="mb-3 p-3 rounded-lg border border-border bg-bg-tertiary/40">
+            {selectedBranchIds.size === 0 ? (
+              <div className="text-sm text-text-tertiary">매장을 선택하면 카테고리를 관리할 수 있습니다.</div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm text-text-secondary">
+                  {isSingleBranchMode
+                    ? "단일 매장 모드: 정렬 · 일괄 상태 변경 가능"
+                    : "다중 매장 모드: 정렬 · 추가 · 그룹 일괄 상태 변경 가능"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
+                      canReorder ? "bg-success/20 text-success" : "bg-bg-tertiary text-text-tertiary"
+                    }`}
+                    title={canReorder ? "정렬 변경 가능" : "매장을 선택해 주세요"}
+                  >
+                    정렬 변경
+                  </span>
+                  <span
+                    className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
+                      canBulkStatus
+                        ? "bg-success/20 text-success"
+                        : "bg-bg-tertiary text-text-tertiary opacity-60 cursor-not-allowed"
+                    }`}
+                    title={canBulkStatus ? "일괄 활성/비활성 가능" : "매장을 선택해 주세요"}
+                  >
+                    일괄 활성/비활성
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {error && (
             <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4">{error}</div>
@@ -973,22 +1115,55 @@ export default function CustomerCategoriesPage() {
           ) : (
             <div>
               {/* Bulk action bar */}
-              {canBulkStatus ? (
-                selectedCatIds.size > 0 ? (
-                  <div className="flex items-center gap-2 mb-3 p-3 rounded-lg bg-primary-500/5 border border-primary-500/20">
-                    <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
-                    <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
-                    <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
-                    <button className="text-xs px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary font-medium hover:bg-bg-secondary transition-colors" onClick={() => setSelectedCatIds(new Set())}>선택 해제</button>
-                  </div>
-                ) : (
-                  <div className="mb-3 p-3 rounded-lg bg-bg-tertiary/40 border border-border text-xs text-text-secondary italic text-center">
-                    카테고리를 선택하면 일괄 활성/비활성이 가능합니다.
-                  </div>
-                )
-              ) : selectedBranchIds.size > 1 && canManage ? (
-                <div className="mb-3 p-3 rounded-lg bg-bg-tertiary/40 border border-border text-xs text-text-secondary italic text-center" title="단일 매장을 선택하면 일괄 활성/비활성이 가능합니다">
-                  다중 매장 모드에서는 개별 선택/일괄 상태변경이 불가합니다. 1개 매장만 선택해 주세요.
+              {canBulkStatus && isSingleBranchMode ? (
+                <div className={`sticky top-0 z-10 flex items-center gap-2 mb-3 p-3 rounded-lg ${
+                  selectedCatIds.size > 0
+                    ? "bg-primary-500/5 border border-primary-500/20 backdrop-blur"
+                    : "bg-bg-tertiary/40 border border-border"
+                }`}>
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary flex-shrink-0"
+                    title="전체 선택/해제"
+                    aria-label="전체 선택/해제"
+                  />
+                  {selectedCatIds.size > 0 ? (
+                    <>
+                      <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
+                      <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
+                      <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-text-secondary italic">카테고리를 선택하면 일괄 활성/비활성이 가능합니다.</span>
+                  )}
+                </div>
+              ) : canBulkStatus && !isSingleBranchMode ? (
+                <div className={`sticky top-0 z-10 flex items-center gap-2 mb-3 p-3 rounded-lg ${
+                  selectedGroupKeys.size > 0
+                    ? "bg-primary-500/5 border border-primary-500/20 backdrop-blur"
+                    : "bg-bg-tertiary/40 border border-border"
+                }`}>
+                  <input
+                    ref={selectAllGroupRef}
+                    type="checkbox"
+                    checked={allVisibleGroupsSelected}
+                    onChange={(e) => handleSelectAllGroups(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary flex-shrink-0"
+                    title="전체 선택/해제"
+                    aria-label="전체 선택/해제"
+                  />
+                  {selectedGroupKeys.size > 0 ? (
+                    <>
+                      <span className="text-sm font-medium text-foreground">일괄 변경: {selectedGroupKeys.size}개 그룹 선택됨</span>
+                      <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggleMulti(true)}>선택 활성화</button>
+                      <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggleMulti(false)}>선택 비활성화</button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-text-secondary italic">카테고리 그룹을 선택하면 일괄 활성/비활성이 가능합니다.</span>
+                  )}
                 </div>
               ) : null}
 

@@ -137,6 +137,7 @@ export default function OrderPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
+  const productDialogTitleId = "branch-order-product-dialog-title";
 
   const categories = useMemo(() => {
     const names = products
@@ -246,6 +247,24 @@ export default function OrderPage() {
     setCartBounce(true);
     setTimeout(() => setCartBounce(false), 500);
   };
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedProduct(null);
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedProduct]);
 
   // 장바구니에서 제거
   const removeFromCart = (index: number) => {
@@ -526,6 +545,9 @@ export default function OrderPage() {
           <div
             className="w-full max-w-[480px] max-h-[80vh] p-5 rounded-t-2xl bg-bg-secondary overflow-y-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={productDialogTitleId}
           >
             {selectedProduct.image_url && (
               <Image
@@ -536,7 +558,7 @@ export default function OrderPage() {
                 className="w-full h-36 object-cover rounded-xl mb-4"
               />
             )}
-            <h3 className="m-0 mb-1 text-lg font-bold text-foreground">{selectedProduct.name}</h3>
+            <h3 id={productDialogTitleId} className="m-0 mb-1 text-lg font-bold text-foreground">{selectedProduct.name}</h3>
             {selectedProduct.description && (
               <p className="text-sm text-text-tertiary mb-3">{selectedProduct.description}</p>
             )}

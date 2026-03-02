@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
+import { StampsService } from '../stamps/stamps.service';
 
 describe('PublicController', () => {
   let controller: PublicController;
@@ -11,11 +12,17 @@ describe('PublicController', () => {
     createOrder: jest.fn(),
     getOrder: jest.fn(),
   };
+  const mockStampsService = {
+    getPublicStampInfo: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PublicController],
-      providers: [{ provide: PublicService, useValue: mockService }],
+      providers: [
+        { provide: PublicService, useValue: mockService },
+        { provide: StampsService, useValue: mockStampsService },
+      ],
     }).compile();
 
     controller = module.get<PublicController>(PublicController);

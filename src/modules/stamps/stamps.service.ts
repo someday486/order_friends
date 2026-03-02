@@ -111,7 +111,13 @@ export class StampsService {
       ? Math.floor(currentStamps / config.rewardThreshold)
       : 0;
 
-    return { config, currentStamps, totalEarned, totalRedeemed, rewardsAvailable };
+    return {
+      config,
+      currentStamps,
+      totalEarned,
+      totalRedeemed,
+      rewardsAvailable,
+    };
   }
 
   // ── Internal: earn stamps after order ─────────────────────────
@@ -149,7 +155,13 @@ export class StampsService {
       // Non-fatal: log and continue
       this.logger.warn(`earnStamps RPC failed: ${upsertError.message}`);
       // Fallback: manual upsert
-      await this.earnStampsFallback(client, branchId, customerPhone.trim(), qty, orderId);
+      await this.earnStampsFallback(
+        client,
+        branchId,
+        customerPhone.trim(),
+        qty,
+        orderId,
+      );
     }
   }
 

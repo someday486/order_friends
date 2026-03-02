@@ -69,7 +69,11 @@ function isCheckoutDraft(value: unknown): value is CheckoutDraft {
 function isLastOrderRecord(value: unknown): value is LastOrderRecord {
   if (!isObject(value)) return false;
   if (!('order' in value)) return false;
-  if ('cartSnapshot' in value && value.cartSnapshot !== null && value.cartSnapshot !== undefined) {
+  if (
+    'cartSnapshot' in value &&
+    value.cartSnapshot !== null &&
+    value.cartSnapshot !== undefined
+  ) {
     if (!Array.isArray(value.cartSnapshot)) return false;
   }
   return true;

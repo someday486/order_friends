@@ -91,12 +91,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // Request body size limit (10mb for file uploads, 1mb for general API)
-  app.use(
-    require('express').json({ limit: '1mb' }),
-  );
-  app.use(
-    require('express').urlencoded({ extended: true, limit: '1mb' }),
-  );
+  app.use(require('express').json({ limit: '1mb' }));
+  app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
 
   // Security: Helmet
   app.use(helmet());

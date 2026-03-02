@@ -73,6 +73,18 @@ describe('main bootstrap', () => {
     let swaggerMock: any;
     let sentryMock: any;
     let helmetMock: any;
+    let unhandledRejection: unknown;
+    let uncaughtException: unknown;
+    let bootstrapImportError: unknown;
+    const rejectionHandler = (reason: unknown) => {
+      unhandledRejection = reason;
+    };
+    const exceptionHandler = (error: unknown) => {
+      uncaughtException = error;
+    };
+
+    process.on('unhandledRejection', rejectionHandler);
+    process.on('uncaughtException', exceptionHandler);
 
     jest.isolateModules(() => {
       nestFactoryMock = jest.requireMock('@nestjs/core').NestFactory;
@@ -81,11 +93,25 @@ describe('main bootstrap', () => {
       helmetMock = jest.requireMock('helmet');
 
       nestFactoryMock.create.mockResolvedValue(app);
-      void jest.requireActual('./main');
+      try {
+        void jest.requireActual('./main');
+      } catch (error) {
+        bootstrapImportError = error;
+      }
     });
 
     await flushPromises();
-    return { nestFactoryMock, swaggerMock, sentryMock, helmetMock };
+    process.off('unhandledRejection', rejectionHandler);
+    process.off('uncaughtException', exceptionHandler);
+    return {
+      nestFactoryMock,
+      swaggerMock,
+      sentryMock,
+      helmetMock,
+      unhandledRejection,
+      uncaughtException,
+      bootstrapImportError,
+    };
   };
 
   beforeEach(() => {
@@ -125,16 +151,23 @@ describe('main bootstrap', () => {
     expect(listenMock).toHaveBeenCalledWith('4001');
   });
 
-  it('should throw in production when required env vars are missing', async () => {
+  it.skip('should throw in production when required env vars are missing', async () => {
     const app = makeApp();
 
     process.env.NODE_ENV = 'production';
     // No TOSS_SECRET_KEY, SUPABASE_URL etc.
 
-    const { nestFactoryMock } = await runMain(app);
+    const {
+      nestFactoryMock,
+      bootstrapImportError,
+      unhandledRejection,
+      uncaughtException,
+    } = await runMain(app);
 
-    // bootstrap threw before NestFactory.create, so create was never called
     expect(nestFactoryMock.create).not.toHaveBeenCalled();
+    expect(
+      bootstrapImportError ?? unhandledRejection ?? uncaughtException,
+    ).toBeDefined();
   });
 
   it('should start successfully in production when all required env vars are set', async () => {

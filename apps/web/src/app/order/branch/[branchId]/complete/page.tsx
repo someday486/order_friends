@@ -25,6 +25,9 @@ type OrderResult = {
   totalAmount: number;
   createdAt: string;
   paymentMethod?: string | null;
+  customer?: {
+    phone?: string | null;
+  } | null;
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -57,6 +60,10 @@ function normalizeOrder(raw: unknown): OrderResult | null {
     source.transferAccount && typeof source.transferAccount === "object"
       ? (source.transferAccount as Record<string, unknown>)
       : null;
+  const customerRaw =
+    source.customer && typeof source.customer === "object"
+      ? (source.customer as Record<string, unknown>)
+      : null;
 
   return {
     id: source.id,
@@ -65,6 +72,11 @@ function normalizeOrder(raw: unknown): OrderResult | null {
     totalAmount,
     createdAt,
     paymentMethod: typeof source.paymentMethod === "string" ? source.paymentMethod : null,
+    customer: customerRaw
+      ? {
+          phone: typeof customerRaw.phone === "string" ? customerRaw.phone : null,
+        }
+      : null,
     transferAccount: transferAccountRaw
       ? {
           bankName: typeof transferAccountRaw.bankName === "string" ? transferAccountRaw.bankName : null,
@@ -92,6 +104,42 @@ function normalizeOrder(raw: unknown): OrderResult | null {
 
       return { name, qty, unitPrice };
     }),
+  };
+}
+
+function normalizeStampInfo(raw: unknown): StampInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+  const configRaw =
+    source.config && typeof source.config === "object"
+      ? (source.config as Record<string, unknown>)
+      : null;
+  if (!configRaw) return null;
+
+  const stampsPerOrder = configRaw.stampsPerOrder;
+  const rewardThreshold = configRaw.rewardThreshold;
+  const rewardDescription = configRaw.rewardDescription;
+  const currentStamps = source.currentStamps;
+  const rewardsAvailable = source.rewardsAvailable;
+
+  if (
+    typeof stampsPerOrder !== "number" ||
+    typeof rewardThreshold !== "number" ||
+    typeof rewardDescription !== "string" ||
+    typeof currentStamps !== "number" ||
+    typeof rewardsAvailable !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    config: {
+      stampsPerOrder,
+      rewardThreshold,
+      rewardDescription,
+    },
+    currentStamps,
+    rewardsAvailable,
   };
 }
 
@@ -210,14 +258,14 @@ export default function CompletePage() {
   // 스탬프 정보 조회
   useEffect(() => {
     if (!order || !branchId) return;
-    const phone = (order as any)?.customer?.phone;
+    const phone = order.customer?.phone;
     if (!phone) return;
 
     apiClient
       .get(`/public/branch/${branchId}/stamp-info?phone=${encodeURIComponent(phone)}`, { auth: false })
       .then((data: unknown) => {
-        const d = data as any;
-        if (d?.config) setStampInfo(d as StampInfo);
+        const normalized = normalizeStampInfo(data);
+        if (normalized) setStampInfo(normalized);
       })
       .catch(() => {/* non-fatal */});
   }, [order, branchId]);

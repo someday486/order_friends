@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import {
@@ -115,12 +115,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const { role, loading: roleLoading } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark, toggle } = useDarkMode();
-
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
@@ -254,14 +248,12 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               마이페이지
             </Link>
 
-            {mounted && (
-              <button
-                onClick={toggle}
-                className="py-2 px-3 rounded text-sm ..."
-              >
-                {isDark ? "라이트 모드" : "다크 모드"}
-              </button>
-            )}
+            <button
+              onClick={toggle}
+              className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
+            >
+              {isDark ? "라이트 모드" : "다크 모드"}
+            </button>
             <button
               onClick={signOut}
               className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer"
@@ -273,13 +265,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
         <main className="bg-background min-h-screen">
           <div className="hidden md:flex h-[72px] sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 items-center justify-end gap-2">
-            {mounted && (
-              <button
-                onClick={toggle}
-                className="py-2 px-4 rounded-md border border-border bg-transparent text-sm text-foreground hover:bg-bg-tertiary transition-colors">
-                {isDark ? "라이트 모드" : "다크 모드"}
-              </button>
-            )}
+            <button
+              onClick={toggle}
+              className="py-2 px-4 rounded-md border border-border bg-transparent text-sm text-foreground hover:bg-bg-tertiary transition-colors">
+              {isDark ? "라이트 모드" : "다크 모드"}
+            </button>
             <NotificationBell />
           </div>
           <div className="p-4 md:p-6">{children}</div>

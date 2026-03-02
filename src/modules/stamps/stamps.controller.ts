@@ -15,7 +15,12 @@ import type { AuthRequest } from '../../common/types/auth-request';
 import { StampsService } from './stamps.service';
 import { UpsertStampCardConfigDto } from './dto/stamp-card-config.dto';
 
-const MANAGE_ROLES = new Set(['OWNER', 'ADMIN', 'BRANCH_OWNER', 'BRANCH_ADMIN']);
+const MANAGE_ROLES = new Set([
+  'OWNER',
+  'ADMIN',
+  'BRANCH_OWNER',
+  'BRANCH_ADMIN',
+]);
 
 @ApiTags('stamps')
 @Controller('customer/branches/:branchId/stamp-card')

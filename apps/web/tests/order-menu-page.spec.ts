@@ -41,16 +41,13 @@ const MOCK_PRODUCTS = [
 
 test.describe('Order menu page (branch ID route)', () => {
   test('displays product list when API responds', async ({ page }) => {
-    await page.route(
-      `${API_BASE}/public/branches/branch-1`,
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(MOCK_BRANCH),
-        });
-      },
-    );
+    await page.route(`${API_BASE}/public/branches/branch-1`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_BRANCH),
+      });
+    });
 
     await page.route(
       `${API_BASE}/public/branches/branch-1/products`,
@@ -84,16 +81,13 @@ test.describe('Order menu page (branch ID route)', () => {
   });
 
   test('shows product prices formatted in Korean won', async ({ page }) => {
-    await page.route(
-      `${API_BASE}/public/branches/branch-1`,
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(MOCK_BRANCH),
-        });
-      },
-    );
+    await page.route(`${API_BASE}/public/branches/branch-1`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_BRANCH),
+      });
+    });
 
     await page.route(
       `${API_BASE}/public/branches/branch-1/products`,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -83,20 +83,18 @@ export default function OrderPageClient({
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
+  const productDialogTitleId = "order-product-dialog-title";
 
   // 재주문 배너
-  const [lastOrderCart, setLastOrderCart] = useState<CartItem[] | null>(null);
-  const [reorderDismissed, setReorderDismissed] = useState(false);
-
-  useEffect(() => {
+  const lastOrderCart = useMemo<CartItem[] | null>(() => {
     const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
-    if (lastRecord && typeof lastRecord === "object") {
-      const rec = lastRecord as Record<string, unknown>;
-      if (Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0) {
-        setLastOrderCart(rec.cartSnapshot as CartItem[]);
-      }
-    }
+    if (!lastRecord || typeof lastRecord !== "object") return null;
+    const rec = lastRecord as Record<string, unknown>;
+    return Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
+      ? (rec.cartSnapshot as CartItem[])
+      : null;
   }, [brandSlug, branchSlug]);
+  const [reorderDismissed, setReorderDismissed] = useState(false);
 
   const handleReorder = () => {
     if (!lastOrderCart) return;
@@ -109,6 +107,24 @@ export default function OrderPageClient({
     setReorderDismissed(true);
     toast.success("저번 주문 내역을 장바구니에 담았어요!");
   };
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedProduct(null);
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedProduct]);
 
   const filteredProducts = useMemo(() => {
     if (!selectedCategory) return products;
@@ -425,8 +441,14 @@ export default function OrderPageClient({
         {/* Product Detail Modal */}
         {selectedProduct && (
           <div className="fixed inset-0 z-[100] bg-black/60 flex items-end justify-center" onClick={() => setSelectedProduct(null)}>
-            <div className="w-full max-w-lg bg-background rounded-t-xl p-5 animate-slide-up max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-foreground mb-1">{selectedProduct.name}</h3>
+            <div
+              className="w-full max-w-lg bg-background rounded-t-xl p-5 animate-slide-up max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={productDialogTitleId}
+            >
+              <h3 id={productDialogTitleId} className="text-lg font-bold text-foreground mb-1">{selectedProduct.name}</h3>
               <div className="text-text-secondary mb-4">{formatWon(selectedProduct.discountPrice ?? selectedProduct.price)}</div>
 
               {selectedProduct.options && selectedProduct.options.length > 0 && (

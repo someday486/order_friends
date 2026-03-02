@@ -37,17 +37,22 @@ test.describe('Order tracking page', () => {
       );
     }, MOCK_ORDER.id);
 
-    await page.route(`${API_BASE}/public/orders/${MOCK_ORDER.id}`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(MOCK_ORDER),
-      });
-    });
+    await page.route(
+      `${API_BASE}/public/orders/${MOCK_ORDER.id}`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(MOCK_ORDER),
+        });
+      },
+    );
 
     await page.goto(`/order/track/${MOCK_ORDER.id}`);
 
-    await expect(page.getByText(MOCK_ORDER.orderNo)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(MOCK_ORDER.orderNo)).toBeVisible({
+      timeout: 5000,
+    });
     await expect(page.getByText('아메리카노')).toBeVisible();
     await expect(page.getByText('홍길동')).toBeVisible();
   });

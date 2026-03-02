@@ -3,10 +3,12 @@ import { BadRequestException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
 
 describe('PublicOrderService - Shop Flow', () => {
   let service: PublicOrderService;
   let adminChains: Record<string, any>;
+  let stampsService: { earnStamps: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -39,6 +41,9 @@ describe('PublicOrderService - Shop Flow', () => {
     const anonClient = {
       from: jest.fn((table: string) => adminChains[table]),
     };
+    stampsService = {
+      earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -51,6 +56,7 @@ describe('PublicOrderService - Shop Flow', () => {
           },
         },
         { provide: InventoryService, useValue: {} },
+        { provide: StampsService, useValue: stampsService },
       ],
     }).compile();
 

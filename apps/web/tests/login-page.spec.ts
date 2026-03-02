@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Login page', () => {
-  test('renders login form with email and password fields', async ({ page }) => {
+  test('renders login form with email and password fields', async ({
+    page,
+  }) => {
     await page.goto('/login');
 
     await expect(page.getByText('OrderFriends')).toBeVisible();

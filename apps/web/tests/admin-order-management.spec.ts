@@ -108,7 +108,9 @@ test.describe('Admin order management', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ id: 'brand-1', slug: 'test-cafe', name: '테스트 카페' }]),
+        body: JSON.stringify([
+          { id: 'brand-1', slug: 'test-cafe', name: '테스트 카페' },
+        ]),
       });
     });
 

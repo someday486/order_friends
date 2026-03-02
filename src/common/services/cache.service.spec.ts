@@ -9,6 +9,7 @@ describe('CacheService', () => {
       del: jest.fn(),
       reset: jest.fn(),
       store,
+      stores: [store],
       ...overrides,
     };
     return { service: new CacheService(cacheManager as any), cacheManager };

@@ -109,17 +109,53 @@ describe('CacheService', () => {
     await service.delPattern('x');
   });
 
-  it('reset should clear cache', async () => {
-    const { service, cacheManager } = makeService();
+  it('reset should call clear on each store', async () => {
+    const clearFn = jest.fn().mockResolvedValue(undefined);
+    const cacheManager = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      reset: jest.fn(),
+      store: {},
+      stores: [{ clear: clearFn }, { clear: clearFn }],
+    };
+    const service = new CacheService(cacheManager as any);
 
     await service.reset();
 
-    expect(cacheManager.reset).toHaveBeenCalled();
+    expect(clearFn).toHaveBeenCalledTimes(2);
   });
 
-  it('reset should handle errors', async () => {
-    const { service, cacheManager } = makeService();
-    cacheManager.reset.mockRejectedValueOnce(new Error('boom'));
+  it('reset should skip stores without clear method', async () => {
+    const cacheManager = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      reset: jest.fn(),
+      store: {},
+      stores: [{}],
+    };
+    const service = new CacheService(cacheManager as any);
+
+    await service.reset();
+  });
+
+  it('reset should handle no stores gracefully', async () => {
+    const { service } = makeService();
+
+    await service.reset();
+  });
+
+  it('reset should handle errors from clear', async () => {
+    const cacheManager = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      reset: jest.fn(),
+      store: {},
+      stores: [{ clear: jest.fn().mockRejectedValue(new Error('boom')) }],
+    };
+    const service = new CacheService(cacheManager as any);
 
     await service.reset();
   });

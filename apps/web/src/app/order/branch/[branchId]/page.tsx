@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { formatWon } from "@/lib/format";
 import { apiClient } from "@/lib/api-client";
-import { saveCheckoutDraft } from "@/lib/order-session";
+import { loadLastOrderRecord, saveCheckoutDraft } from "@/lib/order-session";
 import toast from "react-hot-toast";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
@@ -27,6 +27,7 @@ type Product = {
   image_url?: string | null;
   category_name?: string | null;
   categoryName?: string | null;
+  is_featured?: boolean;
   options: ProductOption[];
 };
 
@@ -34,6 +35,9 @@ type Branch = {
   id: string;
   name: string;
   brandName?: string;
+  address?: string | null;
+  phone?: string | null;
+  isActive?: boolean;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
 };
@@ -42,13 +46,12 @@ type CartItem = {
   product: Product;
   qty: number;
   selectedOptions: ProductOption[];
-  itemPrice: number; // 옵션 포함 단가
+  itemPrice: number;
 };
 
 // ============================================================
 // Helpers
 // ============================================================
-
 
 function calculateItemPrice(product: Product, selectedOptions: ProductOption[]) {
   let price = product.price;
@@ -56,6 +59,53 @@ function calculateItemPrice(product: Product, selectedOptions: ProductOption[]) 
     price += opt.priceDelta;
   }
   return price;
+}
+
+function getFulfillmentLabel(type: string) {
+  if (type === "PICKUP") return "포장";
+  if (type === "DELIVERY") return "배달";
+  if (type === "DINE_IN") return "매장";
+  return type;
+}
+
+// ============================================================
+// Skeleton Component
+// ============================================================
+
+function MenuSkeleton() {
+  return (
+    <div className="min-h-screen bg-background animate-pulse">
+      {/* Hero skeleton */}
+      <div className="bg-bg-secondary border-b border-border p-4 pb-5">
+        <div className="h-3 w-20 bg-bg-tertiary rounded mb-3" />
+        <div className="h-7 w-48 bg-bg-tertiary rounded mb-2" />
+        <div className="h-3 w-36 bg-bg-tertiary rounded mb-4" />
+        <div className="flex gap-2">
+          <div className="h-6 w-16 bg-bg-tertiary rounded-full" />
+          <div className="h-6 w-12 bg-bg-tertiary rounded-full" />
+        </div>
+      </div>
+      {/* Category tabs skeleton */}
+      <div className="flex gap-2 px-4 py-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-8 w-16 bg-bg-tertiary rounded-full" />
+        ))}
+      </div>
+      {/* Products skeleton */}
+      <div className="p-4 flex flex-col gap-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex gap-3 p-4 rounded-xl border border-border bg-bg-secondary">
+            <div className="w-16 h-16 rounded-lg bg-bg-tertiary shrink-0" />
+            <div className="flex-1 space-y-2 py-1">
+              <div className="h-4 w-32 bg-bg-tertiary rounded" />
+              <div className="h-3 w-24 bg-bg-tertiary rounded" />
+              <div className="h-3 w-16 bg-bg-tertiary rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ============================================================
@@ -76,6 +126,12 @@ export default function OrderPage() {
   // 장바구니
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cartBounce, setCartBounce] = useState(false);
+  const isFirstAddRef = useRef(true);
+
+  // 재주문 배너
+  const [lastOrderCart, setLastOrderCart] = useState<CartItem[] | null>(null);
+  const [reorderDismissed, setReorderDismissed] = useState(false);
 
   // 상품 선택 모달
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -97,6 +153,11 @@ export default function OrderPage() {
     });
   }, [products, selectedCategory]);
 
+  const featuredProducts = useMemo(
+    () => products.filter((p) => p.is_featured),
+    [products],
+  );
+
   // 데이터 로드
   useEffect(() => {
     if (!branchId) return;
@@ -106,13 +167,21 @@ export default function OrderPage() {
         setLoading(true);
         setError(null);
 
-        // 가게 정보
-        const branchData = await apiClient.get<Branch>(`/public/branches/${branchId}`, { auth: false });
+        const [branchData, productsData] = await Promise.all([
+          apiClient.get<Branch>(`/public/branches/${branchId}`, { auth: false }),
+          apiClient.get<Product[]>(`/public/branches/${branchId}/products`, { auth: false }),
+        ]);
         setBranch(branchData);
-
-        // 상품 목록
-        const productsData = await apiClient.get<Product[]>(`/public/branches/${branchId}/products`, { auth: false });
         setProducts(productsData);
+
+        // 재주문 배너 체크
+        const lastRecord = loadLastOrderRecord({ branchId });
+        if (lastRecord && typeof lastRecord === "object") {
+          const rec = lastRecord as Record<string, unknown>;
+          if (Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0) {
+            setLastOrderCart(rec.cartSnapshot as CartItem[]);
+          }
+        }
       } catch (e: unknown) {
         const message = (e as Error)?.message ?? "오류가 발생했습니다.";
         setError(message.includes("404") ? "가게를 찾을 수 없습니다." : message);
@@ -135,11 +204,8 @@ export default function OrderPage() {
   const toggleOption = (option: ProductOption) => {
     setSelectedOptions((prev) => {
       const exists = prev.find((o) => o.id === option.id);
-      if (exists) {
-        return prev.filter((o) => o.id !== option.id);
-      } else {
-        return [...prev, option];
-      }
+      if (exists) return prev.filter((o) => o.id !== option.id);
+      return [...prev, option];
     });
   };
 
@@ -159,9 +225,26 @@ export default function OrderPage() {
       },
     ]);
 
+    // 첫 담기 때 bounce 애니메이션
+    if (isFirstAddRef.current) {
+      isFirstAddRef.current = false;
+    }
+    setCartBounce(true);
+    setTimeout(() => setCartBounce(false), 500);
+
     setSelectedProduct(null);
     setSelectedOptions([]);
     setQty(1);
+  };
+
+  // 재주문: 저번 주문 다시 담기
+  const handleReorder = () => {
+    if (!lastOrderCart) return;
+    setCart(lastOrderCart);
+    setReorderDismissed(true);
+    toast.success("저번 주문 내역을 장바구니에 담았어요!");
+    setCartBounce(true);
+    setTimeout(() => setCartBounce(false), 500);
   };
 
   // 장바구니에서 제거
@@ -203,95 +286,159 @@ export default function OrderPage() {
   // Render
   // ============================================================
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <p className="text-text-secondary text-center p-10">로딩 중...</p>
-      </div>
-    );
-  }
+  if (loading) return <MenuSkeleton />;
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background text-foreground">
-        <p className="text-danger-500 text-center p-10">{error}</p>
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <div className="text-center px-6">
+          <div className="text-4xl mb-4">😕</div>
+          <p className="text-danger-500 font-semibold mb-2">{error}</p>
+          <p className="text-text-tertiary text-sm">링크를 다시 확인해 주세요.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="py-5 px-4 border-b border-border">
-        <div>
-          <div className="text-xs text-text-tertiary">{branch?.brandName}</div>
-          <h1 className="mt-1 mb-0 text-xl font-bold text-foreground">{branch?.name}</h1>
+      {/* ── Hero Header ── */}
+      <header className="bg-bg-secondary border-b border-border">
+        <div className="p-4 pb-3">
+          {branch?.brandName && (
+            <div className="text-xs text-text-tertiary mb-1">{branch.brandName}</div>
+          )}
+          <h1 className="text-2xl font-extrabold text-foreground mb-1 leading-tight">
+            {branch?.name}
+          </h1>
+          {branch?.address && (
+            <div className="flex items-start gap-1 text-xs text-text-secondary mb-3">
+              <svg
+                className="w-3.5 h-3.5 mt-0.5 shrink-0 text-text-tertiary"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+              </svg>
+              <span>{branch.address}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* 영업 상태 */}
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success-600 bg-success-50 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-success-500 animate-pulse" />
+              영업중
+            </span>
+            {/* 주문 방식 태그 */}
+            {enabledFulfillmentTypes.map((type) => (
+              <span
+                key={type}
+                className="text-xs text-text-tertiary bg-bg-tertiary px-2.5 py-1 rounded-full"
+              >
+                {getFulfillmentLabel(type)}
+              </span>
+            ))}
+          </div>
         </div>
-        <KakaoQuickLoginButton className="mt-3" />
+        <div className="px-4 pb-4">
+          <KakaoQuickLoginButton />
+        </div>
       </header>
 
-      {/* Products */}
-      <main className="p-4 pb-[120px]">
-        <h2 className="text-base font-bold mb-3 text-foreground">메뉴</h2>
+      {/* ── 재주문 배너 ── */}
+      {lastOrderCart && lastOrderCart.length > 0 && !reorderDismissed && cart.length === 0 && (
+        <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary p-3 flex items-center gap-3 animate-slide-down">
+          <div className="text-xl">🔄</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-foreground">저번 주문 다시 담기</div>
+            <div className="text-xs text-text-tertiary truncate">
+              {lastOrderCart.map((i) => `${i.product.name}×${i.qty}`).join(", ")}
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={handleReorder}
+              className="text-xs font-bold text-white bg-foreground px-3 py-1.5 rounded-lg"
+            >
+              담기
+            </button>
+            <button
+              onClick={() => setReorderDismissed(true)}
+              className="text-xs text-text-tertiary px-2 py-1.5"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
+      {/* ── Products ── */}
+      <main className="p-4 pb-[120px]">
+        {/* 추천 메뉴 섹션 */}
+        {featuredProducts.length > 0 && selectedCategory === "전체" && (
+          <div className="mb-5">
+            <h2 className="text-sm font-bold mb-2 text-text-secondary flex items-center gap-1">
+              <span>⭐</span> 추천 메뉴
+            </h2>
+            <div className="flex flex-col gap-2">
+              {featuredProducts.map((product) => (
+                <ProductCard
+                  key={`featured-${product.id}`}
+                  product={product}
+                  isFeatured
+                  onClick={() => handleSelectProduct(product)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <h2 className="text-sm font-bold mb-3 text-text-secondary">전체 메뉴</h2>
+
+        {/* 카테고리 탭 (오른쪽 페이드 그라데이션) */}
         {categories.length > 1 && (
-          <div className="category-tabs mb-3">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`category-tab ${selectedCategory === category ? "category-tab-active" : ""}`}
-              >
-                {category}
-              </button>
-            ))}
+          <div className="relative mb-3 -mx-4">
+            <div className="category-tabs">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`category-tab ${selectedCategory === category ? "category-tab-active" : ""}`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+            {/* 오른쪽 페이드 - 더 많은 탭이 있음을 암시 */}
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-background to-transparent" />
           </div>
         )}
 
         {filteredProducts.length === 0 ? (
-          <p className="text-text-tertiary">등록된 상품이 없습니다.</p>
+          <div className="py-12 text-center">
+            <div className="text-3xl mb-3">🍽️</div>
+            <p className="text-text-tertiary">등록된 상품이 없습니다.</p>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {filteredProducts.map((product) => (
-              <div
+              <ProductCard
                 key={product.id}
-                className="flex items-center gap-3 p-4 rounded-xl border border-border bg-bg-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
+                product={product}
                 onClick={() => handleSelectProduct(product)}
-              >
-                {product.image_url ? (
-                  <Image
-                    src={product.image_url}
-                    alt={product.name}
-                    width={64}
-                    height={64}
-                    className="w-16 h-16 rounded-lg object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-lg bg-bg-tertiary flex items-center justify-center shrink-0">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
-                      <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
-                  </div>
-                )}
-                <div className="flex-1">
-                  <div className="font-semibold text-foreground">{product.name}</div>
-                  {product.description && (
-                    <div className="text-[13px] text-text-tertiary mt-1">
-                      {product.description}
-                    </div>
-                  )}
-                </div>
-                <div className="font-bold text-foreground">{formatWon(product.price)}</div>
-              </div>
+              />
             ))}
           </div>
         )}
-
       </main>
 
-      {/* Floating Cart Bar with expandable cart */}
+      {/* ── Floating Cart Bar ── */}
       {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)]">
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${cartBounce ? "animate-pop" : ""}`}
+        >
           <div className="max-w-lg mx-auto">
             {/* Expandable Cart Items */}
             {cartOpen && (
@@ -323,7 +470,10 @@ export default function OrderPage() {
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-sm font-bold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
-                          <button className="text-2xs text-danger-500 font-medium mt-0.5 bg-transparent border-none cursor-pointer" onClick={() => removeFromCart(idx)}>
+                          <button
+                            className="text-2xs text-danger-500 font-medium mt-0.5 bg-transparent border-none cursor-pointer"
+                            onClick={() => removeFromCart(idx)}
+                          >
                             삭제
                           </button>
                         </div>
@@ -342,8 +492,8 @@ export default function OrderPage() {
               >
                 <div className="relative">
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                    <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
                   </svg>
                   <span className="absolute -top-2 -right-2 bg-primary-500 text-white text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center leading-none">
                     {totalItems}
@@ -353,12 +503,12 @@ export default function OrderPage() {
                   <div className="text-lg font-extrabold leading-tight">{formatWon(totalAmount)}</div>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`ml-1 opacity-60 transition-transform ${cartOpen ? "rotate-180" : ""}`}>
-                  <polyline points="18 15 12 9 6 15"/>
+                  <polyline points="18 15 12 9 6 15" />
                 </svg>
               </button>
               <button
                 onClick={goToCheckout}
-                className="px-6 py-3 rounded-lg bg-primary-500 text-white font-bold text-sm cursor-pointer flex-shrink-0"
+                className="px-6 py-3 rounded-lg bg-primary-500 text-white font-bold text-sm cursor-pointer flex-shrink-0 active:scale-95 transition-transform"
               >
                 주문하기
               </button>
@@ -367,66 +517,152 @@ export default function OrderPage() {
         </div>
       )}
 
-      {/* Product Modal */}
+      {/* ── Product Modal ── */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-[100]" onClick={() => setSelectedProduct(null)}>
-          <div className="w-full max-w-[480px] max-h-[80vh] p-5 rounded-t-2xl bg-bg-secondary overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="m-0 mb-2 text-lg text-foreground">{selectedProduct.name}</h3>
-            <div className="text-text-tertiary mb-4">{formatWon(selectedProduct.price)}</div>
+        <div
+          className="fixed inset-0 bg-black/80 flex items-end justify-center z-[100]"
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            className="w-full max-w-[480px] max-h-[80vh] p-5 rounded-t-2xl bg-bg-secondary overflow-y-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {selectedProduct.image_url && (
+              <Image
+                src={selectedProduct.image_url}
+                alt={selectedProduct.name}
+                width={480}
+                height={180}
+                className="w-full h-36 object-cover rounded-xl mb-4"
+              />
+            )}
+            <h3 className="m-0 mb-1 text-lg font-bold text-foreground">{selectedProduct.name}</h3>
+            {selectedProduct.description && (
+              <p className="text-sm text-text-tertiary mb-3">{selectedProduct.description}</p>
+            )}
+            <div className="text-text-secondary mb-4 text-sm">{formatWon(selectedProduct.price)}</div>
 
-            {/* Options */}
+            {/* 옵션 */}
             {selectedProduct.options.length > 0 && (
               <div className="mb-4">
                 <div className="text-sm font-semibold mb-2 text-foreground">옵션 선택</div>
                 {selectedProduct.options.map((opt) => (
                   <label
                     key={opt.id}
-                    className="flex items-center gap-2 py-2 cursor-pointer text-foreground"
+                    className="flex items-center gap-3 py-2.5 cursor-pointer text-foreground border-b border-border last:border-0"
                   >
                     <input
                       type="checkbox"
                       checked={selectedOptions.some((o) => o.id === opt.id)}
                       onChange={() => toggleOption(opt)}
+                      className="w-4 h-4 accent-primary-500"
                     />
-                    <span className="flex-1">{opt.name}</span>
-                    <span className="text-text-tertiary">
-                      {opt.priceDelta > 0 ? `+${formatWon(opt.priceDelta)}` : ""}
-                    </span>
+                    <span className="flex-1 text-sm">{opt.name}</span>
+                    {opt.priceDelta > 0 && (
+                      <span className="text-xs text-text-tertiary">+{formatWon(opt.priceDelta)}</span>
+                    )}
                   </label>
                 ))}
               </div>
             )}
 
-            {/* Quantity */}
-            <div className="flex items-center gap-3 mb-5">
+            {/* 수량 */}
+            <div className="flex items-center gap-4 mb-5">
               <span className="text-sm font-semibold text-foreground">수량</span>
-              <button
-                className="w-9 h-9 rounded-lg border border-border bg-transparent text-foreground text-lg cursor-pointer"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-              >
-                -
-              </button>
-              <span className="w-10 text-center text-foreground">{qty}</span>
-              <button className="w-9 h-9 rounded-lg border border-border bg-transparent text-foreground text-lg cursor-pointer" onClick={() => setQty((q) => q + 1)}>
-                +
-              </button>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  className="w-10 h-10 rounded-xl border border-border bg-transparent text-foreground text-lg cursor-pointer active:bg-bg-tertiary touch-feedback"
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                >
+                  −
+                </button>
+                <span className="w-10 text-center font-semibold text-foreground text-base">{qty}</span>
+                <button
+                  className="w-10 h-10 rounded-xl border border-border bg-transparent text-foreground text-lg cursor-pointer active:bg-bg-tertiary touch-feedback"
+                  onClick={() => setQty((q) => q + 1)}
+                >
+                  +
+                </button>
+              </div>
             </div>
 
-            {/* Total */}
-            <div className="flex justify-between mb-4 text-foreground">
-              <span>합계</span>
-              <span className="font-bold text-lg">
+            {/* 합계 */}
+            <div className="flex justify-between mb-5 text-foreground">
+              <span className="text-sm text-text-secondary">합계</span>
+              <span className="font-extrabold text-xl text-foreground">
                 {formatWon(calculateItemPrice(selectedProduct, selectedOptions) * qty)}
               </span>
             </div>
 
-            {/* Add Button */}
-            <button className="w-full py-3.5 rounded-[10px] border-none bg-foreground text-background font-bold text-[15px] cursor-pointer" onClick={addToCart}>
+            {/* 담기 버튼 */}
+            <button
+              className="w-full py-4 rounded-xl border-none bg-foreground text-background font-bold text-base cursor-pointer active:opacity-80 transition-opacity"
+              onClick={addToCart}
+            >
               장바구니에 담기
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// ProductCard Sub-Component
+// ============================================================
+
+function ProductCard({
+  product,
+  isFeatured = false,
+  onClick,
+}: {
+  product: Product;
+  isFeatured?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors active:bg-bg-tertiary touch-feedback ${
+        isFeatured
+          ? "border-primary-200 bg-primary-50"
+          : "border-border bg-bg-secondary hover:bg-bg-tertiary"
+      }`}
+      onClick={onClick}
+    >
+      {product.image_url ? (
+        <Image
+          src={product.image_url}
+          alt={product.name}
+          width={64}
+          height={64}
+          className="w-16 h-16 rounded-lg object-cover shrink-0"
+        />
+      ) : (
+        <div className="w-16 h-16 rounded-lg bg-bg-tertiary flex items-center justify-center shrink-0">
+          {/* 커피컵 아이콘 */}
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3" />
+          </svg>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <div className="font-semibold text-foreground text-sm">{product.name}</div>
+          {isFeatured && (
+            <span className="badge-recommended text-[10px] px-1.5 py-0.5">추천</span>
+          )}
+        </div>
+        {product.description && (
+          <div className="text-xs text-text-tertiary mt-0.5 line-clamp-1">
+            {product.description}
+          </div>
+        )}
+        <div className="font-bold text-foreground text-sm mt-1">{formatWon(product.price)}</div>
+      </div>
+      <div className="shrink-0 w-7 h-7 rounded-full bg-foreground text-background flex items-center justify-center text-lg font-light">
+        +
+      </div>
     </div>
   );
 }

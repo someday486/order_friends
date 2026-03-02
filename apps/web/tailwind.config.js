@@ -185,6 +185,17 @@ module.exports = {
           '50%': { transform: 'scale(1)' },
           '75%': { transform: 'scale(1.1)' },
         },
+        pop: {
+          '0%': { transform: 'scale(1)' },
+          '40%': { transform: 'scale(1.13)' },
+          '60%': { transform: 'scale(0.97)' },
+          '80%': { transform: 'scale(1.04)' },
+          '100%': { transform: 'scale(1)' },
+        },
+        'check-draw': {
+          '0%': { strokeDashoffset: '60' },
+          '100%': { strokeDashoffset: '0' },
+        },
       },
 
       // 애니메이션 클래스
@@ -198,6 +209,8 @@ module.exports = {
         'spin-slow': 'spin-slow 2s linear infinite',
         'nudge-bounce': 'nudge-bounce 1s ease-in-out infinite',
         heartbeat: 'heartbeat 1.5s ease-in-out infinite',
+        pop: 'pop 0.4s ease-out',
+        'check-draw': 'check-draw 0.5s ease-out 0.2s both',
       },
     },
   },

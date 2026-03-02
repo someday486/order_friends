@@ -95,6 +95,14 @@ export default function BranchDetailPage() {
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
 
+  // ── 스탬프 카드 설정 ──
+  const [stampActive, setStampActive] = useState(false);
+  const [stampPerOrder, setStampPerOrder] = useState(1);
+  const [stampThreshold, setStampThreshold] = useState(10);
+  const [stampRewardDesc, setStampRewardDesc] = useState("스탬프 적립 완료 보상");
+  const [stampSaving, setStampSaving] = useState(false);
+  const [stampLoaded, setStampLoaded] = useState(false);
+
   const canEdit = useMemo(
     () => branch && (branch.myRole === "OWNER" || branch.myRole === "ADMIN"),
     [branch],
@@ -202,6 +210,41 @@ export default function BranchDetailPage() {
 
     loadBrandSlug();
   }, [branch?.brandId]);
+
+  useEffect(() => {
+    if (!branchId || !canEdit) return;
+    apiClient
+      .get<{ isActive: boolean; stampsPerOrder: number; rewardThreshold: number; rewardDescription: string } | null>(
+        `/customer/branches/${branchId}/stamp-card`,
+      )
+      .then((data) => {
+        if (data) {
+          setStampActive(data.isActive ?? false);
+          setStampPerOrder(data.stampsPerOrder ?? 1);
+          setStampThreshold(data.rewardThreshold ?? 10);
+          setStampRewardDesc(data.rewardDescription ?? "스탬프 적립 완료 보상");
+        }
+        setStampLoaded(true);
+      })
+      .catch(() => setStampLoaded(true));
+  }, [branchId, canEdit]);
+
+  const handleStampSave = async () => {
+    setStampSaving(true);
+    try {
+      await apiClient.put(`/customer/branches/${branchId}/stamp-card`, {
+        isActive: stampActive,
+        stampsPerOrder: stampPerOrder,
+        rewardThreshold: stampThreshold,
+        rewardDescription: stampRewardDesc || "스탬프 적립 완료 보상",
+      });
+      toast.success("스탬프 카드 설정이 저장됐어요.");
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message ?? "저장에 실패했습니다.");
+    } finally {
+      setStampSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!branch) return;
@@ -540,6 +583,79 @@ export default function BranchDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── 스탬프 카드 설정 ── */}
+      {canEdit && stampLoaded && (
+        <div className="card p-6 mt-6">
+          <div className="flex items-center gap-3 mb-5">
+            <span className="text-xl">🎫</span>
+            <h2 className="text-lg font-bold text-foreground m-0">스탬프 카드 설정</h2>
+          </div>
+
+          <div className="mb-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                className={`relative w-10 h-6 rounded-full transition-colors ${stampActive ? "bg-foreground" : "bg-bg-tertiary border border-border"}`}
+                onClick={() => setStampActive((v) => !v)}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${stampActive ? "translate-x-5" : "translate-x-1"}`}
+                />
+              </div>
+              <span className="text-sm font-semibold text-foreground">
+                스탬프 카드 {stampActive ? "활성화됨" : "비활성화됨"}
+              </span>
+            </label>
+          </div>
+
+          <div className="grid gap-4 mb-4">
+            <div>
+              <label className="block text-[13px] text-text-secondary mb-1 font-semibold">
+                주문 1회당 스탬프 적립 수 (1~10)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={stampPerOrder}
+                onChange={(e) => setStampPerOrder(Math.max(1, Math.min(10, Number(e.target.value))))}
+                className="input-field w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-[13px] text-text-secondary mb-1 font-semibold">
+                보상 기준 스탬프 수 (2~100)
+              </label>
+              <input
+                type="number"
+                min={2}
+                max={100}
+                value={stampThreshold}
+                onChange={(e) => setStampThreshold(Math.max(2, Math.min(100, Number(e.target.value))))}
+                className="input-field w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-[13px] text-text-secondary mb-1 font-semibold">보상 설명</label>
+              <input
+                type="text"
+                value={stampRewardDesc}
+                onChange={(e) => setStampRewardDesc(e.target.value)}
+                className="input-field w-full"
+                placeholder="예: 아메리카노 무료 증정"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleStampSave}
+            disabled={stampSaving}
+            className="btn-primary py-2.5 px-6 text-sm"
+          >
+            {stampSaving ? "저장 중..." : "스탬프 설정 저장"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

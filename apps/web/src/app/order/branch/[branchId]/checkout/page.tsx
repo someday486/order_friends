@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -87,10 +87,32 @@ function getFulfillmentLabel(type: FulfillmentType) {
   return "매장";
 }
 
+function getFulfillmentIcon(type: FulfillmentType) {
+  if (type === "PICKUP") return "🛍️";
+  if (type === "DELIVERY") return "🛵";
+  return "🪑";
+}
+
 function getPaymentLabel(method: PaymentMethod) {
   if (method === "CARD") return "카드";
   if (method === "TRANSFER") return "계좌이체";
   return "현금";
+}
+
+function getPaymentIcon(method: PaymentMethod) {
+  if (method === "CARD") return "💳";
+  if (method === "TRANSFER") return "🏦";
+  return "💵";
+}
+
+// ── Spinner SVG ──
+function Spinner() {
+  return (
+    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
 }
 
 export default function CheckoutPage() {
@@ -128,6 +150,7 @@ export default function CheckoutPage() {
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // 저장된 고객 정보 로드
   useEffect(() => {
     const saved = loadCustomerInfoDraft();
     if (saved) {
@@ -140,6 +163,7 @@ export default function CheckoutPage() {
     setCustomerInfoReady(true);
   }, []);
 
+  // 고객 정보 자동 저장
   useEffect(() => {
     if (!customerInfoReady) return;
     saveCustomerInfoDraft({
@@ -296,7 +320,6 @@ export default function CheckoutPage() {
         }
         setTransferAccount(latestConfig?.transferAccount ?? null);
       } catch {
-        // Keep draft values when live config fetch fails.
         setTransferAccount(null);
       }
 
@@ -389,7 +412,9 @@ export default function CheckoutPage() {
           customerMemo: customerMemo || null,
           paymentMethod,
           fulfillmentType,
+          branchId,
           transferAccount: result.transferAccount ?? transferAccount ?? null,
+          cartSnapshot: cart,
         },
         branchId,
       });
@@ -423,200 +448,270 @@ export default function CheckoutPage() {
   if (cart.length === 0) {
     return (
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <p className="text-text-secondary">장바구니가 비어 있습니다.</p>
+        <div className="text-center px-6">
+          <div className="text-4xl mb-4">🛒</div>
+          <p className="text-text-secondary mb-4">장바구니가 비어 있습니다.</p>
+          <Link href={`/order/branch/${branchId}`} className="text-primary-500 underline text-sm">
+            메뉴로 돌아가기
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="p-4 border-b border-border">
+      {/* ── Header ── */}
+      <header className="p-4 border-b border-border flex items-center gap-3">
         <Link
           href={`/order/branch/${branchId}`}
-          className="text-foreground no-underline hover:text-primary-500 transition-colors"
+          className="text-foreground no-underline hover:text-primary-500 transition-colors flex items-center gap-1"
         >
-          이전으로
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          <span className="text-sm">메뉴</span>
         </Link>
-        <h1 className="mt-3 mb-0 text-xl font-bold text-foreground">주문서 작성</h1>
+        <h1 className="flex-1 text-center text-base font-bold text-foreground">주문서 작성</h1>
+        <div className="w-14" /> {/* spacer */}
       </header>
 
-      <main className="p-4">
+      {/* ── Sticky 총 결제금액 ── */}
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-2.5 flex justify-between items-center shadow-sm">
+        <span className="text-sm text-text-secondary">총 결제금액</span>
+        <span className="text-lg font-extrabold text-foreground">{formatWon(totalAmount)}</span>
+      </div>
+
+      <main className="p-4 pb-8">
+        {/* ── 주문 내역 ── */}
         <section className="py-4 border-b border-border">
-          <h2 className="text-sm font-bold mb-3 text-text-secondary">주문 내역</h2>
+          <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">주문 내역</h2>
           {cart.map((item, idx) => (
             <div key={idx} className="flex items-center gap-3 py-2">
               <div className="flex-1">
-                <div className="font-semibold text-foreground">{item.product.name}</div>
+                <div className="font-semibold text-foreground text-sm">{item.product.name}</div>
                 {item.selectedOptions.length > 0 && (
                   <div className="text-xs text-text-tertiary mt-0.5">
                     {item.selectedOptions.map((o) => o.name).join(", ")}
                   </div>
                 )}
-                <div className="text-[13px] text-text-secondary mt-1">
-                  {formatWon(item.itemPrice)} x {item.qty}
+                <div className="text-xs text-text-secondary mt-1">
+                  {formatWon(item.itemPrice)} × {item.qty}
                 </div>
               </div>
-              <div className="font-bold text-foreground">{formatWon(item.itemPrice * item.qty)}</div>
+              <div className="font-bold text-foreground text-sm">{formatWon(item.itemPrice * item.qty)}</div>
             </div>
           ))}
-          <div className="flex justify-between items-center mt-4 pt-4 border-t border-border">
-            <span className="text-foreground">총 결제금액</span>
-            <span className="text-xl font-extrabold text-foreground">{formatWon(totalAmount)}</span>
-          </div>
         </section>
 
+        {/* ── 주문 방식 ── */}
         <section className="py-4 border-b border-border">
-          <h2 className="text-sm font-bold mb-3 text-text-secondary">주문 방식</h2>
+          <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">주문 방식</h2>
           <div className="flex gap-2">
-            {enabledFulfillmentTypes.map((type) => (
-              <button
-                key={type}
-                data-testid={`fulfillment-${type.toLowerCase()}`}
-                onClick={() => setFulfillmentType(type)}
-                className={`flex-1 p-3 rounded-[10px] border text-sm font-semibold cursor-pointer transition-colors ${
-                  fulfillmentType === type
-                    ? "bg-bg-tertiary border-border text-foreground"
-                    : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
-                }`}
-              >
-                {getFulfillmentLabel(type)}
-              </button>
-            ))}
+            {enabledFulfillmentTypes.map((type) => {
+              const isSelected = fulfillmentType === type;
+              return (
+                <button
+                  key={type}
+                  data-testid={`fulfillment-${type.toLowerCase()}`}
+                  onClick={() => setFulfillmentType(type)}
+                  className={`flex-1 p-3 rounded-xl border text-sm font-semibold cursor-pointer transition-all flex flex-col items-center gap-1 ${
+                    isSelected
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
+                  }`}
+                >
+                  <span className="text-lg">{getFulfillmentIcon(type)}</span>
+                  <span>{getFulfillmentLabel(type)}</span>
+                  {isSelected && (
+                    <span className="text-[10px] opacity-70">선택됨</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </section>
 
+        {/* ── 고객 정보 ── */}
         <section className="py-4 border-b border-border">
-          <h2 className="text-sm font-bold mb-3 text-text-secondary">고객 정보</h2>
-          <KakaoQuickLoginButton
-            className="mb-4"
-            beforeLogin={() =>
-              saveCustomerInfoDraft({
-                customerName,
-                customerPhone,
-                customerAddress1,
-                customerAddress2,
-                customerMemo,
-              })
-            }
-          />
-          {status === "authenticated" ? (
-            <div className="mb-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleLoadLastOrderInfo}
-                disabled={loadingLastOrderInfo || loggingOut}
-                className="h-10 rounded-[10px] border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loadingLastOrderInfo ? "불러오는 중..." : "지난 주문 정보 불러오기"}
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={loggingOut || loadingLastOrderInfo}
-                className="h-10 rounded-[10px] border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loggingOut ? "로그아웃 중..." : "로그아웃"}
-              </button>
+          <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">고객 정보</h2>
+
+          {/* 카카오 로그인 / 지난 주문 불러오기 */}
+          <div className="mb-4">
+            <KakaoQuickLoginButton
+              beforeLogin={() =>
+                saveCustomerInfoDraft({
+                  customerName,
+                  customerPhone,
+                  customerAddress1,
+                  customerAddress2,
+                  customerMemo,
+                })
+              }
+            />
+            {status === "authenticated" && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleLoadLastOrderInfo}
+                  disabled={loadingLastOrderInfo || loggingOut}
+                  className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  {loadingLastOrderInfo ? <><Spinner /> 불러오는 중...</> : "🔄 지난 정보 불러오기"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut || loadingLastOrderInfo}
+                  className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loggingOut ? "로그아웃 중..." : "로그아웃"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                이름 <span className="text-danger-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                data-testid="customer-name-input"
+                placeholder="이름을 입력해 주세요"
+                className="input-field w-full h-12"
+              />
             </div>
-          ) : null}
 
-          <div className="mb-4">
-            <label className="block text-[13px] text-text-secondary mb-1.5">이름 *</label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              data-testid="customer-name-input"
-              placeholder="이름"
-              className="input-field w-full h-11"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">연락처</label>
+              <input
+                type="tel"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="010-1234-5678"
+                className="input-field w-full h-12"
+              />
+            </div>
 
-          <div className="mb-4">
-            <label className="block text-[13px] text-text-secondary mb-1.5">연락처</label>
-            <input
-              type="tel"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              placeholder="010-1234-5678"
-              className="input-field w-full h-11"
-            />
-          </div>
+            {/* 배달일 때만 주소 표시 */}
+            {fulfillmentType === "DELIVERY" && (
+              <div className="animate-fade-in">
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                  배달 주소 <span className="text-danger-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={customerAddress1}
+                  onChange={(e) => setCustomerAddress1(e.target.value)}
+                  data-testid="customer-address1-input"
+                  placeholder="기본 주소"
+                  className="input-field w-full h-12"
+                />
+                <input
+                  type="text"
+                  value={customerAddress2}
+                  onChange={(e) => setCustomerAddress2(e.target.value)}
+                  placeholder="상세 주소 (동/호수 등)"
+                  className="input-field w-full h-12 mt-2"
+                />
+              </div>
+            )}
 
-          <div className="mb-4">
-            <label className="block text-[13px] text-text-secondary mb-1.5">
-              {fulfillmentType === "DELIVERY" ? "배달 주소 *" : "주소"}
-            </label>
-            <input
-              type="text"
-              value={customerAddress1}
-              onChange={(e) => setCustomerAddress1(e.target.value)}
-              data-testid="customer-address1-input"
-              placeholder="기본 주소"
-              className="input-field w-full h-11"
-            />
-            <input
-              type="text"
-              value={customerAddress2}
-              onChange={(e) => setCustomerAddress2(e.target.value)}
-              placeholder="상세 주소"
-              className="input-field w-full h-11 mt-2"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-[13px] text-text-secondary mb-1.5">요청사항</label>
-            <textarea
-              value={customerMemo}
-              onChange={(e) => setCustomerMemo(e.target.value)}
-              placeholder="요청사항을 입력해 주세요"
-              rows={2}
-              className="input-field w-full h-auto py-2.5 px-3"
-            />
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">요청사항</label>
+              <textarea
+                value={customerMemo}
+                onChange={(e) => setCustomerMemo(e.target.value)}
+                placeholder="요청사항을 입력해 주세요 (선택)"
+                rows={2}
+                className="input-field w-full h-auto py-3 px-3 resize-none"
+              />
+            </div>
           </div>
         </section>
 
+        {/* ── 결제 수단 ── */}
         <section className="py-4 border-b border-border">
-          <h2 className="text-sm font-bold mb-3 text-text-secondary">결제 수단</h2>
+          <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">결제 수단</h2>
           <div className="flex gap-2">
-            {allowedPaymentMethods.map((method) => (
-              <button
-                key={method}
-                data-testid={`payment-${method.toLowerCase()}`}
-                onClick={() => setPaymentMethod(method)}
-                className={`flex-1 p-3 rounded-[10px] border text-sm font-semibold cursor-pointer transition-colors ${
-                  paymentMethod === method
-                    ? "bg-bg-tertiary border-border text-foreground"
-                    : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
-                }`}
-              >
-                {getPaymentLabel(method)}
-              </button>
-            ))}
+            {allowedPaymentMethods.map((method) => {
+              const isSelected = paymentMethod === method;
+              return (
+                <button
+                  key={method}
+                  data-testid={`payment-${method.toLowerCase()}`}
+                  onClick={() => setPaymentMethod(method)}
+                  className={`flex-1 p-3 rounded-xl border text-sm font-semibold cursor-pointer transition-all flex flex-col items-center gap-1 ${
+                    isSelected
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-transparent border-border text-text-secondary hover:bg-bg-tertiary"
+                  }`}
+                >
+                  <span className="text-lg">{getPaymentIcon(method)}</span>
+                  <span>{getPaymentLabel(method)}</span>
+                </button>
+              );
+            })}
           </div>
-          {paymentMethod === "TRANSFER" ? (
-            <div className="mt-3 rounded-md border border-border bg-bg-secondary p-3 text-xs text-text-secondary leading-5">
-              <div className="font-semibold text-foreground mb-1">입금 계좌 정보</div>
-              <div>은행명: {transferAccount?.bankName?.trim() || "-"}</div>
-              <div>계좌번호: {transferAccount?.accountNumber?.trim() || "-"}</div>
-              <div>예금주: {transferAccount?.accountHolder?.trim() || "-"}</div>
+
+          {/* 계좌이체 선택 시 즉시 계좌 정보 표시 */}
+          {paymentMethod === "TRANSFER" && (
+            <div className="mt-3 rounded-xl border border-warning-200 bg-warning-50 p-4 animate-fade-in">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">🏦</span>
+                <div className="text-sm font-bold text-foreground">입금 계좌 정보</div>
+              </div>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">은행명</span>
+                  <span className="font-semibold text-foreground">{transferAccount?.bankName?.trim() || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">계좌번호</span>
+                  <span className="font-semibold text-foreground font-mono">{transferAccount?.accountNumber?.trim() || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">예금주</span>
+                  <span className="font-semibold text-foreground">{transferAccount?.accountHolder?.trim() || "-"}</span>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-text-secondary">
+                입금자명을 <strong>{customerName || "주문자명"}</strong>으로 입력해 주세요.
+              </p>
             </div>
-          ) : null}
+          )}
         </section>
 
-        {error && <p className="text-danger-500 mt-4">{error}</p>}
+        {error && (
+          <div className="mt-4 p-3 rounded-xl bg-danger-50 border border-danger-200 text-danger-500 text-sm">
+            {error}
+          </div>
+        )}
 
+        {/* ── 주문 버튼 ── */}
         <button
           data-testid="submit-order-button"
-          className="w-full p-4 mt-6 rounded-xl border-none bg-foreground text-background text-base font-bold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="w-full p-4 mt-6 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           onClick={handleSubmit}
           disabled={submitting || !customerName.trim()}
         >
-          {submitting ? "주문 중..." : `${formatWon(totalAmount)} 결제하기`}
+          {submitting ? (
+            <>
+              <Spinner />
+              <span>주문 처리 중...</span>
+            </>
+          ) : (
+            `${formatWon(totalAmount)} 결제하기`
+          )}
         </button>
+        <p className="text-center text-xs text-text-tertiary mt-3">
+          주문하기를 누르면 주문이 즉시 접수됩니다.
+        </p>
       </main>
     </div>
   );
 }
-
-

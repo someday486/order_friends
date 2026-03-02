@@ -1,6 +1,6 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { TossPaymentsClient } from './toss-payments.client';
 import {
   PreparePaymentRequest,
   PreparePaymentResponse,
@@ -40,14 +40,9 @@ export class PaymentsService {
 
   private readonly tossSecretKey = process.env.TOSS_SECRET_KEY || '';
   private readonly tossClientKey = process.env.TOSS_CLIENT_KEY || '';
-  private readonly tossApiBaseUrl =
-    process.env.TOSS_API_BASE_URL || 'https://api.tosspayments.com/v1';
   private readonly tossTimeoutMs: number;
   private readonly tossMockMode: boolean;
-  private readonly tossWebhookSecret = process.env.TOSS_WEBHOOK_SECRET || '';
-  private readonly tossWebhookSignatureHeader = (
-    process.env.TOSS_WEBHOOK_SIGNATURE_HEADER || 'toss-signature'
-  ).toLowerCase();
+  private readonly tossClient: TossPaymentsClient;
 
   constructor(private readonly supabase: SupabaseService) {
     const rawTimeout = Number(process.env.TOSS_TIMEOUT_MS);
@@ -62,6 +57,16 @@ export class PaymentsService {
 
     this.tossMockMode =
       envMock || (!this.tossSecretKey && process.env.NODE_ENV !== 'production');
+
+    this.tossClient = new TossPaymentsClient(
+      this.tossSecretKey,
+      process.env.TOSS_API_BASE_URL || 'https://api.tosspayments.com/v1',
+      this.tossTimeoutMs,
+      process.env.TOSS_WEBHOOK_SECRET || '',
+      (
+        process.env.TOSS_WEBHOOK_SIGNATURE_HEADER || 'toss-signature'
+      ).toLowerCase(),
+    );
   }
 
   /**
@@ -388,12 +393,13 @@ export class PaymentsService {
       );
     } else {
       try {
-        providerResponse = await this.callTossPaymentsConfirmApi(
+        providerResponse = await this.tossClient.confirmPayment(
           dto.paymentKey,
           dto.orderId,
           dto.amount,
         );
-        providerPaymentId = providerResponse?.paymentKey || dto.paymentKey;
+        providerPaymentId =
+          (providerResponse?.paymentKey as string) || dto.paymentKey;
       } catch (error: any) {
         this.logger.error('Toss Payments API call failed', error);
 
@@ -815,7 +821,7 @@ export class PaymentsService {
       );
     } else if (payment.provider_payment_key) {
       try {
-        await this.callTossPaymentsRefundApi(
+        await this.tossClient.cancelPayment(
           payment.provider_payment_key,
           refundAmount,
           dto.reason,
@@ -897,12 +903,12 @@ export class PaymentsService {
 
     const sb = this.supabase.adminClient();
 
-    if (this.tossWebhookSecret) {
+    if (process.env.TOSS_WEBHOOK_SECRET) {
       if (!rawBody) {
         throw new WebhookSignatureVerificationException();
       }
 
-      const isValid = this.verifyTossWebhookSignature(rawBody, headers);
+      const isValid = this.tossClient.verifyWebhookSignature(rawBody, headers);
       if (!isValid) {
         throw new WebhookSignatureVerificationException();
       }
@@ -1222,115 +1228,4 @@ export class PaymentsService {
     this.logger.log(`Payment cancelled via webhook: ${orderId}`);
   }
 
-  private async callTossPaymentsConfirmApi(
-    paymentKey: string,
-    orderId: string,
-    amount: number,
-  ): Promise<any> {
-    return this.callTossApi('/payments/confirm', {
-      paymentKey,
-      orderId,
-      amount,
-    });
-  }
-
-  private async callTossPaymentsRefundApi(
-    paymentKey: string,
-    amount: number,
-    reason: string,
-  ): Promise<any> {
-    return this.callTossApi(`/payments/${paymentKey}/cancel`, {
-      cancelReason: reason,
-      cancelAmount: amount,
-    });
-  }
-
-  private async callTossApi(path: string, body: any): Promise<any> {
-    if (!this.tossSecretKey) {
-      throw new PaymentProviderException(
-        PaymentProvider.TOSS,
-        'Toss Payments secret key is not configured',
-      );
-    }
-
-    const url = `${this.tossApiBaseUrl}${path}`;
-    const auth = Buffer.from(`${this.tossSecretKey}:`).toString('base64');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.tossTimeoutMs);
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      const text = await res.text();
-      let data: any = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = { raw: text };
-      }
-
-      if (!res.ok) {
-        throw new PaymentProviderException(
-          PaymentProvider.TOSS,
-          data?.message || `HTTP ${res.status}`,
-          data,
-        );
-      }
-
-      return data;
-    } catch (error: any) {
-      if (error instanceof PaymentProviderException) {
-        throw error;
-      }
-      if (error?.name === 'AbortError') {
-        throw new PaymentProviderException(
-          PaymentProvider.TOSS,
-          'Toss Payments request timed out',
-        );
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  private verifyTossWebhookSignature(
-    rawBody: Buffer,
-    headers: Record<string, string | string[]>,
-  ): boolean {
-    if (!this.tossWebhookSecret) return true;
-
-    const headerName = this.tossWebhookSignatureHeader;
-    const headerValue =
-      headers[headerName] ||
-      headers[headerName.toLowerCase()] ||
-      headers[headerName.toUpperCase()];
-
-    const signature = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-
-    if (!signature) return false;
-
-    const normalized = signature.startsWith('v1=')
-      ? signature.slice(3)
-      : signature;
-
-    const hmac = createHmac('sha256', this.tossWebhookSecret)
-      .update(rawBody)
-      .digest('hex');
-
-    if (normalized.length !== hmac.length) return false;
-
-    return timingSafeEqual(
-      Buffer.from(normalized, 'utf8'),
-      Buffer.from(hmac, 'utf8'),
-    );
-  }
 }

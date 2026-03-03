@@ -181,6 +181,43 @@ function formatYmdHm(iso: string) {
   )}:${pad(d.getMinutes())}`;
 }
 
+// ✅ [추가] 상태 전이 규칙
+const ORDER_FLOW: OrderStatus[] = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
+
+function canTransition(from: OrderStatus, to: OrderStatus) {
+  if (from === to) return true;
+
+  // terminal
+  if (from === "COMPLETED" || from === "CANCELLED" || from === "REFUNDED") return false;
+
+  // cancel allowed from non-terminal
+  if (to === "CANCELLED") return true;
+
+  // step-by-step only
+  const fi = ORDER_FLOW.indexOf(from);
+  const ti = ORDER_FLOW.indexOf(to);
+  if (fi === -1 || ti === -1) return false;
+
+  return ti === fi + 1;
+}
+
+function getAllowedTargetsForSelection(selectedOrders: Order[]) {
+  if (selectedOrders.length === 0) return BULK_STATUS_OPTIONS;
+
+  const perOrderAllowed = selectedOrders.map((o) =>
+    BULK_STATUS_OPTIONS.map((opt) => opt.value).filter((target) => canTransition(o.status, target)),
+  );
+
+  const intersection = perOrderAllowed.reduce<Set<OrderStatus> | null>((acc, cur) => {
+    if (acc === null) return new Set(cur);
+    for (const v of Array.from(acc)) if (!cur.includes(v)) acc.delete(v);
+    return acc;
+  }, null);
+
+  const allowed = intersection ?? new Set<OrderStatus>();
+  return BULK_STATUS_OPTIONS.filter((opt) => allowed.has(opt.value));
+}
+
 
 // ============================================================
 // Sub-components
@@ -367,6 +404,39 @@ export default function CustomerOrdersPage() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [autoRefreshMode, setAutoRefreshMode] = useState<AutoRefreshMode>('DEFAULT');
   const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState<Date | null>(null);
+
+  // ✅ [추가] 선택된 주문 객체들
+  const selectedOrders = useMemo(() => {
+    if (selectedOrderIds.size === 0) return [];
+    const map = new Map(orders.map((o) => [o.id, o]));
+    return Array.from(selectedOrderIds)
+      .map((id) => map.get(id))
+      .filter(Boolean) as Order[];
+  }, [orders, selectedOrderIds]);
+
+  const bulkAllowedSet = useMemo(() => {
+    if (selectedOrders.length === 0) {
+      return new Set(BULK_STATUS_OPTIONS.map(o => o.value));
+    }
+
+    const allowed = getAllowedTargetsForSelection(selectedOrders)
+      .map(o => o.value);
+
+    return new Set(allowed);
+  }, [selectedOrders]);
+
+  useEffect(() => {
+    if (selectedOrders.length === 0) return;
+
+    // bulkStatus가 불가면, 가능한 첫번째 상태로 자동 변경
+    if (!bulkAllowedSet.has(bulkStatus)) {
+      const firstAllowed =
+        BULK_STATUS_OPTIONS.find((o) => bulkAllowedSet.has(o.value))?.value ??
+        "CONFIRMED";
+      setBulkStatus(firstAllowed);
+    }
+  }, [selectedOrders.length, bulkAllowedSet, bulkStatus]);
+
 
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
   const showMultiBranch = validBranches.length > 1;
@@ -609,6 +679,15 @@ export default function CustomerOrdersPage() {
     }).length;
   }, [orders]);
   const selectedCount = selectedOrderIds.size;
+  // ✅ 금액 합계 (현재 페이지 / 선택)
+  const pageTotalAmount = useMemo(() => {
+    return orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  }, [orders]);
+
+  const selectedTotalAmount = useMemo(() => {
+    return selectedOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  }, [selectedOrders]);
+
   const allVisibleSelected =
     orders.length > 0 && orders.every((order) => selectedOrderIds.has(order.id));
 
@@ -653,6 +732,15 @@ export default function CustomerOrdersPage() {
 
   const executeBulkStatusUpdate = async () => {
     if (selectedCount === 0) {
+      setShowBulkConfirmModal(false);
+      return;
+    }
+    // ✅ [추가] 실행 직전 방어: 불가능한 전이가 섞이면 요청 막기
+    const invalid = selectedOrders.filter((o) => !canTransition(o.status, bulkStatus));
+    if (invalid.length > 0) {
+      toast.error(
+        `선택된 주문 중 ${invalid.length}건은 "${ORDER_STATUS_LABEL[bulkStatus]}"로 변경할 수 없습니다.`,
+      );
       setShowBulkConfirmModal(false);
       return;
     }
@@ -868,7 +956,7 @@ export default function CustomerOrdersPage() {
         </select>
 
         {lastAutoRefreshAt && (
-          <span className="text-xs text-text-tertiary whitespace-nowrap">
+          <span className="inline-flex self-center text-xs text-text-tertiary whitespace-nowrap">
             최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
         )}
@@ -941,7 +1029,34 @@ export default function CustomerOrdersPage() {
         </div>
       )}
 
-      {/* ── Order Table ── */}
+      
+      {/* ✅ 합계 바 (테이블 위) */}
+      <div className="mb-2 flex items-center justify-end pr-4">
+        <div className="text-xs text-text-tertiary">
+          {selectedCount > 0 ? (
+            <>
+              선택 <span className="font-semibold text-foreground">{selectedCount}건</span> · 합계{" "}
+              <span className="font-semibold text-foreground">
+                {formatWon(selectedTotalAmount)}
+              </span>
+              <span className="ml-2 text-text-tertiary">
+                (현재 페이지 {orders.length}건 · {formatWon(pageTotalAmount)})
+              </span>
+            </>
+          ) : (
+            <>
+              현재 페이지 <span className="font-semibold text-foreground">
+                {orders.length}건
+              </span>{" "}
+              · 합계{" "}
+              <span className="font-semibold text-foreground">
+                {formatWon(pageTotalAmount)}
+              </span>
+            </>
+          )}
+        </div>
+      </div>     
+      {/* ── Order Table ── */} 
       <div className={selectedCount > 0 ? "pb-24" : ""}>
       {loading && orders.length === 0 ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
@@ -1330,11 +1445,19 @@ export default function CustomerOrdersPage() {
                   className="input-field h-9 text-sm min-w-[55px]"
                   disabled={bulkUpdating}
                 >
-                  {BULK_STATUS_OPTIONS.map((status) => (
-                    <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
-                  ))}
+                  {BULK_STATUS_OPTIONS.map((opt) => {
+                    const ok = bulkAllowedSet.has(opt.value);
+
+                    return (
+                      <option
+                        key={opt.value}
+                        value={opt.value}
+                        disabled={!ok}
+                      >
+                        {opt.label}{!ok ? "" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
 
                 <button

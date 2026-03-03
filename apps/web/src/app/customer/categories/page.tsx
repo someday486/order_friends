@@ -902,17 +902,32 @@ export default function CustomerCategoriesPage() {
     );
   };
 
-  const modeBadge = isSingleBranchMode
-    ? { label: "단일 매장 모드 (정렬/일괄상태 변경 가능)", color: "bg-success/20 text-success" }
-    : selectedBranchIds.size > 1
-      ? { label: "다중 매장 모드 (정렬/추가/일괄상태 변경 가능)", color: "bg-success/20 text-success" }
-      : { label: "매장 선택 필요", color: "bg-bg-tertiary text-text-secondary" };
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold m-0 text-foreground">카테고리 관리</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-extrabold m-0 text-foreground">카테고리 관리</h1>
+            <span className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
+              selectedBranchIds.size > 0 ? "bg-success/20 text-success" : "bg-bg-tertiary text-text-secondary"
+            }`}>
+              {selectedBranchIds.size === 0
+                ? "매장 선택 필요"
+                : isSingleBranchMode
+                  ? "단일 모드"
+                  : "다중 모드"}
+            </span>
+            <div className="relative group cursor-pointer" tabIndex={0}>
+              <HelpCircle size={15} className="text-text-tertiary hover:text-text-secondary transition-colors" />
+              <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                {selectedBranchIds.size === 0
+                  ? "매장을 1개 이상 선택하면 카테고리를 관리할 수 있습니다."
+                  : isSingleBranchMode
+                    ? "정렬 · 일괄 상태 변경 · 이름 수정/삭제 가능"
+                    : "정렬 · 추가 · 그룹 일괄 상태 변경 가능 (이름 수정/삭제는 그룹 단위)"}
+              </div>
+            </div>
+          </div>
           <p className="text-text-secondary text-sm mt-1">
             선택 매장 {selectedBranchIds.size}개 · 카테고리 {displayCategoryCount}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
           </p>
@@ -1009,51 +1024,11 @@ export default function CustomerCategoriesPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-center pt-1">
-              <span className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${modeBadge.color}`}>
-                {modeBadge.label}
-              </span>
-            </div>
           </div>
         </div>
 
         {/* Right column: Add form + table */}
         <div className="max-w-[980px] w-full">
-          {/* Mode guide */}
-          <div className="mb-3 p-3 rounded-lg border border-border bg-bg-tertiary/40">
-            {selectedBranchIds.size === 0 ? (
-              <div className="text-sm text-text-tertiary">매장을 선택하면 카테고리를 관리할 수 있습니다.</div>
-            ) : (
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="text-sm text-text-secondary">
-                  {isSingleBranchMode
-                    ? "단일 매장 모드: 정렬 · 일괄 상태 변경 가능"
-                    : "다중 매장 모드: 정렬 · 추가 · 그룹 일괄 상태 변경 가능"}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
-                      canReorder ? "bg-success/20 text-success" : "bg-bg-tertiary text-text-tertiary"
-                    }`}
-                    title={canReorder ? "정렬 변경 가능" : "매장을 선택해 주세요"}
-                  >
-                    정렬 변경
-                  </span>
-                  <span
-                    className={`inline-flex items-center h-6 px-3 rounded-full text-xs font-medium ${
-                      canBulkStatus
-                        ? "bg-success/20 text-success"
-                        : "bg-bg-tertiary text-text-tertiary opacity-60 cursor-not-allowed"
-                    }`}
-                    title={canBulkStatus ? "일괄 활성/비활성 가능" : "매장을 선택해 주세요"}
-                  >
-                    일괄 활성/비활성
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
           {error && (
             <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500 mb-4">{error}</div>
           )}
@@ -1137,7 +1112,7 @@ export default function CustomerCategoriesPage() {
                       <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
                     </>
                   ) : (
-                    <span className="text-xs text-text-secondary italic">카테고리를 선택하면 일괄 활성/비활성이 가능합니다.</span>
+                    <span className="text-xs text-text-secondary italic">선택하면 일괄 변경 가능</span>
                   )}
                 </div>
               ) : canBulkStatus && !isSingleBranchMode ? (
@@ -1162,7 +1137,7 @@ export default function CustomerCategoriesPage() {
                       <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggleMulti(false)}>선택 비활성화</button>
                     </>
                   ) : (
-                    <span className="text-xs text-text-secondary italic">카테고리 그룹을 선택하면 일괄 활성/비활성이 가능합니다.</span>
+                    <span className="text-xs text-text-secondary italic">선택하면 일괄 변경 가능</span>
                   )}
                 </div>
               ) : null}

@@ -2214,8 +2214,8 @@ export default function CustomerProductsPage() {
                         }
                         className="input-field"
                       >
-                        <option value="PRODUCT">사용 (메뉴 재고 관리)</option>
-                        <option value="NONE">미사용 (재고 차감 없음)</option>
+                        <option value="PRODUCT">사용</option>
+                        <option value="NONE">미사용</option>
                       </select>
                     </div>
                   </div>

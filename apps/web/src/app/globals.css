@@ -17,12 +17,12 @@
   --color-text-secondary: #666666;
   --color-text-tertiary: #888888;
 
-  --color-bg-primary: #FFFFFF;
-  --color-bg-secondary: #F8F9FA;
-  --color-bg-tertiary: #F0F0F0;
+  --color-bg-primary: #FAFAFB;
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-tertiary: #F3F4F6;
 
-  --color-border: #E0E0E0;
-  --color-border-light: #EEEEEE;
+  --color-border: #E6E8EC;
+  --color-border-light: #EEF0F3;
 
   --color-card-shadow: rgba(0, 0, 0, 0.08);
 
@@ -127,27 +127,43 @@ a {
    ============================================================ */
 @layer components {
   .btn-primary {
-    @apply bg-primary-500 text-white px-4 py-2 rounded-md font-semibold;
-    @apply hover:bg-primary-600 active:scale-95;
-    @apply transition-all duration-200;
+    @apply text-white px-4 py-2.5 rounded-xl font-semibold;
+
+    background: var(--color-primary);
+
+    transition: transform 160ms, filter 160ms;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.05);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.98);
   }
 
   .btn-secondary {
-    @apply border border-border px-4 py-2 rounded-md font-semibold;
-    @apply text-foreground bg-bg-secondary;
-    @apply hover:bg-bg-tertiary active:scale-95;
-    @apply transition-all duration-200;
+    @apply px-4 py-2.5 rounded-xl font-semibold;
+    @apply border border-border bg-transparent text-foreground;
+    @apply hover:bg-bg-tertiary active:scale-[0.99];
+    transition: background-color 160ms, transform 160ms;
   }
 
   .btn-danger {
-    @apply bg-danger-500 text-white px-4 py-2 rounded-md font-semibold;
-    @apply hover:bg-danger-600 active:scale-95;
+    @apply bg-danger-500 text-white px-4 py-2.5 rounded-xl font-semibold;
+    @apply hover:bg-danger-600 active:scale-[0.99];
     @apply transition-all duration-200;
   }
 
   .card {
-    @apply rounded-md border border-border bg-bg-secondary;
-    @apply shadow-sm hover:border-gray-300 hover:bg-bg-tertiary transition-all duration-200;
+    @apply rounded-xl border border-border bg-bg-secondary;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    transition: transform 200ms, box-shadow 200ms, border-color 200ms, background-color 200ms;
+  }
+
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.08);
   }
 
   .input-field {

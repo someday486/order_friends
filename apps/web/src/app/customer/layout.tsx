@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -180,9 +181,18 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         >
           {/* Logo */}
           <div className="h-[72px] px-4 border-b border-border flex items-center justify-between">
-            <Link href="/customer" className="no-underline text-foreground">
-              <div className="font-extrabold text-base">주문프렌즈</div>
-              <div className="text-2xs text-text-tertiary mt-0.5">Customer</div>
+            <Link href="/customer" className="no-underline text-foreground flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="주문프렌즈 로고"
+                width={170}
+                height={50}
+                priority
+              />
+              {/* <div>
+                <div className="font-extrabold text-base">주문프렌즈</div>
+                <div className="text-2xs text-text-tertiary mt-0.5">Customer</div>
+              </div> */}
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}

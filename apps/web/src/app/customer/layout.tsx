@@ -174,7 +174,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         <aside
           className={`
           fixed md:sticky md:self-start top-0 left-0 z-50 h-screen md:h-screen md:overflow-y-auto w-[240px]
-          border-r border-border bg-bg-secondary flex flex-col
+          border-r border-border bg-white flex flex-col
           transition-transform duration-200 ease-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import {
@@ -115,6 +115,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const { role, loading: roleLoading } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark, toggle } = useDarkMode();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
@@ -252,7 +257,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               onClick={toggle}
               className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
             >
-              {isDark ? "라이트 모드" : "다크 모드"}
+              {mounted ? (isDark ? "라이트 모드" : "다크 모드") : "테마"}
             </button>
             <button
               onClick={signOut}
@@ -268,7 +273,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             <button
               onClick={toggle}
               className="py-2 px-4 rounded-md border border-border bg-transparent text-sm text-foreground hover:bg-bg-tertiary transition-colors">
-              {isDark ? "라이트 모드" : "다크 모드"}
+              {mounted ? (isDark ? "라이트 모드" : "다크 모드") : "테마"}
             </button>
             <NotificationBell />
           </div>

@@ -193,7 +193,10 @@ export default function CustomerDashboardPage() {
         <Card className="p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-foreground">최근 주문</h2>
-            <Link href="/customer/orders" className="text-sm text-primary-500 hover:underline">
+            <Link
+              href="/customer/orders"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-secondary px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors"
+            >
               전체 보기
             </Link>
           </div>

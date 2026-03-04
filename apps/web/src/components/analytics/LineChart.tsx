@@ -98,7 +98,7 @@ export default function LineChart({
           {lines.map((line) => (
             <Line
               key={line.dataKey}
-              type="monotone"
+              type="linear"
               dataKey={line.dataKey}
               stroke={line.color}
               strokeWidth={2}

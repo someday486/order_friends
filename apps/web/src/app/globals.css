@@ -44,18 +44,19 @@
     --color-warning: #FF9F0A;
     --color-danger: #FF453A;
 
+    /* text */
     --color-text-primary: #FFFFFF;
-    --color-text-secondary: #B6B7BD;
-    --color-text-tertiary: #8E9199;
+    --color-text-secondary: #D1D5DB;  /* ✅ 더 또렷 */
+    --color-text-tertiary: #9CA3AF;   /* ✅ tertiary도 너무 죽지 않게 */
 
+    /* bg */
     --color-bg-primary: #0B0B0D;
-    --color-bg-secondary: #15161A;
-    --color-bg-tertiary: #1F2127;
+    --color-bg-secondary: #111318;    /* ✅ 카드/컨텐츠 배경 살짝 더 진하게 */
+    --color-bg-tertiary: #1A1D24;     /* ✅ 섹션 헤더/hover는 더 밝게 분리 */
 
-    --color-border: #2B2E34;
-    --color-border-light: #353842;
-
-    --color-card-shadow: rgba(0, 0, 0, 0.45);
+    /* border */
+    --color-border: #2F3540;          /* ✅ 경계가 보이게 */
+    --color-border-light: #3A4250;
 
     --background: #0B0B0D;
     --foreground: #FFFFFF;
@@ -145,8 +146,8 @@ a {
   }
 
   .card {
-    @apply bg-card rounded-md border border-border;
-    @apply shadow-md hover:shadow-lg transition-shadow duration-300;
+    @apply rounded-md border border-border bg-bg-secondary;
+    @apply shadow-sm hover:border-gray-300 hover:bg-bg-tertiary transition-all duration-200;
   }
 
   .input-field {

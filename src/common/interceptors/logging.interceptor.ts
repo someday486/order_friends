@@ -18,6 +18,12 @@ export class LoggingInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
     const { method, url } = request;
+
+    // 헬스체크 경로는 로깅 생략 (노이즈 감소)
+    if (url === '/health' || url === '/health/') {
+      return next.handle();
+    }
+
     const startTime = Date.now();
 
     return next.handle().pipe(
@@ -26,8 +32,8 @@ export class LoggingInterceptor implements NestInterceptor {
           const responseTime = Date.now() - startTime;
           this.logger.log(`${method} ${url} - ${responseTime}ms`);
 
-          // 느린 요청 경고 (1초 이상)
-          if (responseTime > 1000) {
+          // 느린 요청 경고 (2초 이상)
+          if (responseTime > 2000) {
             this.logger.warn(
               `Slow request detected: ${method} ${url} - ${responseTime}ms`,
             );

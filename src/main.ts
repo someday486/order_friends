@@ -88,11 +88,20 @@ async function bootstrap() {
     });
   }
 
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    // 불필요한 파라미터 파싱 비활성화로 시작 오버헤드 감소
+    bufferLogs: false,
+  });
 
   // Request body size limit (10mb for file uploads, 1mb for general API)
   app.use(require('express').json({ limit: '1mb' }));
   app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
+
+  // HTTP Keep-Alive 타임아웃 설정 (기본 5초 → 65초: 로드밸런서 타임아웃 대응)
+  const server = app.getHttpServer();
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
 
   // Security: Helmet
   app.use(helmet());

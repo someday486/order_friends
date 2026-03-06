@@ -8,8 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
 
-const AUTH_CACHE_TTL_MS = 60 * 1000; // 1 minute
-const AUTH_CACHE_MAX_SIZE = 200;
+const AUTH_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const AUTH_CACHE_MAX_SIZE = 1000;
 
 type CachedAuth = {
   user: RequestUser;

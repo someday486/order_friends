@@ -46,7 +46,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CacheModule.register({
       isGlobal: true,
       ttl: 300000, // 5분 (밀리초)
-      max: 100, // 최대 100개 항목
+      max: 1000, // 최대 1000개 항목
     }),
     SupabaseModule,
     AuthModule,

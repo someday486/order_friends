@@ -11,6 +11,7 @@ import React, {
 import type { AuthState } from "@/lib/auth/types";
 import { getInitialSession, subscribeAuth } from "@/lib/auth/client";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 
 type AuthContextValue = AuthState & {
   /** 호환용: 기존 코드가 loading을 쓰면 그대로 동작 */
@@ -28,12 +29,15 @@ function derive(session: AuthState["session"]): AuthState {
   return { status: "authenticated", session, user: session.user ?? null };
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    status: "loading",
-    user: null,
-    session: null,
-  });
+export function AuthProvider({
+  children,
+  initialSession = null,
+}: {
+  children: React.ReactNode;
+  initialSession?: Session | null;
+}) {
+  // SSR에서 세션을 받은 경우 loading 없이 바로 최종 상태로 시작
+  const [state, setState] = useState<AuthState>(() => derive(initialSession));
 
   const refresh = useCallback(async () => {
     const session = await getInitialSession();
@@ -49,14 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1) 최초 1회만: loading -> authenticated|unauthenticated
-    (async () => {
-      const session = await getInitialSession();
-      if (!mounted) return;
-      setState(derive(session));
-    })();
+    // initialSession이 없을 때만 클라이언트에서 세션을 다시 확인
+    if (!initialSession) {
+      (async () => {
+        const session = await getInitialSession();
+        if (!mounted) return;
+        setState(derive(session));
+      })();
+    }
 
-    // 2) 이후 이벤트: 곧바로 최종 상태 반영 (loading으로 되돌리지 않음)
+    // 이후 이벤트: 곧바로 최종 상태 반영 (loading으로 되돌리지 않음)
     const unsubscribe = subscribeAuth((session) => {
       setState(derive(session));
     });
@@ -65,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = useMemo<AuthContextValue>(() => {

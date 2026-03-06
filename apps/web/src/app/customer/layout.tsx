@@ -128,7 +128,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   };
 
   const visibleSections = useMemo(() => {
-    if (roleLoading) return [];
     return menuSections
       .map((section) => ({
         ...section,
@@ -137,7 +136,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [role, roleLoading]);
+  }, [role]);
   
 
   return (
@@ -207,9 +206,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
           {/* Navigation */}
           <nav className="flex-1 p-3 flex flex-col gap-3">
-            {roleLoading && (
-              <div className="text-xs text-text-tertiary px-3 py-2">권한 불러오는 중...</div>
-            )}
             {visibleSections.map((section) => (
               <div key={section.title}>
                 <div className="px-3 pb-2 text-2xs text-text-tertiary uppercase tracking-wider">

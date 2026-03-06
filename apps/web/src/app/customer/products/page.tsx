@@ -202,9 +202,9 @@ function BranchChecklistTable({
         />
       </div>
       <table className="w-full border-collapse">
-        <thead className="bg-bg-tertiary">
+        <thead className="bg-white">
           <tr>
-            <th className="w-12 py-2.5 px-3 text-left">
+            <th className="w-12 py-2.5 px-3 text-center">
               <input
                 type="checkbox"
                 checked={allChecked}
@@ -1618,7 +1618,7 @@ export default function CustomerProductsPage() {
               <div className="pb-24">
                 <div className="border border-border rounded-xl overflow-hidden">
                   <table className="w-full border-collapse">
-                  <thead className="bg-bg-tertiary">
+                  <thead className="bg-white">
                     <tr>
                       <th className="w-12 py-2 px-3 text-left">
                         <input
@@ -1918,55 +1918,71 @@ export default function CustomerProductsPage() {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-center mt-4 gap-1">
-                  <button
-                    onClick={() => setPage(1)}
-                    disabled={page === 1}
-                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
-                  >
-                    «
-                  </button>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-1 mt-8 mb-4">
+                    <button
+                      onClick={() => setPage(1)}
+                      disabled={page === 1}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &laquo;
+                    </button>
 
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
-                  >
-                    ‹
-                  </button>
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &lsaquo;
+                    </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .slice(Math.max(0, page - 3), Math.min(totalPages, page + 2))
-                    .map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPage(p)}
-                        className={`h-8 min-w-[32px] px-3 rounded-md text-xs font-semibold border transition-colors ${
-                          p === page
-                            ? "bg-primary-500 text-white border-primary-500"
-                            : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
+                    <div className="flex items-center gap-1 mx-2">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum: number;
 
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
-                  >
-                    ›
-                  </button>
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (page <= 3) {
+                          pageNum = i + 1;
+                        } else if (page >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = page - 2 + i;
+                        }
 
-                  <button
-                    onClick={() => setPage(totalPages)}
-                    disabled={page === totalPages}
-                    className="h-8 px-2 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-40"
-                  >
-                    »
-                  </button>
-                </div>
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum)}
+                            className={`w-9 h-9 rounded-full text-sm font-bold cursor-pointer transition-all duration-150 ${
+                              page === pageNum
+                                ? "bg-foreground text-background"
+                                : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &rsaquo;
+                    </button>
+
+                    <button
+                      onClick={() => setPage(totalPages)}
+                      disabled={page === totalPages}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &raquo;
+                    </button>
+                  </div>
+                )}
               </div>
 
             </>

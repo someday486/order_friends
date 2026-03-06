@@ -1061,7 +1061,7 @@ export default function CustomerOrdersPage() {
       {loading && orders.length === 0 ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[640px]">
-            <thead className="bg-bg-tertiary">
+            <thead className="bg-white">
               <tr>
                 <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
                   선택
@@ -1100,7 +1100,7 @@ export default function CustomerOrdersPage() {
       ) : (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[640px]">
-            <thead className="bg-bg-tertiary">
+            <thead className="bg-white">
               <tr>
                 <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
                   <input

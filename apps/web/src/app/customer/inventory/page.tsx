@@ -61,6 +61,8 @@ export default function CustomerInventoryPage() {
   const [bulkType, setBulkType] = useState("ADJUSTMENT");
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkDeactivating, setBulkDeactivating] = useState(false);
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
 
   const manageRoles = new Set(["OWNER", "ADMIN", "BRANCH_OWNER", "BRANCH_ADMIN"]);
   const canManage =
@@ -76,8 +78,17 @@ export default function CustomerInventoryPage() {
     return branches.filter((b) => b.name.toLowerCase().includes(q));
   }, [branches, branchSearch]);
 
+
+  const totalPages = Math.max(1, Math.ceil(inventory.length / PAGE_SIZE));
+
+  const pagedInventory = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return inventory.slice(start, start + PAGE_SIZE);
+  }, [inventory, page]);
+
   const allSelected =
-    inventory.length > 0 && inventory.every((item) => selectedInventoryIds.has(item.id));
+    pagedInventory.length > 0 &&
+    pagedInventory.every((item) => selectedInventoryIds.has(item.id));
 
   useEffect(() => {
     const loadBranches = async () => {
@@ -148,6 +159,14 @@ export default function CustomerInventoryPage() {
       return new Set(Array.from(prev).filter((id) => visibleIds.has(id)));
     });
   }, [inventory]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedBranchIds, branchSearch]);
+
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
 
   const handleBulkAdjust = async () => {
     const qty = Number.parseInt(bulkQty, 10);
@@ -236,7 +255,7 @@ export default function CustomerInventoryPage() {
         <h1 className="text-2xl font-extrabold mb-8 text-foreground">재고관리</h1>
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[840px]">
-            <thead className="bg-bg-tertiary">
+            <thead className="bg-white">
               <tr>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
@@ -395,7 +414,7 @@ export default function CustomerInventoryPage() {
       ) : loading ? (
         <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full border-collapse min-w-[840px]">
-            <thead className="bg-bg-tertiary">
+            <thead className="bg-white">
               <tr>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
@@ -419,105 +438,185 @@ export default function CustomerInventoryPage() {
           <div className="text-[13px] text-text-tertiary">상품을 추가하면 자동으로 재고가 생성됩니다</div>
         </div>
       ) : (
-        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[840px]">
-            <thead className="bg-bg-tertiary">
-              <tr>
-                {canManage && (
-                  <th className="w-10 py-3 px-3.5 text-left">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={() => {
-                        if (allSelected) setSelectedInventoryIds(new Set());
-                        else setSelectedInventoryIds(new Set(inventory.map((item) => item.id)));
-                      }}
-                      className="w-4 h-4 rounded accent-primary"
-                    />
-                  </th>
-                )}
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">판매됨</th>
-                <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">최소 재고</th>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventory.map((item) => {
-                const lowStock = isLowStock(item);
-                return (
-                  <tr
-                    key={item.id}
-                    className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
-                    onClick={() =>
-                      router.push(
-                        `/customer/inventory/${item.product_id}?branchId=${encodeURIComponent(item.branch_id)}`,
-                      )
-                    }
-                  >
-                    {canManage && (
-                      <td
-                        className="py-3 px-3.5"
-                        onClick={(e) => {
-                          e.stopPropagation();
+        <>
+          <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+            <table className="w-full border-collapse min-w-[840px]">
+              <thead className="bg-white">
+                <tr>
+                  {canManage && (
+                    <th className="w-10 py-3 px-3.5 text-left">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() => {
+                          setSelectedInventoryIds((prev) => {
+                            const next = new Set(prev);
+
+                            if (allSelected) {
+                              for (const item of pagedInventory) {
+                                next.delete(item.id);
+                              }
+                            } else {
+                              for (const item of pagedInventory) {
+                                next.add(item.id);
+                              }
+                            }
+
+                            return next;
+                          });
                         }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedInventoryIds.has(item.id)}
-                          onChange={() => {
-                            setSelectedInventoryIds((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(item.id)) next.delete(item.id);
-                              else next.add(item.id);
-                              return next;
-                            });
+                        className="w-4 h-4 rounded accent-primary"
+                      />
+                    </th>
+                  )}
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">판매됨</th>
+                  <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">최소 재고</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedInventory.map((item) => {
+                  const lowStock = isLowStock(item);
+                  return (
+                    <tr
+                      key={item.id}
+                      className="border-t border-border cursor-pointer hover:bg-bg-tertiary transition-colors"
+                      onClick={() =>
+                        router.push(
+                          `/customer/inventory/${item.product_id}?branchId=${encodeURIComponent(item.branch_id)}`,
+                        )
+                      }
+                    >
+                      {canManage && (
+                        <td
+                          className="py-3 px-3.5"
+                          onClick={(e) => {
+                            e.stopPropagation();
                           }}
-                          className="w-4 h-4 rounded accent-primary"
-                        />
-                      </td>
-                    )}
-                    <td className="py-3 px-3.5 text-[13px] text-foreground whitespace-nowrap">
-                      {item.branch_name || "-"}
-                    </td>
-                    <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      <div className="flex items-center gap-3">
-                        {item.image_url && (
-                          <Image
-                            src={item.image_url}
-                            alt={item.product_name || "상품 이미지"}
-                            width={48}
-                            height={48}
-                            className="w-12 h-12 rounded-lg object-cover border border-border"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedInventoryIds.has(item.id)}
+                            onChange={() => {
+                              setSelectedInventoryIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(item.id)) next.delete(item.id);
+                                else next.add(item.id);
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 rounded accent-primary"
                           />
-                        )}
-                        <div className="font-semibold text-sm">
-                          {item.product_name || "상품명 없음"}
-                        </div>
-                      </div>
-                    </td>
-                    <td className={`py-3 px-3.5 text-[13px] text-right font-bold ${lowStock ? "text-danger-500" : "text-success"}`}>
-                      {item.qty_available}
-                    </td>
-                    <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{item.qty_reserved}</td>
-                    <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{item.qty_sold}</td>
-                    <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{item.low_stock_threshold}</td>
-                    <td className="py-3 px-3.5 text-[13px] text-foreground">
-                      {lowStock ? (
-                        <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-danger-500/20 text-danger-500 text-xs font-semibold">재고 부족</span>
-                      ) : (
-                        <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-success/20 text-success text-xs font-semibold">정상</span>
+                        </td>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <td className="py-3 px-3.5 text-[13px] text-foreground whitespace-nowrap">
+                        {item.branch_name || "-"}
+                      </td>
+                      <td className="py-3 px-3.5 text-[13px] text-foreground">
+                        <div className="flex items-center gap-3">
+                          {item.image_url && (
+                            <Image
+                              src={item.image_url}
+                              alt={item.product_name || "상품 이미지"}
+                              width={48}
+                              height={48}
+                              className="w-12 h-12 rounded-lg object-cover border border-border"
+                            />
+                          )}
+                          <div className="font-semibold text-sm">
+                            {item.product_name || "상품명 없음"}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`py-3 px-3.5 text-[13px] text-right font-bold ${lowStock ? "text-danger-500" : "text-success"}`}>
+                        {item.qty_available}
+                      </td>
+                      <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{item.qty_reserved}</td>
+                      <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{item.qty_sold}</td>
+                      <td className="py-3 px-3.5 text-[13px] text-right text-text-secondary">{item.low_stock_threshold}</td>
+                      <td className="py-3 px-3.5 text-[13px] text-foreground">
+                        {lowStock ? (
+                          <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-danger-500/20 text-danger-500 text-xs font-semibold">재고 부족</span>
+                        ) : (
+                          <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-success/20 text-success text-xs font-semibold">정상</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-1 mt-8 mb-4">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+                className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+              >
+                &laquo;
+              </button>
+
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+              >
+                &lsaquo;
+              </button>
+
+              <div className="flex items-center gap-1 mx-2">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (page <= 3) {
+                    pageNum = i + 1;
+                  } else if (page >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = page - 2 + i;
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`w-9 h-9 rounded-full text-sm font-bold cursor-pointer transition-all duration-150 ${
+                        page === pageNum
+                          ? "bg-foreground text-background"
+                          : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+              >
+                &rsaquo;
+              </button>
+
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages}
+                className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+              >
+                &raquo;
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

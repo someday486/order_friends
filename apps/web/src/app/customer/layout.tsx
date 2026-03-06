@@ -173,11 +173,13 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         {/* Sidebar */}
         <aside
           className={`
-          fixed md:sticky md:self-start top-0 left-0 z-50 h-screen md:h-screen md:overflow-y-auto w-[240px]
-          border-r border-border bg-white flex flex-col
-          transition-transform duration-200 ease-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-        `}
+            fixed md:relative top-0 left-0 z-50 md:z-auto
+            h-screen md:h-auto md:min-h-screen
+            w-[240px]
+            border-r border-border bg-bg-secondary flex flex-col
+            transition-transform duration-200 ease-out
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          `}
         >
           {/* Logo */}
           <div className="h-[72px] px-4 border-b border-border flex items-center justify-between">
@@ -204,7 +206,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-3 flex flex-col gap-3 overflow-y-auto">
+          <nav className="flex-1 p-3 flex flex-col gap-3">
             {roleLoading && (
               <div className="text-xs text-text-tertiary px-3 py-2">권한 불러오는 중...</div>
             )}
@@ -239,7 +241,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </nav>
 
           {/* User / Quick Actions */}
-          <div className="p-3 border-t border-border mt-auto">
+          <div className="p-3 mt-auto">
             {user && (
               <div className="text-xs text-text-tertiary mb-2 overflow-hidden text-ellipsis">
                 {user.email}
@@ -250,7 +252,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               href="/customer/mypage"
               onClick={() => setSidebarOpen(false)}
               className={`
-                flex items-center px-3 py-2.5 rounded-md text-sm no-underline
+                flex items-center justify-center px-3 py-2.5 rounded-md text-sm no-underline
                 transition-all duration-150 touch-feedback mb-2
                 ${
                   isActive("/customer/mypage")
@@ -262,6 +264,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               <PencilIcon size={18} className="mr-2 flex-shrink-0" />
               마이페이지
             </Link>
+            <div className="border-t border-border my-2" />
 
             <button
               onClick={toggle}

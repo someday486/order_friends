@@ -18,6 +18,11 @@ import { createOrderExportJob } from '@/lib/exports';
 // Types
 // ============================================================
 
+type Brand = {
+  id: string;
+  name: string;
+};
+
 type Order = {
   id: string;
   orderNo: string | null;
@@ -369,6 +374,7 @@ export default function CustomerOrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -378,6 +384,8 @@ export default function CustomerOrdersPage() {
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
     FulfillmentType | 'ALL'
   >('ALL');
+  const [brandFilter, setBrandFilter] = useState<string>('ALL');
+  const [channelFilter, setChannelFilter] = useState<'ALL' | 'B2C' | 'B2B' | 'STORE'>('ALL');
 
   // Date range: input (staged) vs applied (active)
   const [dateStartInput, setDateStartInput] = useState(() => getTodayYmd());
@@ -453,6 +461,8 @@ export default function CustomerOrdersPage() {
   }, [branches]);
 
   const [summaryBranch, setSummaryBranch] = useState<string>("ALL");
+  const [summaryBrand, setSummaryBrand] = useState<string>("ALL");
+  const [summaryChannel, setSummaryChannel] = useState<'ALL' | 'B2C' | 'B2B' | 'STORE'>("ALL");
   const [summaryFulfillment, setSummaryFulfillment] = useState<FulfillmentType | "ALL">("ALL");
 
   //카드 기준 레이블: "오늘 기준" vs "조회 기준"
@@ -488,6 +498,19 @@ export default function CustomerOrdersPage() {
     };
 
     void loadBranches();
+  }, []);
+
+  useEffect(() => {
+    const loadBrands = async () => {
+      try {
+        const brandList = await apiClient.get<Brand[]>('/customer/brands');
+        setBrands(brandList);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    void loadBrands();
   }, []);
 
   useEffect(() => {
@@ -561,7 +584,9 @@ export default function CustomerOrdersPage() {
 
     void loadSummary();
   }, [
+    summaryBrand,
     summaryBranch,
+    summaryChannel,
     summaryFulfillment,
     appliedDateStart,
     appliedDateEnd,
@@ -649,9 +674,11 @@ export default function CustomerOrdersPage() {
   }, [
     page,
     limit,
+    brandFilter,
     branchFilter,
     statusFilter,
     fulfillmentFilter,
+    channelFilter,
     appliedDateStart,
     appliedDateEnd,
     reloadToken,
@@ -703,7 +730,9 @@ export default function CustomerOrdersPage() {
     setStatusFilter("ALL");
 
     // ✅ 요약은 조회 버튼 눌렀을 때만 고정 업데이트
+    setSummaryBrand(brandFilter);
     setSummaryBranch(branchFilter);
+    setSummaryChannel(channelFilter);
     setSummaryFulfillment(fulfillmentFilter);
 
     setPage(1);
@@ -887,6 +916,22 @@ export default function CustomerOrdersPage() {
 
       {/* ── Section 2: OrderFiltersBar ── */}
       <div className="flex flex-wrap items-end gap-2 mb-4 p-3 rounded-xl border border-border bg-bg-secondary">
+        <select
+          value={brandFilter}
+          onChange={(e) => {
+            setBrandFilter(e.target.value);
+            setPage(1);
+          }}
+          className="input-field h-9 text-sm min-w-[160px] max-w-[220px]"
+        >
+          <option value="ALL">모든 브랜드</option>
+          {brands.map((brand) => (
+            <option key={brand.id} value={brand.id}>
+              {brand.name}
+            </option>
+          ))}
+        </select>
+
         {showMultiBranch && (
           <select
             value={branchFilter}

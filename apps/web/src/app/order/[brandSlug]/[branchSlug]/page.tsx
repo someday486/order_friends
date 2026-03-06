@@ -33,7 +33,7 @@ export default async function OrderPage({ params }: PageProps) {
   // Fetch branch info (server-side)
   const branchRes = await fetch(
     `${API_BASE}/public/brands/${encodeURIComponent(brandSlug)}/branches/${encodeURIComponent(branchSlug)}`,
-    { cache: "no-store" },
+    { next: { revalidate: 30 } },
   );
 
   if (!branchRes.ok) {
@@ -42,11 +42,17 @@ export default async function OrderPage({ params }: PageProps) {
 
   const branch = await branchRes.json();
 
-  // Fetch products (server-side)
-  const productsRes = await fetch(
-    `${API_BASE}/public/branches/${encodeURIComponent(branch.id)}/products`,
-    { cache: "no-store" },
-  );
+  // products·categories를 병렬로 가져와 워터폴 제거
+  const [productsRes, catsRes] = await Promise.all([
+    fetch(
+      `${API_BASE}/public/branches/${encodeURIComponent(branch.id)}/products`,
+      { next: { revalidate: 30 } },
+    ),
+    fetch(
+      `${API_BASE}/public/branches/${encodeURIComponent(branch.id)}/categories`,
+      { next: { revalidate: 30 } },
+    ),
+  ]);
 
   const productsData: PublicProductResponse[] = productsRes.ok
     ? await productsRes.json()
@@ -64,12 +70,6 @@ export default async function OrderPage({ params }: PageProps) {
     stock: p.stock,
     options: p.options,
   }));
-
-  // Fetch categories (server-side)
-  const catsRes = await fetch(
-    `${API_BASE}/public/branches/${encodeURIComponent(branch.id)}/categories`,
-    { cache: "no-store" },
-  );
 
   const categories = catsRes.ok ? await catsRes.json() : [];
 

@@ -36,12 +36,16 @@ export function useUserRole() {
   // 최초 1회 fetch 완료 여부 — 이후 재요청은 로딩 표시 없이 백그라운드 갱신
   const hasFetchedRef = useRef(false);
 
+  // 토큰 갱신(cross-tab sync 포함) 시 effect가 재실행되지 않도록
+  // session 객체 레퍼런스 대신 userId를 의존성으로 사용
+  const userId = session?.user?.id ?? null;
+
   useEffect(() => {
     if (status === 'loading') {
       return;
     }
 
-    if (status === 'unauthenticated' || !session) {
+    if (status === 'unauthenticated' || !userId) {
       setUserData(null);
       setLoading(false);
       hasFetchedRef.current = false;
@@ -64,7 +68,7 @@ export function useUserRole() {
     };
 
     void fetchUserRole();
-  }, [session, status]);
+  }, [userId, status]);
 
   return {
     userData,

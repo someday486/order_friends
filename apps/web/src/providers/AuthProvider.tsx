@@ -63,8 +63,17 @@ export function AuthProvider({
     }
 
     // 이후 이벤트: 곧바로 최종 상태 반영 (loading으로 되돌리지 않음)
+    // access_token이 동일하면 상태를 업데이트하지 않아 불필요한 재렌더 방지
     const unsubscribe = subscribeAuth((session) => {
-      setState(derive(session));
+      setState((prev) => {
+        if (
+          prev.session?.access_token === session?.access_token &&
+          prev.status === (session ? "authenticated" : "unauthenticated")
+        ) {
+          return prev;
+        }
+        return derive(session);
+      });
     });
 
     return () => {

@@ -3,15 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 
 type Props = {
   redirectTo?: string;
 };
 
-export function LoginForm({ redirectTo = "/" }: Props) {
+export function LoginForm({ redirectTo = "/customer" }: Props) {
   const router = useRouter();
-  const { refresh } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,10 +38,10 @@ export function LoginForm({ redirectTo = "/" }: Props) {
         return;
       }
 
-      await refresh();
-
-      window.location.assign(redirectTo);
-      router.refresh();
+      // onAuthStateChange가 자동으로 세션을 갱신하므로 refresh() 불필요.
+      // window.location.assign(하드 리로드) 대신 소프트 네비게이션 사용.
+      router.push(redirectTo);
+      router.refresh(); // Next.js 라우터 캐시 무효화 (미들웨어가 새 세션 쿠키 인식)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Login failed");
     } finally {

@@ -5,6 +5,6 @@ export default function LoginPage({
 }: {
   searchParams?: { next?: string };
 }) {
-  const next = searchParams?.next ?? "/";
+  const next = searchParams?.next ?? "/customer";
   return <LoginClient next={next} />;
 }

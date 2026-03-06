@@ -324,6 +324,7 @@ export default function CustomerOrderLauncherPage() {
                             href={url}
                             target="_blank"
                             rel="noreferrer"
+                            prefetch={false}
                             className="block p-3 rounded-md border border-border bg-background no-underline transition-all duration-200 hover:bg-bg-tertiary/50 hover:-translate-y-[1px] hover:shadow-sm"
                           >
                             <div className="font-semibold text-sm text-foreground">{branch.name}</div>

@@ -279,7 +279,7 @@ export class OrdersService {
           );
 
           // 재고 업데이트 및 로그 삽입을 병렬 처리
-          const updatePromises: Promise<any>[] = [];
+          const updatePromises: PromiseLike<any>[] = [];
           const logRows: any[] = [];
 
           for (const item of orderItems) {

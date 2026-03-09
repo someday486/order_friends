@@ -48,7 +48,7 @@ describe('LoggingInterceptor', () => {
     const ctx = createContext();
     const next = { handle: () => of('ok') } as any;
 
-    jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(1501);
+    jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(2001);
 
     await lastValueFrom(interceptor.intercept(ctx, next));
 

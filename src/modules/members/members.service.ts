@@ -136,6 +136,33 @@ export class MembersService {
     return candidate && candidate.trim().length > 0 ? candidate.trim() : null;
   }
 
+  private getAuthEmailConfirmedAt(
+    user: User | null | undefined,
+  ): string | null {
+    if (!user) return null;
+    return (
+      ((user as any).email_confirmed_at as string | null | undefined) ??
+      ((user as any).confirmed_at as string | null | undefined) ??
+      null
+    );
+  }
+
+  private async assertApprovalEligibleUser(userId: string): Promise<void> {
+    const admin = this.supabase.adminClient();
+    const { data: userResult, error } =
+      await admin.auth.admin.getUserById(userId);
+
+    if (error || !userResult.user) {
+      throw new BadRequestException('사용자를 찾을 수 없습니다.');
+    }
+
+    if (!this.getAuthEmailConfirmedAt(userResult.user)) {
+      throw new BadRequestException(
+        '이메일 인증을 완료한 사용자만 승인할 수 있습니다.',
+      );
+    }
+  }
+
   private isSingleActiveBrandOwnerViolation(
     error: { message?: string | null } | null | undefined,
   ): boolean {
@@ -171,8 +198,8 @@ export class MembersService {
         admin
           .from('profiles')
           .select('id, display_name, created_at, is_system_admin'),
-        admin.from('brand_members').select('user_id'),
-        admin.from('branch_members').select('user_id'),
+        admin.from('brand_members').select('user_id, status'),
+        admin.from('branch_members').select('user_id, status'),
         this.listAllAuthUsers(),
       ]);
 
@@ -201,11 +228,15 @@ export class MembersService {
     const excludedUserIds = new Set<string>([currentUserId]);
 
     for (const member of brandMembersResult.data ?? []) {
-      if (member?.user_id) excludedUserIds.add(member.user_id);
+      if (member?.user_id && member?.status === MemberStatus.ACTIVE) {
+        excludedUserIds.add(member.user_id);
+      }
     }
 
     for (const member of branchMembersResult.data ?? []) {
-      if (member?.user_id) excludedUserIds.add(member.user_id);
+      if (member?.user_id && member?.status === MemberStatus.ACTIVE) {
+        excludedUserIds.add(member.user_id);
+      }
     }
 
     for (const profile of profiles) {
@@ -372,6 +403,8 @@ export class MembersService {
     if (existing) {
       throw new BadRequestException('이미 브랜드 멤버입니다.');
     }
+
+    await this.assertApprovalEligibleUser(userId);
 
     // 멤버 추가
     const { data, error } = await sb
@@ -547,6 +580,8 @@ export class MembersService {
     if (existing) {
       throw new BadRequestException('이미 지점 멤버입니다.');
     }
+
+    await this.assertApprovalEligibleUser(dto.userId);
 
     // 멤버 추가
     const { data, error } = await sb

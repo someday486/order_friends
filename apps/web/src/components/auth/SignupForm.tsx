@@ -8,6 +8,12 @@ type SignupFormProps = {
   loginHref?: string;
 };
 
+const signupSteps = [
+  '이메일과 비밀번호로 계정을 만들고 이메일 인증을 완료합니다.',
+  '시스템 관리자가 브랜드 또는 매장 권한을 직접 부여합니다.',
+  '다시 로그인하면 권한에 맞는 운영 화면으로 이동합니다.',
+];
+
 export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -56,7 +62,7 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
       }
 
       setSuccessMsg(
-        '회원가입 요청이 접수되었습니다. 이메일 확인 후 로그인해 주세요. 관리자 권한 연결은 별도 승인 후 반영됩니다.',
+        '가입 요청이 접수되었습니다. 이메일 인증 후 로그인해 주세요. 운영 권한은 시스템 관리자가 별도로 부여합니다.',
       );
       setEmail('');
       setPassword('');
@@ -68,11 +74,9 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
             ? `${loginHref}&registered=1`
             : `${loginHref}?registered=1`,
         );
-      }, 800);
+      }, 900);
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : '회원가입에 실패했습니다.',
-      );
+      setErrorMsg(err instanceof Error ? err.message : '회원가입에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -108,7 +112,7 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password"
-          placeholder="영문/숫자 포함 8자 이상"
+          placeholder="8자 이상 입력"
           disabled={submitting}
           minLength={8}
           required
@@ -125,7 +129,7 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           autoComplete="new-password"
-          placeholder="비밀번호를 다시 입력하세요"
+          placeholder="비밀번호를 다시 입력해 주세요"
           disabled={submitting}
           minLength={8}
           required
@@ -148,11 +152,25 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
         </div>
       ) : null}
 
-      <div className="rounded-md border border-border bg-bg-secondary p-3 text-xs leading-5 text-text-secondary">
-        가입 후에도 브랜드/매장 관리자 권한은 자동 부여되지 않습니다. 시스템
-        관리자가{' '}
-        <span className="font-semibold text-foreground">/admin/members</span>
-        에서 멤버십을 연결해야 실제 관리 화면 접근이 가능합니다.
+      <div className="rounded-xl border border-border bg-bg-secondary p-4">
+        <div className="text-sm font-semibold text-foreground">가입 후 진행 순서</div>
+        <ol className="mt-2 space-y-2 text-xs leading-5 text-text-secondary">
+          {signupSteps.map((step, index) => (
+            <li key={step} className="flex gap-2">
+              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-[11px] font-bold text-foreground">
+                {index + 1}
+              </span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+        <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-[11px] leading-5 text-text-secondary">
+          브랜드 또는 매장 운영 권한은 자동으로 생기지 않습니다. 시스템 관리자가
+          <span className="px-1 font-semibold text-foreground">
+            /admin/members
+          </span>
+          에서 승인해야 운영 화면을 사용할 수 있습니다.
+        </div>
       </div>
 
       <button

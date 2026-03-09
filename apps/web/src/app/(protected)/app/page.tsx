@@ -88,19 +88,21 @@ export default function AppPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="card w-full max-w-md p-6 text-center">
-        <div className="text-3xl mb-3">확인 중</div>
-        <h1 className="text-xl font-extrabold text-foreground">
+        <div className="text-xs font-semibold tracking-[0.18em] text-text-secondary">
+          CHECKING ACCESS
+        </div>
+        <h1 className="mt-3 text-xl font-extrabold text-foreground">
           계정 상태를 확인하고 있습니다
         </h1>
-        <p className="mt-2 text-sm text-text-secondary">
-          승인 여부와 접근 가능한 화면을 판별하는 중입니다.
+        <p className="mt-2 text-sm leading-6 text-text-secondary">
+          로그인 정보와 연결된 권한을 확인한 뒤, 맞는 화면으로 자동 이동합니다.
         </p>
         {errorMsg ? (
           <div className="mt-4 rounded-md bg-danger-50 p-3 text-sm text-danger-500">
             {errorMsg}
           </div>
         ) : (
-          <div className="mt-4 text-sm text-text-tertiary">
+          <div className="mt-4 rounded-md border border-border bg-bg-secondary p-3 text-sm text-text-tertiary">
             잠시만 기다려 주세요.
           </div>
         )}

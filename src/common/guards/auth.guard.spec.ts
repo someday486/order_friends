@@ -19,6 +19,27 @@ describe('AuthGuard', () => {
     return { guard: new AuthGuard(supabase as any, config as any), supabase };
   };
 
+  const makeUserClient = (options: {
+    user: { id: string; email: string | null };
+    profile?: { is_system_admin: boolean } | null;
+    profileError?: { message: string } | null;
+  }) => ({
+    auth: {
+      getUser: jest.fn().mockResolvedValue({
+        data: { user: options.user },
+        error: null,
+      }),
+    },
+    from: jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: options.profile ?? null,
+        error: options.profileError ?? null,
+      }),
+    })),
+  });
+
   it('should throw when missing bearer token', async () => {
     const { guard } = makeGuard({});
 
@@ -52,14 +73,12 @@ describe('AuthGuard', () => {
       ADMIN_BYPASS: 'false',
     });
 
-    supabase.userClient.mockReturnValue({
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-1', email: 'admin@example.com' } },
-          error: null,
-        }),
-      },
-    });
+    supabase.userClient.mockReturnValue(
+      makeUserClient({
+        user: { id: 'user-1', email: 'admin@example.com' },
+        profile: { is_system_admin: false },
+      }),
+    );
 
     const req: any = { headers: { authorization: 'Bearer token' } };
     const result = await guard.canActivate(makeContext(req));
@@ -77,14 +96,12 @@ describe('AuthGuard', () => {
       ADMIN_BYPASS: 'yes',
     });
 
-    supabase.userClient.mockReturnValue({
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-9', email: 'user@example.org' } },
-          error: null,
-        }),
-      },
-    });
+    supabase.userClient.mockReturnValue(
+      makeUserClient({
+        user: { id: 'user-9', email: 'user@example.org' },
+        profile: { is_system_admin: false },
+      }),
+    );
 
     const req: any = { headers: { authorization: 'Bearer token2' } };
     const result = await guard.canActivate(makeContext(req));
@@ -93,22 +110,14 @@ describe('AuthGuard', () => {
     expect(req.isAdmin).toBe(true);
   });
 
-  it('should mark admin from metadata', async () => {
+  it('should mark admin from profile flag', async () => {
     const { guard, supabase } = makeGuard({});
-    supabase.userClient.mockReturnValue({
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: {
-            user: {
-              id: 'user-10',
-              email: 'user@none.com',
-              app_metadata: { role: 'admin' },
-            },
-          },
-          error: null,
-        }),
-      },
-    });
+    supabase.userClient.mockReturnValue(
+      makeUserClient({
+        user: { id: 'user-10', email: 'user@none.com' },
+        profile: { is_system_admin: true },
+      }),
+    );
 
     const req: any = { headers: { authorization: 'Bearer token3' } };
     const result = await guard.canActivate(makeContext(req));
@@ -122,14 +131,12 @@ describe('AuthGuard', () => {
       ADMIN_EMAILS: 'admin@example.com',
       ADMIN_EMAIL_DOMAINS: 'example.org',
     });
-    supabase.userClient.mockReturnValue({
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-11', email: null } },
-          error: null,
-        }),
-      },
-    });
+    supabase.userClient.mockReturnValue(
+      makeUserClient({
+        user: { id: 'user-11', email: null },
+        profile: { is_system_admin: false },
+      }),
+    );
 
     const req: any = { headers: { authorization: 'Bearer token4' } };
     const result = await guard.canActivate(makeContext(req));
@@ -139,45 +146,19 @@ describe('AuthGuard', () => {
     expect(req.isAdmin).toBe(false);
   });
 
-  it('should parse config helpers', () => {
-    const { guard } = makeGuard({});
-    const parseList = (guard as any).parseList;
-    const parseBoolean = (guard as any).parseBoolean;
-    const normalizeDomains = (guard as any).normalizeDomains;
+  it('should reject requests when profile admin lookup fails', async () => {
+    const { guard, supabase } = makeGuard({});
+    supabase.userClient.mockReturnValue(
+      makeUserClient({
+        user: { id: 'user-12', email: 'user@test.com' },
+        profileError: { message: 'profile lookup failed' },
+      }),
+    );
 
-    expect(parseList('a, b ; c')).toEqual(['a', 'b', 'c']);
-    expect(parseList('')).toEqual([]);
-    expect(parseBoolean('true')).toBe(true);
-    expect(parseBoolean('1')).toBe(true);
-    expect(parseBoolean('yes')).toBe(true);
-    expect(parseBoolean('false')).toBe(false);
-    expect([...normalizeDomains(['@Example.org', ' test.com '])]).toEqual([
-      'example.org',
-      'test.com',
-    ]);
-  });
-
-  it('should handle allowed domain checks', () => {
-    const { guard } = makeGuard({ ADMIN_EMAIL_DOMAINS: 'example.org' });
-    expect((guard as any).isAllowedDomain('user@example.org')).toBe(true);
-    expect((guard as any).isAllowedDomain('user@other.org')).toBe(false);
-    expect((guard as any).isAllowedDomain('invalid')).toBe(false);
-  });
-
-  it('should detect admin from metadata flags', () => {
-    const { guard } = makeGuard({});
-    expect(
-      (guard as any).isAdminFromMetadata({ app_metadata: { is_admin: true } }),
-    ).toBe(true);
-    expect(
-      (guard as any).isAdminFromMetadata({ user_metadata: { is_admin: true } }),
-    ).toBe(true);
-    expect(
-      (guard as any).isAdminFromMetadata({ app_metadata: { role: 'admin' } }),
-    ).toBe(true);
-    expect(
-      (guard as any).isAdminFromMetadata({ user_metadata: { role: 'admin' } }),
-    ).toBe(true);
-    expect((guard as any).isAdminFromMetadata({})).toBe(false);
+    await expect(
+      guard.canActivate(
+        makeContext({ headers: { authorization: 'Bearer token5' } }),
+      ),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });

@@ -29,7 +29,13 @@ describe('MembersService', () => {
             error: null,
           }),
           getUserById: jest.fn().mockResolvedValue({
-            data: { user: { id: 'user-1', user_metadata: {} } },
+            data: {
+              user: {
+                id: 'user-1',
+                user_metadata: {},
+                email_confirmed_at: '2026-03-09T08:10:00.000Z',
+              },
+            },
             error: null,
           }),
           updateUserById: jest.fn().mockResolvedValue({
@@ -128,7 +134,7 @@ describe('MembersService', () => {
         if (table === 'brand_members') {
           return {
             select: jest.fn().mockResolvedValue({
-              data: [{ user_id: 'existing-member' }],
+              data: [{ user_id: 'existing-member', status: 'ACTIVE' }],
               error: null,
             }),
           };
@@ -361,6 +367,16 @@ describe('MembersService', () => {
 
   it('addBrandMember should insert member', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: {
         brand_id: 'brand',
@@ -385,6 +401,16 @@ describe('MembersService', () => {
 
   it('addBrandMember should default role and map null createdAt', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: {
         brand_id: 'brand',
@@ -410,6 +436,16 @@ describe('MembersService', () => {
 
   it('addBrandMember should throw on insert error', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'fail' },
@@ -422,6 +458,16 @@ describe('MembersService', () => {
 
   it('addBrandMember should throw a clear error when active owner already exists', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: null,
       error: {
@@ -435,6 +481,24 @@ describe('MembersService', () => {
     ).rejects.toThrow(
       '브랜드당 활성 오너는 1명만 지정할 수 있습니다. 기존 오너 권한을 먼저 변경해주세요.',
     );
+  });
+
+  it('addBrandMember should reject unconfirmed users', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: null,
+        },
+      },
+      error: null,
+    });
+
+    await expect(
+      service.addBrandMember('token', 'brand', 'u1', 'MEMBER' as any, true),
+    ).rejects.toThrow('이메일 인증을 완료한 사용자만 승인할 수 있습니다.');
   });
 
   it('updateBrandMember should throw when no changes', async () => {
@@ -664,6 +728,16 @@ describe('MembersService', () => {
 
   it('addBranchMember should insert', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: {
         branch_id: 'branch',
@@ -686,6 +760,16 @@ describe('MembersService', () => {
 
   it('addBranchMember should map null createdAt', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: {
         branch_id: 'branch',
@@ -708,6 +792,16 @@ describe('MembersService', () => {
 
   it('addBranchMember should default role when missing', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: {
         branch_id: 'branch',
@@ -730,6 +824,16 @@ describe('MembersService', () => {
 
   it('addBranchMember should throw on insert error', async () => {
     mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          user_metadata: {},
+          email_confirmed_at: '2026-03-09T08:10:00.000Z',
+        },
+      },
+      error: null,
+    });
     mockSb.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'fail' },
@@ -742,6 +846,22 @@ describe('MembersService', () => {
         true,
       ),
     ).rejects.toThrow('[members.addBranchMember]');
+  });
+
+  it('addBranchMember should reject unknown users', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({ data: null });
+    supabase.adminClient().auth.admin.getUserById.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: 'not found' },
+    });
+
+    await expect(
+      service.addBranchMember(
+        'token',
+        { branchId: 'branch', userId: 'u1' } as any,
+        true,
+      ),
+    ).rejects.toThrow('사용자를 찾을 수 없습니다.');
   });
 
   it('updateBranchMember should throw when no changes', async () => {

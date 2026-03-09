@@ -91,6 +91,15 @@ export class UpdateBrandMemberRequest {
   status?: MemberStatus;
 }
 
+export class AddBrandMemberRequest {
+  @IsString()
+  userId: string;
+
+  @IsEnum(BrandRole)
+  @IsOptional()
+  role?: BrandRole = BrandRole.MEMBER;
+}
+
 export class AddBranchMemberRequest {
   @IsString()
   branchId: string;

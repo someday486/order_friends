@@ -14,7 +14,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { MembersService } from './members.service';
 import {
-  BrandRole,
+  AddBrandMemberRequest,
   UpdateBrandMemberRequest,
   AddBranchMemberRequest,
   UpdateBranchMemberRequest,
@@ -85,7 +85,7 @@ export class MembersController {
   async addBrandMember(
     @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
-    @Body() body: { userId: string; role?: BrandRole },
+    @Body() body: AddBrandMemberRequest,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
     return this.membersService.addBrandMember(

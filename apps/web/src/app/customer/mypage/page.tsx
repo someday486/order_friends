@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
@@ -74,6 +74,28 @@ function getOrderUrl(brandSlug: string | null, branchSlug: string | null, branch
 
 function toTextInputValue(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function getPushPermissionLabel(permission: NotificationPermission): string {
+  switch (permission) {
+    case "granted":
+      return "허용됨";
+    case "denied":
+      return "차단됨";
+    default:
+      return "아직 선택 안 함";
+  }
+}
+
+function getPushPermissionBadgeClass(permission: NotificationPermission): string {
+  switch (permission) {
+    case "granted":
+      return "bg-emerald-500/10 text-emerald-600 border border-emerald-500/30";
+    case "denied":
+      return "bg-red-500/10 text-red-600 border border-red-500/30";
+    default:
+      return "bg-bg-tertiary text-text-secondary border border-border";
+  }
 }
 
 export default function CustomerMyPage() {
@@ -381,45 +403,54 @@ export default function CustomerMyPage() {
     );
   }
 
+  // ── 알림 행 항목 정의 ──
+  const notificationRows: {
+    key: NotificationSettingKey;
+    label: string;
+    description: string;
+  }[] = [
+    { key: "email", label: "이메일 알림", description: "주문/결제 상태를 이메일로 받습니다." },
+    { key: "marketing", label: "마케팅 알림", description: "공지, 이벤트, 혜택 안내를 받습니다." },
+    { key: "sound", label: "알림음", description: "주문 상태 알림이 생성될 때 소리를 재생합니다." },
+    { key: "kakao", label: "카카오톡 알림", description: "주문/매장 상태 알림을 카카오톡으로 받습니다." },
+  ];
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-extrabold text-foreground">마이페이지</h1>
 
+      {/* ── 1. 프로필 ── */}
       <section className="card p-5">
-        <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="mb-4">
           <h2 className="text-lg font-bold text-foreground">프로필 커스터마이징</h2>
-          <Link href="/customer/order" target="_blank" className="text-sm text-text-secondary underline">
-            주문 페이지 열기
-          </Link>
+          <p className="text-xs text-text-tertiary mt-0.5">{user?.email ?? "-"}</p>
         </div>
 
-        <div className="text-sm text-text-secondary mb-4">계정: {user?.email ?? "-"}</div>
-
-        <form onSubmit={handleProfileSave} className="grid gap-4">
+        <form onSubmit={handleProfileSave} className="space-y-4">
           <div>
-            <label className="block text-sm text-text-secondary mb-2">표시 이름</label>
+            <label className="block text-sm font-semibold text-text-secondary mb-1.5">표시 이름</label>
             <input
               value={profile.displayName}
               onChange={(event) =>
                 setProfile((prev) => ({ ...prev, displayName: event.target.value }))
               }
-              className="input-field"
+              className="input-field w-full"
               placeholder="표시 이름을 입력하세요"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-text-secondary mb-2">한 줄 소개</label>
+            <label className="block text-sm font-semibold text-text-secondary mb-1.5">한 줄 소개</label>
             <textarea
               value={profile.tagline}
               onChange={(event) => setProfile((prev) => ({ ...prev, tagline: event.target.value }))}
-              className="input-field min-h-20"
+              className="input-field w-full min-h-20"
               placeholder="짧은 소개를 입력하세요"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-text-secondary mb-2">테마 색상</label>
+            <label className="block text-sm font-semibold text-text-secondary mb-1.5">테마 색상</label>
             <div className="flex items-center gap-3">
               <input
                 type="color"
@@ -427,212 +458,89 @@ export default function CustomerMyPage() {
                 onChange={(event) =>
                   setProfile((prev) => ({ ...prev, themeColor: event.target.value }))
                 }
-                className="h-10 w-14 rounded cursor-pointer"
+                className="h-10 w-12 rounded-lg cursor-pointer border border-border bg-transparent p-0.5"
               />
               <input
                 value={profile.themeColor}
                 onChange={(event) =>
                   setProfile((prev) => ({ ...prev, themeColor: event.target.value }))
                 }
-                className="input-field"
+                className="input-field flex-1 font-mono"
                 placeholder="#3B82F6"
+              />
+              {/* 색상 미리보기 뱃지 */}
+              <div
+                className="h-8 w-8 rounded-lg border border-border flex-shrink-0"
+                style={{ backgroundColor: profile.themeColor }}
+                title={profile.themeColor}
               />
             </div>
           </div>
 
-          <button type="submit" disabled={savingProfile} className="btn-primary py-2.5 px-4 text-sm max-w-max">
-            {savingProfile ? "저장 중..." : "프로필 저장"}
-          </button>
+          <div className="flex justify-end pt-2">
+            <button type="submit" disabled={savingProfile} className="btn-primary py-2.5 px-5 text-sm">
+              {savingProfile ? "저장 중..." : "프로필 저장"}
+            </button>
+          </div>
         </form>
       </section>
 
+      {/* ── 2. 매장 목록 ── */}
       <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">알림 설정</h2>
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <h3 className="font-semibold text-foreground">수신 채널</h3>
-            <label className="flex items-center justify-between gap-3 py-2 border-b border-border/40">
-              <span>이메일 알림</span>
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={notificationSettings.email}
-                onChange={(event) => updateNotificationSetting("email", event.target.checked)}
-              />
-            </label>
-            <p className="text-xs text-text-tertiary -mt-1">
-              주문/결제 상태를 이메일로 받습니다.
-            </p>
-
-            <label className="flex items-center justify-between gap-3 py-2 border-b border-border/40">
-              <span>마케팅 알림</span>
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={notificationSettings.marketing}
-                onChange={(event) => updateNotificationSetting("marketing", event.target.checked)}
-              />
-            </label>
-            <p className="text-xs text-text-tertiary -mt-1">
-              공지, 이벤트, 혜택 안내를 받습니다.
-            </p>
-
-            <label className="flex items-center justify-between gap-3 py-2 border-b border-border/40">
-              <span>알림음</span>
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={notificationSettings.sound}
-                onChange={(event) => updateNotificationSetting("sound", event.target.checked)}
-              />
-            </label>
-            <p className="text-xs text-text-tertiary -mt-1">
-              주문 상태 알림이 생성될 때 소리를 재생할지 설정합니다.
-            </p>
-
-            <label className="flex items-center justify-between gap-3 py-2">
-              <span>카카오톡 알림</span>
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={notificationSettings.kakao}
-                onChange={(event) => updateNotificationSetting("kakao", event.target.checked)}
-              />
-            </label>
-            <p className="text-xs text-text-tertiary -mt-1">
-              주문/매장 상태 알림을 카카오톡으로 받습니다.
-            </p>
-          </div>
-
-          <div className="border-t border-border pt-4 space-y-3">
-            <h3 className="font-semibold text-foreground">푸시 알림</h3>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span>현재 브라우저 권한</span>
-              <span className="text-text-secondary">{pushPermission}</span>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button onClick={requestPushPermission} className="btn-primary px-4 py-2 text-sm">
-                푸시 알림 권한 요청
-              </button>
-              <button
-                onClick={sendTestPush}
-                disabled={sendPushLoading || pushPermission !== "granted"}
-                className="px-4 py-2 rounded border border-border bg-transparent text-text-secondary text-sm disabled:opacity-60"
-              >
-                {sendPushLoading ? "전송 중..." : "테스트 푸시 보내기"}
-              </button>
-            </div>
-            <label className="flex items-center justify-between gap-3 py-2 border-t border-border mt-1 pt-3">
-              <span>푸시 알림 활성화</span>
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={notificationSettings.push}
-                disabled={pushPermission !== "granted"}
-                onChange={(event) => {
-                  if (pushPermission === "granted") {
-                    updateNotificationSetting("push", event.target.checked);
-                  }
-                }}
-              />
-            </label>
-            <p className="text-xs text-text-tertiary">
-              브라우저 권한이 차단된 경우, 브라우저 설정에서 알림을 허용으로 변경 후 다시 요청해 주세요.
-            </p>
-          </div>
-
-          <div className="border-t border-border pt-4 space-y-3">
-            <h3 className="font-semibold text-foreground">카카오톡 테스트 발송</h3>
-            <div className="grid gap-2">
-              <label className="block text-sm text-text-secondary">수신 전화번호</label>
-              <input
-                value={kakaoPhone}
-                onChange={(event) =>
-                  setKakaoPhone(event.target.value)
-                }
-                className="input-field"
-                placeholder="01012345678"
-                inputMode="numeric"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="block text-sm text-text-secondary">템플릿 코드(선택)</label>
-              <input
-                value={kakaoTemplateCode}
-                onChange={(event) => setKakaoTemplateCode(event.target.value)}
-                className="input-field"
-                placeholder="템플릿 코드 미입력 시 기본 템플릿 사용"
-              />
-            </div>
-            <button
-              onClick={sendTestKakao}
-              disabled={sendKakaoLoading}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              {sendKakaoLoading ? "전송 중..." : "카카오톡 테스트 보내기"}
-            </button>
-            <p className="text-xs text-text-tertiary">
-              `카카오톡 테스트 알림` 메시지가 입력한 번호로 전송됩니다.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">매장 목록</h2>
-        <div className="text-sm text-text-secondary mb-3">
-          총 {storeGroups.length}개 브랜드 · {totalBranches}개 매장
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-lg font-bold text-foreground">매장 목록</h2>
+          <span className="text-xs text-text-tertiary">
+            {storeGroups.length}개 브랜드 · {totalBranches}개 매장
+          </span>
         </div>
 
         {storeGroups.length === 0 ? (
-          <div className="text-text-tertiary">연결된 브랜드 또는 매장이 없습니다.</div>
+          <div className="text-sm text-text-tertiary">연결된 브랜드 또는 매장이 없습니다.</div>
         ) : (
           <div className="space-y-3">
             {storeGroups.map((group) => (
-              <div key={group.id} className="border border-border rounded-lg p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+              <div key={group.id} className="rounded-xl border border-border p-4">
+                {/* 브랜드 헤더 */}
+                <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
                   <div>
-                    <div className="font-semibold text-foreground">{group.name}</div>
-                    <div className="text-xs text-text-tertiary">
-                      브랜드 URL: {group.slug ? `/order/${encodeURIComponent(group.slug)}` : "-"}
-                    </div>
+                    <div className="font-bold text-foreground">{group.name}</div>
+                    {group.slug && (
+                      <div className="text-xs text-text-tertiary mt-0.5">
+                        주문 URL: /order/{encodeURIComponent(group.slug)}
+                      </div>
+                    )}
                   </div>
                   <Link
                     href={`/customer/brands/${group.id}`}
-                    className="text-sm text-text-secondary underline"
+                    className="text-xs text-text-secondary hover:text-foreground underline underline-offset-2 transition-colors"
                   >
-                    브랜드 관리로 이동
+                    브랜드 관리
                   </Link>
                 </div>
 
+                {/* 매장 목록 */}
                 {group.branches.length === 0 ? (
-                  <div className="text-xs text-text-tertiary">이 브랜드에 매장이 없습니다.</div>
+                  <p className="text-xs text-text-tertiary">이 브랜드에 매장이 없습니다.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 ml-1 pl-3 border-l border-border">
                     {group.branches.map((branch) => (
-                      <div
-                        key={branch.id}
-                        className="rounded border border-border/80 p-2 text-sm bg-bg-tertiary/40"
-                      >
-                        <div className="font-semibold text-foreground">{branch.name}</div>
-                        <div className="text-xs text-text-tertiary mt-1">
-                          매장 URL: {branch.orderUrl}
-                        </div>
-                        <div className="text-xs text-text-secondary mt-1 break-all">
+                      <div key={branch.id} className="rounded-lg border border-border/60 p-3 bg-bg-tertiary/30">
+                        <div className="font-semibold text-sm text-foreground mb-1">{branch.name}</div>
+                        <div className="text-xs text-text-tertiary break-all mb-2">
                           주문 URL: {branch.orderUrl}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Link
                             href={branch.orderUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs underline text-text-secondary"
+                            className="inline-flex items-center h-7 px-3 rounded-lg border border-border bg-bg-secondary text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
                           >
                             주문 페이지 열기
                           </Link>
                           <Link
                             href={`/customer/branches/${branch.id}`}
-                            className="text-xs underline text-text-secondary"
+                            className="text-xs text-text-secondary hover:text-foreground underline underline-offset-2 transition-colors"
                           >
                             매장 관리
                           </Link>
@@ -647,21 +555,152 @@ export default function CustomerMyPage() {
         )}
       </section>
 
+      {/* ── 3. 알림 설정 ── */}
       <section className="card p-5">
-        <h2 className="text-lg font-bold text-foreground mb-4">계정</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            onClick={signOut}
-            className="py-2.5 px-4 rounded border border-border text-text-secondary bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer"
-          >
-            로그아웃
-          </button>
+        <h2 className="text-lg font-bold text-foreground mb-4">알림 설정</h2>
+
+        {/* 수신 채널 행 목록 */}
+        <div className="space-y-2 mb-6">
+          {notificationRows.map(({ key, label, description }) => (
+            <label
+              key={key}
+              className="flex items-center justify-between gap-4 rounded-xl border border-border bg-bg-secondary px-4 py-3 cursor-pointer hover:bg-bg-tertiary transition-colors"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">{label}</div>
+                <div className="text-xs text-text-tertiary mt-0.5">{description}</div>
+              </div>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary flex-shrink-0"
+                checked={notificationSettings[key]}
+                onChange={(event) => updateNotificationSetting(key, event.target.checked)}
+              />
+            </label>
+          ))}
         </div>
 
-        <div className="mt-5 pt-4 border-t border-border">
-          <div className="text-sm text-text-secondary mb-2">계정 탈퇴</div>
+        {/* 푸시 알림 */}
+        <div className="rounded-xl border border-border p-4 space-y-3">
+          <h3 className="text-sm font-bold text-foreground">푸시 알림</h3>
+
+          {/* 권한 상태 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-secondary">브라우저 권한</span>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getPushPermissionBadgeClass(pushPermission)}`}
+            >
+              {getPushPermissionLabel(pushPermission)}
+            </span>
+          </div>
+
+          {/* 액션 버튼 */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={requestPushPermission}
+              className="btn-primary px-4 py-2 text-sm"
+            >
+              권한 요청
+            </button>
+            <button
+              type="button"
+              onClick={sendTestPush}
+              disabled={sendPushLoading || pushPermission !== "granted"}
+              className="px-4 py-2 rounded-lg border border-border bg-transparent text-text-secondary text-sm hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+            >
+              {sendPushLoading ? "전송 중..." : "테스트 푸시 보내기"}
+            </button>
+          </div>
+
+          {/* 푸시 활성화 토글 행 */}
+          <label className="flex items-center justify-between gap-4 pt-3 border-t border-border cursor-pointer">
+            <div>
+              <div className="text-sm font-semibold text-foreground">푸시 알림 활성화</div>
+              <div className="text-xs text-text-tertiary mt-0.5">
+                브라우저 권한이 차단된 경우, 브라우저 설정에서 알림을 허용 후 다시 요청해 주세요.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-primary flex-shrink-0"
+              checked={notificationSettings.push}
+              disabled={pushPermission !== "granted"}
+              onChange={(event) => {
+                if (pushPermission === "granted") {
+                  updateNotificationSetting("push", event.target.checked);
+                }
+              }}
+            />
+          </label>
+        </div>
+
+        {/* 카카오톡 테스트 발송 */}
+        <div className="rounded-xl border border-border p-4 space-y-3 mt-4">
+          <h3 className="text-sm font-bold text-foreground">카카오톡 테스트 발송</h3>
+          <p className="text-xs text-text-tertiary">
+            카카오톡 테스트 알림 메시지가 입력한 번호로 전송됩니다.
+          </p>
+
+          <div className="grid gap-2">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">수신 전화번호</label>
+              <input
+                value={kakaoPhone}
+                onChange={(event) => setKakaoPhone(event.target.value)}
+                className="input-field w-full"
+                placeholder="01012345678"
+                inputMode="numeric"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">템플릿 코드 (선택)</label>
+              <input
+                value={kakaoTemplateCode}
+                onChange={(event) => setKakaoTemplateCode(event.target.value)}
+                className="input-field w-full"
+                placeholder="미입력 시 기본 템플릿 사용"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={sendTestKakao}
+              disabled={sendKakaoLoading}
+              className="btn-primary px-4 py-2 text-sm"
+            >
+              {sendKakaoLoading ? "전송 중..." : "카카오톡 테스트 보내기"}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 4. 계정 ── */}
+      <section className="card p-5">
+        <h2 className="text-lg font-bold text-foreground mb-4">계정</h2>
+
+        <button
+          type="button"
+          onClick={signOut}
+          className="py-2.5 px-5 rounded-lg border border-border text-text-secondary bg-transparent hover:bg-bg-tertiary transition-colors text-sm font-medium"
+        >
+          로그아웃
+        </button>
+
+        {/* 위험 구역: 계정 탈퇴 */}
+        <div className="mt-6 rounded-xl border border-danger-500/40 bg-danger-500/5 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-bold text-danger-500">계정 탈퇴</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-500/10 text-danger-500 border border-danger-500/30">
+              위험
+            </span>
+          </div>
           <p className="text-xs text-text-tertiary mb-3">
-            버튼을 누르기 전에 <span className="font-semibold text-text-secondary">{DELETE_CONFIRM_TEXT}</span>를 입력하세요.
+            탈퇴 전{" "}
+            <span className="font-semibold text-text-secondary">{DELETE_CONFIRM_TEXT}</span>
+            를 아래에 입력하세요. 탈퇴 후에는 복구할 수 없습니다.
           </p>
           <div className="flex flex-wrap gap-3">
             <input
@@ -671,9 +710,10 @@ export default function CustomerMyPage() {
               placeholder={DELETE_CONFIRM_TEXT}
             />
             <button
+              type="button"
               onClick={handleDeleteAccount}
               disabled={deleting}
-              className="py-2.5 px-4 rounded border border-danger-500 text-danger-500 text-sm cursor-pointer hover:bg-danger-500/10 transition-colors disabled:opacity-50"
+              className="py-2.5 px-4 rounded-lg border border-danger-500 text-danger-500 text-sm font-semibold cursor-pointer hover:bg-danger-500/10 transition-colors disabled:opacity-50"
             >
               {deleting ? "처리 중..." : "계정 탈퇴"}
             </button>

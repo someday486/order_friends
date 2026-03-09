@@ -11,10 +11,10 @@ export default function LoginClient({ next }: { next: string }) {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/");
+      router.replace(next);
       router.refresh();
     }
-  }, [status, router]);
+  }, [status, router, next]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">

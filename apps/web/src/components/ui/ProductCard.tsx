@@ -50,6 +50,7 @@ export const ProductCard: FC<ProductCardProps> = ({
   onCardClick,
 }) => {
   const [imgError, setImgError] = useState(false);
+  const canOpenDetail = typeof onCardClick === "function";
 
   const hasDiscount =
     product.discountPrice !== undefined && product.discountPrice < product.price;
@@ -77,9 +78,14 @@ export const ProductCard: FC<ProductCardProps> = ({
         `}
       >
         {/* Product Info */}
-        <div
-          className="col-start-1 row-start-1 p-3 flex flex-col gap-1 overflow-hidden cursor-pointer"
+        <button
+          type="button"
+          className={`col-start-1 row-start-1 p-3 flex flex-col gap-1 overflow-hidden text-left border-0 bg-transparent ${
+            canOpenDetail ? "cursor-pointer" : "cursor-default"
+          }`}
           onClick={onCardClick}
+          disabled={!canOpenDetail}
+          aria-label={`${product.name} 상세 보기`}
         >
           {/* Badges */}
           {product.badges && product.badges.length > 0 && (
@@ -127,12 +133,17 @@ export const ProductCard: FC<ProductCardProps> = ({
               </span>
             )}
           </div>
-        </div>
+        </button>
 
         {/* Thumbnail */}
-        <div
-          className="col-start-2 row-start-1 w-[100px] h-[100px] relative bg-bg-tertiary overflow-hidden cursor-pointer group"
+        <button
+          type="button"
+          className={`col-start-2 row-start-1 w-[100px] h-[100px] relative bg-bg-tertiary overflow-hidden group border-0 p-0 ${
+            canOpenDetail ? "cursor-pointer" : "cursor-default"
+          }`}
           onClick={onCardClick}
+          disabled={!canOpenDetail}
+          aria-label={`${product.name} 이미지 상세 보기`}
         >
           {product.imageUrl && !imgError ? (
             <Image
@@ -155,7 +166,7 @@ export const ProductCard: FC<ProductCardProps> = ({
               <span className="text-white text-sm font-bold">품절</span>
             </div>
           )}
-        </div>
+        </button>
 
         {/* Quantity Control Row */}
         <div className="col-span-2 row-start-2 border-t border-border flex items-center justify-between px-3 py-2">

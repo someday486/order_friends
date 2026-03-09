@@ -1,16 +1,29 @@
 import "./globals.css";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { Toaster } from "react-hot-toast";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // 서버에서 세션을 미리 가져와 클라이언트 초기 로딩 제거
+  let initialSession = null;
+  try {
+    const supabase = await getSupabaseServerClient();
+    const { data } = await supabase.auth.getSession();
+    initialSession = data.session ?? null;
+  } catch {
+    // 세션 조회 실패 시 클라이언트에서 재시도
+  }
+
   return (
     <html lang="ko">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider initialSession={initialSession}>
+          {children}
+        </AuthProvider>
         <Toaster
           position="top-center"
           toastOptions={{

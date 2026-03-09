@@ -386,9 +386,7 @@ export default function StoreDetailPage() {
                   className="input-field w-full"
                   placeholder="예: gangnam-main"
                 />
-                <div className="text-xs text-text-tertiary mt-1.5">
-                  영문/숫자/하이픈(-)만 가능합니다.
-                </div>
+                <div className="text-xs text-text-tertiary mt-1.5">영문/숫자/하이픈(-)만 가능합니다.</div>
               </div>
 
               <div>
@@ -472,9 +470,7 @@ export default function StoreDetailPage() {
                   placeholder="예금주"
                 />
               </div>
-              <div className="mt-1.5 text-xs text-text-tertiary">
-                계좌이체 결제 화면에 노출되는 정보입니다.
-              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">계좌이체 결제 화면에 노출되는 정보입니다.</div>
             </div>
           </div>
 

@@ -26,6 +26,7 @@ type LastOrderRecord = {
   branchId?: string | null;
   brandSlug?: string | null;
   branchSlug?: string | null;
+  cartSnapshot?: unknown[] | null;
   savedAt: number;
 };
 
@@ -67,7 +68,15 @@ function isCheckoutDraft(value: unknown): value is CheckoutDraft {
 
 function isLastOrderRecord(value: unknown): value is LastOrderRecord {
   if (!isObject(value)) return false;
-  return 'order' in value;
+  if (!('order' in value)) return false;
+  if (
+    'cartSnapshot' in value &&
+    value.cartSnapshot !== null &&
+    value.cartSnapshot !== undefined
+  ) {
+    if (!Array.isArray(value.cartSnapshot)) return false;
+  }
+  return true;
 }
 
 function isStringOrNullOrUndefined(value: unknown) {
@@ -217,6 +226,7 @@ export function saveLastOrderRecord(input: {
   branchId?: string | null;
   brandSlug?: string | null;
   branchSlug?: string | null;
+  cartSnapshot?: unknown[] | null;
 }) {
   if (typeof window === 'undefined') return;
 
@@ -225,6 +235,7 @@ export function saveLastOrderRecord(input: {
     branchId: input.branchId ?? null,
     brandSlug: input.brandSlug ?? null,
     branchSlug: input.branchSlug ?? null,
+    cartSnapshot: input.cartSnapshot ?? null,
     savedAt: now(),
   };
 
@@ -257,7 +268,12 @@ export function loadLastOrderRecord(context: {
   const stored = safeJsonParse<unknown>(localStorage.getItem(LAST_ORDER_KEY));
   if (isLastOrderRecord(stored) && !isExpired(stored.savedAt)) {
     if (matchesLastOrderContext(stored, context)) {
-      return stored.order;
+      // cartSnapshot을 order 객체에 병합해서 반환
+      const order = stored.order;
+      if (stored.cartSnapshot && isObject(order)) {
+        return { ...order, cartSnapshot: stored.cartSnapshot };
+      }
+      return order;
     }
   }
 

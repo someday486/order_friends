@@ -1,11 +1,12 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import {
@@ -32,6 +33,8 @@ type MenuSection = {
   items: MenuItem[];
 };
 
+
+
 const menuSections: MenuSection[] = [
   {
     title: "메인",
@@ -53,13 +56,13 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: "/customer/brands",
-        label: "브랜드 관리",
+        label: "브랜드관리",
         icon: BrandIcon,
         allowedRoles: ["system_admin", "brand_owner"],
       },
       {
         href: "/customer/branches",
-        label: "매장 관리",
+        label: "매장관리",
         icon: StoreIcon,
         allowedRoles: ["system_admin", "brand_owner"],
       },
@@ -70,7 +73,7 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: "/customer/products",
-        label: "상품 관리",
+        label: "상품관리",
         icon: ProductIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
       },
@@ -82,7 +85,7 @@ const menuSections: MenuSection[] = [
       },
       {
         href: "/customer/inventory",
-        label: "재고 관리",
+        label: "재고관리",
         icon: InventoryIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager"],
       },
@@ -93,13 +96,13 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: "/customer/orders",
-        label: "주문 관리",
+        label: "주문관리",
         icon: OrderIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
       },
       {
         href: "/customer/order",
-        label: "주문 페이지",
+        label: "주문페이지",
         icon: OrderIcon,
         allowedRoles: ["system_admin", "brand_owner", "branch_manager", "staff"],
       },
@@ -113,6 +116,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const { role, loading: roleLoading } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark, toggle } = useDarkMode();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
@@ -120,7 +128,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   };
 
   const visibleSections = useMemo(() => {
-    if (roleLoading) return [];
     return menuSections
       .map((section) => ({
         ...section,
@@ -129,7 +136,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [role, roleLoading]);
+  }, [role]);
+  
 
   return (
     <NotificationProvider>
@@ -164,17 +172,28 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         {/* Sidebar */}
         <aside
           className={`
-          fixed md:sticky md:self-start top-0 left-0 z-50 h-screen md:h-screen md:overflow-y-auto w-[240px]
-          border-r border-border bg-bg-secondary flex flex-col
-          transition-transform duration-200 ease-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-        `}
+            fixed md:relative top-0 left-0 z-50 md:z-auto
+            h-screen md:h-auto md:min-h-screen
+            w-[240px]
+            border-r border-border bg-bg-secondary flex flex-col
+            transition-transform duration-200 ease-out
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          `}
         >
           {/* Logo */}
-          <div className="p-4 border-b border-border flex items-center justify-between">
-            <Link href="/customer" className="no-underline text-foreground">
-              <div className="font-extrabold text-base">주문프렌즈</div>
-              <div className="text-2xs text-text-tertiary mt-0.5">Customer</div>
+          <div className="h-[72px] px-4 border-b border-border flex items-center justify-between">
+            <Link href="/customer" className="no-underline text-foreground flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="주문프렌즈 로고"
+                width={170}
+                height={50}
+                priority
+              />
+              {/* <div>
+                <div className="font-extrabold text-base">주문프렌즈</div>
+                <div className="text-2xs text-text-tertiary mt-0.5">Customer</div>
+              </div> */}
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -186,13 +205,10 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-3 flex flex-col gap-3 overflow-y-auto">
-            {roleLoading && (
-              <div className="text-xs text-text-tertiary px-3 py-2">권한 불러오는 중...</div>
-            )}
+          <nav className="flex-1 p-3 flex flex-col gap-3">
             {visibleSections.map((section) => (
               <div key={section.title}>
-                <div className="px-3 pb-2 text-2xs text-text-tertiary uppercase tracking-wide">
+                <div className="px-3 pb-2 text-2xs text-text-tertiary uppercase tracking-wider">
                   {section.title}
                 </div>
                 <div className="space-y-1">
@@ -221,7 +237,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </nav>
 
           {/* User / Quick Actions */}
-          <div className="p-3 border-t border-border mt-auto">
+          <div className="p-3 mt-auto">
             {user && (
               <div className="text-xs text-text-tertiary mb-2 overflow-hidden text-ellipsis">
                 {user.email}
@@ -232,7 +248,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               href="/customer/mypage"
               onClick={() => setSidebarOpen(false)}
               className={`
-                flex items-center px-3 py-2.5 rounded-md text-sm no-underline
+                flex items-center justify-center px-3 py-2.5 rounded-md text-sm no-underline
                 transition-all duration-150 touch-feedback mb-2
                 ${
                   isActive("/customer/mypage")
@@ -244,12 +260,13 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               <PencilIcon size={18} className="mr-2 flex-shrink-0" />
               마이페이지
             </Link>
+            <div className="border-t border-border my-2" />
 
             <button
               onClick={toggle}
               className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
             >
-              {isDark ? "라이트 모드" : "다크 모드"}
+              {mounted ? (isDark ? "라이트 모드" : "다크 모드") : "테마"}
             </button>
             <button
               onClick={signOut}
@@ -261,12 +278,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         </aside>
 
         <main className="bg-background min-h-screen">
-          <div className="hidden md:flex sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3 items-center justify-end gap-2">
+          <div className="hidden md:flex h-[72px] sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 items-center justify-end gap-2">
             <button
               onClick={toggle}
-              className="h-9 px-3 rounded border border-border bg-transparent text-sm text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
-            >
-              {isDark ? "라이트 모드" : "다크 모드"}
+              className="py-2 px-4 rounded-md border border-border bg-transparent text-sm text-foreground hover:bg-bg-tertiary transition-colors">
+              {mounted ? (isDark ? "라이트 모드" : "다크 모드") : "테마"}
             </button>
             <NotificationBell />
           </div>

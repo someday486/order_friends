@@ -12,6 +12,8 @@ describe('CacheService', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
+      reset: jest.fn(),
+      store,
       stores: [store],
       ...overrides,
     };
@@ -113,21 +115,53 @@ describe('CacheService', () => {
     await service.delPattern('x');
   });
 
-  it('reset should clear cache', async () => {
-    const store = { keys: jest.fn().mockResolvedValue([]), clear: jest.fn() };
-    const { service } = makeService({ store });
+  it('reset should call clear on each store', async () => {
+    const clearFn = jest.fn().mockResolvedValue(undefined);
+    const cacheManager = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      reset: jest.fn(),
+      store: {},
+      stores: [{ clear: clearFn }, { clear: clearFn }],
+    };
+    const service = new CacheService(cacheManager as any);
 
     await service.reset();
 
-    expect(store.clear).toHaveBeenCalled();
+    expect(clearFn).toHaveBeenCalledTimes(2);
   });
 
-  it('reset should handle errors', async () => {
-    const store = {
-      keys: jest.fn().mockResolvedValue([]),
-      clear: jest.fn().mockRejectedValueOnce(new Error('boom')),
+  it('reset should skip stores without clear method', async () => {
+    const cacheManager = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      reset: jest.fn(),
+      store: {},
+      stores: [{}],
     };
-    const { service } = makeService({ store });
+    const service = new CacheService(cacheManager as any);
+
+    await service.reset();
+  });
+
+  it('reset should handle no stores gracefully', async () => {
+    const { service } = makeService();
+
+    await service.reset();
+  });
+
+  it('reset should handle errors from clear', async () => {
+    const cacheManager = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      reset: jest.fn(),
+      store: {},
+      stores: [{ clear: jest.fn().mockRejectedValue(new Error('boom')) }],
+    };
+    const service = new CacheService(cacheManager as any);
 
     await service.reset();
   });

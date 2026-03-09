@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { formatWon } from "@/lib/format";
-import { saveCheckoutDraft } from "@/lib/order-session";
+import { saveCheckoutDraft, loadLastOrderRecord } from "@/lib/order-session";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 import {
   ProductCard,
@@ -83,6 +83,48 @@ export default function OrderPageClient({
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
+  const productDialogTitleId = "order-product-dialog-title";
+
+  // 재주문 배너
+  const lastOrderCart = useMemo<CartItem[] | null>(() => {
+    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
+    if (!lastRecord || typeof lastRecord !== "object") return null;
+    const rec = lastRecord as Record<string, unknown>;
+    return Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
+      ? (rec.cartSnapshot as CartItem[])
+      : null;
+  }, [brandSlug, branchSlug]);
+  const [reorderDismissed, setReorderDismissed] = useState(false);
+
+  const handleReorder = () => {
+    if (!lastOrderCart) return;
+    const newQuantities: Record<string, number> = {};
+    for (const item of lastOrderCart) {
+      newQuantities[item.product.id] = (newQuantities[item.product.id] || 0) + item.qty;
+    }
+    setCart(lastOrderCart);
+    setQuantities(newQuantities);
+    setReorderDismissed(true);
+    toast.success("저번 주문 내역을 장바구니에 담았어요!");
+  };
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedProduct(null);
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedProduct]);
 
   const filteredProducts = useMemo(() => {
     if (!selectedCategory) return products;
@@ -239,6 +281,33 @@ export default function OrderPageClient({
           </div>
         </header>
 
+        {/* ── 재주문 배너 ── */}
+        {lastOrderCart && lastOrderCart.length > 0 && !reorderDismissed && cart.length === 0 && (
+          <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary p-3 flex items-center gap-3">
+            <div className="text-xl">🔄</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-foreground">저번 주문 다시 담기</div>
+              <div className="text-xs text-text-tertiary truncate">
+                {lastOrderCart.map((i) => `${i.product.name}×${i.qty}`).join(", ")}
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={handleReorder}
+                className="text-xs font-bold text-white bg-foreground px-3 py-1.5 rounded-lg"
+              >
+                담기
+              </button>
+              <button
+                onClick={() => setReorderDismissed(true)}
+                className="text-xs text-text-tertiary px-2 py-1.5"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Category Tabs */}
         {categories.length > 0 && (
           <div className="category-tabs sticky top-[56px] z-20 bg-background border-b border-border-light">
@@ -372,8 +441,14 @@ export default function OrderPageClient({
         {/* Product Detail Modal */}
         {selectedProduct && (
           <div className="fixed inset-0 z-[100] bg-black/60 flex items-end justify-center" onClick={() => setSelectedProduct(null)}>
-            <div className="w-full max-w-lg bg-background rounded-t-xl p-5 animate-slide-up max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-foreground mb-1">{selectedProduct.name}</h3>
+            <div
+              className="w-full max-w-lg bg-background rounded-t-xl p-5 animate-slide-up max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={productDialogTitleId}
+            >
+              <h3 id={productDialogTitleId} className="text-lg font-bold text-foreground mb-1">{selectedProduct.name}</h3>
               <div className="text-text-secondary mb-4">{formatWon(selectedProduct.discountPrice ?? selectedProduct.price)}</div>
 
               {selectedProduct.options && selectedProduct.options.length > 0 && (

@@ -1,10 +1,12 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import toast from "react-hot-toast";
 import { CardSkeleton } from "@/components/ui/Skeleton";
+
 
 // ============================================================
 // Types
@@ -235,15 +237,12 @@ export default function CustomerBranchesPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      {/* ── 1. 상단 헤더: 제목만, 버튼 제거 ── */}
+      <div className="mb-8">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 관리</h1>
-        {canAddBranch && (
-          <button onClick={() => setShowAddModal(true)} className="btn-primary px-5 py-2.5 text-sm">
-            + 지점 추가
-          </button>
-        )}
       </div>
 
+      {/* 브랜드 선택 */}
       <div className="mb-6">
         <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드 선택</label>
         <select
@@ -259,51 +258,76 @@ export default function CustomerBranchesPage() {
         </select>
       </div>
 
+      {/* ── 3. 온라인샵 설정: BrandShopCard + 결제수단을 하나의 섹션으로 묶음 ── */}
       {selectedBrand && (
-        <div className="mb-6 space-y-4">
-          <div className="text-sm font-semibold text-foreground mb-2">브랜드 하위 채널</div>
-          <BrandShopCard brand={selectedBrand} />
-          {canManageBrandSettings && (
-            <div className="p-4 rounded-md border border-border bg-bg-secondary text-foreground">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <h2 className="text-sm font-bold m-0">온라인샵 결제수단 노출</h2>
-                <button
-                  type="button"
-                  onClick={handleSaveShopPaymentMethods}
-                  disabled={savingShopPaymentMethods}
-                  className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
-                >
-                  저장
-                </button>
+        <div className="mb-8">
+          <div className="text-sm font-semibold text-foreground mb-3">온라인샵 설정</div>
+          {/* divide-y로 두 카드를 divider 하나로 자연스럽게 연결 */}
+          <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+            <BrandShopCard brand={selectedBrand} grouped />
+            {canManageBrandSettings && (
+              <div className="p-4 bg-bg-secondary text-foreground">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h2 className="text-sm font-bold m-0">결제수단 노출</h2>
+                  <button
+                    type="button"
+                    onClick={handleSaveShopPaymentMethods}
+                    disabled={savingShopPaymentMethods}
+                    className="px-3 py-1.5 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                  >
+                    저장
+                  </button>
+                </div>
+                <p className="text-xs text-text-secondary mb-3">
+                  온라인샵 주문 화면에 노출할 결제수단을 선택하세요.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {SHOP_PAYMENT_METHOD_OPTIONS.map((option) => {
+                    const checked = shopPaymentMethods.includes(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => toggleShopPaymentMethod(option.value)}
+                        disabled={savingShopPaymentMethods}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                          checked
+                            ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                            : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="text-xs text-text-secondary mb-3">
-                온라인샵 주문 화면에 노출할 결제수단을 선택하세요.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {SHOP_PAYMENT_METHOD_OPTIONS.map((option) => {
-                  const checked = shopPaymentMethods.includes(option.value);
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => toggleShopPaymentMethod(option.value)}
-                      disabled={savingShopPaymentMethods}
-                      className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-colors ${
-                        checked
-                          ? "border-primary-500 bg-primary-500/10 text-primary-500"
-                          : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
+      {/* ── 2. 지점 목록 섹션 헤더: 제목 + 건수 + 추가 버튼 ── */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="text-sm font-semibold text-foreground">지점 목록</div>
+          {!loading && (
+            <div className="text-xs text-text-tertiary mt-0.5">
+              총 {visibleBranches.length}개 지점
+            </div>
+          )}
+        </div>
+        {canAddBranch && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary px-4 py-2 text-sm"
+          >
+            + 지점 추가
+          </button>
+        )}
+      </div>
+
+      {/* 지점 목록 본문 */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, index) => (
@@ -311,7 +335,7 @@ export default function CustomerBranchesPage() {
           ))}
         </div>
       ) : error ? (
-        <div className="border border-danger-500 rounded-md p-4 bg-danger-500/10 text-danger-500">{error}</div>
+        <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">{error}</div>
       ) : visibleBranches.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base mb-2">등록된 지점이 없습니다</div>
@@ -347,37 +371,64 @@ function BranchCard({ branch }: { branch: Branch }) {
   const orderUrl = getBranchOrderUrl(branch.brandSlug, branch.slug, branch.id);
 
   return (
-    <Link
-      href={`/customer/branches/${branch.id}`}
-      className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded bg-bg-tertiary flex items-center justify-center text-2xl">
-          🏪
+    <div className="p-5 rounded-xl border border-border bg-bg-secondary text-foreground">
+      {/* 상단: 아이콘 + 지점명/역할 + 외부링크 아이콘 */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-2xl flex-shrink-0">
+            🏪
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-base mb-1 truncate">{branch.name}</div>
+            {branch.myRole && (
+              <div className="text-xs text-text-secondary">역할: {branch.myRole}</div>
+            )}
+          </div>
         </div>
-        <div className="flex-1">
-          <div className="font-bold text-base mb-1">{branch.name}</div>
-          {branch.myRole && (
-            <div className="text-xs text-text-secondary">역할: {branch.myRole}</div>
-          )}
-        </div>
+
+        {/* 외부링크: 고객 주문 페이지 (새 탭) */}
+        <a
+          href={orderUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="고객 주문 페이지 열기"
+          aria-label={`${branch.name} 고객 주문 페이지 열기`}
+          className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
       </div>
-      <div className="text-sm text-text-secondary mb-2">
-        URL: {orderUrl}
+
+      {/* 등록일 */}
+      <div className="text-xs text-text-tertiary mb-4">
+        등록일: {new Date(branch.createdAt).toLocaleDateString("ko-KR")}
       </div>
-      <div className="text-2xs text-text-tertiary">
-        등록일: {new Date(branch.createdAt).toLocaleDateString()}
+
+      {/* 하단: 내부 관리 페이지 이동 버튼 */}
+      <div className="flex justify-end">
+        <Link
+          href={`/customer/branches/${branch.id}`}
+          className="inline-flex items-center h-8 px-3 rounded-lg border border-border bg-bg-tertiary text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
+        >
+          관리하기
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }
 
-function BrandShopCard({ brand }: { brand: Brand }) {
+// ── 3. BrandShopCard: grouped prop으로 섹션 내 렌더링 지원 ──
+function BrandShopCard({ brand, grouped = false }: { brand: Brand; grouped?: boolean }) {
   const shopUrl = getBrandShopUrl(brand.slug);
+
+  // grouped=true일 때: 외부 border/radius 제거 (부모 섹션이 담당)
+  const containerClass = grouped
+    ? "p-4 bg-bg-secondary text-foreground"
+    : "p-5 rounded-xl border border-border bg-bg-secondary text-foreground";
 
   if (!shopUrl) {
     return (
-      <div className="p-4 rounded-md border border-border bg-bg-secondary text-foreground">
+      <div className={grouped ? "p-4 bg-bg-secondary text-foreground" : "p-5 rounded-xl border border-border bg-bg-secondary text-foreground"}>
         <div className="font-bold text-base mb-1">온라인샵</div>
         <div className="text-sm text-text-secondary">
           브랜드 URL이 없어 온라인샵 주소를 만들 수 없습니다.
@@ -387,21 +438,32 @@ function BrandShopCard({ brand }: { brand: Brand }) {
   }
 
   return (
-    <Link
-      href={shopUrl}
-      className="block p-4 rounded-md border border-border bg-bg-secondary text-foreground no-underline transition-colors hover:bg-bg-tertiary"
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded bg-bg-tertiary flex items-center justify-center text-2xl">
-          🛒
+    <div className={containerClass}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-2xl">
+            🛒
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-base mb-1">온라인샵</div>
+            <div className="text-xs text-text-secondary">브랜드 하위 온라인 판매 채널</div>
+          </div>
         </div>
-        <div className="flex-1">
-          <div className="font-bold text-base mb-1">온라인샵</div>
-          <div className="text-xs text-text-secondary">브랜드 하위 온라인 판매 채널</div>
-        </div>
+
+        <Link
+          href={shopUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="온라인샵 페이지 열기"
+          aria-label="온라인샵 페이지 열기"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </Link>
       </div>
-      <div className="text-sm text-text-secondary">URL: {shopUrl}</div>
-    </Link>
+
+      <div className="text-sm text-text-secondary">브랜드 온라인샵</div>
+    </div>
   );
 }
 

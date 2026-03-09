@@ -68,6 +68,11 @@ export function useNotifications() {
 }
 
 const POLL_INTERVAL = 60_000;
+const NOTIFICATION_PRIORITY: Record<NotificationType, number> = {
+  NEW_ORDER: 0,
+  ORDER_STATUS: 1,
+  LOW_STOCK: 2,
+};
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -175,10 +180,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             ...alert,
             isRead: readIds.has(alert.id),
           }))
-          .sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-          );
+          .sort((a, b) => {
+            // unread first
+            const readDiff = Number(a.isRead) - Number(b.isRead);
+            if (readDiff !== 0) return readDiff;
+
+            // high-priority type first
+            const typeDiff =
+              NOTIFICATION_PRIORITY[a.type] - NOTIFICATION_PRIORITY[b.type];
+            if (typeDiff !== 0) return typeDiff;
+
+            // latest first
+            return (
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          });
       });
     } catch {
       // ignore polling errors

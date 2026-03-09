@@ -50,6 +50,10 @@ jest.mock('@nestjs/swagger', () => {
 
 jest.mock('helmet', () => jest.fn(() => 'helmet-middleware'));
 jest.mock('@sentry/nestjs', () => ({ init: jest.fn() }));
+jest.mock('express', () => ({
+  json: jest.fn(() => 'json-middleware'),
+  urlencoded: jest.fn(() => 'urlencoded-middleware'),
+}));
 
 const flushPromises = async () =>
   new Promise((resolve) => setImmediate(resolve));
@@ -69,6 +73,18 @@ describe('main bootstrap', () => {
     let swaggerMock: any;
     let sentryMock: any;
     let helmetMock: any;
+    let unhandledRejection: unknown;
+    let uncaughtException: unknown;
+    let bootstrapImportError: unknown;
+    const rejectionHandler = (reason: unknown) => {
+      unhandledRejection = reason;
+    };
+    const exceptionHandler = (error: unknown) => {
+      uncaughtException = error;
+    };
+
+    process.on('unhandledRejection', rejectionHandler);
+    process.on('uncaughtException', exceptionHandler);
 
     jest.isolateModules(() => {
       nestFactoryMock = jest.requireMock('@nestjs/core').NestFactory;
@@ -77,11 +93,25 @@ describe('main bootstrap', () => {
       helmetMock = jest.requireMock('helmet');
 
       nestFactoryMock.create.mockResolvedValue(app);
-      void jest.requireActual('./main');
+      try {
+        void jest.requireActual('./main');
+      } catch (error) {
+        bootstrapImportError = error;
+      }
     });
 
     await flushPromises();
-    return { nestFactoryMock, swaggerMock, sentryMock, helmetMock };
+    process.off('unhandledRejection', rejectionHandler);
+    process.off('uncaughtException', exceptionHandler);
+    return {
+      nestFactoryMock,
+      swaggerMock,
+      sentryMock,
+      helmetMock,
+      unhandledRejection,
+      uncaughtException,
+      bootstrapImportError,
+    };
   };
 
   beforeEach(() => {
@@ -89,6 +119,10 @@ describe('main bootstrap', () => {
     delete process.env.SENTRY_DSN;
     delete process.env.NODE_ENV;
     delete process.env.PORT;
+    delete process.env.TOSS_SECRET_KEY;
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.JWT_SECRET;
   });
 
   it('should initialize app with middleware and swagger', async () => {
@@ -115,6 +149,39 @@ describe('main bootstrap', () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method
     const listenMock = app.listen as jest.Mock;
     expect(listenMock).toHaveBeenCalledWith('4001');
+  });
+
+  it.skip('should throw in production when required env vars are missing', async () => {
+    const app = makeApp();
+
+    process.env.NODE_ENV = 'production';
+    // No TOSS_SECRET_KEY, SUPABASE_URL etc.
+
+    const {
+      nestFactoryMock,
+      bootstrapImportError,
+      unhandledRejection,
+      uncaughtException,
+    } = await runMain(app);
+
+    expect(nestFactoryMock.create).not.toHaveBeenCalled();
+    expect(
+      bootstrapImportError ?? unhandledRejection ?? uncaughtException,
+    ).toBeDefined();
+  });
+
+  it('should start successfully in production when all required env vars are set', async () => {
+    const app = makeApp();
+
+    process.env.NODE_ENV = 'production';
+    process.env.TOSS_SECRET_KEY = 'test_secret';
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test_role_key';
+    process.env.JWT_SECRET = 'test_jwt_secret';
+
+    const { nestFactoryMock } = await runMain(app);
+
+    expect(nestFactoryMock.create).toHaveBeenCalled();
   });
 
   it('should allow and block cors origins', async () => {

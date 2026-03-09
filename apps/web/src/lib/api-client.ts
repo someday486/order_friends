@@ -158,6 +158,26 @@ export const apiClient = {
     );
   },
 
+  put<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    const payload = isFormData(body)
+      ? body
+      : body
+        ? JSON.stringify(body)
+        : undefined;
+    return request<T>(
+      path,
+      {
+        method: 'PUT',
+        body: payload,
+      },
+      options,
+    );
+  },
+
   delete<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
     return request<T>(path, { method: 'DELETE' }, options);
   },

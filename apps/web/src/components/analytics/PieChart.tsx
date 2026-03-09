@@ -6,6 +6,7 @@ import {
   PieChart as RechartsPieChart,
   ResponsiveContainer,
   Tooltip,
+  Legend,
 } from "recharts";
 
 type PieChartProps = {
@@ -57,6 +58,13 @@ export default function PieChart({
             })}
           </Pie>
           <Tooltip />
+          <Legend
+            verticalAlign="bottom"
+            align="center"
+            iconType="circle"
+            layout="horizontal"
+            wrapperStyle={{ fontSize: 12, paddingTop: 10 }}
+          />
         </RechartsPieChart>
       </ResponsiveContainer>
     </div>

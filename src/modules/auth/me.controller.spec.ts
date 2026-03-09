@@ -8,7 +8,9 @@ describe('MeController', () => {
 
   const profilesChain = {
     select: jest.fn().mockReturnThis(),
+    upsert: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
+    maybeSingle: jest.fn(),
     single: jest.fn(),
   };
   const membersChain = {
@@ -29,8 +31,24 @@ describe('MeController', () => {
     }),
   };
 
+  const adminAuth = {
+    getUserById: jest.fn().mockResolvedValue({
+      data: { user: { id: 'user-1', user_metadata: {} } },
+      error: null,
+    }),
+    updateUserById: jest.fn().mockResolvedValue({
+      data: { user: { id: 'user-1', user_metadata: {} } },
+      error: null,
+    }),
+  };
+
   const mockSupabaseService = {
-    adminClient: jest.fn(() => mockSb),
+    adminClient: jest.fn(() => ({
+      ...mockSb,
+      auth: {
+        admin: adminAuth,
+      },
+    })),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
 
@@ -68,6 +86,37 @@ describe('MeController', () => {
       isSystemAdmin: true,
     });
     expect(mockSb.from).toHaveBeenCalledWith('profiles');
+  });
+
+  it('should return profile display name from profiles table', async () => {
+    profilesChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'user-1', display_name: '프로필 이름' },
+      error: null,
+    });
+
+    const result = await controller.getProfile({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
+
+    expect(result).toEqual({ id: 'user-1', displayName: '프로필 이름' });
+  });
+
+  it('should update profile display name and sync auth metadata', async () => {
+    profilesChain.single.mockResolvedValueOnce({
+      data: { id: 'user-1', display_name: '새 이름' },
+      error: null,
+    });
+
+    const result = await controller.updateProfile(
+      { id: 'user-1', email: 'user@test.com' } as any,
+      { displayName: '  새 이름  ' },
+    );
+
+    expect(adminAuth.updateUserById).toHaveBeenCalledWith('user-1', {
+      user_metadata: { display_name: '새 이름' },
+    });
+    expect(result).toEqual({ id: 'user-1', displayName: '새 이름' });
   });
 
   it('should return memberships and owned brands for regular user', async () => {

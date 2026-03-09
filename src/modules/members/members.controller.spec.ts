@@ -8,6 +8,8 @@ describe('MembersController', () => {
   let controller: MembersController;
 
   const mockService = {
+    getPendingApprovalUsers: jest.fn(),
+    updateMemberProfile: jest.fn(),
     getBrandMembers: jest.fn(),
     addBrandMember: jest.fn(),
     updateBrandMember: jest.fn(),
@@ -42,6 +44,24 @@ describe('MembersController', () => {
   });
 
   it.each([
+    {
+      name: 'getPendingApprovalUsers',
+      call: () =>
+        controller.getPendingApprovalUsers(
+          makeReq({ user: { id: 'current-user' } }),
+        ),
+      mockFn: mockService.getPendingApprovalUsers,
+      args: ['current-user'],
+    },
+    {
+      name: 'updateMemberProfile',
+      call: () =>
+        controller.updateMemberProfile(makeReq(), 'user-1', {
+          displayName: 'Edited User',
+        } as any),
+      mockFn: mockService.updateMemberProfile,
+      args: ['token', 'user-1', { displayName: 'Edited User' }, false],
+    },
     {
       name: 'getBrandMembers',
       call: () => controller.getBrandMembers(makeReq(), 'brand-1'),
@@ -120,6 +140,22 @@ describe('MembersController', () => {
   });
 
   it.each([
+    {
+      name: 'getPendingApprovalUsers',
+      call: () =>
+        controller.getPendingApprovalUsers(
+          makeReq({ accessToken: undefined, user: { id: 'current-user' } }),
+        ),
+    },
+    {
+      name: 'updateMemberProfile',
+      call: () =>
+        controller.updateMemberProfile(
+          makeReq({ accessToken: undefined }),
+          'user-1',
+          {} as any,
+        ),
+    },
     {
       name: 'getBrandMembers',
       call: () =>

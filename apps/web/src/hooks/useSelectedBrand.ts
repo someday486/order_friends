@@ -9,12 +9,13 @@ import {
 } from '@/lib/brandSelection';
 
 export function useSelectedBrand() {
-  const [brandId, setBrandIdState] = useState<string | null>(() =>
-    getSelectedBrandId(),
-  );
-  const ready = true;
+  const [brandId, setBrandIdState] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    setBrandIdState(getSelectedBrandId());
+    setReady(true);
+
     return subscribeSelectedBrandIdChanged(setBrandIdState);
   }, []);
 

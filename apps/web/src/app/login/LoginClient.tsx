@@ -1,16 +1,24 @@
-﻿"use client";
+﻿'use client';
 
-import { LoginForm } from "@/components/auth/LoginForm";
-import { useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { AuthEntryFooter } from '@/components/auth/AuthEntryFooter';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function LoginClient({ next }: { next: string }) {
+export default function LoginClient({
+  next,
+  registered = false,
+}: {
+  next: string;
+  registered?: boolean;
+}) {
   const router = useRouter();
   const { status } = useAuth();
+  const signupHref = `/signup?next=${encodeURIComponent(next)}`;
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === 'authenticated') {
       router.replace(next);
       router.refresh();
     }
@@ -21,12 +29,22 @@ export default function LoginClient({ next }: { next: string }) {
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">환영합니다</div>
-          <h1 className="text-2xl font-extrabold text-foreground">OrderFriends</h1>
-          <p className="text-sm text-text-secondary mt-2">계정으로 로그인해 주세요</p>
+          <h1 className="text-2xl font-extrabold text-foreground">
+            OrderFriends
+          </h1>
+          <p className="text-sm text-text-secondary mt-2">
+            계정으로 로그인해 주세요
+          </p>
         </div>
 
         <div className="card p-6">
+          {registered ? (
+            <div className="mb-4 rounded-md bg-success-50 p-3 text-sm text-success-600">
+              회원가입이 완료되었습니다. 이메일 확인 후 로그인해 주세요.
+            </div>
+          ) : null}
           <LoginForm redirectTo={next} />
+          <AuthEntryFooter mode="login" signupHref={signupHref} />
         </div>
       </div>
     </div>

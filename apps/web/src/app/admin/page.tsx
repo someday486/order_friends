@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { apiClient } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
-import { useSelectedBrand } from "@/hooks/useSelectedBrand";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/hooks/useAuth';
+import { useSelectedBrand } from '@/hooks/useSelectedBrand';
 
 // ============================================================
 // Types
@@ -44,7 +44,7 @@ export default function AdminHomePage() {
       try {
         setLoading(true);
         const data = await apiClient.get<DashboardStats>(
-          `/admin/dashboard/stats?brandId=${encodeURIComponent(brandId)}`
+          `/admin/dashboard/stats?brandId=${encodeURIComponent(brandId)}`,
         );
         setStats({
           totalOrders: data.totalOrders ?? 0,
@@ -67,7 +67,7 @@ export default function AdminHomePage() {
       }
     };
 
-    loadStats();
+    void loadStats();
   }, [brandId, ready]);
 
   return (
@@ -86,7 +86,7 @@ export default function AdminHomePage() {
       {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">
-          안녕하세요{user?.email ? `, ${user.email.split("@")[0]}님` : ""}!
+          안녕하세요{user?.email ? `, ${user.email.split('@')[0]}님` : ''}!
         </h1>
         <p className="text-text-secondary mt-2 text-sm">
           오더프렌즈 관리자 대시보드입니다.
@@ -95,15 +95,27 @@ export default function AdminHomePage() {
 
       {/* Stats */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-8">
-        <StatCard title="전체 주문" value={stats?.totalOrders ?? "-"} loading={loading} />
+        <StatCard
+          title="전체 주문"
+          value={stats?.totalOrders ?? '-'}
+          loading={loading}
+        />
         <StatCard
           title="처리 대기"
-          value={stats?.pendingOrders ?? "-"}
+          value={stats?.pendingOrders ?? '-'}
           loading={loading}
           highlight
         />
-        <StatCard title="오늘 주문" value={stats?.todayOrders ?? "-"} loading={loading} />
-        <StatCard title="등록 상품" value={stats?.totalProducts ?? "-"} loading={loading} />
+        <StatCard
+          title="오늘 주문"
+          value={stats?.todayOrders ?? '-'}
+          loading={loading}
+        />
+        <StatCard
+          title="등록 상품"
+          value={stats?.totalProducts ?? '-'}
+          loading={loading}
+        />
       </div>
 
       {/* Quick Links */}
@@ -130,6 +142,11 @@ export default function AdminHomePage() {
             title="브랜드 관리"
             description="브랜드 정보 설정"
           />
+          <QuickLinkCard
+            href="/admin/members"
+            title="권한 관리"
+            description="시스템 관리자가 멤버 권한 승인"
+          />
         </div>
       </div>
 
@@ -139,6 +156,7 @@ export default function AdminHomePage() {
         <ol className="m-0 pl-5 text-text-secondary text-[13px] leading-[1.8]">
           <li>브랜드 관리에서 브랜드를 생성하세요.</li>
           <li>가게 관리에서 브랜드에 속한 가게를 추가하세요.</li>
+          <li>권한 관리에서 가입한 사용자를 브랜드/가게 멤버로 승인하세요.</li>
           <li>상품 관리에서 가게별 상품을 등록하세요.</li>
           <li>주문이 들어오면 주문 관리에서 처리하세요.</li>
         </ol>
@@ -165,7 +183,9 @@ function StatCard({
   return (
     <div
       className={`p-5 rounded-xl border ${
-        highlight ? "border-border bg-bg-tertiary" : "border-border bg-bg-secondary"
+        highlight
+          ? 'border-border bg-bg-tertiary'
+          : 'border-border bg-bg-secondary'
       }`}
     >
       <div className="flex items-center gap-2 mb-3">

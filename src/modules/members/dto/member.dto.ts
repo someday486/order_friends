@@ -51,6 +51,20 @@ export class BranchMemberResponse {
   createdAt: string;
 }
 
+export class PendingApprovalUserResponse {
+  id: string;
+  email?: string | null;
+  displayName?: string | null;
+  createdAt: string;
+  emailConfirmedAt?: string | null;
+  isEmailConfirmed: boolean;
+}
+
+export class MemberProfileResponse {
+  id: string;
+  displayName?: string | null;
+}
+
 // ============================================================
 // Request DTOs
 // ============================================================
@@ -97,4 +111,10 @@ export class UpdateBranchMemberRequest {
   @IsEnum(MemberStatus)
   @IsOptional()
   status?: MemberStatus;
+}
+
+export class UpdateMemberProfileRequest {
+  @IsString()
+  @IsOptional()
+  displayName?: string;
 }

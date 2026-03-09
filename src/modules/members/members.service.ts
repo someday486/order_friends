@@ -3,6 +3,7 @@
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import type { User } from '@supabase/supabase-js';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
   BrandMemberResponse,
@@ -14,11 +15,19 @@ import {
   UpdateBrandMemberRequest,
   AddBranchMemberRequest,
   UpdateBranchMemberRequest,
+  PendingApprovalUserResponse,
+  MemberProfileResponse,
+  UpdateMemberProfileRequest,
 } from './dto/member.dto';
 
 @Injectable()
 export class MembersService {
+  private static readonly SINGLE_ACTIVE_BRAND_OWNER_CONSTRAINT =
+    'brand_members_one_active_owner_per_brand';
+
   constructor(private readonly supabase: SupabaseService) {}
+
+  private static readonly AUTH_USERS_PAGE_SIZE = 200;
 
   private getClient(accessToken: string, isAdmin?: boolean) {
     return isAdmin
@@ -26,9 +35,245 @@ export class MembersService {
       : this.supabase.userClient(accessToken);
   }
 
+  private async listAllAuthUsers(): Promise<User[]> {
+    const admin = this.supabase.adminClient();
+    const users: User[] = [];
+    let page = 1;
+
+    while (true) {
+      const { data, error } = await admin.auth.admin.listUsers({
+        page,
+        perPage: MembersService.AUTH_USERS_PAGE_SIZE,
+      });
+
+      if (error) {
+        throw new Error(`[members.getPendingApprovalUsers] ${error.message}`);
+      }
+
+      const pageUsers = data?.users ?? [];
+      users.push(...pageUsers);
+
+      if (pageUsers.length < MembersService.AUTH_USERS_PAGE_SIZE) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return users;
+  }
+
+  private async getAuthEmailMap(
+    userIds: string[],
+  ): Promise<Record<string, string>> {
+    if (userIds.length === 0) {
+      return {};
+    }
+
+    const admin = this.supabase.adminClient();
+    if (typeof admin?.auth?.admin?.listUsers !== 'function') {
+      return {};
+    }
+
+    try {
+      const users = await this.listAllAuthUsers();
+      return users.reduce<Record<string, string>>((acc, user) => {
+        if (userIds.includes(user.id) && user.email) {
+          acc[user.id] = user.email;
+        }
+        return acc;
+      }, {});
+    } catch {
+      return {};
+    }
+  }
+
+  private async syncAuthDisplayName(
+    userId: string,
+    displayName: string | null,
+  ): Promise<void> {
+    const admin = this.supabase.adminClient();
+    const { data: userResult, error: getUserError } =
+      await admin.auth.admin.getUserById(userId);
+
+    if (getUserError) {
+      throw new Error(`[members.syncAuthDisplayName] ${getUserError.message}`);
+    }
+
+    const currentMetadata =
+      (userResult.user?.user_metadata as Record<string, unknown> | undefined) ??
+      {};
+    const { error: updateUserError } = await admin.auth.admin.updateUserById(
+      userId,
+      {
+        user_metadata: {
+          ...currentMetadata,
+          display_name: displayName,
+        },
+      },
+    );
+
+    if (updateUserError) {
+      throw new Error(
+        `[members.syncAuthDisplayName] ${updateUserError.message}`,
+      );
+    }
+  }
+
+  private resolvePendingUserDisplayName(
+    profile: { display_name?: string | null } | null | undefined,
+    user: User,
+  ): string | null {
+    const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const candidate =
+      profile?.display_name ??
+      (typeof metadata.display_name === 'string'
+        ? metadata.display_name
+        : null) ??
+      (typeof metadata.full_name === 'string' ? metadata.full_name : null) ??
+      (typeof metadata.name === 'string' ? metadata.name : null);
+
+    return candidate && candidate.trim().length > 0 ? candidate.trim() : null;
+  }
+
+  private isSingleActiveBrandOwnerViolation(
+    error: { message?: string | null } | null | undefined,
+  ): boolean {
+    return (error?.message ?? '').includes(
+      MembersService.SINGLE_ACTIVE_BRAND_OWNER_CONSTRAINT,
+    );
+  }
+
+  private throwBrandMemberMutationError(
+    error: { message?: string | null } | null | undefined,
+    operation: 'members.addBrandMember' | 'members.updateBrandMember',
+  ): never {
+    if (this.isSingleActiveBrandOwnerViolation(error)) {
+      throw new BadRequestException(
+        '브랜드당 활성 오너는 1명만 지정할 수 있습니다. 기존 오너 권한을 먼저 변경해주세요.',
+      );
+    }
+
+    throw new Error(`[${operation}] ${error?.message ?? 'unknown error'}`);
+  }
+
   // ============================================================
   // Brand Members
   // ============================================================
+
+  async getPendingApprovalUsers(
+    currentUserId: string,
+  ): Promise<PendingApprovalUserResponse[]> {
+    const admin = this.supabase.adminClient();
+
+    const [profilesResult, brandMembersResult, branchMembersResult, authUsers] =
+      await Promise.all([
+        admin
+          .from('profiles')
+          .select('id, display_name, created_at, is_system_admin'),
+        admin.from('brand_members').select('user_id'),
+        admin.from('branch_members').select('user_id'),
+        this.listAllAuthUsers(),
+      ]);
+
+    if (profilesResult.error) {
+      throw new Error(
+        `[members.getPendingApprovalUsers] ${profilesResult.error.message}`,
+      );
+    }
+
+    if (brandMembersResult.error) {
+      throw new Error(
+        `[members.getPendingApprovalUsers] ${brandMembersResult.error.message}`,
+      );
+    }
+
+    if (branchMembersResult.error) {
+      throw new Error(
+        `[members.getPendingApprovalUsers] ${branchMembersResult.error.message}`,
+      );
+    }
+
+    const profiles = profilesResult.data ?? [];
+    const profileMap = new Map(
+      profiles.map((profile: any) => [profile.id, profile] as const),
+    );
+    const excludedUserIds = new Set<string>([currentUserId]);
+
+    for (const member of brandMembersResult.data ?? []) {
+      if (member?.user_id) excludedUserIds.add(member.user_id);
+    }
+
+    for (const member of branchMembersResult.data ?? []) {
+      if (member?.user_id) excludedUserIds.add(member.user_id);
+    }
+
+    for (const profile of profiles) {
+      if (profile?.is_system_admin && profile?.id) {
+        excludedUserIds.add(profile.id);
+      }
+    }
+
+    return authUsers
+      .filter((user) => !excludedUserIds.has(user.id))
+      .map((user) => {
+        const profile = profileMap.get(user.id);
+        const emailConfirmedAt =
+          (user as any).email_confirmed_at ??
+          (user as any).confirmed_at ??
+          null;
+        const createdAt =
+          user.created_at ?? profile?.created_at ?? new Date(0).toISOString();
+
+        return {
+          id: user.id,
+          email: user.email ?? null,
+          displayName: this.resolvePendingUserDisplayName(profile, user),
+          createdAt,
+          emailConfirmedAt,
+          isEmailConfirmed: Boolean(emailConfirmedAt),
+        };
+      })
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() -
+          new Date(left.createdAt).getTime(),
+      );
+  }
+
+  async updateMemberProfile(
+    accessToken: string,
+    userId: string,
+    dto: UpdateMemberProfileRequest,
+    isAdmin?: boolean,
+  ): Promise<MemberProfileResponse> {
+    const sb = this.getClient(accessToken, isAdmin);
+    const displayName = dto.displayName?.trim() ?? '';
+    const normalizedDisplayName = displayName.length > 0 ? displayName : null;
+
+    await this.syncAuthDisplayName(userId, normalizedDisplayName);
+
+    const { data, error } = await sb
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          display_name: normalizedDisplayName,
+        },
+        { onConflict: 'id' },
+      )
+      .select('id, display_name')
+      .single();
+
+    if (error) {
+      throw new Error(`[members.updateMemberProfile] ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      displayName: data.display_name ?? null,
+    };
+  }
 
   /**
    * 브랜드 멤버 목록 조회
@@ -62,10 +307,10 @@ export class MembersService {
       throw new Error(`[members.getBrandMembers] ${error.message}`);
     }
 
-    // 이메일 조회를 위해 user_id 목록 수집
-
-    // auth.users 조회는 service-role 권한이 필요해서 현재는 생략
-    const emailMap: Record<string, string> = {};
+    const userIds = (data ?? [])
+      .map((row: any) => row.user_id as string | null | undefined)
+      .filter((userId): userId is string => Boolean(userId));
+    const emailMap = await this.getAuthEmailMap(userIds);
 
     return (data ?? []).map((row: any) => ({
       id: `${row.brand_id}-${row.user_id}`,
@@ -141,7 +386,7 @@ export class MembersService {
       .single();
 
     if (error) {
-      throw new Error(`[members.addBrandMember] ${error.message}`);
+      this.throwBrandMemberMutationError(error, 'members.addBrandMember');
     }
 
     return {
@@ -185,7 +430,7 @@ export class MembersService {
       .maybeSingle();
 
     if (error) {
-      throw new Error(`[members.updateBrandMember] ${error.message}`);
+      this.throwBrandMemberMutationError(error, 'members.updateBrandMember');
     }
 
     if (!data) {
@@ -264,11 +509,16 @@ export class MembersService {
       throw new Error(`[members.getBranchMembers] ${error.message}`);
     }
 
+    const userIds = (data ?? [])
+      .map((row: any) => row.user_id as string | null | undefined)
+      .filter((userId): userId is string => Boolean(userId));
+    const emailMap = await this.getAuthEmailMap(userIds);
+
     return (data ?? []).map((row: any) => ({
       id: `${row.branch_id}-${row.user_id}`,
       branchId: row.branch_id,
       userId: row.user_id,
-      email: null,
+      email: emailMap[row.user_id] ?? null,
       displayName: row.profiles?.display_name ?? null,
       role: row.role as BranchRole,
       status: row.status as MemberStatus,

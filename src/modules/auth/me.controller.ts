@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/decorators/current-user.decorator';
@@ -7,6 +7,81 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 @Controller()
 export class MeController {
   constructor(private readonly supabase: SupabaseService) {}
+
+  @Get('/me/profile')
+  @UseGuards(AuthGuard)
+  async getProfile(@CurrentUser() user: RequestUser) {
+    const { data, error } = await this.supabase
+      .adminClient()
+      .from('profiles')
+      .select('id, display_name')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`[me.getProfile] ${error.message}`);
+    }
+
+    return {
+      id: user.id,
+      displayName: data?.display_name ?? null,
+    };
+  }
+
+  @Patch('/me/profile')
+  @UseGuards(AuthGuard)
+  async updateProfile(
+    @CurrentUser() user: RequestUser,
+    @Body() body: { displayName?: string },
+  ) {
+    const displayName = body.displayName?.trim() ?? '';
+    const normalizedDisplayName = displayName.length > 0 ? displayName : null;
+    const admin = this.supabase.adminClient();
+    const { data: userResult, error: getUserError } =
+      await admin.auth.admin.getUserById(user.id);
+
+    if (getUserError) {
+      throw new Error(`[me.updateProfile] ${getUserError.message}`);
+    }
+
+    const currentMetadata =
+      (userResult.user?.user_metadata as Record<string, unknown> | undefined) ??
+      {};
+    const { error: updateUserError } = await admin.auth.admin.updateUserById(
+      user.id,
+      {
+        user_metadata: {
+          ...currentMetadata,
+          display_name: normalizedDisplayName,
+        },
+      },
+    );
+
+    if (updateUserError) {
+      throw new Error(`[me.updateProfile] ${updateUserError.message}`);
+    }
+
+    const { data, error } = await admin
+      .from('profiles')
+      .upsert(
+        {
+          id: user.id,
+          display_name: normalizedDisplayName,
+        },
+        { onConflict: 'id' },
+      )
+      .select('id, display_name')
+      .single();
+
+    if (error) {
+      throw new Error(`[me.updateProfile] ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      displayName: data.display_name ?? null,
+    };
+  }
 
   @Get('/me')
   @UseGuards(AuthGuard)

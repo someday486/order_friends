@@ -45,6 +45,11 @@ type ProfileState = {
   themeColor: string;
 };
 
+type MeProfileResponse = {
+  id: string;
+  displayName?: string | null;
+};
+
 const SETTINGS_STORAGE_KEY = "customer:mypage:notification-settings";
 const KAKAO_SETTINGS_STORAGE_KEY = "customer:mypage:kakao-notification-settings";
 const DELETE_CONFIRM_TEXT = "탈퇴";
@@ -210,6 +215,22 @@ export default function CustomerMyPage() {
   }, [user?.user_metadata]);
 
   useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const data = await apiClient.get<MeProfileResponse>("/me/profile");
+        setProfile((prev) => ({
+          ...prev,
+          displayName: toTextInputValue(data.displayName),
+        }));
+      } catch {
+        // keep auth metadata fallback when profile lookup fails
+      }
+    };
+
+    void loadProfile();
+  }, []);
+
+  useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
@@ -343,9 +364,13 @@ export default function CustomerMyPage() {
     try {
       setSavingProfile(true);
 
+      const profileResult = await apiClient.patch<MeProfileResponse>("/me/profile", {
+        displayName: profile.displayName,
+      });
+
       const { error: updateError } = await supabaseBrowser.auth.updateUser({
         data: {
-          display_name: profile.displayName || null,
+          display_name: profileResult.displayName || null,
           profile_tagline: profile.tagline || null,
           profile_theme_color: profile.themeColor || null,
         },
@@ -355,6 +380,10 @@ export default function CustomerMyPage() {
         throw updateError;
       }
 
+      setProfile((prev) => ({
+        ...prev,
+        displayName: toTextInputValue(profileResult.displayName),
+      }));
       await refresh();
       toast.success("프로필이 저장되었습니다.");
     } catch (e) {

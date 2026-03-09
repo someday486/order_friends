@@ -7,16 +7,17 @@ test.describe('Login page', () => {
     await page.goto('/login');
 
     await expect(page.getByText('OrderFriends')).toBeVisible();
-    await expect(page.getByText('계정에 로그인하세요')).toBeVisible();
-    await expect(page.getByPlaceholder('name@example.com')).toBeVisible();
-    await expect(page.getByPlaceholder('비밀번호')).toBeVisible();
-    await expect(page.getByRole('button', { name: /로그인/ })).toBeVisible();
+    await expect(page.getByText('계정으로 로그인해 주세요')).toBeVisible();
+    await expect(page.getByPlaceholder('you@example.com')).toBeVisible();
+    await expect(page.getByPlaceholder('••••••••')).toBeVisible();
+    await expect(page.getByRole('button', { name: '로그인' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '회원가입' })).toBeVisible();
   });
 
   test('submit button is disabled when fields are empty', async ({ page }) => {
     await page.goto('/login');
 
-    const submitBtn = page.getByRole('button', { name: /로그인/ });
+    const submitBtn = page.getByRole('button', { name: '로그인' });
     await expect(submitBtn).toBeDisabled();
   });
 
@@ -25,10 +26,10 @@ test.describe('Login page', () => {
   }) => {
     await page.goto('/login');
 
-    await page.getByPlaceholder('name@example.com').fill('test@example.com');
-    await page.getByPlaceholder('비밀번호').fill('password123');
+    await page.getByPlaceholder('you@example.com').fill('test@example.com');
+    await page.getByPlaceholder('••••••••').fill('password123');
 
-    const submitBtn = page.getByRole('button', { name: /로그인/ });
+    const submitBtn = page.getByRole('button', { name: '로그인' });
     await expect(submitBtn).toBeEnabled();
   });
 
@@ -47,9 +48,9 @@ test.describe('Login page', () => {
 
     await page.goto('/login');
 
-    await page.getByPlaceholder('name@example.com').fill('bad@example.com');
-    await page.getByPlaceholder('비밀번호').fill('wrongpassword');
-    await page.getByRole('button', { name: /로그인/ }).click();
+    await page.getByPlaceholder('you@example.com').fill('bad@example.com');
+    await page.getByPlaceholder('••••••••').fill('wrongpassword');
+    await page.getByRole('button', { name: '로그인' }).click();
 
     await expect(
       page.getByText(/Invalid login credentials|로그인에 실패/i),

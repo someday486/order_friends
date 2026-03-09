@@ -18,12 +18,43 @@ import {
   UpdateBrandMemberRequest,
   AddBranchMemberRequest,
   UpdateBranchMemberRequest,
+  UpdateMemberProfileRequest,
 } from './dto/member.dto';
 
 @Controller('admin/members')
 @UseGuards(AuthGuard, AdminGuard)
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
+
+  /**
+   * 승인 대기 사용자 목록 조회
+   * GET /admin/members/pending
+   */
+  @Get('pending')
+  async getPendingApprovalUsers(@Req() req: AuthRequest) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    if (!req.user?.id) throw new Error('Missing user');
+    return this.membersService.getPendingApprovalUsers(req.user.id);
+  }
+
+  /**
+   * 사용자 프로필 수정
+   * PATCH /admin/members/profile/:userId
+   */
+  @Patch('profile/:userId')
+  async updateMemberProfile(
+    @Req() req: AuthRequest,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateMemberProfileRequest,
+  ) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.updateMemberProfile(
+      req.accessToken,
+      userId,
+      dto,
+      req.isAdmin,
+    );
+  }
 
   // ============================================================
   // Brand Members

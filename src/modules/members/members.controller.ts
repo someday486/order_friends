@@ -19,6 +19,7 @@ import {
   AddBranchMemberRequest,
   UpdateBranchMemberRequest,
   UpdateMemberProfileRequest,
+  TransferMemberRequest,
 } from './dto/member.dto';
 
 @Controller('admin/members')
@@ -51,6 +52,23 @@ export class MembersController {
     return this.membersService.updateMemberProfile(
       req.accessToken,
       userId,
+      dto,
+      req.isAdmin,
+    );
+  }
+
+  /**
+   * 멤버 권한 범위 전환
+   * POST /admin/members/transfer
+   */
+  @Post('transfer')
+  async transferMember(
+    @Req() req: AuthRequest,
+    @Body() dto: TransferMemberRequest,
+  ) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.transferMember(
+      req.accessToken,
       dto,
       req.isAdmin,
     );

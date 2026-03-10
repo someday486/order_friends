@@ -11,6 +11,7 @@ import {
   BrandRole,
   BranchRole,
   MemberStatus,
+  MemberScope,
   InviteBrandMemberRequest,
   UpdateBrandMemberRequest,
   AddBranchMemberRequest,
@@ -18,6 +19,8 @@ import {
   PendingApprovalUserResponse,
   MemberProfileResponse,
   UpdateMemberProfileRequest,
+  TransferMemberRequest,
+  TransferMemberResponse,
 } from './dto/member.dto';
 
 @Injectable()
@@ -33,6 +36,12 @@ export class MembersService {
     return isAdmin
       ? this.supabase.adminClient()
       : this.supabase.userClient(accessToken);
+  }
+
+  private normalizeBrandRole(role: string | null | undefined): BrandRole {
+    if (role === 'OWNER') return BrandRole.OWNER;
+    if (role === 'ADMIN' || role === 'MANAGER') return BrandRole.ADMIN;
+    return BrandRole.MEMBER;
   }
 
   private async listAllAuthUsers(): Promise<User[]> {
@@ -306,6 +315,168 @@ export class MembersService {
     };
   }
 
+  async transferMember(
+    accessToken: string,
+    dto: TransferMemberRequest,
+    isAdmin?: boolean,
+  ): Promise<TransferMemberResponse> {
+    if (dto.sourceType === dto.targetType && dto.sourceId === dto.targetId) {
+      throw new BadRequestException('같은 대상 안에서 전환할 수 없습니다.');
+    }
+
+    const sb = this.getClient(accessToken, isAdmin);
+    const sourceExists = await this.memberExists(
+      sb,
+      dto.sourceType,
+      dto.sourceId,
+      dto.userId,
+    );
+
+    if (!sourceExists) {
+      throw new NotFoundException('전환할 기존 멤버를 찾을 수 없습니다.');
+    }
+
+    if (dto.targetType === MemberScope.BRAND) {
+      await this.transferToBrand(accessToken, dto, isAdmin);
+    } else {
+      await this.transferToBranch(accessToken, dto, isAdmin);
+    }
+
+    if (dto.sourceType === MemberScope.BRAND) {
+      await this.removeBrandMember(
+        accessToken,
+        dto.sourceId,
+        dto.userId,
+        isAdmin,
+      );
+    } else {
+      await this.removeBranchMember(
+        accessToken,
+        dto.sourceId,
+        dto.userId,
+        isAdmin,
+      );
+    }
+
+    return {
+      transferred: true,
+      userId: dto.userId,
+      sourceType: dto.sourceType,
+      sourceId: dto.sourceId,
+      targetType: dto.targetType,
+      targetId: dto.targetId,
+    };
+  }
+
+  private async transferToBrand(
+    accessToken: string,
+    dto: TransferMemberRequest,
+    isAdmin?: boolean,
+  ): Promise<void> {
+    const sb = this.getClient(accessToken, isAdmin);
+    const targetExists = await this.memberExists(
+      sb,
+      MemberScope.BRAND,
+      dto.targetId,
+      dto.userId,
+    );
+
+    if (targetExists) {
+      await this.updateBrandMember(
+        accessToken,
+        dto.targetId,
+        dto.userId,
+        {
+          role: dto.brandRole ?? BrandRole.MEMBER,
+          status: MemberStatus.ACTIVE,
+        },
+        isAdmin,
+      );
+      return;
+    }
+
+    await this.addBrandMember(
+      accessToken,
+      dto.targetId,
+      dto.userId,
+      dto.brandRole ?? BrandRole.MEMBER,
+      isAdmin,
+    );
+  }
+
+  private async transferToBranch(
+    accessToken: string,
+    dto: TransferMemberRequest,
+    isAdmin?: boolean,
+  ): Promise<void> {
+    const sb = this.getClient(accessToken, isAdmin);
+    const targetExists = await this.memberExists(
+      sb,
+      MemberScope.BRANCH,
+      dto.targetId,
+      dto.userId,
+    );
+
+    if (targetExists) {
+      await this.updateBranchMember(
+        accessToken,
+        dto.targetId,
+        dto.userId,
+        {
+          role: dto.branchRole ?? BranchRole.STAFF,
+          status: MemberStatus.ACTIVE,
+        },
+        isAdmin,
+      );
+      return;
+    }
+
+    await this.addBranchMember(
+      accessToken,
+      {
+        branchId: dto.targetId,
+        userId: dto.userId,
+        role: dto.branchRole ?? BranchRole.STAFF,
+      },
+      isAdmin,
+    );
+  }
+
+  private async memberExists(
+    sb: ReturnType<MembersService['getClient']>,
+    scope: MemberScope,
+    scopeId: string,
+    userId: string,
+  ): Promise<boolean> {
+    if (scope === MemberScope.BRAND) {
+      const { data, error } = await sb
+        .from('brand_members')
+        .select('user_id')
+        .eq('brand_id', scopeId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(`[members.transferMember] ${error.message}`);
+      }
+
+      return Boolean(data);
+    }
+
+    const { data, error } = await sb
+      .from('branch_members')
+      .select('user_id')
+      .eq('branch_id', scopeId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`[members.transferMember] ${error.message}`);
+    }
+
+    return Boolean(data);
+  }
+
   /**
    * 브랜드 멤버 목록 조회
    */
@@ -349,7 +520,7 @@ export class MembersService {
       userId: row.user_id,
       email: emailMap[row.user_id] ?? null,
       displayName: row.profiles?.display_name ?? null,
-      role: row.role as BrandRole,
+      role: this.normalizeBrandRole(row.role),
       status: row.status as MemberStatus,
       createdAt: row.created_at ?? '',
     }));
@@ -428,7 +599,7 @@ export class MembersService {
       userId: data.user_id,
       email: null,
       displayName: null,
-      role: data.role as BrandRole,
+      role: this.normalizeBrandRole(data.role),
       status: data.status as MemberStatus,
       createdAt: data.created_at ?? '',
     };
@@ -476,7 +647,7 @@ export class MembersService {
       userId: data.user_id,
       email: null,
       displayName: null,
-      role: data.role as BrandRole,
+      role: this.normalizeBrandRole(data.role),
       status: data.status as MemberStatus,
       createdAt: data.created_at ?? '',
     };

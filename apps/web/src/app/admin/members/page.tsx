@@ -9,7 +9,7 @@ import { useSelectedBrand } from '@/hooks/useSelectedBrand';
 import { useSelectedBranch } from '@/hooks/useSelectedBranch';
 import { apiClient } from '@/lib/api-client';
 
-type BrandRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER';
+type BrandRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 type BranchRole = 'BRANCH_OWNER' | 'BRANCH_ADMIN' | 'STAFF' | 'VIEWER';
 type MemberStatus = 'INVITED' | 'ACTIVE' | 'SUSPENDED' | 'LEFT';
 type Tab = 'brand' | 'branch';
@@ -45,7 +45,6 @@ type ProfileRes = { id: string; displayName?: string | null };
 const BRAND_ROLES: Array<{ value: BrandRole; label: string }> = [
   { value: 'OWNER', label: '오너' },
   { value: 'ADMIN', label: '관리자' },
-  { value: 'MANAGER', label: '매니저' },
   { value: 'MEMBER', label: '멤버' },
 ];
 
@@ -55,6 +54,62 @@ const BRANCH_ROLES: Array<{ value: BranchRole; label: string }> = [
   { value: 'STAFF', label: '스태프' },
   { value: 'VIEWER', label: '조회 전용' },
 ];
+
+const BRAND_ROLE_LABELS = Object.fromEntries(
+  BRAND_ROLES.map((role) => [role.value, role.label]),
+) as Record<BrandRole, string>;
+
+const BRANCH_ROLE_LABELS = Object.fromEntries(
+  BRANCH_ROLES.map((role) => [role.value, role.label]),
+) as Record<BranchRole, string>;
+
+const BRAND_ROLE_DESCRIPTIONS: Array<{
+  role: BrandRole;
+  description: string;
+}> = [
+  {
+    role: 'OWNER',
+    description:
+      '브랜드 대표자 표식이며 관리자와 기능 권한은 같고, 브랜드당 1명만 둘 수 있습니다.',
+  },
+  {
+    role: 'ADMIN',
+    description:
+      '브랜드, 지점, 상품, 재고 같은 주요 운영 기능을 관리할 수 있으며 오너와 기능 권한이 같습니다.',
+  },
+  {
+    role: 'MEMBER',
+    description:
+      '브랜드 소속만 있는 일반 멤버이며 운영 기능 권한은 제한적입니다.',
+  },
+];
+
+const BRAND_ROLE_HELP_TEXT = Object.fromEntries(
+  BRAND_ROLE_DESCRIPTIONS.map((item) => [item.role, item.description]),
+) as Record<BrandRole, string>;
+
+const BRANCH_ROLE_DESCRIPTIONS: Array<{
+  role: BranchRole;
+  description: string;
+}> = [
+  { role: 'BRANCH_OWNER', description: '매장 최고 권한입니다.' },
+  {
+    role: 'BRANCH_ADMIN',
+    description: '매장 운영, 상품, 재고 관리를 담당할 수 있습니다.',
+  },
+  {
+    role: 'STAFF',
+    description: '주문 처리 등 실무 작업 중심 권한입니다.',
+  },
+  {
+    role: 'VIEWER',
+    description: '조회 전용 권한입니다.',
+  },
+];
+
+const BRANCH_ROLE_HELP_TEXT = Object.fromEntries(
+  BRANCH_ROLE_DESCRIPTIONS.map((item) => [item.role, item.description]),
+) as Record<BranchRole, string>;
 
 const STATUS_LABELS: Record<MemberStatus, string> = {
   INVITED: '초대 중',
@@ -88,8 +143,12 @@ function MembersPageContent() {
   const initialTab = search?.get('tab') === 'branch' ? 'branch' : 'brand';
   const initialBranchId = search?.get('branchId');
   const { brandId, ready: brandReady, selectBrand } = useSelectedBrand();
-  const { branchId, ready: branchReady, selectBranch, clearBranch } =
-    useSelectedBranch();
+  const {
+    branchId,
+    ready: branchReady,
+    selectBranch,
+    clearBranch,
+  } = useSelectedBranch();
 
   const [tab, setTab] = useState<Tab>(initialTab);
   const [brands, setBrands] = useState<BrandInfo[]>([]);
@@ -108,12 +167,14 @@ function MembersPageContent() {
   const [branchRole, setBranchRole] = useState<BranchRole>('STAFF');
   const [addingBrand, setAddingBrand] = useState(false);
   const [addingBranch, setAddingBranch] = useState(false);
-  const [selectedBranchInfo, setSelectedBranchInfo] = useState<BranchInfo | null>(
-    null,
-  );
+  const [selectedBranchInfo, setSelectedBranchInfo] =
+    useState<BranchInfo | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingDisplayName, setEditingDisplayName] = useState('');
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [transferringMemberKey, setTransferringMemberKey] = useState<
+    string | null
+  >(null);
 
   const selectedBrand = useMemo(
     () => brands.find((brand) => brand.id === brandId) ?? null,
@@ -136,7 +197,9 @@ function MembersPageContent() {
 
   const applyDisplayName = (userId: string, displayName: string | null) => {
     setPending((items) =>
-      items.map((item) => (item.id === userId ? { ...item, displayName } : item)),
+      items.map((item) =>
+        item.id === userId ? { ...item, displayName } : item,
+      ),
     );
     setBrandMembers((items) =>
       items.map((item) =>
@@ -156,7 +219,9 @@ function MembersPageContent() {
       setBrands(await apiClient.get<BrandInfo[]>('/admin/brands'));
     } catch (error) {
       setBrandsError(
-        error instanceof Error ? error.message : '브랜드를 불러오지 못했습니다.',
+        error instanceof Error
+          ? error.message
+          : '브랜드를 불러오지 못했습니다.',
       );
     }
   };
@@ -202,7 +267,9 @@ function MembersPageContent() {
       setBranchLoading(true);
       setBranchError(null);
       setBranchMembers(
-        await apiClient.get<BranchMember[]>(`/admin/members/branch/${branchId}`),
+        await apiClient.get<BranchMember[]>(
+          `/admin/members/branch/${branchId}`,
+        ),
       );
     } catch (error) {
       setBranchError(
@@ -294,7 +361,9 @@ function MembersPageContent() {
       toast.success('브랜드 권한을 부여했습니다.');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '브랜드 권한 부여에 실패했습니다.',
+        error instanceof Error
+          ? error.message
+          : '브랜드 권한 부여에 실패했습니다.',
       );
     } finally {
       setAddingBrand(false);
@@ -316,7 +385,9 @@ function MembersPageContent() {
       toast.success('매장 권한을 부여했습니다.');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '매장 권한 부여에 실패했습니다.',
+        error instanceof Error
+          ? error.message
+          : '매장 권한 부여에 실패했습니다.',
       );
     } finally {
       setAddingBranch(false);
@@ -325,12 +396,16 @@ function MembersPageContent() {
 
   const updateBrandRole = async (userId: string, role: BrandRole) => {
     try {
-      await apiClient.patch(`/admin/members/brand/${brandId}/${userId}`, { role });
+      await apiClient.patch(`/admin/members/brand/${brandId}/${userId}`, {
+        role,
+      });
       await fetchBrandMembers();
       toast.success('브랜드 역할을 변경했습니다.');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '브랜드 역할 변경에 실패했습니다.',
+        error instanceof Error
+          ? error.message
+          : '브랜드 역할 변경에 실패했습니다.',
       );
     }
   };
@@ -344,7 +419,9 @@ function MembersPageContent() {
       toast.success('매장 역할을 변경했습니다.');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '매장 역할 변경에 실패했습니다.',
+        error instanceof Error
+          ? error.message
+          : '매장 역할 변경에 실패했습니다.',
       );
     }
   };
@@ -357,7 +434,9 @@ function MembersPageContent() {
       toast.success('브랜드 멤버를 제거했습니다.');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '브랜드 멤버 제거에 실패했습니다.',
+        error instanceof Error
+          ? error.message
+          : '브랜드 멤버 제거에 실패했습니다.',
       );
     }
   };
@@ -370,8 +449,81 @@ function MembersPageContent() {
       toast.success('매장 멤버를 제거했습니다.');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : '매장 멤버 제거에 실패했습니다.',
+        error instanceof Error
+          ? error.message
+          : '매장 멤버 제거에 실패했습니다.',
       );
+    }
+  };
+
+  const transferBrandMemberToBranch = async (member: BrandMember) => {
+    if (!brandId || !branchId) {
+      toast.error('먼저 이동할 매장을 선택해주세요.');
+      return;
+    }
+
+    if (member.role === 'OWNER') {
+      toast.error('브랜드 오너는 먼저 다른 역할로 변경한 뒤 전환해주세요.');
+      return;
+    }
+
+    try {
+      setTransferringMemberKey(`brand-${member.userId}`);
+      await apiClient.post('/admin/members/transfer', {
+        userId: member.userId,
+        sourceType: 'brand',
+        sourceId: brandId,
+        targetType: 'branch',
+        targetId: branchId,
+        branchRole,
+      });
+      await Promise.all([
+        fetchBrandMembers(),
+        fetchBranchMembers(),
+        fetchPending(),
+      ]);
+      toast.success('매장 권한으로 전환했습니다.');
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : '매장 권한 전환에 실패했습니다.',
+      );
+    } finally {
+      setTransferringMemberKey(null);
+    }
+  };
+
+  const transferBranchMemberToBrand = async (member: BranchMember) => {
+    if (!brandId || !branchId) {
+      toast.error('먼저 이동할 브랜드와 매장을 선택해주세요.');
+      return;
+    }
+
+    try {
+      setTransferringMemberKey(`branch-${member.userId}`);
+      await apiClient.post('/admin/members/transfer', {
+        userId: member.userId,
+        sourceType: 'branch',
+        sourceId: branchId,
+        targetType: 'brand',
+        targetId: brandId,
+        brandRole,
+      });
+      await Promise.all([
+        fetchBrandMembers(),
+        fetchBranchMembers(),
+        fetchPending(),
+      ]);
+      toast.success('브랜드 권한으로 전환했습니다.');
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : '브랜드 권한 전환에 실패했습니다.',
+      );
+    } finally {
+      setTransferringMemberKey(null);
     }
   };
 
@@ -439,7 +591,9 @@ function MembersPageContent() {
         <div className="card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-foreground">승인 대기 계정</h2>
+              <h2 className="text-base font-bold text-foreground">
+                승인 대기 계정
+              </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 아직 활성 멤버십이 없는 가입 계정입니다.
               </p>
@@ -490,7 +644,9 @@ function MembersPageContent() {
                           : '이메일 인증 필요'}
                       </span>
                     </div>
-                    <div className="mt-2 max-w-xl">{nameBlock(user.id, user.displayName)}</div>
+                    <div className="mt-2 max-w-xl">
+                      {nameBlock(user.id, user.displayName)}
+                    </div>
                     <div className="mt-2 text-xs text-text-secondary">
                       가입일 {formatDate(user.createdAt)}
                     </div>
@@ -538,7 +694,9 @@ function MembersPageContent() {
           <section className="card p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold text-foreground">현재 선택 상태</h2>
+                <h2 className="text-base font-bold text-foreground">
+                  현재 선택 상태
+                </h2>
                 <p className="mt-1 text-sm text-text-secondary">
                   사용자와 대상 위치를 한 번에 확인합니다.
                 </p>
@@ -615,7 +773,9 @@ function MembersPageContent() {
                   ))}
                 </select>
                 {brandsError ? (
-                  <div className="mt-2 text-xs text-danger-500">{brandsError}</div>
+                  <div className="mt-2 text-xs text-danger-500">
+                    {brandsError}
+                  </div>
                 ) : null}
               </div>
 
@@ -649,18 +809,35 @@ function MembersPageContent() {
           <section className="card p-5">
             {tab === 'brand' ? (
               <>
-                <h2 className="text-base font-bold text-foreground">브랜드 권한 부여</h2>
+                <h2 className="text-base font-bold text-foreground">
+                  브랜드 권한 부여
+                </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  브랜드 전체 운영 권한이 필요한 경우 사용합니다.
+                  오너와 관리자는 같은 기능 권한을 가지며, 오너는 대표자 표식으로만 구분됩니다.
                 </p>
                 <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-text-secondary">
                   <div className="font-semibold text-warning">
-                    오너는 브랜드당 1명만 활성 상태로 둘 수 있습니다.
+                    오너 표식은 브랜드당 1명만 활성 상태로 둘 수 있습니다.
                   </div>
                   <div className="mt-1">
                     {activeOwner
                       ? `현재 오너: ${activeOwner.displayName || activeOwner.userId}`
                       : '현재 활성 오너가 없습니다.'}
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-border bg-bg-secondary p-4">
+                  <div className="text-xs font-semibold text-text-secondary">
+                    브랜드 역할 설명
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-text-secondary">
+                    {BRAND_ROLE_DESCRIPTIONS.map((item) => (
+                      <div key={item.role}>
+                        <span className="font-semibold text-foreground">
+                          {BRAND_ROLE_LABELS[item.role]}
+                        </span>
+                        <span className="ml-2">{item.description}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3">
@@ -682,6 +859,10 @@ function MembersPageContent() {
                       </option>
                     ))}
                   </select>
+                  <div className="text-xs text-text-secondary">
+                    현재 선택: {BRAND_ROLE_LABELS[brandRole]} -{' '}
+                    {BRAND_ROLE_HELP_TEXT[brandRole]}
+                  </div>
                   <button
                     type="button"
                     onClick={() => void addBrandMember()}
@@ -694,7 +875,9 @@ function MembersPageContent() {
               </>
             ) : (
               <>
-                <h2 className="text-base font-bold text-foreground">매장 권한 부여</h2>
+                <h2 className="text-base font-bold text-foreground">
+                  매장 권한 부여
+                </h2>
                 <p className="mt-1 text-sm text-text-secondary">
                   실제 매장 운영 계정이면 매장 권한을 먼저 연결하세요.
                 </p>
@@ -703,10 +886,27 @@ function MembersPageContent() {
                     먼저 브랜드를 선택해야 매장을 고를 수 있습니다.
                   </div>
                 ) : null}
+                <div className="mt-4 rounded-xl border border-border bg-bg-secondary p-4">
+                  <div className="text-xs font-semibold text-text-secondary">
+                    매장 역할 설명
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-text-secondary">
+                    {BRANCH_ROLE_DESCRIPTIONS.map((item) => (
+                      <div key={item.role}>
+                        <span className="font-semibold text-foreground">
+                          {BRANCH_ROLE_LABELS[item.role]}
+                        </span>
+                        <span className="ml-2">{item.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="mt-4 grid gap-3">
                   <select
                     value={branchRole}
-                    onChange={(e) => setBranchRole(e.target.value as BranchRole)}
+                    onChange={(e) =>
+                      setBranchRole(e.target.value as BranchRole)
+                    }
                     className="input-field h-10 w-full text-sm"
                   >
                     {BRANCH_ROLES.map((role) => (
@@ -715,6 +915,10 @@ function MembersPageContent() {
                       </option>
                     ))}
                   </select>
+                  <div className="text-xs text-text-secondary">
+                    현재 선택: {BRANCH_ROLE_LABELS[branchRole]} -{' '}
+                    {BRANCH_ROLE_HELP_TEXT[branchRole]}
+                  </div>
                   <button
                     type="button"
                     onClick={() => void addBranchMember()}
@@ -734,7 +938,9 @@ function MembersPageContent() {
         <div className="card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-foreground">브랜드 멤버 목록</h2>
+              <h2 className="text-base font-bold text-foreground">
+                브랜드 멤버 목록
+              </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 선택된 브랜드의 현재 권한 상태입니다.
               </p>
@@ -762,17 +968,30 @@ function MembersPageContent() {
               <table className="w-full min-w-[620px] border-collapse">
                 <thead className="bg-bg-tertiary">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">사용자</th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">역할</th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">상태</th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">생성일</th>
-                    <th className="px-3 py-3 text-center text-xs font-bold text-text-secondary">관리</th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      사용자
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      역할
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      상태
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      생성일
+                    </th>
+                    <th className="px-3 py-3 text-center text-xs font-bold text-text-secondary">
+                      관리
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {brandMembers.length === 0 ? (
                     <tr className="border-t border-border">
-                      <td colSpan={5} className="px-3 py-6 text-center text-sm text-text-tertiary">
+                      <td
+                        colSpan={5}
+                        className="px-3 py-6 text-center text-sm text-text-tertiary"
+                      >
                         등록된 브랜드 멤버가 없습니다.
                       </td>
                     </tr>
@@ -782,21 +1001,35 @@ function MembersPageContent() {
                         <td className="px-3 py-3 align-top text-sm">
                           <div className="min-w-[180px]">
                             {nameBlock(member.userId, member.displayName)}
-                            {member.email ? <div className="mt-2 text-xs text-text-secondary">{member.email}</div> : null}
-                            <div className="mt-1 font-mono text-[11px] text-text-tertiary">{member.userId}</div>
+                            {member.email ? (
+                              <div className="mt-2 text-xs text-text-secondary">
+                                {member.email}
+                              </div>
+                            ) : null}
+                            <div className="mt-1 font-mono text-[11px] text-text-tertiary">
+                              {member.userId}
+                            </div>
                           </div>
                         </td>
                         <td className="px-3 py-3 align-top">
                           <select
                             value={member.role}
-                            onChange={(e) => void updateBrandRole(member.userId, e.target.value as BrandRole)}
+                            onChange={(e) =>
+                              void updateBrandRole(
+                                member.userId,
+                                e.target.value as BrandRole,
+                              )
+                            }
                             className="input-field h-9 min-w-[120px] text-sm"
                           >
                             {BRAND_ROLES.map((role) => (
                               <option
                                 key={role.value}
                                 value={role.value}
-                                disabled={role.value === 'OWNER' && !canAssignOwner(member.userId)}
+                                disabled={
+                                  role.value === 'OWNER' &&
+                                  !canAssignOwner(member.userId)
+                                }
                               >
                                 {role.label}
                               </option>
@@ -804,20 +1037,46 @@ function MembersPageContent() {
                           </select>
                         </td>
                         <td className="px-3 py-3 align-top">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(member.status)}`}>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(member.status)}`}
+                          >
                             {STATUS_LABELS[member.status]}
                           </span>
                         </td>
-                        <td className="px-3 py-3 align-top text-sm text-text-secondary">{formatDate(member.createdAt)}</td>
+                        <td className="px-3 py-3 align-top text-sm text-text-secondary">
+                          {formatDate(member.createdAt)}
+                        </td>
                         <td className="px-3 py-3 align-top text-center">
-                          <button
-                            type="button"
-                            onClick={() => void removeBrandMember(member.userId)}
-                            disabled={member.role === 'OWNER'}
-                            className="rounded-md border border-border px-3 py-2 text-sm text-danger-500 hover:bg-bg-tertiary disabled:opacity-50"
-                          >
-                            제거
-                          </button>
+                          <div className="flex flex-col items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void transferBrandMemberToBranch(member)
+                              }
+                              disabled={
+                                !branchId ||
+                                member.role === 'OWNER' ||
+                                transferringMemberKey ===
+                                  `brand-${member.userId}`
+                              }
+                              className="rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-bg-tertiary disabled:opacity-50"
+                            >
+                              {transferringMemberKey ===
+                              `brand-${member.userId}`
+                                ? '전환 중...'
+                                : `매장 ${BRANCH_ROLE_LABELS[branchRole]}로 전환`}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void removeBrandMember(member.userId)
+                              }
+                              disabled={member.role === 'OWNER'}
+                              className="rounded-md border border-border px-3 py-2 text-sm text-danger-500 hover:bg-bg-tertiary disabled:opacity-50"
+                            >
+                              제거
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -831,7 +1090,9 @@ function MembersPageContent() {
         <div className="card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-foreground">매장 멤버 목록</h2>
+              <h2 className="text-base font-bold text-foreground">
+                매장 멤버 목록
+              </h2>
               <p className="mt-1 text-sm text-text-secondary">
                 선택된 매장의 현재 권한 상태입니다.
               </p>
@@ -859,17 +1120,30 @@ function MembersPageContent() {
               <table className="w-full min-w-[620px] border-collapse">
                 <thead className="bg-bg-tertiary">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">사용자</th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">역할</th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">상태</th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">생성일</th>
-                    <th className="px-3 py-3 text-center text-xs font-bold text-text-secondary">관리</th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      사용자
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      역할
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      상태
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-bold text-text-secondary">
+                      생성일
+                    </th>
+                    <th className="px-3 py-3 text-center text-xs font-bold text-text-secondary">
+                      관리
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {branchMembers.length === 0 ? (
                     <tr className="border-t border-border">
-                      <td colSpan={5} className="px-3 py-6 text-center text-sm text-text-tertiary">
+                      <td
+                        colSpan={5}
+                        className="px-3 py-6 text-center text-sm text-text-tertiary"
+                      >
                         등록된 매장 멤버가 없습니다.
                       </td>
                     </tr>
@@ -879,14 +1153,25 @@ function MembersPageContent() {
                         <td className="px-3 py-3 align-top text-sm">
                           <div className="min-w-[180px]">
                             {nameBlock(member.userId, member.displayName)}
-                            {member.email ? <div className="mt-2 text-xs text-text-secondary">{member.email}</div> : null}
-                            <div className="mt-1 font-mono text-[11px] text-text-tertiary">{member.userId}</div>
+                            {member.email ? (
+                              <div className="mt-2 text-xs text-text-secondary">
+                                {member.email}
+                              </div>
+                            ) : null}
+                            <div className="mt-1 font-mono text-[11px] text-text-tertiary">
+                              {member.userId}
+                            </div>
                           </div>
                         </td>
                         <td className="px-3 py-3 align-top">
                           <select
                             value={member.role}
-                            onChange={(e) => void updateBranchRole(member.userId, e.target.value as BranchRole)}
+                            onChange={(e) =>
+                              void updateBranchRole(
+                                member.userId,
+                                e.target.value as BranchRole,
+                              )
+                            }
                             className="input-field h-9 min-w-[120px] text-sm"
                           >
                             {BRANCH_ROLES.map((role) => (
@@ -897,19 +1182,46 @@ function MembersPageContent() {
                           </select>
                         </td>
                         <td className="px-3 py-3 align-top">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(member.status)}`}>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(member.status)}`}
+                          >
                             {STATUS_LABELS[member.status]}
                           </span>
                         </td>
-                        <td className="px-3 py-3 align-top text-sm text-text-secondary">{formatDate(member.createdAt)}</td>
+                        <td className="px-3 py-3 align-top text-sm text-text-secondary">
+                          {formatDate(member.createdAt)}
+                        </td>
                         <td className="px-3 py-3 align-top text-center">
-                          <button
-                            type="button"
-                            onClick={() => void removeBranchMember(member.userId)}
-                            className="rounded-md border border-border px-3 py-2 text-sm text-danger-500 hover:bg-bg-tertiary"
-                          >
-                            제거
-                          </button>
+                          <div className="flex flex-col items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void transferBranchMemberToBrand(member)
+                              }
+                              disabled={
+                                !brandId ||
+                                (brandRole === 'OWNER' &&
+                                  !canAssignOwner(member.userId)) ||
+                                transferringMemberKey ===
+                                  `branch-${member.userId}`
+                              }
+                              className="rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-bg-tertiary disabled:opacity-50"
+                            >
+                              {transferringMemberKey ===
+                              `branch-${member.userId}`
+                                ? '전환 중...'
+                                : `브랜드 ${BRAND_ROLE_LABELS[brandRole]}로 전환`}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void removeBranchMember(member.userId)
+                              }
+                              className="rounded-md border border-border px-3 py-2 text-sm text-danger-500 hover:bg-bg-tertiary"
+                            >
+                              제거
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -926,7 +1238,9 @@ function MembersPageContent() {
 
 export default function MembersPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-text-secondary">로딩 중...</div>}>
+    <Suspense
+      fallback={<div className="text-sm text-text-secondary">로딩 중...</div>}
+    >
       <MembersPageContent />
     </Suspense>
   );

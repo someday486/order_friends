@@ -1,4 +1,4 @@
-﻿"use client";
+﻿'use client';
 
 import {
   createContext,
@@ -8,11 +8,11 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from "react";
-import { apiClient } from "@/lib/api-client";
-import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
+} from 'react';
+import { apiClient } from '@/lib/api-client';
+import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from '@/types/common';
 
-export type NotificationType = "LOW_STOCK" | "NEW_ORDER" | "ORDER_STATUS";
+export type NotificationType = 'LOW_STOCK' | 'NEW_ORDER' | 'ORDER_STATUS';
 
 export type Notification = {
   id: string;
@@ -36,6 +36,7 @@ type NotificationContextValue = {
 type InventoryAlertRow = {
   product_id: string;
   product_name: string;
+  branch_id: string;
   branch_name?: string;
   qty_available: number;
   low_stock_threshold: number;
@@ -87,33 +88,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const tenMinutesAgo = now.getTime() - 10 * 60 * 1000;
 
-      const branches = await apiClient
-        .get<Array<{ id: string; name: string }>>("/customer/branches")
+      const inventory = await apiClient
+        .get<InventoryAlertRow[]>('/customer/inventory/alerts')
         .catch(() => []);
 
-      await Promise.all(
-        branches.map(async (branch) => {
-          const inventory = await apiClient
-            .get<InventoryAlertRow[]>(
-              `/customer/inventory/alerts?branchId=${encodeURIComponent(branch.id)}`,
-            )
-            .catch(() => []);
+      for (const item of inventory) {
+        if (!item.is_low_stock) continue;
 
-          for (const item of inventory) {
-            if (!item.is_low_stock) continue;
-
-            alerts.push({
-              id: `low-stock-${branch.id}-${item.product_id}`,
-              type: "LOW_STOCK",
-              title: "재고 부족",
-              message: `${item.product_name} (${item.branch_name || branch.name}) - 현재 ${item.qty_available}개 (최소 ${item.low_stock_threshold}개)`,
-              isRead: false,
-              createdAt: now.toISOString(),
-              link: `/customer/inventory/${item.product_id}?branchId=${encodeURIComponent(branch.id)}`,
-            });
-          }
-        }),
-      );
+        alerts.push({
+          id: `low-stock-${item.branch_id}-${item.product_id}`,
+          type: 'LOW_STOCK',
+          title: '재고 부족',
+          message: `${item.product_name} (${item.branch_name || '매장 미상'}) - 현재 ${item.qty_available}개 (최소 ${item.low_stock_threshold}개)`,
+          isRead: false,
+          createdAt: now.toISOString(),
+          link: `/customer/inventory/${item.product_id}?branchId=${encodeURIComponent(item.branch_id)}`,
+        });
+      }
 
       const orderResponse = await apiClient
         .get<
@@ -122,7 +113,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               data?: OrderNotificationRow[];
               items?: OrderNotificationRow[];
             }
-        >("/customer/orders?page=1&limit=20")
+        >('/customer/orders?page=1&limit=20')
         .catch(() => []);
       const orders = Array.isArray(orderResponse)
         ? orderResponse
@@ -132,9 +123,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       for (const order of orders) {
         const orderNo = order.orderNo || order.order_no || order.id.slice(0, 8);
-        const createdAt = order.orderedAt || order.created_at || now.toISOString();
+        const createdAt =
+          order.orderedAt || order.created_at || now.toISOString();
         const createdAtMs = new Date(createdAt).getTime();
-        const branchText = order.branchName ? ` (${order.branchName})` : "";
+        const branchText = order.branchName ? ` (${order.branchName})` : '';
         const branchId = order.branchId || order.branch_id || null;
         const orderLink = branchId
           ? `/customer/orders/${order.id}?branchId=${encodeURIComponent(branchId)}`
@@ -146,8 +138,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         if (createdAtMs >= tenMinutesAgo) {
           alerts.push({
             id: `new-order-${order.id}`,
-            type: "NEW_ORDER",
-            title: "신규 주문",
+            type: 'NEW_ORDER',
+            title: '신규 주문',
             message: `주문 #${orderNo}${branchText}이 접수되었습니다.`,
             isRead: false,
             createdAt,
@@ -157,12 +149,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         if (prevStatus && prevStatus !== order.status) {
           const nextStatusLabel =
-            ORDER_STATUS_LABEL_LONG[order.status as OrderStatus] || order.status;
+            ORDER_STATUS_LABEL_LONG[order.status as OrderStatus] ||
+            order.status;
 
           alerts.push({
             id: `order-status-${order.id}-${order.status}`,
-            type: "ORDER_STATUS",
-            title: "주문 상태 변경",
+            type: 'ORDER_STATUS',
+            title: '주문 상태 변경',
             message: `주문 #${orderNo} 상태가 ${nextStatusLabel}(으)로 변경되었습니다.`,
             isRead: false,
             createdAt: now.toISOString(),
@@ -204,8 +197,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
-    intervalRef.current = setInterval(fetchNotifications, POLL_INTERVAL);
+    void fetchNotifications();
+    intervalRef.current = setInterval(() => {
+      void fetchNotifications();
+    }, POLL_INTERVAL);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -232,7 +227,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         loading,
         markAsRead,
         markAllAsRead,
-        refresh: fetchNotifications,
+        refresh: () => {
+          void fetchNotifications();
+        },
       }}
     >
       {children}

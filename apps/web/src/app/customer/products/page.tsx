@@ -1146,35 +1146,6 @@ export default function CustomerProductsPage() {
     }
   };
 
-  const handleToggleOnlineShopVisibleFromAll = async (template: BrandTemplate) => {
-    if (!selectedBrandId) return;
-
-    const nextVisible = template.isOnlineShopVisible === false;
-    const prevVisible = template.isOnlineShopVisible !== false;
-
-    // optimistic update (해당 항목만)
-    setTemplates((ts) =>
-      ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: nextVisible } : t)),
-    );
-
-    try {
-      setSaving(true);
-      await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
-        isOnlineShopVisible: nextVisible,
-      });
-      toast.success(nextVisible ? "온라인샵에 노출했습니다." : "온라인샵에서 숨겼습니다.");
-    } catch (e) {
-      // rollback (해당 항목만)
-      setTemplates((ts) =>
-        ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: prevVisible } : t)),
-      );
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "온라인샵 노출 변경에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleBulkUpdateTemplates = async () => {
     if (!selectedBrandId || selectedTemplateIds.size === 0) {
       return;
@@ -1250,6 +1221,11 @@ export default function CustomerProductsPage() {
               </div>
             </div>
           </div>
+          {selectedBrandId && (
+            <div className="mt-1 text-sm text-text-secondary">
+              총 {searchedTemplates.length}개 상품
+            </div>
+          )}
         </div>
         {selectedBrandId && canManage && (
           <button
@@ -1261,7 +1237,7 @@ export default function CustomerProductsPage() {
         )}
       </div>
 
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-4 mb-4">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-3 mb-3">
       <div className="flex flex-wrap items-end gap-3">
         <div ref={brandDropdownRef} className="flex-1 min-w-[200px] relative">
           <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
@@ -1270,7 +1246,7 @@ export default function CustomerProductsPage() {
           <button
             type="button"
             onClick={() => setIsBrandOpen((v) => !v)}
-            className="input-field w-full flex items-center justify-between gap-2"
+            className="input-field h-9 text-sm w-full flex items-center justify-between gap-2"
             aria-haspopup="listbox"
             aria-expanded={isBrandOpen}
           >
@@ -1354,7 +1330,7 @@ export default function CustomerProductsPage() {
               <select
                 value={salesChannelFilter}
                 onChange={(event) => setSalesChannelFilter(event.target.value as SalesChannelFilter)}
-                className="input-field w-full"
+                className="input-field h-9 text-sm w-full"
               >
                 <option value="ALL">전체</option>
                 <option value="ONLINE_SHOP">온라인샵</option>
@@ -1371,7 +1347,7 @@ export default function CustomerProductsPage() {
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value as CategoryFilter)}
-                className="input-field w-full"
+                className="input-field h-9 text-sm w-full"
               >
                 <option value="ALL">전체</option>
                 <option value="UNCATEGORIZED">카테고리 없음</option>
@@ -1400,7 +1376,7 @@ export default function CustomerProductsPage() {
                     }
                   }}
                   placeholder="메뉴명/설명 검색"
-                  className="input-field w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
+                  className="input-field h-9 text-sm w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
                   aria-label="메뉴 검색"
                 />
                 {searchInput && (
@@ -1416,11 +1392,6 @@ export default function CustomerProductsPage() {
               </div>
             </div>
 
-            <div className="flex items-center h-10">
-              <span className="text-sm text-text-secondary whitespace-nowrap">
-                총 {searchedTemplates.length}개
-              </span>
-            </div>
           </>
         )}
       </div>
@@ -1491,7 +1462,7 @@ export default function CustomerProductsPage() {
                   </div>
                 </div>
 
-                {isBulkOpen && (
+                {isBulkOpen && selectedTemplateIds.size > 0 && (
                   <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
@@ -1620,7 +1591,7 @@ export default function CustomerProductsPage() {
                   <table className="w-full border-collapse">
                   <thead className="bg-white">
                     <tr>
-                      <th className="w-12 py-2 px-3 text-left">
+                      <th className="w-12 py-3 px-3 text-left">
                         <input
                           type="checkbox"
                           checked={allTemplatesChecked}
@@ -1629,12 +1600,12 @@ export default function CustomerProductsPage() {
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">메뉴</th>
-                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">기본가</th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">판매채널</th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">노출상태</th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">재고관리</th>
-                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">편집</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">메뉴</th>
+                      <th className="text-right py-3 px-3 text-xs font-bold text-text-secondary">기본가</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">판매채널</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">노출상태</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">재고관리</th>
+                      <th className="text-right py-3 px-3 text-xs font-bold text-text-secondary">편집</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1650,7 +1621,7 @@ export default function CustomerProductsPage() {
 
                       return (
                         <Fragment key={template.id}>
-                          <tr className="border-t border-border hover:bg-bg-secondary/40 transition-colors">
+                          <tr className="border-t border-border hover:bg-bg-tertiary transition-colors">
                             <td className="py-2 px-3">
                               <input
                                 type="checkbox"
@@ -1673,27 +1644,9 @@ export default function CustomerProductsPage() {
                             </td>
                             <td className="py-2 px-3 text-sm text-foreground">
                               {salesChannelFilter === "ALL" ? (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAppliedDrawerTemplateId(template.id);
-                                    setDrawerBranchSearch("");
-                                  }}
-                                  className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
-                                >
-                                  {appliedCount}/{totalCount} 매장
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleOnlineShopVisibleFromAll(template)}
-                                  disabled={saving}
-                                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                                >
-                                  {isOnlineShopVisible ? "온라인샵 숨김" : "온라인샵 노출"}
-                                </button>
-                              </div>
+                              <span className="text-xs text-text-secondary">
+                                매장 {appliedCount}/{totalCount} · {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                              </span>
                               ) : salesChannelFilter === "ONLINE_SHOP" ? (
                                 <span
                                   className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${

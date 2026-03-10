@@ -34,6 +34,10 @@ export class CustomerGuard implements CanActivate {
 
   constructor(private readonly supabase: SupabaseService) {}
 
+  private normalizeBrandRole(role: string | null | undefined): string {
+    return role === 'MANAGER' ? 'ADMIN' : (role ?? 'MEMBER');
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthRequest>();
     const { user, accessToken } = request;
@@ -105,7 +109,10 @@ export class CustomerGuard implements CanActivate {
 
     // brand_members에 없지만 owner_user_id로 소유한 브랜드를 멤버십에 합산
     const allBrandMemberships: BrandMembership[] = [
-      ...(brandResult.data || []),
+      ...((brandResult.data || []).map((membership: BrandMembership) => ({
+        ...membership,
+        role: this.normalizeBrandRole(membership.role),
+      })) as BrandMembership[]),
     ];
     if (ownedResult.data && ownedResult.data.length > 0) {
       const memberBrandIds = new Set(

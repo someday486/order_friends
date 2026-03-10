@@ -86,9 +86,17 @@ describe('InventoryController', () => {
     );
   });
 
-  it('getLowStockAlerts should throw when branchId is missing', async () => {
-    await expect(controller.getLowStockAlerts(makeReq(), '')).rejects.toThrow(
-      BadRequestException,
+  it('getLowStockAlerts should allow querying all branches', async () => {
+    mockService.getLowStockAlerts.mockResolvedValue([{ id: 'alert-1' }]);
+
+    const result = await controller.getLowStockAlerts(makeReq(), undefined);
+
+    expect(result).toEqual([{ id: 'alert-1' }]);
+    expect(mockService.getLowStockAlerts).toHaveBeenCalledWith(
+      'user-1',
+      undefined,
+      [],
+      [],
     );
   });
 

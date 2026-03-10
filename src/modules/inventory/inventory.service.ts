@@ -79,6 +79,62 @@ export class InventoryService {
     );
   }
 
+  private async resolveAccessibleBranches(
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ): Promise<Array<{ id: string; name: string }>> {
+    const sb = this.supabase.adminClient();
+    const branchMap = new Map<string, { id: string; name: string }>();
+    const branchIds = Array.from(
+      new Set(branchMemberships.map((membership) => membership.branch_id)),
+    );
+    const brandIds = Array.from(
+      new Set(brandMemberships.map((membership) => membership.brand_id)),
+    );
+
+    if (branchIds.length > 0) {
+      const { data, error } = await sb
+        .from('branches')
+        .select('id, name')
+        .in('id', branchIds);
+
+      if (error) {
+        throw new Error(
+          `[inventory.resolveAccessibleBranches] ${error.message}`,
+        );
+      }
+
+      for (const branch of data ?? []) {
+        branchMap.set(branch.id, {
+          id: branch.id,
+          name: branch.name ?? '',
+        });
+      }
+    }
+
+    if (brandIds.length > 0) {
+      const { data, error } = await sb
+        .from('branches')
+        .select('id, name')
+        .in('brand_id', brandIds);
+
+      if (error) {
+        throw new Error(
+          `[inventory.resolveAccessibleBranches] ${error.message}`,
+        );
+      }
+
+      for (const branch of data ?? []) {
+        branchMap.set(branch.id, {
+          id: branch.id,
+          name: branch.name ?? '',
+        });
+      }
+    }
+
+    return Array.from(branchMap.values());
+  }
+
   /**
    * 상품에 대한 접근 권한 확인
    */
@@ -837,28 +893,31 @@ export class InventoryService {
    */
   async getLowStockAlerts(
     userId: string,
-    branchId: string,
+    branchId: string | undefined,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryAlertResponse[]> {
     this.logger.log(
-      `Fetching low stock alerts for branch ${branchId} by user ${userId}`,
+      `Fetching low stock alerts for ${branchId ?? 'all branches'} by user ${userId}`,
     );
 
     // 브랜치 접근 권한 확인
-    const { branch } = await this.checkBranchAccess(
-      branchId,
-      userId,
-      brandMemberships,
-      branchMemberships,
-    );
+    const branch = branchId
+      ? (
+          await this.checkBranchAccess(
+            branchId,
+            userId,
+            brandMemberships,
+            branchMemberships,
+          )
+        ).branch
+      : null;
 
     const sb = this.supabase.adminClient();
+    let branchNames = new Map<string, string>();
 
-    const { data, error } = await sb
-      .from('product_inventory')
-      .select(
-        `
+    let query = sb.from('product_inventory').select(
+      `
         product_id,
         branch_id,
         qty_available,
@@ -866,15 +925,42 @@ export class InventoryService {
         products!inner(
           name,
           image_url
+        ),
+        branches!inner(
+          name
         )
       `,
-      )
-      .eq('branch_id', branchId)
-      .order('qty_available', { ascending: true });
+    );
+
+    if (branchId && branch) {
+      branchNames.set(branch.id, branch.name ?? '');
+      query = query.eq('branch_id', branchId);
+    } else {
+      const accessibleBranches = await this.resolveAccessibleBranches(
+        brandMemberships,
+        branchMemberships,
+      );
+
+      if (accessibleBranches.length === 0) {
+        return [];
+      }
+
+      branchNames = new Map(
+        accessibleBranches.map((item) => [item.id, item.name]),
+      );
+      query = query.in(
+        'branch_id',
+        accessibleBranches.map((item) => item.id),
+      );
+    }
+
+    const { data, error } = await query.order('qty_available', {
+      ascending: true,
+    });
 
     if (error) {
       this.logger.error(
-        `Failed to fetch low stock alerts for branch ${branchId}`,
+        `Failed to fetch low stock alerts for ${branchId ?? 'all branches'}`,
         error,
       );
       throw new Error('Failed to fetch low stock alerts');
@@ -886,19 +972,24 @@ export class InventoryService {
     );
 
     this.logger.log(
-      `Found ${lowStockItems.length} low stock items for branch ${branchId}`,
+      `Found ${lowStockItems.length} low stock items for ${branchId ?? 'all branches'}`,
     );
 
     return lowStockItems.map((item) => {
       const product = item.products as any;
+      const branchRow = item.branches as { name?: string } | null;
 
       return {
         product_id: item.product_id,
         product_name: product?.name || 'Unknown',
         branch_id: item.branch_id,
-        branch_name: branch.name,
+        branch_name:
+          branchRow?.name ||
+          branchNames.get(item.branch_id) ||
+          'Unknown branch',
         qty_available: item.qty_available,
         low_stock_threshold: item.low_stock_threshold,
+        is_low_stock: true,
         image_url: product?.image_url,
       };
     });

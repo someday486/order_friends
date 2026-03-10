@@ -48,28 +48,20 @@ export default function AppPage() {
           return;
         }
 
-        try {
-          await apiClient.get('/customer/brands');
-          if (cancelled) return;
-          router.replace('/customer');
-          router.refresh();
-        } catch (error) {
-          if (cancelled) return;
+        const hasActiveAccess =
+          me.memberships.length > 0 || me.ownedBrands.length > 0;
 
-          if (isMembershipPendingError(error)) {
-            router.replace('/approval-pending');
-            router.refresh();
-            return;
-          }
-
-          setErrorMsg(
-            error instanceof Error
-              ? error.message
-              : '권한 확인 중 오류가 발생했습니다.',
-          );
-        }
+        router.replace(hasActiveAccess ? '/customer' : '/approval-pending');
+        router.refresh();
       } catch (error) {
         if (cancelled) return;
+
+        if (isMembershipPendingError(error)) {
+          router.replace('/approval-pending');
+          router.refresh();
+          return;
+        }
+
         setErrorMsg(
           error instanceof Error
             ? error.message
@@ -95,7 +87,7 @@ export default function AppPage() {
           계정 상태를 확인하고 있습니다
         </h1>
         <p className="mt-2 text-sm leading-6 text-text-secondary">
-          로그인 정보와 연결된 권한을 확인한 뒤, 맞는 화면으로 자동 이동합니다.
+          로그인 정보와 연결된 권한을 확인한 뒤 맞는 화면으로 자동 이동합니다.
         </p>
         {errorMsg ? (
           <div className="mt-4 rounded-md bg-danger-50 p-3 text-sm text-danger-500">

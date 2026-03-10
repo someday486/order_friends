@@ -68,6 +68,9 @@ export class InventoryAlertResponse {
   @ApiProperty({ description: 'Low stock threshold' })
   low_stock_threshold: number;
 
+  @ApiProperty({ description: 'Is low stock' })
+  is_low_stock: boolean;
+
   @ApiPropertyOptional({ description: 'Product image URL' })
   image_url?: string;
 }

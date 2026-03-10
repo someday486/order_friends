@@ -268,6 +268,141 @@ describe('MembersService', () => {
     ).rejects.toThrow('[members.updateMemberProfile] fail');
   });
 
+  it('transferMember should move a brand member into a branch membership', async () => {
+    mockSb.maybeSingle
+      .mockResolvedValueOnce({ data: { user_id: 'u1' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const addBranchMemberSpy = jest
+      .spyOn(service, 'addBranchMember')
+      .mockResolvedValue({
+        id: 'branch-u1',
+        branchId: 'branch-1',
+        userId: 'u1',
+        role: 'BRANCH_ADMIN' as any,
+        status: 'ACTIVE' as any,
+        createdAt: 't',
+      });
+    const removeBrandMemberSpy = jest
+      .spyOn(service, 'removeBrandMember')
+      .mockResolvedValue({ deleted: true });
+
+    const result = await service.transferMember(
+      'token',
+      {
+        userId: 'u1',
+        sourceType: 'brand' as any,
+        sourceId: 'brand-1',
+        targetType: 'branch' as any,
+        targetId: 'branch-1',
+        branchRole: 'BRANCH_ADMIN' as any,
+      },
+      true,
+    );
+
+    expect(addBranchMemberSpy).toHaveBeenCalledWith(
+      'token',
+      {
+        branchId: 'branch-1',
+        userId: 'u1',
+        role: 'BRANCH_ADMIN',
+      },
+      true,
+    );
+    expect(removeBrandMemberSpy).toHaveBeenCalledWith(
+      'token',
+      'brand-1',
+      'u1',
+      true,
+    );
+    expect(result).toMatchObject({
+      transferred: true,
+      sourceType: 'brand',
+      targetType: 'branch',
+    });
+  });
+
+  it('transferMember should promote an existing branch member into a brand membership', async () => {
+    mockSb.maybeSingle
+      .mockResolvedValueOnce({ data: { user_id: 'u1' }, error: null })
+      .mockResolvedValueOnce({ data: { user_id: 'u1' }, error: null });
+
+    const updateBrandMemberSpy = jest
+      .spyOn(service, 'updateBrandMember')
+      .mockResolvedValue({
+        id: 'brand-u1',
+        brandId: 'brand-2',
+        userId: 'u1',
+        role: 'OWNER' as any,
+        status: 'ACTIVE' as any,
+        createdAt: 't',
+      });
+    const removeBranchMemberSpy = jest
+      .spyOn(service, 'removeBranchMember')
+      .mockResolvedValue({ deleted: true });
+
+    await service.transferMember(
+      'token',
+      {
+        userId: 'u1',
+        sourceType: 'branch' as any,
+        sourceId: 'branch-1',
+        targetType: 'brand' as any,
+        targetId: 'brand-2',
+        brandRole: 'OWNER' as any,
+      },
+      true,
+    );
+
+    expect(updateBrandMemberSpy).toHaveBeenCalledWith(
+      'token',
+      'brand-2',
+      'u1',
+      { role: 'OWNER', status: 'ACTIVE' },
+      true,
+    );
+    expect(removeBranchMemberSpy).toHaveBeenCalledWith(
+      'token',
+      'branch-1',
+      'u1',
+      true,
+    );
+  });
+
+  it('transferMember should reject same source and target', async () => {
+    await expect(
+      service.transferMember(
+        'token',
+        {
+          userId: 'u1',
+          sourceType: 'brand' as any,
+          sourceId: 'brand-1',
+          targetType: 'brand' as any,
+          targetId: 'brand-1',
+        },
+        true,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('transferMember should throw when source member is missing', async () => {
+    mockSb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(
+      service.transferMember(
+        'token',
+        {
+          userId: 'u1',
+          sourceType: 'branch' as any,
+          sourceId: 'branch-1',
+          targetType: 'brand' as any,
+          targetId: 'brand-1',
+        },
+        true,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
   it('getBrandMembers should map members', async () => {
     supabase.adminClient.mockReturnValue({
       ...mockSb,
@@ -322,6 +457,26 @@ describe('MembersService', () => {
 
     expect(result[0].displayName).toBeNull();
     expect(result[0].createdAt).toBe('');
+  });
+
+  it('getBrandMembers should normalize legacy manager role to admin', async () => {
+    mockSb.order.mockResolvedValueOnce({
+      data: [
+        {
+          brand_id: 'brand',
+          user_id: 'u1',
+          role: 'MANAGER',
+          status: 'ACTIVE',
+          created_at: 't',
+          profiles: { display_name: 'User' },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getBrandMembers('token', 'brand', true);
+
+    expect(result[0].role).toBe('ADMIN');
   });
 
   it('getBrandMembers should return empty list when data is null', async () => {
@@ -886,7 +1041,7 @@ describe('MembersService', () => {
       'token',
       'branch',
       'u1',
-      { role: 'MANAGER' } as any,
+      { role: 'BRANCH_ADMIN' } as any,
       true,
     );
 
@@ -928,7 +1083,7 @@ describe('MembersService', () => {
         'token',
         'branch',
         'u1',
-        { role: 'MANAGER' } as any,
+        { role: 'BRANCH_ADMIN' } as any,
         true,
       ),
     ).rejects.toThrow('[members.updateBranchMember]');
@@ -942,7 +1097,7 @@ describe('MembersService', () => {
         'token',
         'branch',
         'u1',
-        { role: 'MANAGER' } as any,
+        { role: 'BRANCH_ADMIN' } as any,
         true,
       ),
     ).rejects.toThrow(NotFoundException);

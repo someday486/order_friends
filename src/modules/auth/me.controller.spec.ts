@@ -217,7 +217,7 @@ describe('MeController', () => {
     expect(result.isSystemAdmin).toBe(false);
   });
 
-  it('should set primaryRole from elevated memberships when no owned brands', async () => {
+  it('should treat brand admins as brand owners for primary role routing', async () => {
     profilesChain.maybeSingle.mockResolvedValueOnce({
       data: { is_system_admin: false },
       error: null,
@@ -247,8 +247,42 @@ describe('MeController', () => {
       email: 'user@test.com',
     } as any);
 
-    expect(result.user.role).toBe('branch_manager');
+    expect(result.user.role).toBe('brand_owner');
     expect(result.ownedBrands).toEqual([]);
+  });
+
+  it('should normalize legacy manager memberships to admin', async () => {
+    profilesChain.maybeSingle.mockResolvedValueOnce({
+      data: { is_system_admin: false },
+      error: null,
+    });
+
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({
+        data: [{ brand_id: 'brand-1', role: 'MANAGER', status: 'ACTIVE' }],
+        error: null,
+      });
+
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+    } as any);
+
+    expect(result.user.role).toBe('brand_owner');
+    expect(result.memberships).toEqual([{ brandId: 'brand-1', role: 'ADMIN' }]);
   });
 
   it('should fallback to staff role when only staff memberships', async () => {

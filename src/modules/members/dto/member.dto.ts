@@ -7,7 +7,6 @@ import { IsString, IsOptional, IsEnum } from 'class-validator';
 export enum BrandRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER',
   MEMBER = 'MEMBER',
 }
 
@@ -23,6 +22,11 @@ export enum MemberStatus {
   ACTIVE = 'ACTIVE',
   SUSPENDED = 'SUSPENDED',
   LEFT = 'LEFT',
+}
+
+export enum MemberScope {
+  BRAND = 'brand',
+  BRANCH = 'branch',
 }
 
 // ============================================================
@@ -63,6 +67,15 @@ export class PendingApprovalUserResponse {
 export class MemberProfileResponse {
   id: string;
   displayName?: string | null;
+}
+
+export class TransferMemberResponse {
+  transferred: boolean;
+  userId: string;
+  sourceType: MemberScope;
+  sourceId: string;
+  targetType: MemberScope;
+  targetId: string;
 }
 
 // ============================================================
@@ -126,4 +139,29 @@ export class UpdateMemberProfileRequest {
   @IsString()
   @IsOptional()
   displayName?: string;
+}
+
+export class TransferMemberRequest {
+  @IsString()
+  userId: string;
+
+  @IsEnum(MemberScope)
+  sourceType: MemberScope;
+
+  @IsString()
+  sourceId: string;
+
+  @IsEnum(MemberScope)
+  targetType: MemberScope;
+
+  @IsString()
+  targetId: string;
+
+  @IsEnum(BrandRole)
+  @IsOptional()
+  brandRole?: BrandRole = BrandRole.MEMBER;
+
+  @IsEnum(BranchRole)
+  @IsOptional()
+  branchRole?: BranchRole = BranchRole.STAFF;
 }

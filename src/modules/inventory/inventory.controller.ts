@@ -65,7 +65,6 @@ export class InventoryController {
     if (!branchId) {
       throw new BadRequestException('branchId is required');
     }
-
     this.logger.log(
       `User ${req.user.id} fetching inventory for branch ${branchId}`,
     );
@@ -82,7 +81,7 @@ export class InventoryController {
     summary: '낮은 재고 알림 조회',
     description: '재고가 임계값 이하인 상품 목록을 조회합니다.',
   })
-  @ApiQuery({ name: 'branchId', description: '지점 ID', required: true })
+  @ApiQuery({ name: 'branchId', description: '?? ID', required: false })
   @ApiResponse({
     status: 200,
     description: '낮은 재고 알림 조회 성공',
@@ -92,15 +91,11 @@ export class InventoryController {
   @ApiResponse({ status: 403, description: '권한 없음' })
   async getLowStockAlerts(
     @Req() req: AuthRequest,
-    @Query('branchId') branchId: string,
+    @Query('branchId') branchId?: string,
   ): Promise<InventoryAlertResponse[]> {
     if (!req.user) throw new Error('Missing user');
-    if (!branchId) {
-      throw new BadRequestException('branchId is required');
-    }
-
     this.logger.log(
-      `User ${req.user.id} fetching low stock alerts for branch ${branchId}`,
+      `User ${req.user.id} fetching low stock alerts for ${branchId ?? 'all branches'}`,
     );
     return this.inventoryService.getLowStockAlerts(
       req.user.id,

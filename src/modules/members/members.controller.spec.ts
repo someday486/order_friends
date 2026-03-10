@@ -10,6 +10,7 @@ describe('MembersController', () => {
   const mockService = {
     getPendingApprovalUsers: jest.fn(),
     updateMemberProfile: jest.fn(),
+    transferMember: jest.fn(),
     getBrandMembers: jest.fn(),
     addBrandMember: jest.fn(),
     updateBrandMember: jest.fn(),
@@ -67,6 +68,31 @@ describe('MembersController', () => {
       call: () => controller.getBrandMembers(makeReq(), 'brand-1'),
       mockFn: mockService.getBrandMembers,
       args: ['token', 'brand-1', false],
+    },
+    {
+      name: 'transferMember',
+      call: () =>
+        controller.transferMember(makeReq(), {
+          userId: 'user-1',
+          sourceType: 'brand',
+          sourceId: 'brand-1',
+          targetType: 'branch',
+          targetId: 'branch-1',
+          branchRole: 'BRANCH_ADMIN',
+        } as any),
+      mockFn: mockService.transferMember,
+      args: [
+        'token',
+        {
+          userId: 'user-1',
+          sourceType: 'brand',
+          sourceId: 'brand-1',
+          targetType: 'branch',
+          targetId: 'branch-1',
+          branchRole: 'BRANCH_ADMIN',
+        },
+        false,
+      ],
     },
     {
       name: 'addBrandMember',
@@ -162,6 +188,14 @@ describe('MembersController', () => {
         controller.getBrandMembers(
           makeReq({ accessToken: undefined }),
           'brand-1',
+        ),
+    },
+    {
+      name: 'transferMember',
+      call: () =>
+        controller.transferMember(
+          makeReq({ accessToken: undefined }),
+          {} as any,
         ),
     },
     {

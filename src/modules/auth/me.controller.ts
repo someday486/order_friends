@@ -23,6 +23,10 @@ export class MeController {
     );
   }
 
+  private normalizeBrandRole(role: string | null | undefined): string {
+    return role === 'MANAGER' ? 'ADMIN' : (role ?? 'MEMBER');
+  }
+
   @Get('/me/profile')
   @UseGuards(AuthGuard)
   async getProfile(@CurrentUser() user: RequestUser) {
@@ -178,7 +182,7 @@ export class MeController {
     const normalizedBrandMemberships = (brandMemberships ?? []).map(
       (membership: any) => ({
         brandId: membership.brand_id,
-        role: membership.role,
+        role: this.normalizeBrandRole(membership.role),
       }),
     );
     const normalizedBranchMemberships = (branchMemberships ?? []).map(
@@ -201,11 +205,13 @@ export class MeController {
       normalizedBranchMemberships.map((membership) => membership.role),
     );
 
-    if ((ownedBrands ?? []).length > 0 || brandRoles.has('OWNER')) {
+    if (
+      (ownedBrands ?? []).length > 0 ||
+      brandRoles.has('OWNER') ||
+      brandRoles.has('ADMIN')
+    ) {
       primaryRole = 'brand_owner';
     } else if (
-      brandRoles.has('ADMIN') ||
-      brandRoles.has('MANAGER') ||
       branchRoles.has('BRANCH_OWNER') ||
       branchRoles.has('BRANCH_ADMIN')
     ) {

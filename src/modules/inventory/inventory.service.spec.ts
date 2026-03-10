@@ -891,6 +891,50 @@ describe('InventoryService', () => {
     expect(result[0].product_name).toBe('Unknown');
   });
 
+  it('getLowStockAlerts should aggregate accessible branches when branchId is omitted', async () => {
+    chains.branches.in
+      .mockResolvedValueOnce({
+        data: [{ id: 'b1', name: 'B1' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'b2', name: 'B2' }],
+        error: null,
+      });
+    chains.product_inventory.order.mockResolvedValueOnce({
+      data: [
+        {
+          product_id: 'p1',
+          branch_id: 'b1',
+          qty_available: 1,
+          low_stock_threshold: 2,
+          products: { name: 'P1' },
+          branches: { name: 'B1' },
+        },
+        {
+          product_id: 'p2',
+          branch_id: 'b2',
+          qty_available: 0,
+          low_stock_threshold: 1,
+          products: { name: 'P2' },
+          branches: { name: 'B2' },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getLowStockAlerts(
+      'u1',
+      undefined,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'ADMIN' }],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0].branch_name).toBe('B1');
+    expect(result[1].branch_name).toBe('B2');
+  });
+
   it('getLowStockAlerts should throw on error', async () => {
     chains.branches.single.mockResolvedValueOnce({
       data: { id: 'b1', name: 'B', brand_id: 'brand-1' },

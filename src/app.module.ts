@@ -25,6 +25,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ExportsModule } from './modules/exports/exports.module';
+import { StampsModule } from './modules/stamps/stamps.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -45,7 +46,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CacheModule.register({
       isGlobal: true,
       ttl: 300000, // 5분 (밀리초)
-      max: 100, // 최대 100개 항목
+      max: 1000, // 최대 1000개 항목
     }),
     SupabaseModule,
     AuthModule,
@@ -68,6 +69,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     AnalyticsModule,
     UploadModule,
     ExportsModule,
+    StampsModule,
   ],
   providers: [
     AuthGuard,

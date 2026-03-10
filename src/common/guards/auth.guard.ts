@@ -7,9 +7,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
+import {
+  buildSystemAdminConfig,
+  isConfiguredSystemAdmin,
+  type SystemAdminConfig,
+} from '../utils/system-admin.util';
 
-const AUTH_CACHE_TTL_MS = 60 * 1000; // 1 minute
-const AUTH_CACHE_MAX_SIZE = 200;
+const AUTH_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const AUTH_CACHE_MAX_SIZE = 1000;
 
 type CachedAuth = {
   user: RequestUser;
@@ -19,29 +24,15 @@ type CachedAuth = {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private readonly adminEmails: Set<string>;
-  private readonly adminUserIds: Set<string>;
-  private readonly adminEmailDomains: Set<string>;
-  private readonly adminBypassAll: boolean;
+  private readonly systemAdminConfig: SystemAdminConfig;
   private readonly authCache = new Map<string, CachedAuth>();
 
   constructor(
     private readonly supabase: SupabaseService,
     private readonly config: ConfigService,
   ) {
-    const rawEmails = this.parseList(this.config.get<string>('ADMIN_EMAILS'));
-    const rawUserIds = this.parseList(
-      this.config.get<string>('ADMIN_USER_IDS'),
-    );
-    const rawDomains = this.parseList(
-      this.config.get<string>('ADMIN_EMAIL_DOMAINS'),
-    );
-
-    this.adminEmails = new Set(rawEmails.map((value) => value.toLowerCase()));
-    this.adminUserIds = new Set(rawUserIds);
-    this.adminEmailDomains = this.normalizeDomains(rawDomains);
-    this.adminBypassAll = this.parseBoolean(
-      this.config.get<string>('ADMIN_BYPASS'),
+    this.systemAdminConfig = buildSystemAdminConfig((key) =>
+      this.config.get<string>(key),
     );
   }
 
@@ -79,13 +70,24 @@ export class AuthGuard implements CanActivate {
       email: data.user.email ?? undefined,
     };
 
-    const email = data.user.email?.toLowerCase();
+    const { data: profile, error: profileError } = await sb
+      .from('profiles')
+      .select('is_system_admin')
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      this.authCache.delete(token);
+      throw new UnauthorizedException('Failed to verify admin permissions');
+    }
+
     const isAdmin =
-      this.adminBypassAll ||
-      this.adminUserIds.has(data.user.id) ||
-      (email ? this.adminEmails.has(email) : false) ||
-      (email ? this.isAllowedDomain(email) : false) ||
-      this.isAdminFromMetadata(data.user as any);
+      Boolean(profile?.is_system_admin) ||
+      isConfiguredSystemAdmin(
+        this.systemAdminConfig,
+        data.user.id,
+        data.user.email ?? undefined,
+      );
 
     // Store in cache
     this.evictExpiredEntries(now);
@@ -113,52 +115,5 @@ export class AuthGuard implements CanActivate {
       const firstKey = this.authCache.keys().next().value as string;
       this.authCache.delete(firstKey);
     }
-  }
-
-  private parseList(value?: string): string[] {
-    if (!value) return [];
-    return value
-      .split(/[,;\s]+/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-  }
-
-  private parseBoolean(value?: string): boolean {
-    if (!value) return false;
-    const normalized = value.trim().toLowerCase();
-    return normalized === 'true' || normalized === '1' || normalized === 'yes';
-  }
-
-  private normalizeDomains(values: string[]): Set<string> {
-    const domains = values
-      .map((value) => value.trim().toLowerCase())
-      .filter((value) => value.length > 0)
-      .map((value) => (value.startsWith('@') ? value.slice(1) : value));
-    return new Set(domains);
-  }
-
-  private isAllowedDomain(email: string): boolean {
-    if (this.adminEmailDomains.size === 0) return false;
-    const domain = email.split('@')[1]?.trim().toLowerCase();
-    if (!domain) return false;
-    return this.adminEmailDomains.has(domain);
-  }
-
-  private isAdminFromMetadata(user: any): boolean {
-    const appMetadata = user?.app_metadata ?? {};
-    const userMetadata = user?.user_metadata ?? {};
-
-    const appFlag = appMetadata?.is_admin;
-    const userFlag = userMetadata?.is_admin;
-    const appRole = appMetadata?.role;
-    const userRole = userMetadata?.role;
-
-    if (appFlag === true || userFlag === true) return true;
-    if (typeof appRole === 'string' && appRole.toLowerCase() === 'admin')
-      return true;
-    if (typeof userRole === 'string' && userRole.toLowerCase() === 'admin')
-      return true;
-
-    return false;
   }
 }

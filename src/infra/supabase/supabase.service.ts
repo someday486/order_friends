@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
 
-const USER_CLIENT_MAX_SIZE = 50;
-const USER_CLIENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const USER_CLIENT_MAX_SIZE = 200;
+const USER_CLIENT_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 type CachedClient = { client: SupabaseClient; createdAt: number };
 

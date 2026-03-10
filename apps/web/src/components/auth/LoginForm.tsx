@@ -1,20 +1,18 @@
-"use client";
+﻿'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabaseBrowser } from '@/lib/supabase/client';
 
 type Props = {
   redirectTo?: string;
 };
 
-export function LoginForm({ redirectTo = "/" }: Props) {
+export function LoginForm({ redirectTo = '/app' }: Props) {
   const router = useRouter();
-  const { refresh } = useAuth();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -22,8 +20,7 @@ export function LoginForm({ redirectTo = "/" }: Props) {
   const canSubmit =
     email.trim().length > 0 && password.length > 0 && !submitting;
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitLogin = async () => {
     if (!canSubmit) return;
 
     setSubmitting(true);
@@ -36,19 +33,24 @@ export function LoginForm({ redirectTo = "/" }: Props) {
       });
 
       if (error) {
-        setErrorMsg(error.message || "Login failed");
+        setErrorMsg(error.message || 'Login failed');
         return;
       }
 
-      await refresh();
-
-      window.location.assign(redirectTo);
-      router.refresh();
+      // onAuthStateChange가 자동으로 세션을 갱신하므로 refresh() 불필요.
+      // window.location.assign(하드 리로드) 대신 소프트 네비게이션 사용.
+      router.push(redirectTo);
+      router.refresh(); // Next.js 라우터 캐시 무효화 (미들웨어가 새 세션 쿠키 인식)
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Login failed");
+      setErrorMsg(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitLogin();
   };
 
   return (
@@ -68,7 +70,9 @@ export function LoginForm({ redirectTo = "/" }: Props) {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-text-secondary">비밀번호</span>
+        <span className="text-sm font-medium text-text-secondary">
+          비밀번호
+        </span>
         <input
           type="password"
           value={password}
@@ -82,7 +86,10 @@ export function LoginForm({ redirectTo = "/" }: Props) {
       </label>
 
       {errorMsg && (
-        <div role="alert" className="text-sm text-danger-500 bg-danger-50 p-3 rounded-md animate-shake">
+        <div
+          role="alert"
+          className="text-sm text-danger-500 bg-danger-50 p-3 rounded-md animate-shake"
+        >
           {errorMsg}
         </div>
       )}
@@ -94,7 +101,7 @@ export function LoginForm({ redirectTo = "/" }: Props) {
           hover:bg-primary-600 active:scale-95 transition-all duration-150
           disabled:opacity-50 disabled:cursor-not-allowed mt-2"
       >
-        {submitting ? "로그인 중..." : "로그인"}
+        {submitting ? '로그인 중...' : '로그인'}
       </button>
     </form>
   );

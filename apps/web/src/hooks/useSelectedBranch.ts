@@ -9,12 +9,13 @@ import {
 } from '@/lib/branchSelection';
 
 export function useSelectedBranch() {
-  const [branchId, setBranchIdState] = useState<string | null>(() =>
-    getSelectedBranchId(),
-  );
-  const ready = true;
+  const [branchId, setBranchIdState] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    setBranchIdState(getSelectedBranchId());
+    setReady(true);
+
     return subscribeSelectedBranchIdChanged(setBranchIdState);
   }, []);
 

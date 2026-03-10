@@ -8,6 +8,9 @@ describe('MembersController', () => {
   let controller: MembersController;
 
   const mockService = {
+    getPendingApprovalUsers: jest.fn(),
+    updateMemberProfile: jest.fn(),
+    transferMember: jest.fn(),
     getBrandMembers: jest.fn(),
     addBrandMember: jest.fn(),
     updateBrandMember: jest.fn(),
@@ -43,10 +46,53 @@ describe('MembersController', () => {
 
   it.each([
     {
+      name: 'getPendingApprovalUsers',
+      call: () =>
+        controller.getPendingApprovalUsers(
+          makeReq({ user: { id: 'current-user' } }),
+        ),
+      mockFn: mockService.getPendingApprovalUsers,
+      args: ['current-user'],
+    },
+    {
+      name: 'updateMemberProfile',
+      call: () =>
+        controller.updateMemberProfile(makeReq(), 'user-1', {
+          displayName: 'Edited User',
+        } as any),
+      mockFn: mockService.updateMemberProfile,
+      args: ['token', 'user-1', { displayName: 'Edited User' }, false],
+    },
+    {
       name: 'getBrandMembers',
       call: () => controller.getBrandMembers(makeReq(), 'brand-1'),
       mockFn: mockService.getBrandMembers,
       args: ['token', 'brand-1', false],
+    },
+    {
+      name: 'transferMember',
+      call: () =>
+        controller.transferMember(makeReq(), {
+          userId: 'user-1',
+          sourceType: 'brand',
+          sourceId: 'brand-1',
+          targetType: 'branch',
+          targetId: 'branch-1',
+          branchRole: 'BRANCH_ADMIN',
+        } as any),
+      mockFn: mockService.transferMember,
+      args: [
+        'token',
+        {
+          userId: 'user-1',
+          sourceType: 'brand',
+          sourceId: 'brand-1',
+          targetType: 'branch',
+          targetId: 'branch-1',
+          branchRole: 'BRANCH_ADMIN',
+        },
+        false,
+      ],
     },
     {
       name: 'addBrandMember',
@@ -121,11 +167,35 @@ describe('MembersController', () => {
 
   it.each([
     {
+      name: 'getPendingApprovalUsers',
+      call: () =>
+        controller.getPendingApprovalUsers(
+          makeReq({ accessToken: undefined, user: { id: 'current-user' } }),
+        ),
+    },
+    {
+      name: 'updateMemberProfile',
+      call: () =>
+        controller.updateMemberProfile(
+          makeReq({ accessToken: undefined }),
+          'user-1',
+          {} as any,
+        ),
+    },
+    {
       name: 'getBrandMembers',
       call: () =>
         controller.getBrandMembers(
           makeReq({ accessToken: undefined }),
           'brand-1',
+        ),
+    },
+    {
+      name: 'transferMember',
+      call: () =>
+        controller.transferMember(
+          makeReq({ accessToken: undefined }),
+          {} as any,
         ),
     },
     {

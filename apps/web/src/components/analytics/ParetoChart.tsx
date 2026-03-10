@@ -45,7 +45,7 @@ export default function ParetoChart({
   barKey,
   lineKey,
   height = 280,
-  barColor = "#2563eb",
+  barColor = "#ff3b30",
   lineColor = "#22c55e",
   barName,
   lineName,
@@ -107,7 +107,7 @@ export default function ParetoChart({
           />
           <Line
             yAxisId="right"
-            type="monotone"
+            type="linear"
             dataKey={lineKey}
             stroke={lineColor}
             strokeWidth={2}

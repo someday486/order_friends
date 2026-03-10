@@ -60,17 +60,9 @@ describe('OrdersService', () => {
         },
       ];
 
-      // Mock count query: from('orders').select('*', { count: 'exact', head: true }).eq('branch_id', branchId)
-      // Returns { count, error } from eq()
-      mockSupabaseClient.eq.mockResolvedValueOnce({
-        count: 1,
-        error: null,
-      });
-
-      // Mock data query: from('orders').select(...).eq(...).order(...).range(from, to)
-      // Returns { data, error } from range()
       mockSupabaseClient.range.mockResolvedValueOnce({
         data: mockOrders,
+        count: 1,
         error: null,
       });
 
@@ -106,12 +98,9 @@ describe('OrdersService', () => {
         },
       ];
 
-      mockSupabaseClient.eq.mockResolvedValueOnce({
-        count: 1,
-        error: null,
-      });
       mockSupabaseClient.range.mockResolvedValueOnce({
         data: mockOrders,
+        count: 1,
         error: null,
       });
 
@@ -133,12 +122,9 @@ describe('OrdersService', () => {
     });
 
     it('should return empty list when data is null and count is zero', async () => {
-      mockSupabaseClient.eq.mockResolvedValueOnce({
-        count: 0,
-        error: null,
-      });
       mockSupabaseClient.range.mockResolvedValueOnce({
         data: null,
+        count: 0,
         error: null,
       });
 
@@ -149,8 +135,8 @@ describe('OrdersService', () => {
     });
 
     it('should throw BusinessException on database error', async () => {
-      // Mock count query returning an error
-      mockSupabaseClient.eq.mockResolvedValueOnce({
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: null,
         count: null,
         error: { message: 'Database error' },
       });
@@ -161,11 +147,9 @@ describe('OrdersService', () => {
     });
 
     it('should throw BusinessException on fetch error', async () => {
-      mockSupabaseClient.eq
-        .mockResolvedValueOnce({ count: 1, error: null })
-        .mockReturnValueOnce(mockSupabaseClient);
       mockSupabaseClient.range.mockResolvedValueOnce({
         data: null,
+        count: 1,
         error: { message: 'fail' },
       });
 

@@ -8,6 +8,7 @@
 import { createHash } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
 import {
   PublicBranchResponse,
   PublicBrandBranchesResponse,
@@ -38,6 +39,7 @@ export class PublicOrderService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly inventoryService: InventoryService,
+    private readonly stampsService: StampsService,
   ) {
     const windowMs = Number(process.env.PUBLIC_ORDER_DUPLICATE_WINDOW_MS);
     this.duplicateWindowMs =
@@ -188,7 +190,7 @@ export class PublicOrderService {
 
     const { data: branchRows, error: branchError } = await adminSb
       .from('branches')
-      .select('id, created_at')
+      .select('id, name, slug, created_at')
       .eq('brand_id', brand.id)
       .order('created_at', { ascending: true })
       .limit(1000);
@@ -201,11 +203,12 @@ export class PublicOrderService {
 
     let resolvedBranchRows = (branchRows ?? []) as any[];
     if (resolvedBranchRows.length === 0) {
-      resolvedBranchRows = await this.ensureOnlineShopBranch(
+      const onlineShopBranch = await this.ensureOnlineShopBranch(
         adminSb,
         brand.id,
         brand.name ?? '브랜드 온라인샵',
       );
+      resolvedBranchRows = onlineShopBranch ? [onlineShopBranch] : [];
     }
 
     if (resolvedBranchRows.length === 0) {
@@ -242,41 +245,29 @@ export class PublicOrderService {
       const branchId = String(row?.id ?? '');
       if (!branchId) continue;
 
-      const orderConfig = await this.getPublicBranchOrderConfig(branchId);
-      const normalizedPaymentMethods = normalizePaymentMethods(
-        orderConfig.allowedPaymentMethods,
-      );
-      const enabledTypes = normalizeFulfillmentTypes(
-        orderConfig.enabledFulfillmentTypes,
-      );
-      const supportsDelivery = enabledTypes.includes(FulfillmentType.DELIVERY);
-      const hasDeliveryChannel = Boolean(
-        orderConfig.channelByType[FulfillmentType.DELIVERY],
-      );
-
-      branchCandidates.push({
-        branchId,
-        paymentMethods: normalizedPaymentMethods,
-        supportsDelivery,
-        hasDeliveryChannel,
+      const candidate = await this.buildShopBranchCandidate(branchId, {
         createdAt: row?.created_at ?? null,
       });
+      branchCandidates.push(candidate);
 
       if (!fallback) {
         fallback = {
-          branchId,
-          paymentMethods: normalizedPaymentMethods,
-          supportsDelivery,
+          branchId: candidate.branchId,
+          paymentMethods: candidate.paymentMethods,
+          supportsDelivery: candidate.supportsDelivery,
         };
       }
-      if (!supportsDelivery) continue;
+      if (!candidate.supportsDelivery) continue;
 
-      if (!selected || (hasDeliveryChannel && !selected.hasDeliveryChannel)) {
+      if (
+        !selected ||
+        (candidate.hasDeliveryChannel && !selected.hasDeliveryChannel)
+      ) {
         selected = {
-          branchId,
-          hasDeliveryChannel,
-          paymentMethods: normalizedPaymentMethods,
-          supportsDelivery,
+          branchId: candidate.branchId,
+          hasDeliveryChannel: candidate.hasDeliveryChannel,
+          paymentMethods: candidate.paymentMethods,
+          supportsDelivery: candidate.supportsDelivery,
         };
       }
     }
@@ -312,7 +303,12 @@ export class PublicOrderService {
     adminSb: any,
     brandId: string,
     brandName: string,
-  ): Promise<Array<{ id: string; created_at: string | null }>> {
+  ): Promise<{
+    id: string;
+    name: string | null;
+    slug: string | null;
+    created_at: string | null;
+  } | null> {
     const branchName = `${brandName} 온라인샵`;
 
     const { data: createdBranch, error: createBranchError } = await adminSb
@@ -321,7 +317,7 @@ export class PublicOrderService {
         brand_id: brandId,
         name: branchName,
       })
-      .select('id, created_at')
+      .select('id, name, slug, created_at')
       .single();
 
     if (createBranchError || !createdBranch?.id) {
@@ -330,32 +326,46 @@ export class PublicOrderService {
       );
       const { data: existingRows, error: existingRowsError } = await adminSb
         .from('branches')
-        .select('id, created_at')
+        .select('id, name, slug, created_at')
         .eq('brand_id', brandId)
         .order('created_at', { ascending: true })
         .limit(1000);
 
-      if (existingRowsError || !existingRows || existingRows.length === 0) {
+      const existingOnlineShopBranch = (existingRows ?? []).find((row: any) =>
+        this.isInternalOnlineShopBranchRow(row, brandName),
+      );
+
+      if (
+        existingRowsError ||
+        !existingRows ||
+        existingRows.length === 0 ||
+        !existingOnlineShopBranch?.id
+      ) {
         throw new BadRequestException(
           '온라인샵 주문을 처리할 지점을 자동 생성하지 못했습니다.',
         );
       }
 
-      const branchId = String(existingRows[0]?.id ?? '');
+      const branchId = String(existingOnlineShopBranch.id);
       if (branchId) {
         await this.ensureOnlineShopBranchReady(adminSb, brandId, branchId);
       }
-      return existingRows as Array<{ id: string; created_at: string | null }>;
+      return {
+        id: branchId,
+        name: existingOnlineShopBranch.name ?? null,
+        slug: existingOnlineShopBranch.slug ?? null,
+        created_at: existingOnlineShopBranch.created_at ?? null,
+      };
     }
 
     const branchId = String(createdBranch.id);
     await this.ensureOnlineShopBranchReady(adminSb, brandId, branchId);
-    return [
-      {
-        id: branchId,
-        created_at: createdBranch.created_at ?? null,
-      },
-    ];
+    return {
+      id: branchId,
+      name: createdBranch.name ?? null,
+      slug: createdBranch.slug ?? null,
+      created_at: createdBranch.created_at ?? null,
+    };
   }
 
   private async ensureOnlineShopBranchReady(
@@ -366,7 +376,287 @@ export class PublicOrderService {
     await saveBranchOrderConfig(adminSb, branchId, {
       enabledFulfillmentTypes: [FulfillmentType.DELIVERY],
     });
-    await this.ensureBrandProductsLinkedToBranch(adminSb, brandId, branchId);
+    await this.ensureOnlineShopProductsLinkedToBranch(
+      adminSb,
+      brandId,
+      branchId,
+    );
+  }
+
+  private async buildShopBranchCandidate(
+    branchId: string,
+    options?: { createdAt?: string | null },
+  ): Promise<{
+    branchId: string;
+    paymentMethods: string[];
+    supportsDelivery: boolean;
+    hasDeliveryChannel: boolean;
+    createdAt: string | null;
+  }> {
+    const orderConfig = await this.getPublicBranchOrderConfig(branchId);
+    const paymentMethods = normalizePaymentMethods(
+      orderConfig.allowedPaymentMethods,
+    );
+    const enabledTypes = normalizeFulfillmentTypes(
+      orderConfig.enabledFulfillmentTypes,
+    );
+    const supportsDelivery = enabledTypes.includes(FulfillmentType.DELIVERY);
+    const hasDeliveryChannel = Boolean(
+      orderConfig.channelByType[FulfillmentType.DELIVERY],
+    );
+
+    return {
+      branchId,
+      paymentMethods,
+      supportsDelivery,
+      hasDeliveryChannel,
+      createdAt: options?.createdAt ?? null,
+    };
+  }
+
+  private isInternalOnlineShopBranchRow(
+    row: any,
+    brandName?: string | null,
+  ): boolean {
+    if (row?.slug) {
+      return false;
+    }
+
+    const normalizedBranchName = String(row?.name ?? '')
+      .trim()
+      .toLowerCase();
+    if (!normalizedBranchName) {
+      return false;
+    }
+
+    const normalizedBrandName = String(brandName ?? '')
+      .trim()
+      .toLowerCase();
+    if (
+      normalizedBrandName &&
+      normalizedBranchName === `${normalizedBrandName} 온라인샵`
+    ) {
+      return true;
+    }
+
+    return normalizedBranchName.endsWith('온라인샵');
+  }
+
+  private async ensureOnlineShopCandidate(
+    adminSb: any,
+    context: {
+      brandId: string;
+      brandName: string;
+      branchCandidates: Array<{
+        branchId: string;
+        paymentMethods: string[];
+        supportsDelivery: boolean;
+        hasDeliveryChannel: boolean;
+        createdAt: string | null;
+      }>;
+    },
+  ): Promise<{
+    branchId: string;
+    paymentMethods: string[];
+    supportsDelivery: boolean;
+    hasDeliveryChannel: boolean;
+    createdAt: string | null;
+  }> {
+    const { data: branchRows, error: branchError } = await adminSb
+      .from('branches')
+      .select('id, name, slug, created_at')
+      .eq('brand_id', context.brandId)
+      .order('created_at', { ascending: true })
+      .limit(1000);
+
+    if (branchError) {
+      throw new BadRequestException(
+        '온라인샵 주문을 처리할 지점을 확인하지 못했습니다.',
+      );
+    }
+
+    const existingOnlineShopBranch = (branchRows ?? []).find((row: any) =>
+      this.isInternalOnlineShopBranchRow(row, context.brandName),
+    );
+
+    const onlineShopBranch =
+      existingOnlineShopBranch ??
+      (await this.ensureOnlineShopBranch(
+        adminSb,
+        context.brandId,
+        context.brandName,
+      ));
+
+    if (!onlineShopBranch?.id) {
+      throw new BadRequestException(
+        '온라인샵 주문을 처리할 지점을 준비하지 못했습니다.',
+      );
+    }
+
+    await this.ensureOnlineShopBranchReady(
+      adminSb,
+      context.brandId,
+      onlineShopBranch.id,
+    );
+
+    const existingCandidate = context.branchCandidates.find(
+      (candidate) => candidate.branchId === onlineShopBranch.id,
+    );
+    if (existingCandidate) {
+      return existingCandidate;
+    }
+
+    return this.buildShopBranchCandidate(onlineShopBranch.id, {
+      createdAt: onlineShopBranch.created_at ?? null,
+    });
+  }
+
+  private async ensureOnlineShopProductsLinkedToBranch(
+    adminSb: any,
+    brandId: string,
+    branchId: string,
+  ): Promise<void> {
+    const fetchAllTemplates = (withOnlineShopFilter: boolean) => {
+      let query = adminSb
+        .from('brand_products')
+        .select(
+          'id, name, description, base_price, image_url, sort_order, is_active, created_at',
+        )
+        .eq('brand_id', brandId)
+        .eq('is_active', true);
+
+      if (withOnlineShopFilter) {
+        query = query.eq('is_online_shop_visible', true);
+      }
+
+      return query
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true })
+        .limit(2000);
+    };
+
+    let { data: templates, error: templatesError } =
+      await fetchAllTemplates(true);
+    if (
+      templatesError &&
+      this.isMissingColumnError(templatesError) &&
+      this.getMissingColumnName(templatesError) === 'is_online_shop_visible'
+    ) {
+      ({ data: templates, error: templatesError } =
+        await fetchAllTemplates(false));
+    }
+
+    if (templatesError) {
+      throw new BadRequestException(
+        `온라인샵 상품 템플릿 조회 실패: ${templatesError.message}`,
+      );
+    }
+
+    const { data: brandTemplateRows, error: brandTemplateRowsError } =
+      await adminSb
+        .from('brand_products')
+        .select('id')
+        .eq('brand_id', brandId)
+        .limit(2000);
+
+    if (brandTemplateRowsError) {
+      throw new BadRequestException(
+        `온라인샵 상품 템플릿 목록 조회 실패: ${brandTemplateRowsError.message}`,
+      );
+    }
+
+    const allTemplateIds = (brandTemplateRows ?? [])
+      .map((row: any) => String(row?.id ?? ''))
+      .filter(Boolean);
+    const targetTemplates = (templates ?? []) as any[];
+    const targetTemplateIds = new Set(
+      targetTemplates.map((row: any) => String(row?.id ?? '')).filter(Boolean),
+    );
+
+    if (allTemplateIds.length === 0) {
+      return;
+    }
+
+    const { data: linkedProducts, error: linkedError } = await adminSb
+      .from('products')
+      .select(
+        'id, branch_id, brand_product_id, is_hidden, name, description, base_price, image_url, sort_order',
+      )
+      .eq('branch_id', branchId)
+      .in('brand_product_id', allTemplateIds)
+      .limit(2000);
+
+    if (linkedError) {
+      throw new BadRequestException(
+        `온라인샵 상품 연결 조회 실패: ${linkedError.message}`,
+      );
+    }
+
+    const linkedByTemplate = new Map<string, any>();
+    for (const row of linkedProducts ?? []) {
+      const templateId = String(row?.brand_product_id ?? '');
+      if (!templateId) continue;
+      linkedByTemplate.set(templateId, row);
+    }
+
+    for (const template of targetTemplates) {
+      const templateId = String(template?.id ?? '');
+      if (!templateId) continue;
+
+      const existing = linkedByTemplate.get(templateId);
+      const payload = {
+        name: template.name,
+        description: template.description ?? null,
+        base_price: template.base_price ?? 0,
+        image_url: template.image_url ?? null,
+        sort_order: template.sort_order ?? 0,
+        is_hidden: false,
+      };
+
+      if (existing?.id) {
+        const { error } = await adminSb
+          .from('products')
+          .update(payload)
+          .eq('id', existing.id);
+
+        if (error) {
+          throw new BadRequestException(
+            `온라인샵 상품 자동 연결 실패: ${error.message}`,
+          );
+        }
+        continue;
+      }
+
+      const { error } = await adminSb.from('products').insert({
+        branch_id: branchId,
+        brand_product_id: templateId,
+        ...payload,
+      });
+
+      if (error && error.code !== '23505') {
+        throw new BadRequestException(
+          `온라인샵 상품 자동 연결 실패: ${error.message}`,
+        );
+      }
+    }
+
+    const linkedTemplateIdsToHide = [...linkedByTemplate.keys()].filter(
+      (templateId) => !targetTemplateIds.has(templateId),
+    );
+
+    if (linkedTemplateIdsToHide.length > 0) {
+      const { error } = await adminSb
+        .from('products')
+        .update({ is_hidden: true })
+        .eq('branch_id', branchId)
+        .in('brand_product_id', linkedTemplateIdsToHide);
+
+      if (error) {
+        throw new BadRequestException(
+          `온라인샵 상품 숨김 처리 실패: ${error.message}`,
+        );
+      }
+    }
   }
 
   private async ensureBrandProductsLinkedToBranch(
@@ -538,6 +828,29 @@ export class PublicOrderService {
         chosenPaymentMethods = best.paymentMethods;
         linkedProductMap = best.map;
       }
+
+      if (!best || best.count < templateIds.length) {
+        const onlineShopCandidate = await this.ensureOnlineShopCandidate(
+          adminSb,
+          context,
+        );
+        const map = await this.fetchVisibleTemplateProductsByBranch(
+          adminSb,
+          onlineShopCandidate.branchId,
+          templateIds,
+        );
+
+        if (
+          !best ||
+          map.size > best.count ||
+          (map.size === best.count &&
+            this.compareShopBranchPriority(onlineShopCandidate, best) < 0)
+        ) {
+          chosenBranchId = onlineShopCandidate.branchId;
+          chosenPaymentMethods = onlineShopCandidate.paymentMethods;
+          linkedProductMap = map;
+        }
+      }
     }
 
     const exposedPaymentMethods = chosenPaymentMethods.filter((method) =>
@@ -682,12 +995,35 @@ export class PublicOrderService {
         '선택한 결제수단은 현재 온라인샵에서 사용할 수 없습니다.',
       );
     }
-    const branchSelection = await this.resolveShopBranchForOrder(
-      adminSb,
-      context.branchCandidates,
-      templateIds,
-      paymentMethod,
-    );
+    let branchSelection;
+    try {
+      branchSelection = await this.resolveShopBranchForOrder(
+        adminSb,
+        context.branchCandidates,
+        templateIds,
+        paymentMethod,
+      );
+    } catch (error) {
+      if (
+        !(error instanceof BadRequestException) ||
+        !String(error.message).includes(
+          '온라인샵에 노출된 상품의 매장 연결 상태를 확인해주세요.',
+        )
+      ) {
+        throw error;
+      }
+
+      const onlineShopCandidate = await this.ensureOnlineShopCandidate(
+        adminSb,
+        context,
+      );
+      branchSelection = await this.resolveShopBranchForOrder(
+        adminSb,
+        [onlineShopCandidate, ...context.branchCandidates],
+        templateIds,
+        paymentMethod,
+      );
+    }
 
     const mappedItems = dto.items.map((item) => {
       const branchProductId = branchSelection.branchProductMap.get(
@@ -2262,6 +2598,17 @@ export class PublicOrderService {
       totalAmount: createdOrder.total_amount,
       idempotencyKey,
     });
+
+    // Non-blocking: earn stamps after successful order
+    if (customerPhone) {
+      this.stampsService
+        .earnStamps({
+          branchId: dto.branchId,
+          customerPhone,
+          orderId: createdOrder.id,
+        })
+        .catch((err) => this.logger.warn('earnStamps error', err));
+    }
 
     return {
       id: createdOrder.id,

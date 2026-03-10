@@ -47,7 +47,9 @@ export class MembershipGuard implements CanActivate {
   }
 
   private mapBrandRole(role: BrandRole | null | undefined): Role {
-    if (role === BrandRole.OWNER) return Role.OWNER;
+    if (role === BrandRole.OWNER || role === BrandRole.ADMIN) {
+      return Role.OWNER;
+    }
     return Role.STAFF;
   }
 
@@ -91,8 +93,11 @@ export class MembershipGuard implements CanActivate {
         .eq('status', MemberStatus.ACTIVE);
 
       if (!error && data && data.length > 0) {
-        const hasOwner = data.some((row: any) => row.role === BrandRole.OWNER);
-        req.role = hasOwner ? Role.OWNER : Role.STAFF;
+        const hasOwnerLevelRole = data.some(
+          (row: any) =>
+            row.role === BrandRole.OWNER || row.role === BrandRole.ADMIN,
+        );
+        req.role = hasOwnerLevelRole ? Role.OWNER : Role.STAFF;
       }
 
       return true;

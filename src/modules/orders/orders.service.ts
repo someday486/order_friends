@@ -68,52 +68,25 @@ export class OrdersService {
     const sb = this.supabase.adminClient();
     const { from, to } = PaginationUtil.getRange(page, limit);
 
-    // 총 개수 조회
-    let countQuery = sb
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('branch_id', branchId);
-
-    if (status) {
-      countQuery = countQuery.eq('status', status);
-    }
-    if (fulfillmentType) {
-      countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
-    }
-
-    const { count, error: countError } = await countQuery;
-
-    if (countError) {
-      this.logger.error(
-        `Failed to count orders: ${countError.message}`,
-        countError,
-      );
-      throw new BusinessException(
-        'Failed to count orders',
-        'ORDER_COUNT_FAILED',
-        500,
-        { branchId, error: countError.message },
-      );
-    }
-
-    // 데이터 조회
-    let dataQuery = sb
+    // count와 data를 단일 쿼리로 조회
+    let query = sb
       .from('orders')
       .select(
         'id, order_no, status, created_at, total_amount, customer_name, branch_id, fulfillment_type',
+        { count: 'exact' },
       )
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false })
       .range(from, to);
 
     if (status) {
-      dataQuery = dataQuery.eq('status', status);
+      query = query.eq('status', status);
     }
     if (fulfillmentType) {
-      dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
+      query = query.eq('fulfillment_type', fulfillmentType);
     }
 
-    const { data, error } = await dataQuery;
+    const { data, count, error } = await query;
 
     if (error) {
       this.logger.error(`Failed to fetch orders: ${error.message}`, error);
@@ -305,23 +278,26 @@ export class OrdersService {
             inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
           );
 
-          // Release inventory for each item
+          // 재고 업데이트 및 로그 삽입을 병렬 처리
+          const updatePromises: PromiseLike<any>[] = [];
+          const logRows: any[] = [];
+
           for (const item of orderItems) {
             const inventory = inventoryMap.get(item.product_id);
             if (!inventory) continue;
 
-            // Update inventory: increase available, decrease reserved
-            await sb
-              .from('product_inventory')
-              .update({
-                qty_available: inventory.qty_available + item.qty,
-                qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
-              })
-              .eq('product_id', item.product_id)
-              .eq('branch_id', branchId);
+            updatePromises.push(
+              sb
+                .from('product_inventory')
+                .update({
+                  qty_available: inventory.qty_available + item.qty,
+                  qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+                })
+                .eq('product_id', item.product_id)
+                .eq('branch_id', branchId),
+            );
 
-            // Create inventory log
-            await sb.from('inventory_logs').insert({
+            logRows.push({
               product_id: item.product_id,
               branch_id: branchId,
               transaction_type: 'RELEASE',
@@ -333,6 +309,14 @@ export class OrdersService {
               notes: `주문 취소로 인한 재고 복구 (주문번호: ${data.order_no})`,
             });
           }
+
+          // 재고 업데이트 병렬 실행 + 로그 일괄 삽입
+          await Promise.all([
+            ...updatePromises,
+            logRows.length > 0
+              ? sb.from('inventory_logs').insert(logRows)
+              : Promise.resolve(),
+          ]);
 
           this.logger.log(
             `Inventory released for cancelled order: ${data.order_no}`,

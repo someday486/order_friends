@@ -203,13 +203,22 @@ export class CustomerBranchesService {
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ) {
+    const branchRoleMap = new Map(
+      branchMemberships.map((membership) => [
+        membership.branch_id,
+        membership.role,
+      ]),
+    );
+    const brandRoleMap = new Map(
+      brandMemberships.map((membership) => [
+        membership.brand_id,
+        membership.role,
+      ]),
+    );
+
     return branches.map((branch) => {
-      const branchMembership = branchMemberships.find(
-        (m) => m.branch_id === branch.id,
-      );
-      const brandMembership = brandMemberships.find(
-        (m) => m.brand_id === branch.brand_id,
-      );
+      const branchRole = branchRoleMap.get(branch.id);
+      const brandRole = brandRoleMap.get(branch.brand_id);
 
       return {
         id: branch.id,
@@ -219,7 +228,7 @@ export class CustomerBranchesService {
         logoUrl: branch.logo_url ?? null,
         thumbnailUrl: branch.thumbnail_url ?? null,
         createdAt: branch.created_at,
-        myRole: branchMembership?.role || brandMembership?.role || null,
+        myRole: branchRole || brandRole || null,
       };
     });
   }

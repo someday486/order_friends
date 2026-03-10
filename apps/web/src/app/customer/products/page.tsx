@@ -1,12 +1,13 @@
 ﻿"use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { Switch } from "@/components/common/Switch";
-import { HelpCircle, Pencil, Search, X, ExternalLink  } from "lucide-react";
+import { HelpCircle, Pencil, Search, X, ExternalLink, Star, ChevronDown } from "lucide-react";
 
 
 type Brand = {
@@ -171,17 +172,39 @@ function BranchChecklistTable({
   brandSlug?: string | null;
   disabled?: boolean;
 }) {
-  const allBranchesChecked = branches.length > 0 && branches.every((b) => selectedIds.has(b.id));
+  const [branchSearch, setBranchSearch] = useState("");
+
+  const filteredBranches = useMemo(() => {
+    if (!branchSearch.trim()) return branches;
+    const keyword = branchSearch.toLowerCase();
+    return branches.filter((b) =>
+      (b.name ?? "").toLowerCase().includes(keyword)
+    );
+  }, [branches, branchSearch]);
+
+  const allBranchesChecked =
+    filteredBranches.length > 0 &&
+    filteredBranches.every((b) => selectedIds.has(b.id));
+
   const allChecked = onToggleOnlineShop
     ? allBranchesChecked && (onlineShopChecked ?? false)
     : allBranchesChecked;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
+      <div className="p-3 border-b border-border bg-bg-tertiary">
+        <input
+          type="text"
+          value={branchSearch}
+          onChange={(e) => setBranchSearch(e.target.value)}
+          placeholder="매장명 검색"
+          className="input-field w-full text-xs"
+        />
+      </div>
       <table className="w-full border-collapse">
-        <thead className="bg-bg-tertiary">
+        <thead className="bg-white">
           <tr>
-            <th className="w-12 py-2.5 px-3 text-left">
+            <th className="w-12 py-2.5 px-3 text-center">
               <input
                 type="checkbox"
                 checked={allChecked}
@@ -200,7 +223,7 @@ function BranchChecklistTable({
           </tr>
         </thead>
         <tbody>
-          {branches.map((branch) => (
+          {filteredBranches.map((branch) => (  //여기수정함
             <tr key={branch.id} className="border-t border-border">
               <td className="py-2.5 px-3">
                 <input
@@ -309,8 +332,31 @@ function BranchChecklistTable({
 }
 
 export default function CustomerProductsPage() {
+  const [bulkAutoOpenDisabled, setBulkAutoOpenDisabled] = useState(false);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
+  
+  // ============================
+  // Brand favorites (localStorage)
+  // ============================
+  const [favoriteBrandIds, setFavoriteBrandIds] = useState<string[]>([]);
+  const [isBrandOpen, setIsBrandOpen] = useState(false); // (다음 단계 UI에서 사용)
+  const [brandSearch, setBrandSearch] = useState("");   // (다음 단계 UI에서 사용)
+
+  const toggleFavoriteBrand = useCallback((brandId: string) => {
+    setFavoriteBrandIds((prev) => {
+      const idx = prev.indexOf(brandId);
+      // 이미 즐겨찾기면 제거
+      if (idx !== -1) {
+        const next = prev.slice();
+        next.splice(idx, 1);
+        return next;
+      }
+      // 아니면 "끝에 추가" => 즐겨찾기한 순서 유지
+      return [...prev, brandId];
+    });
+  }, []);
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchCategories, setBranchCategories] = useState<Record<string, ProductCategory[]>>({});
   const [templates, setTemplates] = useState<BrandTemplate[]>([]);
@@ -338,18 +384,47 @@ export default function CustomerProductsPage() {
   const [bulkChangeStatus, setBulkChangeStatus] = useState(false);
   const [bulkChangeInventory, setBulkChangeInventory] = useState(false);
   const [bulkChangeChannels, setBulkChangeChannels] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [appliedDrawerTemplateId, setAppliedDrawerTemplateId] = useState<string | null>(null);
+  const [drawerBranchSearch, setDrawerBranchSearch] = useState("");
+  const lastSelectedTemplateIdRef = useRef<string | null>(null);
+  const brandDropdownRef = useRef<HTMLDivElement | null>(null);
   const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [isEditChannelOpen, setIsEditChannelOpen] = useState(false);
-
+  const brandSearchInputRef = useRef<HTMLInputElement | null>(null);
   const selectedBrand = useMemo(
     () => brands.find((brand) => brand.id === selectedBrandId) ?? null,
     [brands, selectedBrandId],
   );
-  const selectedBrandShopUrl = useMemo(
-    () => getShopUrl(selectedBrand?.slug),
-    [selectedBrand?.slug],
+  
+  const favoriteSet = useMemo(
+    () => new Set(favoriteBrandIds),
+    [favoriteBrandIds],
   );
+
+  const filteredBrands = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase();
+    if (!q) return brands;
+    return brands.filter((b) => (b.name ?? "").toLowerCase().includes(q));
+  }, [brands, brandSearch]);
+
+  const sortedBrands = useMemo(() => {
+    const byId = new Map(filteredBrands.map((b) => [b.id, b]));
+
+    const favoritesInOrder = favoriteBrandIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as Brand[];
+
+    const rest = filteredBrands
+      .filter((b) => !favoriteSet.has(b.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+    return [...favoritesInOrder, ...rest];
+  }, [filteredBrands, favoriteBrandIds, favoriteSet]);
+  
+  const selectedBrandShopUrl = getShopUrl(selectedBrand?.slug);
 
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
@@ -468,7 +543,7 @@ export default function CustomerProductsPage() {
       const ids = Object.values(t.appliedBranchCategoryIds ?? {});
       return ids.some((id) => id && categoryIdToNameKey[id] === nameKey);
     });
-  }, [filteredTemplates, categoryFilter, selectedFilterBranchId]);  
+  }, [filteredTemplates, categoryFilter, selectedFilterBranchId, categoryIdToNameKey]);  
 
   const searchedTemplates = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -495,6 +570,68 @@ export default function CustomerProductsPage() {
     const start = (page - 1) * PAGE_SIZE;
     return searchedTemplates.slice(start, start + PAGE_SIZE);
   }, [searchedTemplates, page]);
+
+  // mount 시 즐겨찾기 로드
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("customerProducts.favoriteBrandIds");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+        setFavoriteBrandIds(parsed);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // 변경 시 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "customerProducts.favoriteBrandIds",
+        JSON.stringify(favoriteBrandIds),
+      );
+    } catch {
+      // ignore
+    }
+  }, [favoriteBrandIds]);
+
+  useEffect(() => {
+    if (!isBrandOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const el = brandDropdownRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setIsBrandOpen(false);
+        setBrandSearch("");
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsBrandOpen(false);
+        setBrandSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isBrandOpen]);
+
+  useEffect(() => {
+    if (isBrandOpen) {
+      setTimeout(() => {
+        brandSearchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [isBrandOpen]);  
 
   // 판매 채널/브랜드/카테고리/검색어 바뀌면 1페이지로 리셋
   useEffect(() => {
@@ -530,6 +667,18 @@ export default function CustomerProductsPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  useEffect(() => {
+    // 0 -> 1 이상 되는 순간에만 자동으로 펼치기
+    if (selectedTemplateIds.size > 0 && !isBulkOpen && !bulkAutoOpenDisabled) {
+      setIsBulkOpen(true);
+    }
+
+    // 선택이 0이 되면, 다음 선택 때는 다시 자동오픈 허용
+    if (selectedTemplateIds.size === 0 && bulkAutoOpenDisabled) {
+      setBulkAutoOpenDisabled(false);
+    }
+  }, [selectedTemplateIds.size, isBulkOpen, bulkAutoOpenDisabled]);
+
   // 선택된 메뉴가 0개가 되면 일괄변경 플래그 리셋
   useEffect(() => {
     if (selectedTemplateIds.size === 0) {
@@ -538,6 +687,19 @@ export default function CustomerProductsPage() {
       setBulkChangeChannels(false);
     }
   }, [selectedTemplateIds.size]);
+
+  // 드로어 닫기: ESC
+  useEffect(() => {
+    if (!appliedDrawerTemplateId) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAppliedDrawerTemplateId(null);
+        setDrawerBranchSearch("");
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [appliedDrawerTemplateId]);
 
   const canManage = canManageBrandTemplate(selectedBrand?.myRole);
   const hasSelectedTemplates = selectedTemplateIds.size > 0;
@@ -667,7 +829,7 @@ export default function CustomerProductsPage() {
         const initialBrand = brandRows[0];
         const initialBrandId = initialBrand.id;
         setSelectedBrandId(initialBrandId);
-        await loadBrandContext(initialBrandId, initialBrand.name);
+        // await loadBrandContext(initialBrandId, initialBrand.name);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "브랜드 메뉴 정보를 불러오지 못했습니다.");
@@ -920,6 +1082,32 @@ export default function CustomerProductsPage() {
     setSelectedTemplateIds(new Set(searchedTemplates.map((template) => template.id)));
   };
 
+  const handleTemplateCheckboxClick = useCallback(
+    (templateId: string, e: React.MouseEvent<HTMLInputElement>) => {
+      if (e.shiftKey && lastSelectedTemplateIdRef.current) {
+        e.preventDefault();
+        const currentIndex = pagedTemplates.findIndex((t) => t.id === templateId);
+        const lastIndex = pagedTemplates.findIndex(
+          (t) => t.id === lastSelectedTemplateIdRef.current,
+        );
+        if (currentIndex !== -1 && lastIndex !== -1) {
+          const start = Math.min(currentIndex, lastIndex);
+          const end = Math.max(currentIndex, lastIndex);
+          const rangeIds = pagedTemplates.slice(start, end + 1).map((t) => t.id);
+          setSelectedTemplateIds((prev) => {
+            const next = new Set(prev);
+            for (const id of rangeIds) next.add(id);
+            return next;
+          });
+        }
+        lastSelectedTemplateIdRef.current = templateId;
+        return;
+      }
+      lastSelectedTemplateIdRef.current = templateId;
+    },
+    [pagedTemplates],
+  );
+
   const handleToggleTemplateForSalesChannel = async (template: BrandTemplate) => {
     if (!selectedBrandId || salesChannelFilter === "ALL") {
       return;
@@ -953,6 +1141,35 @@ export default function CustomerProductsPage() {
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "판매채널 설정 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleOnlineShopVisibleFromAll = async (template: BrandTemplate) => {
+    if (!selectedBrandId) return;
+
+    const nextVisible = template.isOnlineShopVisible === false;
+    const prevVisible = template.isOnlineShopVisible !== false;
+
+    // optimistic update (해당 항목만)
+    setTemplates((ts) =>
+      ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: nextVisible } : t)),
+    );
+
+    try {
+      setSaving(true);
+      await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
+        isOnlineShopVisible: nextVisible,
+      });
+      toast.success(nextVisible ? "온라인샵에 노출했습니다." : "온라인샵에서 숨겼습니다.");
+    } catch (e) {
+      // rollback (해당 항목만)
+      setTemplates((ts) =>
+        ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: prevVisible } : t)),
+      );
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "온라인샵 노출 변경에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -1044,21 +1261,90 @@ export default function CustomerProductsPage() {
         )}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-4 mb-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div ref={brandDropdownRef} className="flex-1 min-w-[200px] relative">
           <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
-          <select
-            value={selectedBrandId}
-            onChange={(event) => setSelectedBrandId(event.target.value)}
-            className="input-field w-full"
+
+          {/* Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsBrandOpen((v) => !v)}
+            className="input-field w-full flex items-center justify-between gap-2"
+            aria-haspopup="listbox"
+            aria-expanded={isBrandOpen}
           >
-            <option value="">브랜드를 선택하세요</option>
-            {brands.map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </select>
+            <span className="truncate">
+              {selectedBrand ? selectedBrand.name : "브랜드를 선택하세요"}
+            </span>
+            <ChevronDown className="w-4 h-4 text-text-secondary flex-shrink-0" />
+          </button>
+
+          {/* Dropdown */}
+          {isBrandOpen && (
+            <div
+              className="absolute left-0 top-full mt-2 w-full z-30 rounded-lg border border-border bg-bg-secondary shadow-lg overflow-hidden"
+              role="listbox"
+            >
+              {/* (선택) 검색 input: 다음 단계에서 필터링 연결할 거라 지금은 UI만 */}
+              <div className="p-2 border-b border-border bg-bg-tertiary">
+                <input
+                  ref={brandSearchInputRef}
+                  value={brandSearch}
+                  onChange={(e) => setBrandSearch(e.target.value)}
+                  placeholder="브랜드 검색"
+                  className="input-field w-full text-xs"
+                />
+              </div>
+
+              <div className="max-h-72 overflow-y-auto">
+                {sortedBrands.map((brand) => {
+                  const isFav = favoriteSet.has(brand.id);
+                  const isSelected = brand.id === selectedBrandId;
+
+                  return (
+                    <div
+                      key={brand.id}
+                      className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-bg-tertiary ${
+                        isSelected ? "bg-bg-tertiary/60" : ""
+                      }`}
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedBrandId(brand.id);
+                        setBrandSearch("");       // 🔥 검색어 초기화
+                        setIsBrandOpen(false);
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-foreground">{brand.name}</div>
+                      </div>
+
+                      {/* 즐겨찾기 버튼: 행 선택(onClick) 방지 위해 stopPropagation */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteBrand(brand.id);
+                        }}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
+                        aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                        title={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      >
+                        <Star className={`w-4 h-4 ${isFav ? "fill-current text-yellow-500" : ""}`} />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {sortedBrands.length === 0 && (
+                  <div className="px-3 py-6 text-center text-sm text-text-secondary">
+                    브랜드가 없습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {selectedBrandId && (
@@ -1114,7 +1400,7 @@ export default function CustomerProductsPage() {
                     }
                   }}
                   placeholder="메뉴명/설명 검색"
-                  className="input-field w-full pl-9 pr-9"
+                  className="input-field w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
                   aria-label="메뉴 검색"
                 />
                 {searchInput && (
@@ -1137,6 +1423,7 @@ export default function CustomerProductsPage() {
             </div>
           </>
         )}
+      </div>
       </div>
 
       {error && (
@@ -1162,41 +1449,50 @@ export default function CustomerProductsPage() {
           ) : (
             <>
               <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
 
-                  <div className="relative group cursor-pointer">
-                    <HelpCircle
-                      size={16}
-                      className="text-text-secondary hover:text-foreground transition-colors"
-                    />
+                    <div className="relative group cursor-pointer">
+                      <HelpCircle
+                        size={16}
+                        className="text-text-secondary hover:text-foreground transition-colors"
+                      />
 
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                      1) 표에서 메뉴 체크 <br />
-                      2) 변경할 항목 선택 (체크박스) <br />
-                      3) 일괄변경 버튼 클릭
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                        1) 표에서 메뉴 체크 <br />
+                        2) 변경할 항목 선택 (체크박스) <br />
+                        3) 일괄변경 버튼 클릭
+                      </div>
                     </div>
-                  </div>
- 
-                    {!hasSelectedTemplates && (
+
+                    {!isBulkOpen && !hasSelectedTemplates && (
                       <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-warning/20 text-warning">
                         상품을 선택하세요
                       </span>
                     )}
 
-                </div>
-                  <button
-                    onClick={handleBulkUpdateTemplates}
-                    disabled={saving || !hasSelectedTemplates}
-                    className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
-                  >
-                    {hasSelectedTemplates
-                      ? `${selectedTemplateIds.size}개 메뉴 일괄 변경`
-                      : "일괄변경"}
-                  </button>
+                    {!isBulkOpen && hasSelectedTemplates && (
+                      <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
+                        {selectedTemplateIds.size}개 선택됨
+                        {(bulkChangeStatus || bulkChangeInventory || bulkChangeChannels) && " · 변경항목 있음"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkOpen((prev) => !prev)}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
+                    >
+                      {isBulkOpen ? "접기" : "펼치기"}
+                    </button>
+                  </div>
                 </div>
 
+                {isBulkOpen && (
+                  <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -1209,7 +1505,7 @@ export default function CustomerProductsPage() {
                         className="w-4 h-4 rounded accent-primary"
                       />
                       <label htmlFor="bulk-change-status" className="text-xs text-text-secondary font-semibold cursor-pointer">
-                        상태
+                        노출상태
                       </label>
                     </div>
                     <select
@@ -1307,21 +1603,24 @@ export default function CustomerProductsPage() {
                         </div>
                       )}
                       {bulkChangeStatus && bulkStatus === "keep" && (
-                        <div className="text-warning">• 상태: "변경 안함" 선택됨 - 값을 선택하세요</div>
+                        <div className="text-warning">• 상태: &quot;변경 안함&quot; 선택됨 - 값을 선택하세요</div>
                       )}
                       {bulkChangeInventory && bulkInventoryMode === "keep" && (
-                        <div className="text-warning">• 재고관리: "변경 안함" 선택됨 - 값을 선택하세요</div>
+                        <div className="text-warning">• 재고관리: &quot;변경 안함&quot; 선택됨 - 값을 선택하세요</div>
                       )}
                     </div>
                   </div>
                 )}
+                  </>
+                )}
               </div>
 
-              <div className="border border-border rounded-xl overflow-visible">
-                <table className="w-full border-collapse">
-                  <thead className="bg-bg-tertiary">
+              <div className="pb-24">
+                <div className="border border-border rounded-xl overflow-hidden">
+                  <table className="w-full border-collapse">
+                  <thead className="bg-white">
                     <tr>
-                      <th className="w-12 py-3 px-4 text-left">
+                      <th className="w-12 py-2 px-3 text-left">
                         <input
                           type="checkbox"
                           checked={allTemplatesChecked}
@@ -1330,12 +1629,12 @@ export default function CustomerProductsPage() {
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">메뉴</th>
-                      <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">기본가</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">판매채널</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">재고관리</th>
-                      <th className="text-left py-3 px-4 text-xs font-bold text-text-secondary">노출상태</th>
-                      <th className="text-right py-3 px-4 text-xs font-bold text-text-secondary">편집</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">메뉴</th>
+                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">기본가</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">판매채널</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">노출상태</th>
+                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">재고관리</th>
+                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">편집</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1351,33 +1650,50 @@ export default function CustomerProductsPage() {
 
                       return (
                         <Fragment key={template.id}>
-                          <tr className="border-t border-border">
-                            <td className="py-3 px-4">
+                          <tr className="border-t border-border hover:bg-bg-secondary/40 transition-colors">
+                            <td className="py-2 px-3">
                               <input
                                 type="checkbox"
                                 checked={selectedTemplateIds.has(template.id)}
+                                onClick={(e) => handleTemplateCheckboxClick(template.id, e)}
                                 onChange={() => toggleTemplateSelection(template.id)}
                                 disabled={saving}
                                 className="w-4 h-4 rounded accent-primary"
+                                title="Shift+클릭으로 범위 선택"
                               />
                             </td>
-                            <td className="py-3 px-4 text-sm text-foreground">
+                            <td className="py-2 px-3 text-sm text-foreground">
                               <div className="font-semibold">{template.name}</div>
                               {template.description && (
                                 <div className="text-xs text-text-secondary mt-0.5">{template.description}</div>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-sm text-foreground text-right">
+                            <td className="py-2 px-3 text-sm text-foreground text-right">
                               {formatWon(template.price)}
                             </td>
-                            <td className="py-3 px-4 text-sm text-foreground">
+                            <td className="py-2 px-3 text-sm text-foreground">
                               {salesChannelFilter === "ALL" ? (
-                                <>
-                                  <div>{appliedCount} / {totalCount} 매장</div>
-                                  <div className="text-xs text-text-secondary mt-0.5">
-                                    {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
-                                  </div>
-                                </>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAppliedDrawerTemplateId(template.id);
+                                    setDrawerBranchSearch("");
+                                  }}
+                                  className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
+                                >
+                                  {appliedCount}/{totalCount} 매장
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleOnlineShopVisibleFromAll(template)}
+                                  disabled={saving}
+                                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                                >
+                                  {isOnlineShopVisible ? "온라인샵 숨김" : "온라인샵 노출"}
+                                </button>
+                              </div>
                               ) : salesChannelFilter === "ONLINE_SHOP" ? (
                                 <span
                                   className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
@@ -1402,7 +1718,18 @@ export default function CustomerProductsPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-sm">
+
+                            <td className="py-2 px-3 text-sm">
+                              <Switch
+                                checked={template.isActive}
+                                onChange={(nextChecked) =>
+                                  handleToggleTemplateActive(template, nextChecked)
+                                }
+                                disabled={saving}
+                                ariaLabel={`${template.name} 판매 상태 토글`}
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-sm">
                               {template.inventoryMode === "MIXED" ? (
                                 <div className="relative group inline-flex items-center">
                                   <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
@@ -1423,17 +1750,7 @@ export default function CustomerProductsPage() {
                               )}
                             </td>
 
-                            <td className="py-3 px-4 text-sm">
-                              <Switch
-                                checked={template.isActive}
-                                onChange={(nextChecked) =>
-                                  handleToggleTemplateActive(template, nextChecked)
-                                }
-                                disabled={saving}
-                                ariaLabel={`${template.name} 판매 상태 토글`}
-                              />
-                            </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-2 px-3 text-right">
                               <div className="inline-flex items-center gap-2">
                                 {salesChannelFilter !== "ALL" && (
                                   <button
@@ -1598,42 +1915,245 @@ export default function CustomerProductsPage() {
                       </tr>
                     )}
                   </tbody>
-                </table>
-              </div>
-
-              <div className="flex items-center justify-between mt-3 px-1">
-              <div className="text-xs text-text-secondary">
-                {searchedTemplates.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-
-                {Math.min(page * PAGE_SIZE, searchedTemplates.length)} / {searchedTemplates.length}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                >
-                  이전
-                </button>
-
-                <div className="text-xs text-text-secondary min-w-[64px] text-center">
-                  {page} / {totalPages}
+                  </table>
                 </div>
 
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                >
-                  다음
-                </button>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-1 mt-8 mb-4">
+                    <button
+                      onClick={() => setPage(1)}
+                      disabled={page === 1}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &laquo;
+                    </button>
+
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &lsaquo;
+                    </button>
+
+                    <div className="flex items-center gap-1 mx-2">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum: number;
+
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (page <= 3) {
+                          pageNum = i + 1;
+                        } else if (page >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = page - 2 + i;
+                        }
+
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum)}
+                            className={`w-9 h-9 rounded-full text-sm font-bold cursor-pointer transition-all duration-150 ${
+                              page === pageNum
+                                ? "bg-foreground text-background"
+                                : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &rsaquo;
+                    </button>
+
+                    <button
+                      onClick={() => setPage(totalPages)}
+                      disabled={page === totalPages}
+                      className="w-9 h-9 rounded-full border border-border bg-bg-secondary text-foreground text-sm font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg-tertiary transition-colors"
+                    >
+                      &raquo;
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
 
             </>
           )}
         </>
       )}
+
+
+      {isBulkOpen && hasSelectedTemplates && (
+        <div className="fixed bottom-0 right-0 left-0 md:left-64 z-40 bg-background/95 backdrop-blur border-t border-border shadow-lg">
+          <div className="w-full px-6 py-3 flex items-center justify-between gap-3">
+            <div className="text-sm text-text-secondary">
+              <span className="font-semibold text-foreground">
+                {selectedTemplateIds.size}개 메뉴 선택됨
+              </span>
+              {(bulkChangeStatus || bulkChangeInventory || bulkChangeChannels) && (
+                <span className="ml-2 text-primary-500 font-semibold">· 변경항목 있음</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  // 사용자가 직접 접은 경우: 다음 선택 시 자동오픈 막기
+                  setBulkAutoOpenDisabled(true);
+                  setIsBulkOpen(false);
+                }}
+                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-text-secondary text-sm font-semibold hover:bg-bg-tertiary transition-colors"
+              >
+                접기
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBulkUpdateTemplates}
+                disabled={
+                  saving ||
+                  !hasSelectedTemplates ||
+                  (!bulkChangeStatus && !bulkChangeInventory && !bulkChangeChannels)
+                }
+                className="px-5 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors"
+              >
+                일괄 변경 실행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 적용 매장 드로어 */}
+      {appliedDrawerTemplateId && (() => {
+        const drawerTemplate = templates.find((t) => t.id === appliedDrawerTemplateId);
+        if (!drawerTemplate) return null;
+        const appliedIds = new Set(drawerTemplate.appliedBranchIds ?? []);
+        const q = drawerBranchSearch.toLowerCase();
+        const filteredDrawerBranches = q
+          ? branches.filter((b) => b.name.toLowerCase().includes(q))
+          : branches;
+
+        return (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => {
+                setAppliedDrawerTemplateId(null);
+                setDrawerBranchSearch("");
+              }}
+            />
+            <div className="relative w-full max-w-sm bg-background border-l border-border shadow-xl flex flex-col h-full">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                <div>
+                  <h3 className="text-base font-bold text-foreground">적용 매장</h3>
+                  <p className="text-xs text-text-secondary mt-0.5 truncate max-w-[240px]">
+                    {drawerTemplate.name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setAppliedDrawerTemplateId(null);
+                    setDrawerBranchSearch("");
+                  }}
+                  className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:text-foreground hover:bg-bg-tertiary transition-colors"
+                  aria-label="닫기"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="px-5 py-3 border-b border-border">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
+                  <input
+                    type="text"
+                    value={drawerBranchSearch}
+                    onChange={(e) => setDrawerBranchSearch(e.target.value)}
+                    placeholder="매장 검색..."
+                    className="input-field w-full pl-9 text-sm"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                <div className="text-xs font-semibold text-text-secondary mb-2">
+                  적용됨 {appliedIds.size} / {branches.length}
+                </div>
+                {filteredDrawerBranches.length === 0 ? (
+                  <div className="text-sm text-text-tertiary py-4 text-center">
+                    검색 결과가 없습니다
+                  </div>
+                ) : (
+                  <ul className="space-y-1">
+                    {filteredDrawerBranches.map((branch) => {
+                      const isApplied = appliedIds.has(branch.id);
+                      return (
+                        <li
+                          key={branch.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-tertiary transition-colors"
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              isApplied ? "bg-success" : "bg-neutral-400"
+                            }`}
+                          />
+                          <span className="text-sm text-foreground truncate">
+                            {branch.name}
+                          </span>
+                          <span
+                            className={`ml-auto text-2xs font-medium flex-shrink-0 ${
+                              isApplied ? "text-success" : "text-text-tertiary"
+                            }`}
+                          >
+                            {isApplied ? "적용" : "미적용"}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center gap-2 px-2 py-1.5">
+                    <span
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        drawerTemplate.isOnlineShopVisible !== false
+                          ? "bg-success"
+                          : "bg-neutral-400"
+                      }`}
+                    />
+                    <span className="text-sm text-foreground font-medium">
+                      온라인샵
+                    </span>
+                    <span
+                      className={`ml-auto text-2xs font-medium flex-shrink-0 ${
+                        drawerTemplate.isOnlineShopVisible !== false
+                          ? "text-success"
+                          : "text-text-tertiary"
+                      }`}
+                    >
+                      {drawerTemplate.isOnlineShopVisible !== false
+                        ? "노출"
+                        : "미노출"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 상품등록 모달 */}
       {isCreateModalOpen && (
@@ -1710,8 +2230,8 @@ export default function CustomerProductsPage() {
                         }
                         className="input-field"
                       >
-                        <option value="PRODUCT">사용 (메뉴 재고 관리)</option>
-                        <option value="NONE">미사용 (재고 차감 없음)</option>
+                        <option value="PRODUCT">사용</option>
+                        <option value="NONE">미사용</option>
                       </select>
                     </div>
                   </div>

@@ -208,7 +208,6 @@ describe('PaymentsController', () => {
         'payment-1',
         'branch-1',
         dto,
-        { user: { id: 'user-1' } } as any,
       );
 
       expect(result).toEqual({ status: 'REFUNDED' });
@@ -223,7 +222,7 @@ describe('PaymentsController', () => {
       mockService.refundPayment.mockRejectedValue(new Error('boom'));
 
       await expect(
-        controller.refundPayment('payment-1', 'branch-1', {} as any, {} as any),
+        controller.refundPayment('payment-1', 'branch-1', {} as any),
       ).rejects.toThrow('boom');
     });
   });

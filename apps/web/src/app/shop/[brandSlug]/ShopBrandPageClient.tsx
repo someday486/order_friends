@@ -100,8 +100,8 @@ function parseApiErrorMessage(error: unknown, fallback: string): string {
 // ── 상품 이미지 폴백 아이콘 ──
 function ProductImageFallback() {
   return (
-    <div className="w-20 h-20 rounded-xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
+    <div className="h-28 w-28 rounded-2xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0 md:h-36 md:w-36">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
         <line x1="3" y1="6" x2="21" y2="6" />
         <path d="M16 10a4 4 0 01-8 0" />
@@ -536,42 +536,42 @@ export default function ShopBrandPageClient({
                   return (
                     <article
                       key={product.id}
-                      className="rounded-xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-3"
+                      className="rounded-2xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-4"
                     >
                       {product.imageUrl ? (
                         <Image
                           src={product.imageUrl}
                           alt={product.name}
-                          width={80}
-                          height={80}
-                          className="w-20 h-20 rounded-xl object-cover border border-border flex-shrink-0"
+                          width={144}
+                          height={144}
+                          className="h-28 w-28 rounded-2xl object-cover border border-border flex-shrink-0 md:h-36 md:w-36"
                           unoptimized
                         />
                       ) : (
                         <ProductImageFallback />
                       )}
 
-                      <div className="flex-1 min-w-0">
+                      <div className="flex min-h-28 flex-1 flex-col md:min-h-36">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <h3 className="text-sm md:text-base font-bold truncate">{product.name}</h3>
+                            <h3 className="text-base md:text-lg font-bold break-keep">{product.name}</h3>
                             {product.categoryName ? (
                               <p className="text-xs text-text-tertiary mt-0.5">{product.categoryName}</p>
                             ) : null}
                           </div>
-                          <div className="text-sm font-bold whitespace-nowrap text-foreground">{formatWon(product.price)}</div>
+                          <div className="text-sm md:text-base font-bold whitespace-nowrap text-foreground">{formatWon(product.price)}</div>
                         </div>
                         {product.description ? (
-                          <p className="mt-1.5 text-sm text-text-secondary line-clamp-2">{product.description}</p>
+                          <p className="mt-2 text-sm md:text-base text-text-secondary line-clamp-3">{product.description}</p>
                         ) : null}
 
-                        <div className="mt-3 flex items-center justify-end">
+                        <div className="mt-auto pt-4 flex items-center justify-end">
                           {qty === 0 ? (
                             /* qty=0: "담기" 버튼 */
                             <button
                               type="button"
                               onClick={() => updateQty(product.id, 1)}
-                              className="h-9 px-4 rounded-xl border border-primary-500 text-primary-500 text-sm font-semibold bg-primary-500/5 hover:bg-primary-500/15 transition-colors"
+                              className="h-10 px-5 rounded-xl border border-primary-500 text-primary-500 text-sm font-semibold bg-primary-500/5 hover:bg-primary-500/15 transition-colors"
                               aria-label={`${product.name} 장바구니에 담기`}
                             >
                               담기

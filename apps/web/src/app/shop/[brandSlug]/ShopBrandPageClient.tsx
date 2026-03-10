@@ -1,24 +1,25 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import toast from "react-hot-toast";
-import { apiClient } from "@/lib/api-client";
-import { formatWon } from "@/lib/format";
-import { useAuth } from "@/hooks/useAuth";
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import Modal from '@/components/ui/Modal';
+import { apiClient } from '@/lib/api-client';
+import { formatWon } from '@/lib/format';
+import { useAuth } from '@/hooks/useAuth';
 import {
   loadCustomerInfoFromAuthenticatedUser,
   loadCustomerInfoFromLatestOrder,
   persistCustomerInfoToUserMetadata,
-} from "@/lib/customer-info-autofill";
+} from '@/lib/customer-info-autofill';
 import {
   loadCustomerInfoDraft,
   saveCustomerInfoDraft,
   saveLastOrderRecord,
-} from "@/lib/order-session";
-import { supabaseBrowser } from "@/lib/supabase/client";
-import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
+} from '@/lib/order-session';
+import { supabaseBrowser } from '@/lib/supabase/client';
+import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 
 type ShopProduct = {
   id: string;
@@ -37,7 +38,7 @@ export type ShopBrandResponse = {
   brandName: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
-  fulfillmentType: "DELIVERY";
+  fulfillmentType: 'DELIVERY';
   paymentMethods: string[];
   transferAccount?: {
     bankName?: string | null;
@@ -68,16 +69,16 @@ type CreatedOrder = {
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
-  CARD: "💳 카드",
-  CASH: "💵 현금",
-  TRANSFER: "🏦 계좌이체",
+  CARD: '💳 카드',
+  CASH: '💵 현금',
+  TRANSFER: '🏦 계좌이체',
 };
 
 function parseApiErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
-  const raw = error.message ?? "";
+  const raw = error.message ?? '';
 
-  const jsonStart = raw.indexOf("{");
+  const jsonStart = raw.indexOf('{');
   if (jsonStart >= 0) {
     try {
       const parsed = JSON.parse(raw.slice(jsonStart)) as {
@@ -86,7 +87,7 @@ function parseApiErrorMessage(error: unknown, fallback: string): string {
       if (Array.isArray(parsed.message) && parsed.message.length > 0) {
         return String(parsed.message[0]);
       }
-      if (typeof parsed.message === "string" && parsed.message.trim()) {
+      if (typeof parsed.message === 'string' && parsed.message.trim()) {
         return parsed.message;
       }
     } catch {
@@ -100,8 +101,16 @@ function parseApiErrorMessage(error: unknown, fallback: string): string {
 // ── 상품 이미지 폴백 아이콘 ──
 function ProductImageFallback() {
   return (
-    <div className="h-28 w-28 rounded-2xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0 md:h-36 md:w-36">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
+    <div className="h-32 w-32 rounded-2xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0 md:h-44 md:w-44">
+      <svg
+        width="40"
+        height="40"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-text-tertiary"
+      >
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
         <line x1="3" y1="6" x2="21" y2="6" />
         <path d="M16 10a4 4 0 01-8 0" />
@@ -126,19 +135,22 @@ export default function ShopBrandPageClient({
   const [data, setData] = useState<ShopBrandResponse | null>(initialData);
   const [loading, setLoading] = useState(initialData === null);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [paymentMethod, setPaymentMethod] = useState("CARD");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress1, setCustomerAddress1] = useState("");
-  const [customerAddress2, setCustomerAddress2] = useState("");
-  const [customerMemo, setCustomerMemo] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState('CARD');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress1, setCustomerAddress1] = useState('');
+  const [customerAddress2, setCustomerAddress2] = useState('');
+  const [customerMemo, setCustomerMemo] = useState('');
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const [authInfoLoaded, setAuthInfoLoaded] = useState(false);
   const authInfoRequestedRef = useRef(false);
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [previewProduct, setPreviewProduct] = useState<ShopProduct | null>(
+    null,
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -173,14 +185,14 @@ export default function ShopBrandPageClient({
   ]);
 
   useEffect(() => {
-    if (status !== "authenticated") {
+    if (status !== 'authenticated') {
       authInfoRequestedRef.current = false;
       setAuthInfoLoaded(false);
     }
   }, [status]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status !== 'authenticated') return;
     if (!customerInfoReady) return;
     if (authInfoRequestedRef.current) return;
 
@@ -188,14 +200,16 @@ export default function ShopBrandPageClient({
     let cancelled = false;
 
     const fillFromAuthenticatedUser = async () => {
-      const next = await loadCustomerInfoFromAuthenticatedUser(user?.user_metadata);
+      const next = await loadCustomerInfoFromAuthenticatedUser(
+        user?.user_metadata,
+      );
       if (cancelled) return;
 
-      setCustomerName((prev) => prev || next.customerName || "");
-      setCustomerPhone((prev) => prev || next.customerPhone || "");
-      setCustomerAddress1((prev) => prev || next.customerAddress1 || "");
-      setCustomerAddress2((prev) => prev || next.customerAddress2 || "");
-      setCustomerMemo((prev) => prev || next.customerMemo || "");
+      setCustomerName((prev) => prev || next.customerName || '');
+      setCustomerPhone((prev) => prev || next.customerPhone || '');
+      setCustomerAddress1((prev) => prev || next.customerAddress1 || '');
+      setCustomerAddress2((prev) => prev || next.customerAddress2 || '');
+      setCustomerMemo((prev) => prev || next.customerMemo || '');
       setAuthInfoLoaded(true);
     };
 
@@ -207,8 +221,8 @@ export default function ShopBrandPageClient({
   }, [customerInfoReady, status, user?.user_metadata]);
 
   const handleLoadLastOrderInfo = async () => {
-    if (status !== "authenticated") {
-      toast("간편로그인 후 이용해 주세요.");
+    if (status !== 'authenticated') {
+      toast('간편로그인 후 이용해 주세요.');
       return;
     }
 
@@ -218,23 +232,23 @@ export default function ShopBrandPageClient({
 
     const draft = loadCustomerInfoDraft();
     const merged = {
-      customerName: next.customerName || draft?.customerName || "",
-      customerPhone: next.customerPhone || draft?.customerPhone || "",
-      customerAddress1: next.customerAddress1 || draft?.customerAddress1 || "",
-      customerAddress2: next.customerAddress2 || draft?.customerAddress2 || "",
-      customerMemo: next.customerMemo || draft?.customerMemo || "",
+      customerName: next.customerName || draft?.customerName || '',
+      customerPhone: next.customerPhone || draft?.customerPhone || '',
+      customerAddress1: next.customerAddress1 || draft?.customerAddress1 || '',
+      customerAddress2: next.customerAddress2 || draft?.customerAddress2 || '',
+      customerMemo: next.customerMemo || draft?.customerMemo || '',
     };
 
     const hasData = Boolean(
       merged.customerName ||
-        merged.customerPhone ||
-        merged.customerAddress1 ||
-        merged.customerAddress2 ||
-        merged.customerMemo,
+      merged.customerPhone ||
+      merged.customerAddress1 ||
+      merged.customerAddress2 ||
+      merged.customerMemo,
     );
 
     if (!hasData) {
-      toast("불러올 지난 주문 정보가 없습니다.");
+      toast('불러올 지난 주문 정보가 없습니다.');
       return;
     }
 
@@ -244,7 +258,7 @@ export default function ShopBrandPageClient({
     setCustomerAddress2((prev) => merged.customerAddress2 || prev);
     setCustomerMemo((prev) => merged.customerMemo || prev);
     setAuthInfoLoaded(true);
-    toast.success("지난 주문 정보를 불러왔습니다.");
+    toast.success('지난 주문 정보를 불러왔습니다.');
   };
 
   const handleLogout = async () => {
@@ -260,11 +274,11 @@ export default function ShopBrandPageClient({
 
       const { error: signOutError } = await supabaseBrowser.auth.signOut();
       if (signOutError) {
-        toast.error(signOutError.message || "로그아웃에 실패했습니다.");
+        toast.error(signOutError.message || '로그아웃에 실패했습니다.');
         return;
       }
 
-      toast.success("로그아웃되었습니다.");
+      toast.success('로그아웃되었습니다.');
     } finally {
       setLoggingOut(false);
     }
@@ -285,20 +299,21 @@ export default function ShopBrandPageClient({
         );
         setData(response);
       } catch (e) {
-        setError(parseApiErrorMessage(e, "온라인샵 정보를 불러오지 못했습니다."));
+        setError(
+          parseApiErrorMessage(e, '온라인샵 정보를 불러오지 못했습니다.'),
+        );
       } finally {
         setLoading(false);
       }
     };
 
     void loadShop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brandSlug]);
 
   useEffect(() => {
     if (!data) return;
     if (data.paymentMethods.length === 0) {
-      setPaymentMethod("CARD");
+      setPaymentMethod('CARD');
       return;
     }
     if (!data.paymentMethods.includes(paymentMethod)) {
@@ -312,7 +327,8 @@ export default function ShopBrandPageClient({
     if (!keyword) return products;
 
     return products.filter((product) => {
-      const target = `${product.name} ${product.description ?? ""}`.toLowerCase();
+      const target =
+        `${product.name} ${product.description ?? ''}`.toLowerCase();
       return target.includes(keyword);
     });
   }, [data, query]);
@@ -344,22 +360,27 @@ export default function ShopBrandPageClient({
     });
   };
 
+  const openProductPreview = (product: ShopProduct) => {
+    if (!product.imageUrl) return;
+    setPreviewProduct(product);
+  };
+
   const submitOrder = async () => {
     if (!data) return;
     if (cartItems.length === 0) {
-      setSubmitError("상품을 1개 이상 선택해주세요.");
+      setSubmitError('상품을 1개 이상 선택해주세요.');
       return;
     }
     if (!customerName.trim()) {
-      setSubmitError("주문자 이름을 입력해주세요.");
+      setSubmitError('주문자 이름을 입력해주세요.');
       return;
     }
     if (!customerPhone.trim()) {
-      setSubmitError("연락처를 입력해주세요.");
+      setSubmitError('연락처를 입력해주세요.');
       return;
     }
     if (!customerAddress1.trim()) {
-      setSubmitError("배송 주소를 입력해주세요.");
+      setSubmitError('배송 주소를 입력해주세요.');
       return;
     }
 
@@ -400,12 +421,13 @@ export default function ShopBrandPageClient({
           customerAddress2: customerAddress2 || null,
           customerMemo: customerMemo || null,
           paymentMethod,
-          fulfillmentType: "DELIVERY",
-          transferAccount: response.transferAccount ?? data.transferAccount ?? null,
+          fulfillmentType: 'DELIVERY',
+          transferAccount:
+            response.transferAccount ?? data.transferAccount ?? null,
         },
         brandSlug: data.brandSlug,
       });
-      if (status === "authenticated") {
+      if (status === 'authenticated') {
         void persistCustomerInfoToUserMetadata({
           customerName,
           customerPhone,
@@ -416,7 +438,7 @@ export default function ShopBrandPageClient({
       }
       router.push(`/order/track/${encodeURIComponent(response.id)}`);
     } catch (e) {
-      setSubmitError(parseApiErrorMessage(e, "주문 생성에 실패했습니다."));
+      setSubmitError(parseApiErrorMessage(e, '주문 생성에 실패했습니다.'));
     } finally {
       setSubmitting(false);
     }
@@ -425,9 +447,9 @@ export default function ShopBrandPageClient({
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="mx-auto max-w-[1180px] px-4 py-6">
           <div className="h-44 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
-          <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:mx-auto lg:max-w-[1012px] lg:grid-cols-[680px_320px] lg:gap-3">
             <div className="h-96 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
             <div className="h-96 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
           </div>
@@ -442,11 +464,18 @@ export default function ShopBrandPageClient({
         <div className="max-w-4xl mx-auto p-6">
           <div className="card p-10 text-center">
             <div className="text-3xl mb-3">😕</div>
-            <div className="text-base font-semibold mb-2">온라인샵을 불러올 수 없습니다.</div>
-            <p className="text-sm text-text-secondary">{error ?? "잠시 후 다시 시도해주세요."}</p>
-            {error?.includes("온라인샵 주문을 처리할 지점이 설정되지 않았습니다.") ? (
+            <div className="text-base font-semibold mb-2">
+              온라인샵을 불러올 수 없습니다.
+            </div>
+            <p className="text-sm text-text-secondary">
+              {error ?? '잠시 후 다시 시도해주세요.'}
+            </p>
+            {error?.includes(
+              '온라인샵 주문을 처리할 지점이 설정되지 않았습니다.',
+            ) ? (
               <div className="mt-3 text-xs text-text-tertiary">
-                브랜드 관리자에서 지점을 1개 이상 등록하고 주문 설정에서 배송 주문을 활성화해주세요.
+                브랜드 관리자에서 지점을 1개 이상 등록하고 주문 설정에서 배송
+                주문을 활성화해주세요.
               </div>
             ) : null}
           </div>
@@ -457,9 +486,9 @@ export default function ShopBrandPageClient({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-6xl mx-auto px-4 py-6 pb-28 lg:pb-6">
+      <div className="mx-auto max-w-[1180px] px-4 py-6 pb-28 lg:pb-6">
         {/* ── 브랜드 헤더 ── */}
-        <header className="overflow-hidden rounded-2xl border border-border bg-bg-secondary">
+        <header className="overflow-hidden rounded-2xl border border-border bg-bg-secondary lg:mx-auto lg:max-w-[1012px]">
           <div className="relative h-36 md:h-44">
             {data.coverImageUrl ? (
               <Image
@@ -491,18 +520,24 @@ export default function ShopBrandPageClient({
               </div>
             )}
             <div>
-              <h1 className="text-xl font-extrabold">{data.brandName} 온라인샵</h1>
-              <p className="text-sm text-text-secondary">온라인으로 간편하게 배송 주문하세요.</p>
+              <h1 className="text-xl font-extrabold">
+                {data.brandName} 온라인샵
+              </h1>
+              <p className="text-sm text-text-secondary">
+                온라인으로 간편하게 배송 주문하세요.
+              </p>
             </div>
           </div>
         </header>
 
-        <main className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <main className="mt-4 grid grid-cols-1 gap-4 lg:mx-auto lg:max-w-[1012px] lg:grid-cols-[680px_320px] lg:gap-3">
           {/* ── 상품 목록 ── */}
-          <section className="card p-4">
+          <section className="card p-4 lg:max-w-[680px]">
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h2 className="text-base font-bold whitespace-nowrap">상품 선택</h2>
-              <div className="relative flex-1 max-w-xs">
+              <h2 className="text-base font-bold whitespace-nowrap">
+                상품 선택
+              </h2>
+              <div className="relative flex-1 max-w-[260px]">
                 <svg
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
                   width="14"
@@ -530,7 +565,7 @@ export default function ShopBrandPageClient({
                 표시할 상품이 없습니다.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 lg:max-w-[620px]">
                 {filteredProducts.map((product) => {
                   const qty = cart[product.id] ?? 0;
                   return (
@@ -539,30 +574,48 @@ export default function ShopBrandPageClient({
                       className="rounded-2xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-4"
                     >
                       {product.imageUrl ? (
-                        <Image
-                          src={product.imageUrl}
-                          alt={product.name}
-                          width={144}
-                          height={144}
-                          className="h-28 w-28 rounded-2xl object-cover border border-border flex-shrink-0 md:h-36 md:w-36"
-                          unoptimized
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openProductPreview(product)}
+                          className="group relative h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-bg-tertiary md:h-44 md:w-44"
+                          aria-label={`${product.name} 이미지 크게 보기`}
+                        >
+                          <Image
+                            src={product.imageUrl}
+                            alt={product.name}
+                            fill
+                            sizes="(max-width: 768px) 128px, 176px"
+                            quality={100}
+                            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
+                            크게 보기
+                          </div>
+                        </button>
                       ) : (
                         <ProductImageFallback />
                       )}
 
-                      <div className="flex min-h-28 flex-1 flex-col md:min-h-36">
+                      <div className="flex min-h-32 flex-1 flex-col md:min-h-44">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <h3 className="text-base md:text-lg font-bold break-keep">{product.name}</h3>
+                            <h3 className="text-base md:text-lg font-bold break-keep">
+                              {product.name}
+                            </h3>
                             {product.categoryName ? (
-                              <p className="text-xs text-text-tertiary mt-0.5">{product.categoryName}</p>
+                              <p className="text-xs text-text-tertiary mt-0.5">
+                                {product.categoryName}
+                              </p>
                             ) : null}
                           </div>
-                          <div className="text-sm md:text-base font-bold whitespace-nowrap text-foreground">{formatWon(product.price)}</div>
+                          <div className="text-sm md:text-base font-bold whitespace-nowrap text-foreground">
+                            {formatWon(product.price)}
+                          </div>
                         </div>
                         {product.description ? (
-                          <p className="mt-2 text-sm md:text-base text-text-secondary line-clamp-3">{product.description}</p>
+                          <p className="mt-2 text-sm md:text-base text-text-secondary line-clamp-3">
+                            {product.description}
+                          </p>
                         ) : null}
 
                         <div className="mt-auto pt-4 flex items-center justify-end">
@@ -587,7 +640,9 @@ export default function ShopBrandPageClient({
                               >
                                 −
                               </button>
-                              <span className="w-10 text-center text-sm font-bold">{qty}</span>
+                              <span className="w-10 text-center text-sm font-bold">
+                                {qty}
+                              </span>
                               <button
                                 type="button"
                                 className="w-11 h-11 rounded-xl border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors text-lg font-bold"
@@ -608,7 +663,10 @@ export default function ShopBrandPageClient({
           </section>
 
           {/* ── 주문 사이드바 ── */}
-          <aside ref={checkoutRef} className="card p-4 h-fit lg:sticky lg:top-4">
+          <aside
+            ref={checkoutRef}
+            className="card p-4 h-fit lg:sticky lg:top-4 lg:w-[320px]"
+          >
             <h2 className="text-base font-bold">배송 주문</h2>
 
             <KakaoQuickLoginButton
@@ -623,27 +681,33 @@ export default function ShopBrandPageClient({
                 })
               }
             />
-            {status === "authenticated" ? (
+            {status === 'authenticated' ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={handleLoadLastOrderInfo}
+                  onClick={() => {
+                    void handleLoadLastOrderInfo();
+                  }}
                   disabled={loadingLastOrderInfo || loggingOut}
                   className="h-10 rounded-xl border border-border bg-bg-tertiary text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {loadingLastOrderInfo ? "불러오는 중..." : "이전 주문 불러오기"}
+                  {loadingLastOrderInfo
+                    ? '불러오는 중...'
+                    : '이전 주문 불러오기'}
                 </button>
                 <button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={() => {
+                    void handleLogout();
+                  }}
                   disabled={loggingOut || loadingLastOrderInfo}
                   className="h-10 rounded-xl border border-border bg-bg-tertiary text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {loggingOut ? "로그아웃 중..." : "로그아웃"}
+                  {loggingOut ? '로그아웃 중...' : '로그아웃'}
                 </button>
               </div>
             ) : null}
-            {status === "authenticated" && authInfoLoaded ? (
+            {status === 'authenticated' && authInfoLoaded ? (
               <p className="mt-1.5 text-xs text-text-secondary">
                 로그인 정보 기반으로 고객 정보가 자동 입력되었습니다.
               </p>
@@ -653,16 +717,25 @@ export default function ShopBrandPageClient({
             <div className="mt-4 rounded-2xl border border-border bg-bg-tertiary overflow-hidden">
               {cartItems.length === 0 ? (
                 <div className="p-4 text-center">
-                  <p className="text-sm text-text-tertiary">상품을 선택하면 여기에 표시됩니다.</p>
+                  <p className="text-sm text-text-tertiary">
+                    상품을 선택하면 여기에 표시됩니다.
+                  </p>
                 </div>
               ) : (
                 <div className="max-h-48 overflow-y-auto divide-y divide-border">
                   {cartItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between px-4 py-2.5 gap-3"
+                    >
                       <span className="text-sm truncate">{item.name}</span>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-text-tertiary">×{item.qty}</span>
-                        <span className="text-sm font-semibold">{formatWon(item.price * item.qty)}</span>
+                        <span className="text-xs text-text-tertiary">
+                          ×{item.qty}
+                        </span>
+                        <span className="text-sm font-semibold">
+                          {formatWon(item.price * item.qty)}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -671,7 +744,9 @@ export default function ShopBrandPageClient({
               {cartItems.length > 0 && (
                 <div className="flex justify-between items-center px-4 py-3 border-t border-border bg-bg-secondary">
                   <span className="text-sm font-semibold">합계</span>
-                  <span className="text-base font-extrabold">{formatWon(totalAmount)}</span>
+                  <span className="text-base font-extrabold">
+                    {formatWon(totalAmount)}
+                  </span>
                 </div>
               )}
             </div>
@@ -724,8 +799,8 @@ export default function ShopBrandPageClient({
                       key={method}
                       className={`rounded-xl border px-3 py-2.5 text-sm cursor-pointer transition-colors ${
                         paymentMethod === method
-                          ? "border-primary-500 bg-primary-500/10 text-primary-500 font-semibold"
-                          : "border-border bg-bg-tertiary"
+                          ? 'border-primary-500 bg-primary-500/10 text-primary-500 font-semibold'
+                          : 'border-border bg-bg-tertiary'
                       }`}
                     >
                       <input
@@ -740,24 +815,32 @@ export default function ShopBrandPageClient({
                     </label>
                   ))}
                 </div>
-                {paymentMethod === "TRANSFER" && data.transferAccount ? (
+                {paymentMethod === 'TRANSFER' && data.transferAccount ? (
                   <div className="mt-2 rounded-xl border border-warning-200 bg-warning-50 p-3">
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="text-sm">🏦</span>
-                      <div className="text-xs font-bold text-foreground">입금 계좌 정보</div>
+                      <div className="text-xs font-bold text-foreground">
+                        입금 계좌 정보
+                      </div>
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between">
                         <span className="text-text-tertiary">은행명</span>
-                        <span className="font-semibold">{data.transferAccount?.bankName?.trim() || "-"}</span>
+                        <span className="font-semibold">
+                          {data.transferAccount?.bankName?.trim() || '-'}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-text-tertiary">계좌번호</span>
-                        <span className="font-semibold font-mono">{data.transferAccount?.accountNumber?.trim() || "-"}</span>
+                        <span className="font-semibold font-mono">
+                          {data.transferAccount?.accountNumber?.trim() || '-'}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-text-tertiary">예금주</span>
-                        <span className="font-semibold">{data.transferAccount?.accountHolder?.trim() || "-"}</span>
+                        <span className="font-semibold">
+                          {data.transferAccount?.accountHolder?.trim() || '-'}
+                        </span>
                       </div>
                     </div>
                     <p className="mt-2 text-xs text-warning-600">
@@ -768,25 +851,44 @@ export default function ShopBrandPageClient({
               </div>
 
               {submitError ? (
-                <p className="text-sm text-danger-500 bg-danger-500/5 rounded-xl px-3 py-2">{submitError}</p>
+                <p className="text-sm text-danger-500 bg-danger-500/5 rounded-xl px-3 py-2">
+                  {submitError}
+                </p>
               ) : null}
 
               <button
                 type="button"
-                onClick={submitOrder}
+                onClick={() => {
+                  void submitOrder();
+                }}
                 disabled={submitting || cartItems.length === 0}
                 className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    <svg
+                      className="animate-spin w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
                     </svg>
                     주문 처리 중...
                   </>
                 ) : (
-                  `배송 주문하기${totalAmount > 0 ? ` (${formatWon(totalAmount)})` : ""}`
+                  `배송 주문하기${totalAmount > 0 ? ` (${formatWon(totalAmount)})` : ''}`
                 )}
               </button>
             </div>
@@ -799,7 +901,12 @@ export default function ShopBrandPageClient({
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-4 pb-4 pt-2 bg-background/95 backdrop-blur-sm border-t border-border">
           <button
             type="button"
-            onClick={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            onClick={() =>
+              checkoutRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }
             className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer flex items-center justify-between"
           >
             <span className="flex items-center gap-2">
@@ -812,6 +919,35 @@ export default function ShopBrandPageClient({
           </button>
         </div>
       )}
+
+      <Modal
+        open={previewProduct !== null}
+        onClose={() => setPreviewProduct(null)}
+        title={previewProduct?.name ?? '상품 이미지'}
+        width={960}
+      >
+        {previewProduct?.imageUrl ? (
+          <div className="space-y-4">
+            <div className="relative mx-auto w-full max-w-[820px] overflow-hidden rounded-2xl border border-border bg-bg-tertiary">
+              <div className="relative aspect-square w-full">
+                <Image
+                  src={previewProduct.imageUrl}
+                  alt={previewProduct.name}
+                  fill
+                  sizes="(max-width: 1024px) 92vw, 820px"
+                  quality={100}
+                  className="object-contain"
+                />
+              </div>
+            </div>
+            {previewProduct.description ? (
+              <p className="text-sm text-text-secondary">
+                {previewProduct.description}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
+import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -76,7 +76,7 @@ export default function ShopPage() {
             브랜드를 선택하고 배송 주문을 시작하세요.
           </p>
           <div className="mt-4 max-w-sm">
-            <KakaoQuickLoginButton />
+            <PublicAuthActions />
           </div>
         </header>
 

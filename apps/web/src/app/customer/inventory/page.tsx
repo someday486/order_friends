@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -23,13 +23,11 @@ type ProductCategory = {
   isActive: boolean;
 };
 
-type SalesChannelFilter = "ALL" | `BRANCH:${string}`;
-
 type CategoryFilter =
   | "ALL"
   | "UNCATEGORIZED"
-  | `CATEGORY:${string}`       // 지점 선택 시 (id 기준)
-  | `CATEGORY_NAME:${string}`; // 전체 (이름 기준)
+  | `CATEGORY:${string}`
+  | `CATEGORY_NAME:${string}`;
 
 type InventoryItem = {
   id: string;
@@ -43,8 +41,6 @@ type InventoryItem = {
   low_stock_threshold: number;
   is_low_stock: boolean;
   image_url?: string;
-  // 카테고리 필터링은 API가 아래 필드를 반환할 때만 정확히 작동.
-  // 반환하지 않으면 모든 항목이 UNCATEGORIZED로 처리됨.
   category_id?: string | null;
   category_name?: string | null;
 };
@@ -68,9 +64,6 @@ function normalizeCategoryName(name: string) {
   return (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function toCategoryFilter(categoryId: string): CategoryFilter {
-  return `CATEGORY:${categoryId}`;
-}
 
 function toCategoryNameFilter(categoryName: string): CategoryFilter {
   return `CATEGORY_NAME:${normalizeCategoryName(categoryName)}`;
@@ -86,10 +79,6 @@ function getCategoryNameKeyFromFilter(filter: CategoryFilter): string | null {
   return filter.replace("CATEGORY_NAME:", "").trim() || null;
 }
 
-function getBranchIdFromSalesChannelFilter(filter: SalesChannelFilter): string | null {
-  if (!filter.startsWith("BRANCH:")) return null;
-  return filter.replace("BRANCH:", "").trim() || null;
-}
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -121,7 +110,6 @@ export default function CustomerInventoryPage() {
   const [branchSearch, setBranchSearch] = useState("");
 
   // ── Filters
-  const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,6 +117,7 @@ export default function CustomerInventoryPage() {
   // ── UI
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isBranchPanelOpen, setIsBranchPanelOpen] = useState(false);
 
   // ── Bulk
   const [selectedInventoryIds, setSelectedInventoryIds] = useState<Set<string>>(new Set());
@@ -156,22 +145,7 @@ export default function CustomerInventoryPage() {
     return branches.filter((b) => b.name.toLowerCase().includes(q));
   }, [branches, branchSearch]);
 
-  const selectedFilterBranchId = useMemo(
-    () => getBranchIdFromSalesChannelFilter(salesChannelFilter),
-    [salesChannelFilter],
-  );
-
-  // 카테고리 드롭다운 목록
   const availableCategories = useMemo(() => {
-    if (selectedFilterBranchId) {
-      const list = branchCategories[selectedFilterBranchId] ?? [];
-      const byId = new Map<string, ProductCategory>();
-      for (const c of list) {
-        if (c?.id && c.isActive !== false && !byId.has(c.id)) byId.set(c.id, c);
-      }
-      return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-    }
-    // ALL: 이름 기준 중복 제거
     const list = Object.values(branchCategories).flat();
     const byName = new Map<string, ProductCategory>();
     for (const c of list) {
@@ -180,7 +154,7 @@ export default function CustomerInventoryPage() {
       if (key && !byName.has(key)) byName.set(key, c);
     }
     return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [branchCategories, selectedFilterBranchId]);
+  }, [branchCategories]);
 
   const categoryIdToNameKey = useMemo(() => {
     const map: Record<string, string> = {};
@@ -194,30 +168,22 @@ export default function CustomerInventoryPage() {
 
   // ── Filter chain ─────────────────────────────────────────────────────────
 
-  // 1) 판매채널 필터
-  const filteredBySalesChannel = useMemo(() => {
-    if (salesChannelFilter === "ALL" || !selectedFilterBranchId) return inventory;
-    return inventory.filter((item) => item.branch_id === selectedFilterBranchId);
-  }, [inventory, salesChannelFilter, selectedFilterBranchId]);
-
-  // 2) 카테고리 필터
   const categoryFilteredInventory = useMemo(() => {
-    if (categoryFilter === "ALL") return filteredBySalesChannel;
+    if (categoryFilter === "ALL") return inventory;
     if (categoryFilter === "UNCATEGORIZED") {
-      return filteredBySalesChannel.filter((item) => !item.category_id);
+      return inventory.filter((item) => !item.category_id);
     }
     const cid = getCategoryIdFromFilter(categoryFilter);
     if (cid) {
-      return filteredBySalesChannel.filter((item) => item.category_id === cid);
+      return inventory.filter((item) => item.category_id === cid);
     }
     const nameKey = getCategoryNameKeyFromFilter(categoryFilter);
-    if (!nameKey) return filteredBySalesChannel;
-    return filteredBySalesChannel.filter(
+    if (!nameKey) return inventory;
+    return inventory.filter(
       (item) => item.category_id && categoryIdToNameKey[item.category_id] === nameKey,
     );
-  }, [filteredBySalesChannel, categoryFilter, categoryIdToNameKey]);
+  }, [inventory, categoryFilter, categoryIdToNameKey]);
 
-  // 3) 검색 필터
   const searchedInventory = useMemo(() => {
     if (!searchQuery.trim()) return categoryFilteredInventory;
     const q = searchQuery.toLowerCase();
@@ -228,7 +194,6 @@ export default function CustomerInventoryPage() {
     );
   }, [categoryFilteredInventory, searchQuery]);
 
-  // 4) 페이지네이션
   const totalPages = Math.max(1, Math.ceil(searchedInventory.length / PAGE_SIZE));
 
   const pagedInventory = useMemo(() => {
@@ -239,6 +204,27 @@ export default function CustomerInventoryPage() {
   const allSelected =
     pagedInventory.length > 0 &&
     pagedInventory.every((item) => selectedInventoryIds.has(item.id));
+
+  // ── KPI 파생값 ────────────────────────────────────────────────────────────
+
+  const lowStockCount = useMemo(
+    () => searchedInventory.filter(isLowStock).length,
+    [searchedInventory],
+  );
+  const normalStockCount = searchedInventory.length - lowStockCount;
+
+  // 판매채널 요약 레이블
+  const branchSummaryLabel = useMemo(() => {
+    const selectedCount = selectedBranchIds.size;
+
+    if (selectedCount === 0) return "판매채널 미선택";
+
+    if (selectedCount === 1) {
+      return branches.find((b) => selectedBranchIds.has(b.id))?.name ?? "판매채널 1개";
+    }
+
+    return `전체 ${selectedCount}개`;
+  }, [selectedBranchIds, branches]);
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
@@ -258,7 +244,6 @@ export default function CustomerInventoryPage() {
     setBranchCategories(Object.fromEntries(entries));
   }, []);
 
-  // 최초: 브랜드 목록 로드
   useEffect(() => {
     const run = async () => {
       try {
@@ -271,7 +256,6 @@ export default function CustomerInventoryPage() {
           return;
         }
         setSelectedBrandId(brandRows[0].id);
-        // selectedBrandId 변경 → 아래 useEffect가 branches/categories 로드
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "브랜드 목록을 불러올 수 없습니다");
@@ -281,7 +265,6 @@ export default function CustomerInventoryPage() {
     run();
   }, []);
 
-  // 브랜드 변경 시: 지점 + 카테고리 로드 후 전체 지점 선택
   useEffect(() => {
     if (!selectedBrandId) return;
 
@@ -289,11 +272,9 @@ export default function CustomerInventoryPage() {
       try {
         setLoading(true);
         setError(null);
-        // 먼저 초기화 (이전 브랜드 데이터 + 필터 클리어)
         setSelectedBranchIds(new Set());
         setBranches([]);
         setBranchCategories({});
-        setSalesChannelFilter("ALL");
         setCategoryFilter("ALL");
         setSearchInput("");
         setSearchQuery("");
@@ -305,8 +286,6 @@ export default function CustomerInventoryPage() {
         );
         setBranches(branchRows);
         await loadBranchCategories(branchRows);
-
-        // 전체 지점 선택 상태로 시작 → loadInventory useEffect 트리거
         setSelectedBranchIds(new Set(branchRows.map((b) => b.id)));
       } catch (e) {
         console.error(e);
@@ -317,7 +296,6 @@ export default function CustomerInventoryPage() {
     run();
   }, [selectedBrandId, loadBranchCategories]);
 
-  // 선택 지점 변경 시: 재고 로드
   useEffect(() => {
     const loadInventory = async () => {
       if (selectedBranchIds.size === 0) {
@@ -363,7 +341,6 @@ export default function CustomerInventoryPage() {
     loadInventory();
   }, [selectedBranchIds, branches]);
 
-  // 필터 결과에서 사라진 항목 선택 해제
   useEffect(() => {
     setSelectedInventoryIds((prev) => {
       if (prev.size === 0) return prev;
@@ -373,30 +350,22 @@ export default function CustomerInventoryPage() {
     });
   }, [searchedInventory]);
 
-  // 검색어 debounce (300ms)
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(searchInput.trim()), 300);
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // 필터/브랜드 변경 시 page 1 리셋
   useEffect(() => {
     setPage(1);
-  }, [salesChannelFilter, categoryFilter, searchQuery, selectedBrandId]);
+  }, [categoryFilter, searchQuery, selectedBrandId]);
 
   useEffect(() => {
     setPage(1);
   }, [selectedBranchIds, branchSearch]);
 
-  // page 보정
   useEffect(() => {
     setPage((prev) => Math.min(prev, totalPages));
   }, [totalPages]);
-
-  // 판매채널/브랜드 변경 시 카테고리 필터 초기화
-  useEffect(() => {
-    setCategoryFilter("ALL");
-  }, [selectedBrandId, salesChannelFilter]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -483,7 +452,6 @@ export default function CustomerInventoryPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────
 
-  // 초기 로딩 스켈레톤 (브랜드/지점 정보 없는 첫 진입)
   if (loading && brands.length === 0) {
     return (
       <div>
@@ -515,70 +483,63 @@ export default function CustomerInventoryPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold m-0 text-foreground">재고 관리</h1>
-          <p className="text-text-secondary mt-1 mb-0 text-[13px]">
-            {searchedInventory.length > 0 && `총 ${searchedInventory.length}개 상품`}
-            {searchedInventory.filter(isLowStock).length > 0 &&
-              ` · 재고 부족 ${searchedInventory.filter(isLowStock).length}개`}
-          </p>
-        </div>
+      <div className="mb-4">
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">재고 관리</h1>
       </div>
 
       {/* Sticky filter bar */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-4 mb-4">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-3 mb-3">
         <div className="flex flex-wrap items-end gap-3">
+
           {/* 브랜드 */}
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
+          <div className="flex-1 min-w-[160px]">
+            <label className="block text-xs text-text-secondary mb-1.5 font-semibold">브랜드</label>
             <select
               value={selectedBrandId}
               onChange={(e) => setSelectedBrandId(e.target.value)}
-              className="input-field w-full"
+              className="input-field h-9 text-sm w-full"
             >
               {brands.length === 0 && <option value="">브랜드 없음</option>}
               {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
 
           {selectedBrandId && (
             <>
-              {/* 판매채널 */}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm text-text-secondary mb-2 font-semibold">판매채널</label>
-                <select
-                  value={salesChannelFilter}
-                  onChange={(e) => setSalesChannelFilter(e.target.value as SalesChannelFilter)}
-                  className="input-field w-full"
+              {/* 판매채널 토글 */}
+              <div className="flex-1 min-w-[160px]">
+                <label className="block text-xs text-text-secondary mb-1.5 font-semibold">판매채널</label>
+                <button
+                  type="button"
+                  onClick={() => setIsBranchPanelOpen((v) => !v)}
+                  className="input-field h-9 text-sm w-full flex items-center justify-between gap-2 text-left"
+                  aria-expanded={isBranchPanelOpen}
                 >
-                  <option value="ALL">전체</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={`BRANCH:${b.id}`}>
-                      지점 주문 - {b.name}
-                    </option>
-                  ))}
-                </select>
+                  <span className="truncate text-foreground">{branchSummaryLabel}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-text-secondary flex-shrink-0 transition-transform duration-150 ${
+                      isBranchPanelOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* 카테고리 */}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm text-text-secondary mb-2 font-semibold">카테고리</label>
+              <div className="flex-1 min-w-[150px]">
+                <label className="block text-xs text-text-secondary mb-1.5 font-semibold">카테고리</label>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
-                  className="input-field w-full"
+                  className="input-field h-9 text-sm w-full"
                 >
                   <option value="ALL">전체</option>
                   <option value="UNCATEGORIZED">카테고리 없음</option>
                   {availableCategories.map((c) => (
                     <option
                       key={c.id}
-                      value={selectedFilterBranchId ? toCategoryFilter(c.id) : toCategoryNameFilter(c.name)}
+                      value={toCategoryNameFilter(c.name)}
                     >
                       {c.name}
                     </option>
@@ -587,8 +548,8 @@ export default function CustomerInventoryPage() {
               </div>
 
               {/* 검색 */}
-              <div className="w-80">
-                <label className="block text-sm text-text-secondary mb-2 font-semibold">검색</label>
+              <div className="w-64">
+                <label className="block text-xs text-text-secondary mb-1.5 font-semibold">검색</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
                   <input
@@ -599,7 +560,7 @@ export default function CustomerInventoryPage() {
                       if (e.key === "Escape") setSearchInput("");
                     }}
                     placeholder="상품명/매장명 검색"
-                    className="input-field w-full pl-9 pr-9"
+                    className="input-field h-9 text-sm w-full pl-9 pr-9"
                     aria-label="재고 검색"
                   />
                   {searchInput && (
@@ -616,7 +577,7 @@ export default function CustomerInventoryPage() {
               </div>
 
               {/* 총 개수 */}
-              <div className="flex items-center h-10">
+              <div className="flex items-center h-9">
                 <span className="text-sm text-text-secondary whitespace-nowrap">
                   총 {searchedInventory.length}개
                 </span>
@@ -626,14 +587,31 @@ export default function CustomerInventoryPage() {
         </div>
       </div>
 
-      {/* 재고 조회 지점 선택 */}
-      {selectedBrandId && (
-        <div className="mb-6">
-          <label className="block text-[13px] text-text-secondary mb-2 font-semibold">
-            재고 조회 지점
-          </label>
-          <div className="max-w-[520px] space-y-2">
-            <div className="relative">
+      {/* 판매채널 펼침 패널 */}
+      {selectedBrandId && isBranchPanelOpen && (
+        <div className="rounded-xl border border-border bg-bg-secondary overflow-hidden mb-4">
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-bg-tertiary">
+            <span className="text-xs font-semibold text-text-secondary">표시할 판매채널을 선택하세요</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedBranchIds(new Set(branches.map((b) => b.id)))}
+                className="text-xs text-primary-500 hover:underline"
+              >
+                전체선택
+              </button>
+              <span className="text-text-tertiary text-xs">·</span>
+              <button
+                type="button"
+                onClick={() => setSelectedBranchIds(new Set())}
+                className="text-xs text-text-secondary hover:underline"
+              >
+                전체해제
+              </button>
+            </div>
+          </div>
+          <div className="px-4 pt-3 pb-3">
+            <div className="relative mb-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
               <input
                 type="text"
@@ -643,7 +621,7 @@ export default function CustomerInventoryPage() {
                   if (e.key === "Escape") setBranchSearch("");
                 }}
                 placeholder="매장 검색"
-                className="input-field w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
+                className="input-field h-8 text-sm w-full pl-9 pr-9"
                 aria-label="매장 검색"
               />
               {branchSearch && (
@@ -657,30 +635,36 @@ export default function CustomerInventoryPage() {
                 </button>
               )}
             </div>
-            <div className="max-h-44 overflow-y-auto border border-border rounded-lg p-2 bg-bg-secondary">
-              <div className="flex flex-col gap-1">
-                {filteredBranches.map((branch) => (
-                  <label
-                    key={branch.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-tertiary cursor-pointer text-sm text-foreground"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedBranchIds.has(branch.id)}
-                      onChange={(e) => {
-                        setSelectedBranchIds((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(branch.id);
-                          else next.delete(branch.id);
-                          return next;
-                        });
-                      }}
-                      className="w-4 h-4 rounded accent-primary"
-                    />
-                    <span>{branch.name}</span>
-                  </label>
-                ))}
-              </div>
+            <div className="max-h-40 overflow-y-auto">
+              {filteredBranches.length === 0 ? (
+                <div className="py-4 text-center text-sm text-text-tertiary">
+                  {branchSearch ? "검색 결과가 없습니다" : "등록된 매장이 없습니다"}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                  {filteredBranches.map((branch) => (
+                    <label
+                      key={branch.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-tertiary cursor-pointer text-sm text-foreground"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedBranchIds.has(branch.id)}
+                        onChange={(e) => {
+                          setSelectedBranchIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(branch.id);
+                            else next.delete(branch.id);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded accent-primary"
+                      />
+                      <span>{branch.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -793,6 +777,30 @@ export default function CustomerInventoryPage() {
         </div>
       ) : (
         <>
+          {/* KPI 요약 바 */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-bg-secondary text-sm">
+              <span className="text-text-secondary">전체</span>
+              <span className="font-bold text-foreground">{searchedInventory.length}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-success/10 text-sm">
+              <span className="text-text-secondary">정상</span>
+              <span className="font-bold text-success">{normalStockCount}</span>
+            </div>
+            {lowStockCount > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-danger-500/30 bg-danger-500/10 text-sm">
+                <span className="text-text-secondary">재고 부족</span>
+                <span className="font-bold text-danger-500">{lowStockCount}</span>
+              </div>
+            )}
+            {selectedInventoryIds.size > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary-500/30 bg-primary-500/10 text-sm">
+                <span className="text-text-secondary">선택됨</span>
+                <span className="font-bold text-primary-500">{selectedInventoryIds.size}</span>
+              </div>
+            )}
+          </div>
+
           <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
             <table className="w-full border-collapse min-w-[840px]">
               <thead className="bg-white">

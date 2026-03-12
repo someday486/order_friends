@@ -226,7 +226,7 @@ export default function CustomerBranchesPage() {
   if (brands.length === 0 && !loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점 관리</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">매장 관리</h1>
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base mb-2">등록된 브랜드가 없습니다</div>
           <div className="text-sm">먼저 브랜드 멤버십을 요청하세요</div>
@@ -239,7 +239,7 @@ export default function CustomerBranchesPage() {
     <div>
       {/* ── 1. 상단 헤더: 제목만, 버튼 제거 ── */}
       <div className="mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 관리</h1>
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">매장 관리</h1>
       </div>
 
       {/* 브랜드 선택 */}

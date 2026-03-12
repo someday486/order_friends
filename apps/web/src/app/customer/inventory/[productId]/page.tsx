@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
@@ -86,11 +86,6 @@ const TRANSACTION_BADGE_CLASSES: Record<string, string> = {
 };
 
 // ============================================================
-// Helpers
-// ============================================================
-
-
-// ============================================================
 // Component
 // ============================================================
 
@@ -108,8 +103,7 @@ function InventoryDetailPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Edit form state
-  const [editMode, setEditMode] = useState(false);
+  // Edit form state (always visible — no editMode toggle)
   const [editQtyAvailable, setEditQtyAvailable] = useState(0);
   const [editLowStockThreshold, setEditLowStockThreshold] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -194,7 +188,8 @@ function InventoryDetailPageContent() {
       });
 
       setInventory(updatedData);
-      setEditMode(false);
+      setEditQtyAvailable(updatedData.qty_available);
+      setEditLowStockThreshold(updatedData.low_stock_threshold);
 
       try {
         const logsData = await apiClient.get<InventoryLog[]>(`/customer/inventory/logs?productId=${productId}&branchId=${encodeURIComponent(selectedBranchId)}`);
@@ -275,6 +270,32 @@ function InventoryDetailPageContent() {
     );
   };
 
+  // ── Derived display values ──────────────────────────────────
+  const selectedBranchName = branches.find((b) => b.id === selectedBranchId)?.name;
+  const categoryName = inventory?.category || inventory?.product?.category;
+
+  const thresholdGap = inventory
+    ? inventory.qty_available - inventory.low_stock_threshold
+    : null;
+
+  const thresholdStatusText =
+    thresholdGap === null
+      ? null
+      : thresholdGap > 0
+        ? "기준 충족"
+        : thresholdGap === 0
+          ? "최소 재고와 동일"
+          : `기준 대비 ${Math.abs(thresholdGap)}개 부족`;
+
+  const thresholdStatusColor =
+    thresholdGap === null
+      ? ""
+      : thresholdGap > 0
+        ? "text-success"
+        : thresholdGap === 0
+          ? "text-warning-500"
+          : "text-danger-500";
+
   if (loading) {
     return (
       <div>
@@ -305,7 +326,7 @@ function InventoryDetailPageContent() {
         ← 재고 목록
       </Link>
 
-      <div className="mt-4 mb-8">
+      <div className="mt-4 mb-6">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">재고 상세</h1>
       </div>
 
@@ -334,112 +355,122 @@ function InventoryDetailPageContent() {
 
       {/* Product Info */}
       <div className="card p-6 mb-6">
-        <div className="flex items-start gap-6 mb-6">
-          {inventory.product?.image_url && (
+        <div className="flex items-start gap-5 mb-6">
+          {inventory.product?.image_url ? (
             <Image
               src={inventory.product.image_url}
               alt={inventory.product?.name || "상품 이미지"}
-              width={120}
-              height={120}
-              className="w-[120px] h-[120px] rounded-xl object-cover border border-border"
+              width={100}
+              height={100}
+              className="w-[100px] h-[100px] rounded-xl object-cover border border-border flex-shrink-0"
             />
-          )}
-          <div className="flex-1">
-            <h2 className="text-xl font-bold mb-2 text-foreground">
+          ) : null}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-foreground leading-snug mb-1">
               {inventory.product?.name || inventory.product_name || "상품명 없음"}
             </h2>
+            {(selectedBranchName || categoryName) && (
+              <p className="text-sm text-text-secondary mb-2">
+                {[selectedBranchName, categoryName].filter(Boolean).join(" · ")}
+              </p>
+            )}
             {inventory.product?.price != null && (
-              <div className="text-lg font-extrabold text-foreground mb-2">
+              <div className="text-lg font-extrabold text-foreground">
                 {formatWon(inventory.product.price)}
               </div>
             )}
           </div>
           {isLowStock && (
-            <span className="inline-flex items-center h-8 px-4 rounded-full bg-danger-500/20 text-danger-500 text-sm font-semibold">
+            <span className="flex-shrink-0 inline-flex items-center h-8 px-4 rounded-full bg-danger-500/20 text-danger-500 text-sm font-semibold">
               재고 부족
             </span>
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
-            <div className="text-xs text-text-secondary mb-2 font-semibold">재고 가능</div>
-            <div className={`text-2xl font-extrabold ${isLowStock ? "text-danger-500" : "text-success"}`}>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* 재고 가능 — emphasized */}
+          <div className={`p-4 rounded-lg border ${isLowStock ? "bg-danger-500/10 border-danger-500/40" : "bg-success/10 border-success/30"}`}>
+            <div className="text-xs text-text-secondary mb-1.5 font-semibold">재고 가능</div>
+            <div className={`text-3xl font-extrabold leading-none mb-2 ${isLowStock ? "text-danger-500" : "text-success"}`}>
               {inventory.qty_available}
             </div>
+            {thresholdStatusText && (
+              <div className={`text-[11px] font-semibold ${thresholdStatusColor}`}>
+                {thresholdStatusText}
+              </div>
+            )}
           </div>
+
           <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
-            <div className="text-xs text-text-secondary mb-2 font-semibold">예약됨</div>
+            <div className="text-xs text-text-secondary mb-1.5 font-semibold">예약됨</div>
             <div className="text-2xl font-extrabold text-foreground">{inventory.qty_reserved}</div>
           </div>
           <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
-            <div className="text-xs text-text-secondary mb-2 font-semibold">판매됨</div>
+            <div className="text-xs text-text-secondary mb-1.5 font-semibold">판매됨</div>
             <div className="text-2xl font-extrabold text-foreground">{inventory.qty_sold}</div>
           </div>
           <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
-            <div className="text-xs text-text-secondary mb-2 font-semibold">최소 재고</div>
+            <div className="text-xs text-text-secondary mb-1.5 font-semibold">최소 재고 기준</div>
             <div className="text-2xl font-extrabold text-foreground">{inventory.low_stock_threshold}</div>
           </div>
         </div>
       </div>
 
-      {/* Edit Form (OWNER/ADMIN/BRANCH roles only) */}
+      {/* Edit Form — always open */}
       {canEdit && (
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-bold mb-4 text-foreground">재고 정보 수정</h3>
+          <div className="mb-4">
+            <h3 className="text-lg font-bold text-foreground mb-1">재고 정보 수정</h3>
+            <p className="text-sm text-text-secondary">현재 재고 수량과 최소 재고 기준을 직접 수정합니다.</p>
+          </div>
 
-          {!editMode ? (
-            <button onClick={() => setEditMode(true)} className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors">
-              수정하기
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">재고 가능 수량</label>
+              <input
+                type="number"
+                value={editQtyAvailable}
+                onChange={(e) => setEditQtyAvailable(parseInt(e.target.value) || 0)}
+                className="input-field w-full"
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">최소 재고 기준</label>
+              <input
+                type="number"
+                value={editLowStockThreshold}
+                onChange={(e) => setEditLowStockThreshold(parseInt(e.target.value) || 0)}
+                className="input-field w-full"
+                min="0"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSaveEdit} disabled={saving} className="btn-primary py-2.5 px-5 text-sm">
+              {saving ? "저장 중..." : "저장"}
             </button>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-[13px] text-text-secondary mb-2 font-semibold">재고 가능 수량</label>
-                  <input
-                    type="number"
-                    value={editQtyAvailable}
-                    onChange={(e) => setEditQtyAvailable(parseInt(e.target.value) || 0)}
-                    className="input-field w-full"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[13px] text-text-secondary mb-2 font-semibold">최소 재고 기준</label>
-                  <input
-                    type="number"
-                    value={editLowStockThreshold}
-                    onChange={(e) => setEditLowStockThreshold(parseInt(e.target.value) || 0)}
-                    className="input-field w-full"
-                    min="0"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={handleSaveEdit} disabled={saving} className="btn-primary py-2.5 px-5 text-sm">
-                  {saving ? "저장 중..." : "저장"}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditMode(false);
-                    setEditQtyAvailable(inventory.qty_available);
-                    setEditLowStockThreshold(inventory.low_stock_threshold);
-                  }}
-                  className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
-                >
-                  취소
-                </button>
-              </div>
-            </>
-          )}
+            <button
+              onClick={() => {
+                setEditQtyAvailable(inventory.qty_available);
+                setEditLowStockThreshold(inventory.low_stock_threshold);
+              }}
+              className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
+            >
+              변경 취소
+            </button>
+          </div>
         </div>
       )}
 
       {/* Manual Adjustment */}
       {canEdit && (
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-bold mb-4 text-foreground">재고 수동 조정</h3>
+          <div className="mb-4">
+            <h3 className="text-lg font-bold text-foreground mb-1">재고 수동 조정</h3>
+            <p className="text-sm text-text-secondary">입고, 손상, 반품 등의 변동을 기록하면서 재고를 조정합니다.</p>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
@@ -475,7 +506,7 @@ function InventoryDetailPageContent() {
             />
           </div>
 
-          <button onClick={handleAdjustment} disabled={adjusting || !adjustmentQty} className="py-3 px-6 rounded-lg border-none bg-success text-white text-sm cursor-pointer font-bold hover:opacity-80 transition-opacity">
+          <button onClick={handleAdjustment} disabled={adjusting || !adjustmentQty} className="py-3 px-6 rounded-lg border-none bg-success text-white text-sm cursor-pointer font-bold hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
             {adjusting ? "처리 중..." : "재고 조정 실행"}
           </button>
         </div>
@@ -484,7 +515,10 @@ function InventoryDetailPageContent() {
       {/* Inventory Logs */}
       <div className="card p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-foreground">재고 변경 이력</h3>
+          <div>
+            <h3 className="text-lg font-bold text-foreground mb-0.5">재고 변경 이력</h3>
+            <p className="text-sm text-text-secondary">이 상품의 모든 재고 변동 내역입니다.</p>
+          </div>
           <button
             onClick={handleExportLogs}
             disabled={logs.length === 0}
@@ -497,8 +531,8 @@ function InventoryDetailPageContent() {
         {logs.length === 0 ? (
           <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">재고 변경 이력이 없습니다</div>
         ) : (
-          <div className="border border-border rounded-xl overflow-hidden">
-            <table className="w-full border-collapse">
+          <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+            <table className="min-w-[720px] w-full border-collapse">
               <thead className="bg-bg-tertiary">
                 <tr>
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">거래 유형</th>
@@ -511,7 +545,7 @@ function InventoryDetailPageContent() {
               </thead>
               <tbody>
                 {logs.map((log) => (
-                  <tr key={log.id} className="border-t border-border">
+                  <tr key={log.id} className="border-t border-border hover:bg-bg-tertiary transition-colors">
                     <td className="py-3 px-3.5 text-[13px] text-foreground">
                       <span className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${TRANSACTION_BADGE_CLASSES[log.transaction_type] || "bg-neutral-500/20 text-neutral-400"}`}>
                         {TRANSACTION_LABELS[log.transaction_type] || log.transaction_type}

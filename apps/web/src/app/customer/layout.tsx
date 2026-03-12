@@ -20,6 +20,7 @@ import {
   OrderIcon,
   PencilIcon,
 } from "@/components/ui/icons";
+import { ShieldCheck } from "lucide-react";
 
 type MenuItem = {
   href: string;
@@ -66,10 +67,16 @@ const menuSections: MenuSection[] = [
         icon: StoreIcon,
         allowedRoles: ["system_admin", "brand_owner"],
       },
+      {
+        href: "/customer/permissions",
+        label: "권한관리",
+        icon: ShieldCheck,
+        allowedRoles: ["system_admin", "brand_owner"],
+      },
     ],
   },
   {
-    title: "영역",
+    title: "상품",
     items: [
       {
         href: "/customer/products",

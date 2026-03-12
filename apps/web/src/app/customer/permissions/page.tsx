@@ -1,21 +1,30 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useMemo, useState } from "react";
-import { Search, X, UserPlus, Clock } from "lucide-react";
-import { apiClient } from "@/lib/api-client";
-
-// ─── API Response Types ───────────────────────────────────────────────────────
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
+import { Clock, Search, UserPlus, X } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { Switch } from '@/components/common/Switch';
 
 type Brand = { id: string; name: string; myRole?: string | null };
-type Branch = { id: string; name: string; brandId: string; myRole?: string | null };
+type Branch = {
+  id: string;
+  name: string;
+  brandId: string;
+  myRole?: string | null;
+};
 
 type BrandMemberApiResponse = {
   userId: string;
   email: string | null;
   displayName: string | null;
-  /** OWNER | ADMIN | MEMBER */
   role: string;
-  /** ACTIVE | INVITED | SUSPENDED | LEFT */
   status: string;
   createdAt: string;
 };
@@ -24,18 +33,22 @@ type BranchMemberApiResponse = {
   userId: string;
   email: string | null;
   displayName: string | null;
-  /** BRANCH_OWNER | BRANCH_ADMIN | STAFF | VIEWER */
   role: string;
-  /** ACTIVE | INVITED | SUSPENDED | LEFT */
   status: string;
   createdAt: string;
   branchId: string;
 };
 
-// ─── Domain Types ─────────────────────────────────────────────────────────────
-
-type Role = "BRAND_OWNER" | "MANAGER" | "STAFF";
-type Status = "ACTIVE" | "INVITED" | "INACTIVE";
+type Role = 'BRAND_OWNER' | 'MANAGER' | 'STAFF';
+type Status = 'ACTIVE' | 'INVITED' | 'INACTIVE';
+type InviteRole =
+  | 'OWNER'
+  | 'ADMIN'
+  | 'MEMBER'
+  | 'BRANCH_OWNER'
+  | 'BRANCH_ADMIN'
+  | 'STAFF'
+  | 'VIEWER';
 
 type PermissionMemberRow = {
   id: string;
@@ -47,92 +60,264 @@ type PermissionMemberRow = {
   branchId: string | null;
   branchName: string | null;
   role: Role;
+  rawRole: InviteRole;
   status: Status;
   joinedAt?: string;
 };
 
-// ─── Mapping helpers ──────────────────────────────────────────────────────────
+type InviteModalProps = {
+  open: boolean;
+  email: string;
+  role: InviteRole;
+  branchId: string;
+  branches: Branch[];
+  submitting: boolean;
+  error: string | null;
+  onClose: () => void;
+  onEmailChange: (value: string) => void;
+  onRoleChange: (value: InviteRole) => void;
+  onBranchChange: (value: string) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => Promise<void> | void;
+};
 
-function mapBrandRole(raw: string): Role {
-  if (raw === "OWNER") return "BRAND_OWNER";
-  if (raw === "ADMIN") return "MANAGER";
-  return "STAFF";
-}
+type RoleChangeModalProps = {
+  open: boolean;
+  member: PermissionMemberRow | null;
+  role: InviteRole;
+  status: Status;
+  submitting: boolean;
+  error: string | null;
+  onClose: () => void;
+  onRoleChange: (value: InviteRole) => void;
+  onStatusChange: (value: Status) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => Promise<void> | void;
+};
 
-function mapBranchRole(raw: string): Role {
-  if (raw === "BRANCH_OWNER" || raw === "BRANCH_ADMIN") return "MANAGER";
-  return "STAFF";
-}
+type MemberHistoryAction =
+  | 'INVITE_SENT'
+  | 'ROLE_CHANGED'
+  | 'STATUS_CHANGED'
+  | 'ROLE_STATUS_CHANGED';
 
-function mapStatus(raw: string): Status {
-  if (raw === "ACTIVE") return "ACTIVE";
-  if (raw === "INVITED") return "INVITED";
-  return "INACTIVE"; // SUSPENDED | LEFT → INACTIVE
-}
+type MemberHistoryScope = 'BRAND' | 'BRANCH';
 
-function displayName(m: { displayName: string | null; email: string | null; userId: string }): string {
-  return m.displayName || m.email?.split("@")[0] || m.userId.slice(0, 8);
-}
+type MemberHistoryItem = {
+  id: string;
+  actionType: MemberHistoryAction;
+  scopeType: MemberHistoryScope;
+  brandId: string;
+  branchId: string | null;
+  actorUserId: string;
+  actorDisplayName: string | null;
+  actorEmail: string | null;
+  targetUserId: string | null;
+  targetDisplayName: string | null;
+  targetEmail: string | null;
+  beforeRole: string | null;
+  afterRole: string | null;
+  beforeStatus: string | null;
+  afterStatus: string | null;
+  createdAt: string;
+};
 
-// ─── Display helpers ──────────────────────────────────────────────────────────
+type HistoryModalProps = {
+  open: boolean;
+  branchId: string;
+  branchName: string | null;
+  loading: boolean;
+  error: string | null;
+  items: MemberHistoryItem[];
+  onClose: () => void;
+};
+
+const BRAND_INVITE_ROLE_OPTIONS: Array<{ value: InviteRole; label: string }> = [
+  { value: 'OWNER', label: '브랜드 오너' },
+  { value: 'ADMIN', label: '매니저' },
+  { value: 'MEMBER', label: '직원' },
+];
+
+const BRANCH_INVITE_ROLE_OPTIONS: Array<{ value: InviteRole; label: string }> =
+  [
+    { value: 'BRANCH_OWNER', label: '매장 오너' },
+    { value: 'BRANCH_ADMIN', label: '매니저' },
+    { value: 'STAFF', label: '직원' },
+    { value: 'VIEWER', label: '조회 전용' },
+  ];
 
 const ROLE_LABEL: Record<Role, string> = {
-  BRAND_OWNER: "브랜드 오너",
-  MANAGER: "매니저",
-  STAFF: "직원",
+  BRAND_OWNER: '브랜드 오너',
+  MANAGER: '매니저',
+  STAFF: '직원',
 };
 
 const ROLE_BADGE: Record<Role, string> = {
-  BRAND_OWNER: "bg-primary-500/15 text-primary-500",
-  MANAGER: "bg-success/15 text-success",
-  STAFF: "bg-neutral-500/15 text-text-secondary",
+  BRAND_OWNER: 'bg-primary-500/15 text-primary-500',
+  MANAGER: 'bg-success/15 text-success',
+  STAFF: 'bg-neutral-500/15 text-text-secondary',
 };
 
 const STATUS_LABEL: Record<Status, string> = {
-  ACTIVE: "활성",
-  INVITED: "초대대기",
-  INACTIVE: "비활성",
+  ACTIVE: '활성',
+  INVITED: '초대대기',
+  INACTIVE: '비활성',
 };
 
 const STATUS_BADGE: Record<Status, string> = {
-  ACTIVE: "bg-success/15 text-success",
-  INVITED: "bg-warning-500/15 text-warning-500",
-  INACTIVE: "bg-neutral-500/15 text-text-tertiary",
+  ACTIVE: 'bg-success/15 text-success',
+  INVITED: 'bg-warning-500/15 text-warning-500',
+  INACTIVE: 'bg-neutral-500/15 text-text-tertiary',
 };
 
-// ─── Component ───────────────────────────────────────────────────────────────
+function mapBrandRole(raw: string): Role {
+  if (raw === 'OWNER') return 'BRAND_OWNER';
+  if (raw === 'ADMIN') return 'MANAGER';
+  return 'STAFF';
+}
+
+function mapBranchRole(raw: string): Role {
+  if (raw === 'BRANCH_OWNER' || raw === 'BRANCH_ADMIN') return 'MANAGER';
+  return 'STAFF';
+}
+
+function mapStatus(raw: string): Status {
+  if (raw === 'ACTIVE') return 'ACTIVE';
+  if (raw === 'INVITED') return 'INVITED';
+  return 'INACTIVE';
+}
+
+function displayName(m: {
+  displayName: string | null;
+  email: string | null;
+  userId: string;
+}): string {
+  return m.displayName || m.email?.split('@')[0] || m.userId.slice(0, 8);
+}
+
+function getDefaultInviteRole(branchId: string): InviteRole {
+  return branchId ? 'STAFF' : 'MEMBER';
+}
+
+function getInviteRoleOptions(branchId: string) {
+  return branchId ? BRANCH_INVITE_ROLE_OPTIONS : BRAND_INVITE_ROLE_OPTIONS;
+}
+
+function getRoleLabelByRawRole(role: InviteRole) {
+  return (
+    [...BRAND_INVITE_ROLE_OPTIONS, ...BRANCH_INVITE_ROLE_OPTIONS].find(
+      (option) => option.value === role,
+    )?.label ?? role
+  );
+}
+
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function getHistoryActorLabel(item: MemberHistoryItem) {
+  return (
+    item.actorDisplayName || item.actorEmail || item.actorUserId.slice(0, 8)
+  );
+}
+
+function getHistoryTargetLabel(item: MemberHistoryItem) {
+  return (
+    item.targetDisplayName ||
+    item.targetEmail ||
+    item.targetUserId ||
+    '대상 없음'
+  );
+}
+
+function getHistoryMessage(item: MemberHistoryItem) {
+  const actor = getHistoryActorLabel(item);
+  const target = getHistoryTargetLabel(item);
+  const beforeRole = item.beforeRole
+    ? getRoleLabelByRawRole(item.beforeRole as InviteRole)
+    : null;
+  const afterRole = item.afterRole
+    ? getRoleLabelByRawRole(item.afterRole as InviteRole)
+    : null;
+  const beforeStatus = item.beforeStatus
+    ? item.beforeStatus === 'SUSPENDED'
+      ? '비활성화'
+      : STATUS_LABEL[mapStatus(item.beforeStatus)]
+    : null;
+  const afterStatus = item.afterStatus
+    ? item.afterStatus === 'SUSPENDED'
+      ? '비활성화'
+      : STATUS_LABEL[mapStatus(item.afterStatus)]
+    : null;
+
+  if (item.actionType === 'INVITE_SENT') {
+    return `${actor}님이 ${target}님을 초대했습니다.`;
+  }
+  if (item.actionType === 'ROLE_CHANGED') {
+    return `${actor}님이 ${target}님의 권한을 ${beforeRole ?? '-'}에서 ${afterRole ?? '-'}로 변경했습니다.`;
+  }
+  if (item.actionType === 'STATUS_CHANGED') {
+    return `${actor}님이 ${target}님의 상태를 ${beforeStatus ?? '-'}에서 ${afterStatus ?? '-'}로 변경했습니다.`;
+  }
+  return `${actor}님이 ${target}님의 권한과 상태를 함께 변경했습니다.`;
+}
 
 export default function PermissionsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [members, setMembers] = useState<PermissionMemberRow[]>([]);
-  const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [selectedBrandId, setSelectedBrandId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [roleFilter, setRoleFilter] = useState<Role | "">("");
-  const [searchInput, setSearchInput] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [roleFilter, setRoleFilter] = useState<Role | ''>('');
+  const [searchInput, setSearchInput] = useState('');
 
-  // Ref for brands so the load effect doesn't need brands as a dep
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<InviteRole>('MEMBER');
+  const [inviteBranchId, setInviteBranchId] = useState('');
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const [roleChangeOpen, setRoleChangeOpen] = useState(false);
+  const [roleChangeMember, setRoleChangeMember] =
+    useState<PermissionMemberRow | null>(null);
+  const [roleChangeRole, setRoleChangeRole] = useState<InviteRole>('MEMBER');
+  const [roleChangeStatus, setRoleChangeStatus] = useState<Status>('ACTIVE');
+  const [roleChangeSubmitting, setRoleChangeSubmitting] = useState(false);
+  const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<MemberHistoryItem[]>([]);
+
   const brandsRef = useRef<Brand[]>([]);
   useEffect(() => {
     brandsRef.current = brands;
   }, [brands]);
 
-  // ── Load brands on mount ────────────────────────────────────────────────
   useEffect(() => {
     apiClient
-      .get<Brand[]>("/customer/brands")
+      .get<Brand[]>('/customer/brands')
       .then((data) => {
         setBrands(data);
         if (data.length > 0) setSelectedBrandId(data[0].id);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "브랜드 목록을 불러올 수 없습니다"));
+      .catch((e) =>
+        setError(
+          e instanceof Error ? e.message : '브랜드 목록을 불러올 수 없습니다',
+        ),
+      );
   }, []);
 
-  // ── Load branches + members when brand changes ──────────────────────────
   const loadBrandData = useCallback(async (brandId: string) => {
     const brandName =
       brandsRef.current.find((b) => b.id === brandId)?.name ?? brandId;
@@ -141,16 +326,14 @@ export default function PermissionsPage() {
     setError(null);
     setMembers([]);
     setBranches([]);
-    setSelectedBranchId("");
+    setSelectedBranchId('');
 
     try {
-      // 1. Load branches
       const branchData = await apiClient.get<Branch[]>(
         `/customer/branches?brandId=${encodeURIComponent(brandId)}`,
       );
       setBranches(branchData);
 
-      // 2. Load brand members + all branch members in parallel
       const [brandMembersRaw, ...branchMembersRaw] = await Promise.all([
         apiClient
           .get<BrandMemberApiResponse[]>(`/customer/members/brand/${brandId}`)
@@ -167,26 +350,32 @@ export default function PermissionsPage() {
                 _branchName: branch.name,
               })),
             )
-            .catch(() => [] as (BranchMemberApiResponse & { _branchId: string; _branchName: string })[]),
+            .catch(
+              () =>
+                [] as (BranchMemberApiResponse & {
+                  _branchId: string;
+                  _branchName: string;
+                })[],
+            ),
         ),
       ]);
 
-      // 3. Map to PermissionMemberRow
-      const brandRows: PermissionMemberRow[] = (brandMembersRaw as BrandMemberApiResponse[]).map(
-        (m) => ({
-          id: `brand-${brandId}-${m.userId}`,
-          userId: m.userId,
-          name: displayName(m),
-          email: m.email,
-          brandId,
-          brandName,
-          branchId: null,
-          branchName: null,
-          role: mapBrandRole(m.role),
-          status: mapStatus(m.status),
-          joinedAt: m.createdAt,
-        }),
-      );
+      const brandRows: PermissionMemberRow[] = (
+        brandMembersRaw as BrandMemberApiResponse[]
+      ).map((m) => ({
+        id: `brand-${brandId}-${m.userId}`,
+        userId: m.userId,
+        name: displayName(m),
+        email: m.email,
+        brandId,
+        brandName,
+        branchId: null,
+        branchName: null,
+        role: mapBrandRole(m.role),
+        rawRole: m.role as InviteRole,
+        status: mapStatus(m.status),
+        joinedAt: m.createdAt,
+      }));
 
       const branchRows: PermissionMemberRow[] = (
         branchMembersRaw as (BranchMemberApiResponse & {
@@ -205,13 +394,16 @@ export default function PermissionsPage() {
           branchId: m._branchId,
           branchName: m._branchName,
           role: mapBranchRole(m.role),
+          rawRole: m.role as InviteRole,
           status: mapStatus(m.status),
           joinedAt: m.createdAt,
         }));
 
       setMembers([...brandRows, ...branchRows]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "멤버 목록을 불러올 수 없습니다");
+      setError(
+        e instanceof Error ? e.message : '멤버 목록을 불러올 수 없습니다',
+      );
     } finally {
       setLoading(false);
     }
@@ -219,55 +411,224 @@ export default function PermissionsPage() {
 
   useEffect(() => {
     if (!selectedBrandId) return;
-    loadBrandData(selectedBrandId);
+    void loadBrandData(selectedBrandId);
   }, [selectedBrandId, loadBrandData]);
 
-  // ── Filtered members ────────────────────────────────────────────────────
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
-      if (selectedBranchId) {
-        // "브랜드 전체" 멤버 (branchId === null)는 특정 매장 필터에서 제외
-        if (m.branchId !== selectedBranchId) return false;
+      if (selectedBranchId && m.branchId !== selectedBranchId) {
+        return false;
       }
       if (roleFilter && m.role !== roleFilter) return false;
       if (searchInput.trim()) {
         const q = searchInput.toLowerCase();
         if (
           !m.name.toLowerCase().includes(q) &&
-          !(m.email ?? "").toLowerCase().includes(q)
-        )
+          !(m.email ?? '').toLowerCase().includes(q)
+        ) {
           return false;
+        }
       }
       return true;
     });
-  }, [members, selectedBranchId, roleFilter, searchInput]);
+  }, [members, roleFilter, searchInput, selectedBranchId]);
 
-  const handleReset = () => {
-    setSelectedBranchId("");
-    setRoleFilter("");
-    setSearchInput("");
-  };
-
-  // ── KPI (always from full member list) ─────────────────────────────────
   const totalMembers = useMemo(
     () => new Set(members.map((m) => m.userId)).size,
     [members],
   );
   const totalManagers = useMemo(
-    () => new Set(members.filter((m) => m.role === "MANAGER").map((m) => m.userId)).size,
+    () =>
+      new Set(members.filter((m) => m.role === 'MANAGER').map((m) => m.userId))
+        .size,
     [members],
   );
   const totalBranches = branches.length;
-
-  // ── Available branches for filter ──────────────────────────────────────
   const availableBranches = branches;
+
+  const resetInviteForm = useCallback(() => {
+    setInviteEmail('');
+    setInviteBranchId('');
+    setInviteRole('MEMBER');
+    setInviteError(null);
+  }, []);
+
+  const handleReset = () => {
+    setSelectedBranchId('');
+    setRoleFilter('');
+    setSearchInput('');
+  };
+
+  const handleOpenInvite = () => {
+    const nextBranchId = selectedBranchId || '';
+    setInviteBranchId(nextBranchId);
+    setInviteRole(getDefaultInviteRole(nextBranchId));
+    setInviteEmail('');
+    setInviteError(null);
+    setInviteOpen(true);
+  };
+
+  const handleCloseInvite = () => {
+    if (inviteSubmitting) return;
+    setInviteOpen(false);
+    resetInviteForm();
+  };
+
+  const handleInviteBranchChange = (value: string) => {
+    setInviteBranchId(value);
+    setInviteRole(getDefaultInviteRole(value));
+    setInviteError(null);
+  };
+
+  const handleInviteSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!selectedBrandId) {
+      setInviteError('초대할 브랜드를 먼저 선택해주세요.');
+      return;
+    }
+
+    if (!inviteEmail.trim()) {
+      setInviteError('이메일을 입력해주세요.');
+      return;
+    }
+
+    setInviteSubmitting(true);
+    setInviteError(null);
+
+    try {
+      const email = inviteEmail.trim();
+
+      if (inviteBranchId) {
+        await apiClient.post(
+          `/customer/members/branch/${inviteBranchId}/invite`,
+          {
+            email,
+            role: inviteRole,
+          },
+        );
+      } else {
+        await apiClient.post(
+          `/customer/members/brand/${selectedBrandId}/invite`,
+          {
+            email,
+            role: inviteRole,
+          },
+        );
+      }
+
+      setInviteOpen(false);
+      resetInviteForm();
+      await loadBrandData(selectedBrandId);
+    } catch (e) {
+      setInviteError(
+        e instanceof Error ? e.message : '멤버 초대에 실패했습니다.',
+      );
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
+
+  const handleOpenRoleChange = (member: PermissionMemberRow) => {
+    setRoleChangeMember(member);
+    setRoleChangeRole(member.rawRole);
+    setRoleChangeStatus(member.status);
+    setRoleChangeError(null);
+    setRoleChangeOpen(true);
+  };
+
+  const handleCloseRoleChange = () => {
+    if (roleChangeSubmitting) return;
+    setRoleChangeOpen(false);
+    setRoleChangeMember(null);
+    setRoleChangeRole('MEMBER');
+    setRoleChangeStatus('ACTIVE');
+    setRoleChangeError(null);
+  };
+
+  const handleRoleChangeSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!roleChangeMember) {
+      setRoleChangeError('변경할 멤버를 찾을 수 없습니다.');
+      return;
+    }
+
+    setRoleChangeSubmitting(true);
+    setRoleChangeError(null);
+
+    try {
+      if (roleChangeMember.branchId) {
+        await apiClient.patch(
+          `/customer/members/branch/${roleChangeMember.branchId}/${roleChangeMember.userId}`,
+          {
+            role: roleChangeRole,
+            status:
+              roleChangeStatus === 'INACTIVE' ? 'SUSPENDED' : roleChangeStatus,
+          },
+        );
+      } else {
+        await apiClient.patch(
+          `/customer/members/brand/${roleChangeMember.brandId}/${roleChangeMember.userId}`,
+          {
+            role: roleChangeRole,
+            status:
+              roleChangeStatus === 'INACTIVE' ? 'SUSPENDED' : roleChangeStatus,
+          },
+        );
+      }
+
+      handleCloseRoleChange();
+      await loadBrandData(selectedBrandId);
+    } catch (e) {
+      setRoleChangeError(
+        e instanceof Error ? e.message : '권한 변경에 실패했습니다.',
+      );
+    } finally {
+      setRoleChangeSubmitting(false);
+    }
+  };
+
+  const handleOpenHistory = async () => {
+    if (!selectedBrandId) return;
+
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const data = selectedBranchId
+        ? await apiClient.get<MemberHistoryItem[]>(
+            `/customer/members/branch/${selectedBranchId}/history`,
+          )
+        : await apiClient.get<MemberHistoryItem[]>(
+            `/customer/members/brand/${selectedBrandId}/history`,
+          );
+      setHistoryItems(data);
+    } catch (e) {
+      setHistoryError(
+        e instanceof Error ? e.message : '변경 이력을 불러올 수 없습니다.',
+      );
+      setHistoryItems([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleCloseHistory = () => {
+    if (historyLoading) return;
+    setHistoryOpen(false);
+    setHistoryError(null);
+    setHistoryItems([]);
+  };
 
   return (
     <div>
-      {/* ── Header ──────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-foreground m-0">권한관리</h1>
+          <h1 className="text-2xl font-extrabold text-foreground m-0">
+            권한관리
+          </h1>
           <p className="mt-1 text-sm text-text-secondary">
             브랜드 및 매장의 멤버와 역할을 관리합니다.
           </p>
@@ -275,14 +636,20 @@ export default function PermissionsPage() {
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             type="button"
-            className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-semibold text-foreground hover:bg-bg-tertiary transition-colors cursor-pointer"
+            onClick={() => {
+              void handleOpenHistory();
+            }}
+            disabled={!selectedBrandId}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-semibold text-foreground hover:bg-bg-tertiary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Clock className="w-4 h-4 text-text-secondary" />
             변경 이력
           </button>
           <button
             type="button"
-            className="btn-primary flex items-center gap-1.5 h-9 px-4 text-sm"
+            onClick={handleOpenInvite}
+            disabled={!selectedBrandId}
+            className="btn-primary flex items-center gap-1.5 h-9 px-4 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <UserPlus className="w-4 h-4" />
             멤버 초대
@@ -290,36 +657,47 @@ export default function PermissionsPage() {
         </div>
       </div>
 
-      {/* ── KPI Cards ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="card p-5">
-          <div className="text-xs text-text-secondary font-semibold mb-1.5">전체 멤버</div>
-          <div className="text-3xl font-extrabold text-foreground">
-            {loading ? "-" : totalMembers}
+          <div className="text-xs text-text-secondary font-semibold mb-1.5">
+            전체 멤버
           </div>
-          <div className="text-xs text-text-tertiary mt-1">등록된 전체 구성원</div>
+          <div className="text-3xl font-extrabold text-foreground">
+            {loading ? '-' : totalMembers}
+          </div>
+          <div className="text-xs text-text-tertiary mt-1">
+            등록된 전체 구성원
+          </div>
         </div>
         <div className="card p-5">
-          <div className="text-xs text-text-secondary font-semibold mb-1.5">매니저</div>
-          <div className="text-3xl font-extrabold text-foreground">
-            {loading ? "-" : totalManagers}
+          <div className="text-xs text-text-secondary font-semibold mb-1.5">
+            매니저
           </div>
-          <div className="text-xs text-text-tertiary mt-1">매장 담당 매니저</div>
+          <div className="text-3xl font-extrabold text-foreground">
+            {loading ? '-' : totalManagers}
+          </div>
+          <div className="text-xs text-text-tertiary mt-1">
+            매장 담당 매니저
+          </div>
         </div>
         <div className="card p-5">
-          <div className="text-xs text-text-secondary font-semibold mb-1.5">운영 매장</div>
-          <div className="text-3xl font-extrabold text-foreground">
-            {loading ? "-" : totalBranches}
+          <div className="text-xs text-text-secondary font-semibold mb-1.5">
+            운영 매장
           </div>
-          <div className="text-xs text-text-tertiary mt-1">현재 운영 중인 매장</div>
+          <div className="text-3xl font-extrabold text-foreground">
+            {loading ? '-' : totalBranches}
+          </div>
+          <div className="text-xs text-text-tertiary mt-1">
+            현재 운영 중인 매장
+          </div>
         </div>
       </div>
 
-      {/* ── Filter Bar ──────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end gap-3 mb-4">
-        {/* 브랜드 */}
         <div className="flex-1 min-w-[140px]">
-          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">브랜드</label>
+          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
+            브랜드
+          </label>
           <select
             value={selectedBrandId}
             onChange={(e) => {
@@ -329,14 +707,17 @@ export default function PermissionsPage() {
           >
             {brands.length === 0 && <option value="">브랜드 없음</option>}
             {brands.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
             ))}
           </select>
         </div>
 
-        {/* 매장 */}
         <div className="flex-1 min-w-[140px]">
-          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">매장</label>
+          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
+            매장
+          </label>
           <select
             value={selectedBranchId}
             onChange={(e) => setSelectedBranchId(e.target.value)}
@@ -345,17 +726,20 @@ export default function PermissionsPage() {
           >
             <option value="">전체 매장</option>
             {availableBranches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
             ))}
           </select>
         </div>
 
-        {/* 역할 */}
         <div className="flex-1 min-w-[130px]">
-          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">역할</label>
+          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
+            역할
+          </label>
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as Role | "")}
+            onChange={(e) => setRoleFilter(e.target.value as Role | '')}
             className="input-field h-9 text-sm w-full"
           >
             <option value="">전체 역할</option>
@@ -365,9 +749,10 @@ export default function PermissionsPage() {
           </select>
         </div>
 
-        {/* 검색 */}
         <div className="w-52">
-          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">검색</label>
+          <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
+            검색
+          </label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
             <input
@@ -380,7 +765,7 @@ export default function PermissionsPage() {
             {searchInput && (
               <button
                 type="button"
-                onClick={() => setSearchInput("")}
+                onClick={() => setSearchInput('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-foreground transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -406,10 +791,7 @@ export default function PermissionsPage() {
         </div>
       )}
 
-      {/* ── Main Content ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_252px] gap-5">
-
-        {/* Member Table */}
         <div>
           {loading ? (
             <div className="border border-border rounded-xl p-12 bg-bg-secondary text-center">
@@ -418,7 +800,9 @@ export default function PermissionsPage() {
           ) : filteredMembers.length === 0 ? (
             <div className="border border-border rounded-xl p-12 bg-bg-secondary text-center">
               <div className="text-base text-text-secondary mb-1">
-                {members.length === 0 ? "등록된 멤버가 없습니다" : "조건에 맞는 멤버가 없습니다"}
+                {members.length === 0
+                  ? '등록된 멤버가 없습니다'
+                  : '조건에 맞는 멤버가 없습니다'}
               </div>
               {members.length > 0 && (
                 <div className="text-sm text-text-tertiary">
@@ -431,13 +815,27 @@ export default function PermissionsPage() {
               <table className="w-full border-collapse min-w-[680px]">
                 <thead className="bg-bg-tertiary">
                   <tr>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">이름</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">이메일</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">소속 브랜드</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">소속 매장</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">역할</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상태</th>
-                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">관리</th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      이름
+                    </th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      이메일
+                    </th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      소속 브랜드
+                    </th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      소속 매장
+                    </th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      역할
+                    </th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      상태
+                    </th>
+                    <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
+                      관리
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -453,15 +851,17 @@ export default function PermissionsPage() {
                       </td>
                       <td className="py-3 px-3.5">
                         <span className="text-sm text-text-secondary">
-                          {member.email ?? "-"}
+                          {member.email ?? '-'}
                         </span>
                       </td>
                       <td className="py-3 px-3.5">
-                        <span className="text-sm text-foreground">{member.brandName}</span>
+                        <span className="text-sm text-foreground">
+                          {member.brandName}
+                        </span>
                       </td>
                       <td className="py-3 px-3.5">
                         <span className="text-sm text-foreground">
-                          {member.branchName ?? "-"}
+                          {member.branchName ?? '-'}
                         </span>
                       </td>
                       <td className="py-3 px-3.5">
@@ -482,15 +882,10 @@ export default function PermissionsPage() {
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
+                            onClick={() => handleOpenRoleChange(member)}
                             className="h-7 px-2.5 rounded border border-border bg-bg-secondary text-xs font-semibold text-foreground hover:bg-bg-tertiary transition-colors cursor-pointer"
                           >
                             권한변경
-                          </button>
-                          <button
-                            type="button"
-                            className="h-7 px-2.5 rounded border border-border bg-bg-secondary text-xs font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
-                          >
-                            {member.status === "ACTIVE" ? "비활성화" : "활성화"}
                           </button>
                         </div>
                       </td>
@@ -507,23 +902,27 @@ export default function PermissionsPage() {
           )}
         </div>
 
-        {/* Right Sidebar */}
         <div className="flex flex-col gap-4">
-
-          {/* Role guide */}
           <div className="rounded-xl border border-border bg-bg-secondary p-4">
-            <div className="text-sm font-bold text-foreground mb-3">역할 안내</div>
+            <div className="text-sm font-bold text-foreground mb-3">
+              역할 안내
+            </div>
             <div className="space-y-3">
               <div>
-                <span className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold mb-1.5 ${ROLE_BADGE.BRAND_OWNER}`}>
+                <span
+                  className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold mb-1.5 ${ROLE_BADGE.BRAND_OWNER}`}
+                >
                   브랜드 오너
                 </span>
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  브랜드와 모든 매장을 관리하고 멤버 초대 및 권한 변경이 가능합니다.
+                  브랜드와 모든 매장을 관리하고 멤버 초대 및 권한 변경이
+                  가능합니다.
                 </p>
               </div>
               <div className="border-t border-border pt-3">
-                <span className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold mb-1.5 ${ROLE_BADGE.MANAGER}`}>
+                <span
+                  className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold mb-1.5 ${ROLE_BADGE.MANAGER}`}
+                >
                   매니저
                 </span>
                 <p className="text-xs text-text-secondary leading-relaxed">
@@ -531,7 +930,9 @@ export default function PermissionsPage() {
                 </p>
               </div>
               <div className="border-t border-border pt-3">
-                <span className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold mb-1.5 ${ROLE_BADGE.STAFF}`}>
+                <span
+                  className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold mb-1.5 ${ROLE_BADGE.STAFF}`}
+                >
                   직원
                 </span>
                 <p className="text-xs text-text-secondary leading-relaxed">
@@ -541,35 +942,475 @@ export default function PermissionsPage() {
             </div>
           </div>
 
-          {/* Invite guide */}
           <div className="rounded-xl border border-border bg-bg-secondary p-4">
-            <div className="text-sm font-bold text-foreground mb-2">초대 안내</div>
+            <div className="text-sm font-bold text-foreground mb-2">
+              초대 안내
+            </div>
             <p className="text-xs text-text-secondary leading-relaxed">
-              멤버 초대 시 등록된 이메일로 초대 링크가 발송됩니다. 수락 전까지{" "}
-              <span className="font-semibold text-warning-500">초대대기</span>{" "}
+              멤버 초대 시 등록된 이메일로 초대 링크가 발송됩니다. 수락 전까지{' '}
+              <span className="font-semibold text-warning-500">초대대기</span>{' '}
               상태로 표시됩니다.
             </p>
           </div>
 
-          {/* Status legend */}
           <div className="rounded-xl border border-border bg-bg-secondary p-4">
-            <div className="text-sm font-bold text-foreground mb-3">상태 안내</div>
+            <div className="text-sm font-bold text-foreground mb-3">
+              상태 안내
+            </div>
             <div className="flex flex-col gap-2">
-              {(["ACTIVE", "INVITED", "INACTIVE"] as Status[]).map((s) => (
+              {(['ACTIVE', 'INVITED', 'INACTIVE'] as Status[]).map((s) => (
                 <div key={s} className="flex items-center gap-2">
-                  <span className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold ${STATUS_BADGE[s]}`}>
+                  <span
+                    className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold ${STATUS_BADGE[s]}`}
+                  >
                     {STATUS_LABEL[s]}
                   </span>
                   <span className="text-xs text-text-secondary">
-                    {s === "ACTIVE" && "정상 접근 가능"}
-                    {s === "INVITED" && "초대 수락 대기 중"}
-                    {s === "INACTIVE" && "접근 제한됨"}
+                    {s === 'ACTIVE' && '정상 접근 가능'}
+                    {s === 'INVITED' && '초대 수락 대기 중'}
+                    {s === 'INACTIVE' && '접근 제한됨'}
                   </span>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      </div>
 
+      <InviteModal
+        open={inviteOpen}
+        email={inviteEmail}
+        role={inviteRole}
+        branchId={inviteBranchId}
+        branches={branches}
+        submitting={inviteSubmitting}
+        error={inviteError}
+        onClose={handleCloseInvite}
+        onEmailChange={setInviteEmail}
+        onRoleChange={setInviteRole}
+        onBranchChange={handleInviteBranchChange}
+        onSubmit={handleInviteSubmit}
+      />
+
+      <RoleChangeModal
+        open={roleChangeOpen}
+        member={roleChangeMember}
+        role={roleChangeRole}
+        status={roleChangeStatus}
+        submitting={roleChangeSubmitting}
+        error={roleChangeError}
+        onClose={handleCloseRoleChange}
+        onRoleChange={setRoleChangeRole}
+        onStatusChange={setRoleChangeStatus}
+        onSubmit={handleRoleChangeSubmit}
+      />
+
+      <HistoryModal
+        open={historyOpen}
+        branchId={selectedBranchId}
+        branchName={
+          branches.find((branch) => branch.id === selectedBranchId)?.name ??
+          null
+        }
+        loading={historyLoading}
+        error={historyError}
+        items={historyItems}
+        onClose={handleCloseHistory}
+      />
+    </div>
+  );
+}
+
+function InviteModal({
+  open,
+  email,
+  role,
+  branchId,
+  branches,
+  submitting,
+  error,
+  onClose,
+  onEmailChange,
+  onRoleChange,
+  onBranchChange,
+  onSubmit,
+}: InviteModalProps) {
+  if (!open) return null;
+
+  const roleOptions = getInviteRoleOptions(branchId);
+  const targetLabel = branchId ? '매장 초대' : '브랜드 초대';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">멤버 초대</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              초대할 이메일과 역할을 입력해주세요.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            void onSubmit(e);
+          }}
+          className="px-5 py-4"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                초대 범위
+              </label>
+              <select
+                value={branchId}
+                onChange={(e) => onBranchChange(e.target.value)}
+                className="input-field h-10 text-sm w-full"
+                disabled={submitting}
+              >
+                <option value="">브랜드 전체</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-text-tertiary">
+                현재 {targetLabel}로 발송됩니다.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                이메일
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => onEmailChange(e.target.value)}
+                placeholder="invite@example.com"
+                className="input-field h-10 text-sm w-full"
+                disabled={submitting}
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                역할
+              </label>
+              <select
+                value={role}
+                onChange={(e) => onRoleChange(e.target.value as InviteRole)}
+                className="input-field h-10 text-sm w-full"
+                disabled={submitting}
+              >
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-danger-500 bg-danger-500/10 px-3 py-2 text-sm text-danger-500">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="h-10 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary h-10 px-4 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? '초대 중...' : '초대 보내기'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RoleChangeModal({
+  open,
+  member,
+  role,
+  status,
+  submitting,
+  error,
+  onClose,
+  onRoleChange,
+  onStatusChange,
+  onSubmit,
+}: RoleChangeModalProps) {
+  if (!open || !member) return null;
+
+  const roleOptions = getInviteRoleOptions(member.branchId ?? '');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">권한 변경</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              {member.name}님의 권한을 변경합니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            void onSubmit(e);
+          }}
+          className="px-5 py-4"
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-bg-secondary px-4 py-3">
+              <div className="text-xs font-semibold text-text-secondary">
+                대상
+              </div>
+              <div className="mt-1 text-sm font-semibold text-foreground">
+                {member.name}
+              </div>
+              <div className="mt-0.5 text-xs text-text-tertiary">
+                {member.email ?? '이메일 없음'}
+              </div>
+              <div className="mt-2 text-xs text-text-secondary">
+                현재 권한:{' '}
+                <span className="font-semibold text-foreground">
+                  {getRoleLabelByRawRole(member.rawRole)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                변경할 역할
+              </label>
+              <select
+                value={role}
+                onChange={(e) => onRoleChange(e.target.value as InviteRole)}
+                className="input-field h-10 text-sm w-full"
+                disabled={submitting}
+              >
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-xl border border-border bg-bg-secondary px-4 py-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-semibold text-text-secondary">
+                    상태 변경
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-foreground">
+                    {status === 'ACTIVE' ? '활성화' : '비활성화'}
+                  </div>
+                  <div className="mt-0.5 text-xs text-text-tertiary">
+                    비활성화하면 이 멤버의 접근이 제한됩니다.
+                  </div>
+                </div>
+                <Switch
+                  checked={status === 'ACTIVE'}
+                  onChange={(checked) =>
+                    onStatusChange(checked ? 'ACTIVE' : 'INACTIVE')
+                  }
+                  disabled={submitting}
+                  ariaLabel={`${member.name} 상태 변경`}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-danger-500 bg-danger-500/10 px-3 py-2 text-sm text-danger-500">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="h-10 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary h-10 px-4 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? '저장 중...' : '변경 저장'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function HistoryModal({
+  open,
+  branchId,
+  branchName,
+  loading,
+  error,
+  items,
+  onClose,
+}: HistoryModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-2xl rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">변경 이력</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              {branchId && branchName
+                ? `${branchName} 멤버 이력을 확인합니다.`
+                : '브랜드와 매장 멤버 변경 이력을 확인합니다.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[32rem] overflow-y-auto px-5 py-4">
+          {loading ? (
+            <div className="rounded-xl border border-border bg-bg-secondary px-4 py-10 text-center text-sm text-text-secondary">
+              변경 이력을 불러오는 중입니다.
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-danger-500 bg-danger-500/10 px-4 py-3 text-sm text-danger-500">
+              {error}
+            </div>
+          ) : items.length === 0 ? (
+            <div className="rounded-xl border border-border bg-bg-secondary px-4 py-10 text-center">
+              <div className="text-sm font-semibold text-foreground">
+                아직 변경 이력이 없습니다.
+              </div>
+              <div className="mt-1 text-xs text-text-tertiary">
+                초대, 권한 변경, 상태 변경 내역이 여기에 표시됩니다.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-border bg-bg-secondary px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {getHistoryMessage(item)}
+                      </div>
+                      <div className="mt-1 text-xs text-text-tertiary">
+                        {item.scopeType === 'BRANCH'
+                          ? '매장 권한'
+                          : '브랜드 권한'}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-xs text-text-tertiary">
+                      {formatHistoryDate(item.createdAt)}
+                    </div>
+                  </div>
+                  {(item.beforeRole ||
+                    item.beforeStatus ||
+                    item.afterRole ||
+                    item.afterStatus) && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg border border-border/80 bg-background px-3 py-2">
+                        <div className="text-[11px] font-semibold text-text-secondary">
+                          이전 값
+                        </div>
+                        <div className="mt-1 text-xs text-text-tertiary">
+                          역할:{' '}
+                          {item.beforeRole
+                            ? getRoleLabelByRawRole(
+                                item.beforeRole as InviteRole,
+                              )
+                            : '-'}
+                        </div>
+                        <div className="mt-0.5 text-xs text-text-tertiary">
+                          상태:{' '}
+                          {item.beforeStatus
+                            ? item.beforeStatus === 'SUSPENDED'
+                              ? '비활성화'
+                              : STATUS_LABEL[mapStatus(item.beforeStatus)]
+                            : '-'}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border/80 bg-background px-3 py-2">
+                        <div className="text-[11px] font-semibold text-text-secondary">
+                          변경 후
+                        </div>
+                        <div className="mt-1 text-xs text-text-tertiary">
+                          역할:{' '}
+                          {item.afterRole
+                            ? getRoleLabelByRawRole(
+                                item.afterRole as InviteRole,
+                              )
+                            : '-'}
+                        </div>
+                        <div className="mt-0.5 text-xs text-text-tertiary">
+                          상태:{' '}
+                          {item.afterStatus
+                            ? item.afterStatus === 'SUSPENDED'
+                              ? '비활성화'
+                              : STATUS_LABEL[mapStatus(item.afterStatus)]
+                            : '-'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

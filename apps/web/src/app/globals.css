@@ -17,7 +17,7 @@
   --color-text-secondary: #666666;
   --color-text-tertiary: #888888;
 
-  --color-bg-primary: #F5F6F8;;
+  --color-bg-primary: #E9EAEC;;
   --color-bg-secondary: #FFFFFF;
   --color-bg-tertiary: #F3F4F6;
 
@@ -25,6 +25,8 @@
   --color-border-light: #EEF0F3;
 
   --color-card-shadow: rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.07);
+  --shadow-card-hover: 0 2px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.11);
 
   /* Legacy compat */
   --background: #ffffff;
@@ -58,6 +60,10 @@
     --color-border: #2F3540;          /* ✅ 경계가 보이게 */
     --color-border-light: #3A4250;
 
+    --color-card-shadow: rgba(0, 0, 0, 0.35);
+    --shadow-card: 0 1px 4px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.28);
+    --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.28), 0 8px 28px rgba(0,0,0,0.40);
+
     --background: #0B0B0D;
     --foreground: #FFFFFF;
 
@@ -85,6 +91,8 @@
   --color-border-light: #353842;
 
   --color-card-shadow: rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 1px 4px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.28);
+  --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.28), 0 8px 28px rgba(0,0,0,0.40);
 
   --background: #0B0B0D;
   --foreground: #FFFFFF;
@@ -157,13 +165,13 @@ a {
 
   .card {
     @apply rounded-xl border border-border bg-bg-secondary;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    box-shadow: var(--shadow-card);
     transition: transform 200ms, box-shadow 200ms, border-color 200ms, background-color 200ms;
   }
 
   .card:hover {
     transform: translateY(-1px);
-    box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+    box-shadow: var(--shadow-card-hover);
   }
 
   .input-field {

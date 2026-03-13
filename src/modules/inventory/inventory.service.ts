@@ -324,6 +324,7 @@ export class InventoryService {
   async getInventoryByProduct(
     userId: string,
     productId: string,
+    branchId: string | undefined,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryDetailResponse> {
@@ -334,6 +335,14 @@ export class InventoryService {
     // 상품 접근 권한 확인
     const { product } = await this.checkProductAccess(
       productId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+    const targetBranchId = branchId || product.branch_id;
+
+    await this.checkBranchAccess(
+      targetBranchId,
       userId,
       brandMemberships,
       branchMemberships,
@@ -357,7 +366,7 @@ export class InventoryService {
       `,
       )
       .eq('product_id', productId)
-      .eq('branch_id', product.branch_id)
+      .eq('branch_id', targetBranchId)
       .single();
 
     if (error || !inventory) {
@@ -366,7 +375,7 @@ export class InventoryService {
         .from('product_inventory')
         .insert({
           product_id: productId,
-          branch_id: product.branch_id,
+          branch_id: targetBranchId,
           qty_available: 0,
           qty_reserved: 0,
           qty_sold: 0,
@@ -439,6 +448,7 @@ export class InventoryService {
     userId: string,
     productId: string,
     dto: UpdateInventoryRequest,
+    branchId: string | undefined,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryDetailResponse> {
@@ -449,6 +459,14 @@ export class InventoryService {
     // 상품 접근 권한 확인
     const { role, product } = await this.checkProductAccess(
       productId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+    const targetBranchId = branchId || product.branch_id;
+
+    await this.checkBranchAccess(
+      targetBranchId,
       userId,
       brandMemberships,
       branchMemberships,
@@ -464,7 +482,7 @@ export class InventoryService {
       .from('product_inventory')
       .select('*')
       .eq('product_id', productId)
-      .eq('branch_id', product.branch_id)
+      .eq('branch_id', targetBranchId)
       .single();
 
     if (fetchError || !currentInventory) {
@@ -482,6 +500,7 @@ export class InventoryService {
       return this.getInventoryByProduct(
         userId,
         productId,
+        targetBranchId,
         brandMemberships,
         branchMemberships,
       );
@@ -510,7 +529,7 @@ export class InventoryService {
       const qtyChange = dto.qty_available - currentInventory.qty_available;
       await this.createInventoryLog(
         productId,
-        product.branch_id,
+        targetBranchId,
         'ADJUSTMENT',
         qtyChange,
         currentInventory.qty_available,
@@ -525,6 +544,7 @@ export class InventoryService {
     return this.getInventoryByProduct(
       userId,
       productId,
+      targetBranchId,
       brandMemberships,
       branchMemberships,
     );
@@ -537,6 +557,7 @@ export class InventoryService {
     userId: string,
     productId: string,
     dto: AdjustInventoryRequest,
+    branchId: string | undefined,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ): Promise<InventoryDetailResponse> {
@@ -547,6 +568,14 @@ export class InventoryService {
     // 상품 접근 권한 확인
     const { role, product } = await this.checkProductAccess(
       productId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+    const targetBranchId = branchId || product.branch_id;
+
+    await this.checkBranchAccess(
+      targetBranchId,
       userId,
       brandMemberships,
       branchMemberships,
@@ -562,7 +591,7 @@ export class InventoryService {
       .from('product_inventory')
       .select('*')
       .eq('product_id', productId)
-      .eq('branch_id', product.branch_id)
+      .eq('branch_id', targetBranchId)
       .single();
 
     if (fetchError || !currentInventory) {
@@ -592,7 +621,7 @@ export class InventoryService {
     // Create inventory log
     await this.createInventoryLog(
       productId,
-      product.branch_id,
+      targetBranchId,
       dto.transaction_type,
       dto.qty_change,
       currentInventory.qty_available,
@@ -608,6 +637,7 @@ export class InventoryService {
     return this.getInventoryByProduct(
       userId,
       productId,
+      targetBranchId,
       brandMemberships,
       branchMemberships,
     );

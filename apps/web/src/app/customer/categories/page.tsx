@@ -37,6 +37,10 @@ type CategoryGroup = {
   minSortOrder: number;
 };
 
+type DeleteTarget =
+  | { type: "category"; category: Category }
+  | { type: "group"; group: CategoryGroup };
+
 function canManageCategory(role: string | null | undefined) {
   return (
     role === "OWNER" ||
@@ -127,6 +131,11 @@ export default function CustomerCategoriesPage() {
   const [categorySearch, setCategorySearch] = useState("");
   const [debouncedCategorySearch, setDebouncedCategorySearch] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [groupEditTarget, setGroupEditTarget] = useState<CategoryGroup | null>(null);
+  const [groupEditName, setGroupEditName] = useState("");
+  const [groupEditLoading, setGroupEditLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectAllGroupRef = useRef<HTMLInputElement>(null);
 
@@ -232,6 +241,13 @@ export default function CustomerCategoriesPage() {
     ? categories.filter((c) => c.isActive).length
     : groupedCategories.filter((g) => g.allActive).length;
   const inactiveCategoryCount = displayCategoryCount - activeCategoryCount;
+  const partialActiveCategoryCount = groupedCategories.filter(
+    (group) => !group.allActive && group.someActive,
+  ).length;
+  const selectedSummaryCount = isSingleBranchMode ? selectedCatIds.size : selectedGroupKeys.size;
+  const selectedSummaryLabel = isSingleBranchMode
+    ? "\uce74\ud14c\uace0\ub9ac"
+    : "\uadf8\ub8f9";
 
   // Filtered categories for search
   const filteredCategories = useMemo(() => {
@@ -327,18 +343,43 @@ export default function CustomerCategoriesPage() {
     }
   };
 
-  const handleDelete = async (categoryId: string) => {
+  const openDeleteModal = (target: DeleteTarget) => {
     if (!isSingleBranchMode) {
-      toast.error("삭제는 단일 매장 선택에서만 가능합니다.");
+      toast.error("??? ?? ?? ????? ?????.");
       return;
     }
-    if (!confirm("이 카테고리를 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.")) return;
+    setDeleteTarget(target);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+
     try {
-      await apiClient.delete("/customer/products/categories/" + categoryId);
-      setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+      setDeleteLoading(true);
+      if (deleteTarget.type === "category") {
+        await apiClient.delete("/customer/products/categories/" + deleteTarget.category.id);
+        setCategories((prev) => prev.filter((c) => c.id !== deleteTarget.category.id));
+      } else {
+        await Promise.all(
+          deleteTarget.group.items.map((item) =>
+            apiClient.delete(`/customer/products/categories/${item.id}`),
+          ),
+        );
+        await loadSelectedBranchCategories();
+        toast.success(`"${deleteTarget.group.name}" ????? ??? ?? ???? ??????.`);
+      }
+      setDeleteTarget(null);
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "카테고리 삭제에 실패했습니다");
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : deleteTarget.type === "group"
+            ? "?? ??? ??????."
+            : "???? ??? ??????.",
+      );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -354,51 +395,47 @@ export default function CustomerCategoriesPage() {
       );
       await loadSelectedBranchCategories();
       toast.success(
-        `"${group.name}" 카테고리를 선택 지점 전체에서 ${nextActive ? "활성화" : "비활성화"}했습니다.`,
+        nextActive
+          ? `"${group.name}" ????? ??? ?? ???? ???????.`
+          : `"${group.name}" ????? ??? ?? ???? ????????.`
       );
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "그룹 상태 변경에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "?? ?? ??? ??????.");
     }
   };
 
-  const openGroupEdit = async (group: CategoryGroup) => {
-    const newName = prompt("새 카테고리 이름을 입력하세요:", group.name);
-    if (!newName || !newName.trim() || newName.trim() === group.name) return;
+  const openGroupEdit = (group: CategoryGroup) => {
+    setGroupEditTarget(group);
+    setGroupEditName(group.name);
+  };
+
+  const handleGroupEditSubmit = async () => {
+    if (!groupEditTarget) return;
+    const nextName = groupEditName.trim();
+    if (!nextName || nextName === groupEditTarget.name) {
+      setGroupEditTarget(null);
+      return;
+    }
 
     try {
+      setGroupEditLoading(true);
       await Promise.all(
-        group.items.map((item) =>
+        groupEditTarget.items.map((item) =>
           apiClient.patch(`/customer/products/categories/${item.id}`, {
-            name: newName.trim(),
+            name: nextName,
           }),
         ),
       );
       await loadSelectedBranchCategories();
-      toast.success(`"${group.name}" 카테고리 이름을 선택 지점 전체에서 변경했습니다.`);
+      toast.success(`"${groupEditTarget.name}" ???? ??? ??? ?? ???? ??????.`);
+      setGroupEditTarget(null);
+      setGroupEditName("");
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "그룹 이름 변경에 실패했습니다");
-    }
-  };
-
-  const handleGroupDelete = async (group: CategoryGroup) => {
-    if (
-      !confirm(
-        `"${group.name}" 카테고리를 선택한 모든 지점에서 삭제하시겠습니까?\n해당 카테고리의 상품은 '카테고리 없음' 상태가 됩니다.`,
-      )
-    )
-      return;
-
-    try {
-      await Promise.all(
-        group.items.map((item) => apiClient.delete(`/customer/products/categories/${item.id}`)),
-      );
-      await loadSelectedBranchCategories();
-      toast.success(`"${group.name}" 카테고리를 선택 지점 전체에서 삭제했습니다.`);
-    } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "그룹 삭제에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "?? ?? ??? ??????.");
+    } finally {
+      setGroupEditLoading(false);
     }
   };
 
@@ -594,6 +631,8 @@ export default function CustomerCategoriesPage() {
     if (!canManage) {
       setShowAddForm(false);
       setEditingId(null);
+      setDeleteTarget(null);
+      setGroupEditTarget(null);
     }
   }, [canManage]);
 
@@ -770,7 +809,7 @@ export default function CustomerCategoriesPage() {
                 <Pencil className="w-4 h-4" />
               </button>
               <button
-                onClick={() => handleDelete(category.id)}
+                onClick={() => openDeleteModal({ type: "category", category })}
                 className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
                 title="삭제"
                 aria-label="삭제"
@@ -806,6 +845,18 @@ export default function CustomerCategoriesPage() {
     dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>,
   ) => {
     const tooltipText = group.branchNames.join(", ");
+    const activeCount = group.items.filter((item) => item.isActive).length;
+    const inactiveCount = group.items.length - activeCount;
+    const statusLabel = group.allActive
+      ? "\uc804\uccb4 \ud65c\uc131"
+      : group.someActive
+        ? "\uc77c\ubd80 \ud65c\uc131"
+        : "\uc804\uccb4 \ube44\ud65c\uc131";
+    const statusClass = group.allActive
+      ? "bg-success/15 text-success"
+      : group.someActive
+        ? "bg-warning-500/15 text-warning-500"
+        : "bg-danger-500/15 text-danger-500";
 
     return (
       <div className={`group/row flex items-center gap-3 px-4 py-3 border-t border-border first:border-t-0 transition-colors ${
@@ -840,6 +891,12 @@ export default function CustomerCategoriesPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-foreground">{group.name}</span>
+            <span className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold ${statusClass}`}>
+              {statusLabel}
+            </span>
+            <span className="inline-flex items-center h-5 px-2 rounded-full text-[11px] font-medium bg-bg-tertiary text-text-secondary border border-border">
+              활성 {activeCount} / 비활성 {inactiveCount}
+            </span>
             {group.branchNames.length > 0 && (
               <div className="relative group" tabIndex={0}>
                 <span
@@ -871,7 +928,7 @@ export default function CustomerCategoriesPage() {
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => handleGroupDelete(group)}
+                  onClick={() => openDeleteModal({ type: "group", group })}
                   className="w-8 h-8 flex items-center justify-center rounded border border-danger-500/30 bg-danger-500/10 text-danger-500 hover:bg-danger-500/20 cursor-pointer transition-colors"
                   title="그룹 삭제"
                   aria-label="그룹 삭제"
@@ -931,6 +988,22 @@ export default function CustomerCategoriesPage() {
           <p className="text-text-secondary text-sm mt-1">
             선택 매장 {selectedBranchIds.size}개 · 카테고리 {displayCategoryCount}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
           </p>
+          <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg-secondary px-3 py-2 text-xs text-text-secondary">
+            <span className="font-semibold text-foreground">
+              {selectedBranchIds.size === 0
+                ? "관리 모드 안내"
+                : isSingleBranchMode
+                  ? "단일 매장 관리"
+                  : "여러 매장 일괄 관리"}
+            </span>
+            <span className="text-text-tertiary">
+              {selectedBranchIds.size === 0
+                ? "매장을 선택하면 수정 가능한 작업이 표시됩니다."
+                : isSingleBranchMode
+                  ? "이름 수정, 삭제, 활성화 변경을 개별 카테고리 단위로 처리할 수 있습니다."
+                  : "추가, 정렬, 그룹 이름 변경, 그룹 삭제, 그룹 상태 변경을 선택한 매장 전체에 반영합니다."}
+            </span>
+          </div>
         </div>
         {canManage && selectedBranchIds.size > 0 && (
           <button
@@ -1089,58 +1162,78 @@ export default function CustomerCategoriesPage() {
             </div>
           ) : (
             <div>
-              {/* Bulk action bar */}
-              {canBulkStatus && isSingleBranchMode ? (
-                <div className={`sticky top-0 z-10 flex items-center gap-2 mb-3 p-3 rounded-lg ${
-                  selectedCatIds.size > 0
-                    ? "bg-primary-500/5 border border-primary-500/20 backdrop-blur"
-                    : "bg-bg-tertiary/40 border border-border"
+              {canBulkStatus && selectedBranchIds.size > 0 && (
+                <div className={`mb-3 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 ${
+                  selectedSummaryCount > 0
+                    ? "border-primary-500/20 bg-primary-500/5"
+                    : "border-border bg-bg-tertiary/40"
                 }`}>
-                  <input
-                    ref={selectAllRef}
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="w-4 h-4 rounded accent-primary flex-shrink-0"
-                    title="전체 선택/해제"
-                    aria-label="전체 선택/해제"
-                  />
-                  {selectedCatIds.size > 0 ? (
-                    <>
-                      <span className="text-sm font-medium text-foreground">일괄 변경: {selectedCatIds.size}개 선택됨</span>
-                      <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggle(true)}>선택 활성화</button>
-                      <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggle(false)}>선택 비활성화</button>
-                    </>
+                  {isSingleBranchMode ? (
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="h-4 w-4 rounded accent-primary"
+                      title="전체 선택 또는 해제"
+                      aria-label="전체 선택 또는 해제"
+                    />
                   ) : (
-                    <span className="text-xs text-text-secondary italic">선택하면 일괄 변경 가능</span>
+                    <input
+                      ref={selectAllGroupRef}
+                      type="checkbox"
+                      checked={allVisibleGroupsSelected}
+                      onChange={(e) => handleSelectAllGroups(e.target.checked)}
+                      className="h-4 w-4 rounded accent-primary"
+                      title="전체 선택 또는 해제"
+                      aria-label="전체 선택 또는 해제"
+                    />
+                  )}
+                  <span className="text-sm font-semibold text-foreground">
+                    {selectedSummaryCount > 0
+                      ? `${selectedSummaryLabel} ${selectedSummaryCount}개 선택됨`
+                      : isSingleBranchMode
+                        ? "카테고리를 선택하면 빠른 액션을 사용할 수 있습니다."
+                        : "그룹을 선택하면 빠른 액션을 사용할 수 있습니다."}
+                  </span>
+                  {!isSingleBranchMode && (
+                    <span className="text-xs text-text-tertiary">
+                      전체 활성 {activeCategoryCount} · 일부 활성 {partialActiveCategoryCount} · 전체 비활성 {inactiveCategoryCount}
+                    </span>
+                  )}
+                  {selectedSummaryCount > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        className="ml-auto h-8 rounded-lg bg-success/15 px-3 text-xs font-semibold text-success transition-colors hover:bg-success/25"
+                        onClick={() =>
+                          isSingleBranchMode ? void handleBulkToggle(true) : void handleBulkToggleMulti(true)
+                        }
+                      >
+                        선택 활성화
+                      </button>
+                      <button
+                        type="button"
+                        className="h-8 rounded-lg bg-danger-500/15 px-3 text-xs font-semibold text-danger-500 transition-colors hover:bg-danger-500/25"
+                        onClick={() =>
+                          isSingleBranchMode ? void handleBulkToggle(false) : void handleBulkToggleMulti(false)
+                        }
+                      >
+                        선택 비활성화
+                      </button>
+                      <button
+                        type="button"
+                        className="h-8 rounded-lg border border-border bg-bg-secondary px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary"
+                        onClick={() =>
+                          isSingleBranchMode ? setSelectedCatIds(new Set()) : setSelectedGroupKeys(new Set())
+                        }
+                      >
+                        선택 해제
+                      </button>
+                    </>
                   )}
                 </div>
-              ) : canBulkStatus && !isSingleBranchMode ? (
-                <div className={`sticky top-0 z-10 flex items-center gap-2 mb-3 p-3 rounded-lg ${
-                  selectedGroupKeys.size > 0
-                    ? "bg-primary-500/5 border border-primary-500/20 backdrop-blur"
-                    : "bg-bg-tertiary/40 border border-border"
-                }`}>
-                  <input
-                    ref={selectAllGroupRef}
-                    type="checkbox"
-                    checked={allVisibleGroupsSelected}
-                    onChange={(e) => handleSelectAllGroups(e.target.checked)}
-                    className="w-4 h-4 rounded accent-primary flex-shrink-0"
-                    title="전체 선택/해제"
-                    aria-label="전체 선택/해제"
-                  />
-                  {selectedGroupKeys.size > 0 ? (
-                    <>
-                      <span className="text-sm font-medium text-foreground">일괄 변경: {selectedGroupKeys.size}개 그룹 선택됨</span>
-                      <button className="ml-auto text-xs px-3 py-1.5 rounded bg-success/20 text-success font-medium hover:bg-success/30 transition-colors" onClick={() => handleBulkToggleMulti(true)}>선택 활성화</button>
-                      <button className="text-xs px-3 py-1.5 rounded bg-danger-500/20 text-danger-500 font-medium hover:bg-danger-500/30 transition-colors" onClick={() => handleBulkToggleMulti(false)}>선택 비활성화</button>
-                    </>
-                  ) : (
-                    <span className="text-xs text-text-secondary italic">선택하면 일괄 변경 가능</span>
-                  )}
-                </div>
-              ) : null}
+              )}
 
               {/* Category search */}
               <div className="mb-3 relative">
@@ -1206,6 +1299,160 @@ export default function CustomerCategoriesPage() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      <GroupEditModal
+        open={groupEditTarget !== null}
+        value={groupEditName}
+        loading={groupEditLoading}
+        groupName={groupEditTarget?.name ?? ""}
+        onChange={setGroupEditName}
+        onClose={() => {
+          if (groupEditLoading) return;
+          setGroupEditTarget(null);
+          setGroupEditName("");
+        }}
+        onSubmit={() => void handleGroupEditSubmit()}
+      />
+
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        loading={deleteLoading}
+        title={deleteTarget?.type === "group" ? "카테고리 그룹 삭제" : "카테고리 삭제"}
+        description={
+          deleteTarget?.type === "group"
+            ? `"${deleteTarget.group.name}" 그룹을 선택한 매장 전체에서 삭제합니다. 연결된 상품은 "카테고리 없음" 상태가 됩니다.`
+            : deleteTarget?.type === "category"
+              ? `"${deleteTarget.category.name}" 카테고리를 삭제합니다. 연결된 상품은 "카테고리 없음" 상태가 됩니다.`
+              : ""
+        }
+        confirmLabel="삭제하기"
+        onClose={() => {
+          if (deleteLoading) return;
+          setDeleteTarget(null);
+        }}
+        onConfirm={() => void handleDelete()}
+      />
+    </div>
+  );
+}
+
+type GroupEditModalProps = {
+  open: boolean;
+  value: string;
+  loading: boolean;
+  groupName: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+};
+
+function GroupEditModal({
+  open,
+  value,
+  loading,
+  groupName,
+  onChange,
+  onClose,
+  onSubmit,
+}: GroupEditModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-lg font-bold text-foreground">카테고리 그룹 이름 변경</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            선택한 매장 전체에 같은 이름으로 반영됩니다.
+          </p>
+        </div>
+        <div className="px-5 py-4">
+          <label className="mb-2 block text-xs font-semibold text-text-secondary">
+            새 그룹 이름
+          </label>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={groupName}
+            className="input-field h-10 w-full text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSubmit();
+              if (e.key === "Escape") onClose();
+            }}
+            autoFocus
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="h-10 rounded-lg border border-border bg-bg-secondary px-4 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={loading || !value.trim()}
+            className="btn-primary h-10 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "저장 중..." : "이름 변경"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type DeleteConfirmModalProps = {
+  open: boolean;
+  loading: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onClose: () => void;
+  onConfirm: () => void;
+};
+
+function DeleteConfirmModal({
+  open,
+  loading,
+  title,
+  description,
+  confirmLabel,
+  onClose,
+  onConfirm,
+}: DeleteConfirmModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-lg font-bold text-foreground">{title}</h2>
+          <p className="mt-1 text-sm text-text-secondary">{description}</p>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="h-10 rounded-lg border border-border bg-bg-secondary px-4 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="h-10 rounded-lg border border-danger-500/30 bg-danger-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-danger-500/90 disabled:opacity-50"
+          >
+            {loading ? "처리 중..." : confirmLabel}
+          </button>
         </div>
       </div>
     </div>

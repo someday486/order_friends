@@ -28,17 +28,63 @@ export interface UserData {
   }>;
 }
 
+let cachedUserId: string | null = null;
+let cachedUserData: UserData | null = null;
+let inFlightUserId: string | null = null;
+let inFlightUserRolePromise: Promise<UserData | null> | null = null;
+
+function getCachedUserRole(userId: string | null) {
+  if (!userId) return null;
+  if (cachedUserId !== userId) return null;
+  return cachedUserData;
+}
+
+function clearUserRoleCache() {
+  cachedUserId = null;
+  cachedUserData = null;
+  inFlightUserId = null;
+  inFlightUserRolePromise = null;
+}
+
+async function fetchUserRoleData(userId: string): Promise<UserData | null> {
+  const cached = getCachedUserRole(userId);
+  if (cached) {
+    return cached;
+  }
+
+  if (inFlightUserId === userId && inFlightUserRolePromise) {
+    return inFlightUserRolePromise;
+  }
+
+  inFlightUserId = userId;
+  inFlightUserRolePromise = apiClient
+    .get<UserData>('/me')
+    .then((data) => {
+      cachedUserId = userId;
+      cachedUserData = data;
+      return data;
+    })
+    .finally(() => {
+      inFlightUserId = null;
+      inFlightUserRolePromise = null;
+    });
+
+  return inFlightUserRolePromise;
+}
+
 export function useUserRole() {
   const { session, status } = useAuth();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  // 최초 1회 fetch 완료 여부 — 이후 재요청은 로딩 표시 없이 백그라운드 갱신
-  const hasFetchedRef = useRef(false);
-
-  // 토큰 갱신(cross-tab sync 포함) 시 effect가 재실행되지 않도록
-  // session 객체 레퍼런스 대신 userId를 의존성으로 사용
   const userId = session?.user?.id ?? null;
+  const [userData, setUserData] = useState<UserData | null>(() =>
+    getCachedUserRole(userId),
+  );
+  const [loading, setLoading] = useState(() => {
+    if (status === 'loading') return true;
+    if (status !== 'authenticated' || !userId) return false;
+    return !getCachedUserRole(userId);
+  });
+  const [error, setError] = useState<Error | null>(null);
+  const hasFetchedRef = useRef(Boolean(getCachedUserRole(userId)));
 
   useEffect(() => {
     if (status === 'loading') {
@@ -46,19 +92,31 @@ export function useUserRole() {
     }
 
     if (status === 'unauthenticated' || !userId) {
+      clearUserRoleCache();
       setUserData(null);
       setLoading(false);
+      setError(null);
       hasFetchedRef.current = false;
       return;
     }
 
+    const cached = getCachedUserRole(userId);
+    if (cached) {
+      setUserData(cached);
+      setLoading(false);
+      hasFetchedRef.current = true;
+    } else if (!hasFetchedRef.current) {
+      setLoading(true);
+    }
+
     const fetchUserRole = async () => {
       try {
-        // 데이터가 없을 때만 로딩 표시 (토큰 갱신 등 재요청 시 사이드바 깜빡임 방지)
-        if (!hasFetchedRef.current) setLoading(true);
-        const data = await apiClient.get<UserData>('/me');
-        setUserData(data);
-        hasFetchedRef.current = true;
+        setError(null);
+        const data = await fetchUserRoleData(userId);
+        if (data) {
+          setUserData(data);
+          hasFetchedRef.current = true;
+        }
       } catch (err) {
         console.error('Error fetching user role:', err);
         setError(err instanceof Error ? err : new Error('Unknown error'));

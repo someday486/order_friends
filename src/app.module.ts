@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { CustomerDashboardModule } from './modules/customer-dashboard/customer-dashboard.module';
 import { CustomerBrandsModule } from './modules/customer-brands/customer-brands.module';
 import { CustomerBranchesModule } from './modules/customer-branches/customer-branches.module';
+import { CustomerMembersModule } from './modules/customer-members/customer-members.module';
 import { CustomerProductsModule } from './modules/customer-products/customer-products.module';
 import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -61,6 +62,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CustomerDashboardModule,
     CustomerBrandsModule,
     CustomerBranchesModule,
+    CustomerMembersModule,
     CustomerProductsModule,
     CustomerOrdersModule,
     InventoryModule,

@@ -198,6 +198,7 @@ export class InventoryController {
     description: '특정 상품의 재고 정보를 조회합니다.',
   })
   @ApiParam({ name: 'productId', description: '상품 ID' })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: false })
   @ApiResponse({
     status: 200,
     description: '재고 조회 성공',
@@ -208,6 +209,7 @@ export class InventoryController {
   async getInventoryByProduct(
     @Req() req: AuthRequest,
     @Param('productId') productId: string,
+    @Query('branchId') branchId?: string,
   ): Promise<InventoryDetailResponse> {
     if (!req.user) throw new Error('Missing user');
 
@@ -217,6 +219,7 @@ export class InventoryController {
     return this.inventoryService.getInventoryByProduct(
       req.user.id,
       productId,
+      branchId,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );
@@ -228,6 +231,7 @@ export class InventoryController {
     description: 'OWNER 또는 ADMIN만 재고 수량을 업데이트할 수 있습니다.',
   })
   @ApiParam({ name: 'productId', description: '상품 ID' })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: false })
   @ApiBody({ type: UpdateInventoryRequest })
   @ApiResponse({
     status: 200,
@@ -239,6 +243,7 @@ export class InventoryController {
   async updateInventory(
     @Req() req: AuthRequest,
     @Param('productId') productId: string,
+    @Query('branchId') branchId: string | undefined,
     @Body() dto: UpdateInventoryRequest,
   ): Promise<InventoryDetailResponse> {
     if (!req.user) throw new Error('Missing user');
@@ -250,6 +255,7 @@ export class InventoryController {
       req.user.id,
       productId,
       dto,
+      branchId,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );
@@ -262,6 +268,7 @@ export class InventoryController {
       'OWNER 또는 ADMIN만 재고를 수동으로 조정할 수 있습니다. 로그에 기록됩니다.',
   })
   @ApiParam({ name: 'productId', description: '상품 ID' })
+  @ApiQuery({ name: 'branchId', description: '지점 ID', required: false })
   @ApiBody({ type: AdjustInventoryRequest })
   @ApiResponse({
     status: 200,
@@ -274,6 +281,7 @@ export class InventoryController {
   async adjustInventory(
     @Req() req: AuthRequest,
     @Param('productId') productId: string,
+    @Query('branchId') branchId: string | undefined,
     @Body() dto: AdjustInventoryRequest,
   ): Promise<InventoryDetailResponse> {
     if (!req.user) throw new Error('Missing user');
@@ -285,6 +293,7 @@ export class InventoryController {
       req.user.id,
       productId,
       dto,
+      branchId,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

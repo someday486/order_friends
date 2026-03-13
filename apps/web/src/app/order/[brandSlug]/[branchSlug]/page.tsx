@@ -23,6 +23,50 @@ type PublicProductResponse = {
   options?: ProductCardProduct["options"];
 };
 
+type PublicBranchResponse = {
+  id: string;
+  name: string;
+  brandName?: string;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  enabledFulfillmentTypes?: string[] | null;
+  allowedPaymentMethods?: string[] | null;
+};
+
+async function fetchBranch(
+  brandSlug: string,
+  branchSlug: string,
+): Promise<PublicBranchResponse | null> {
+  if (!API_BASE) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured");
+  }
+
+  const primaryResponse = await fetch(
+    `${API_BASE}/public/brands/${encodeURIComponent(brandSlug)}/branches/${encodeURIComponent(branchSlug)}`,
+    { next: { revalidate: 30 } },
+  );
+
+  if (primaryResponse.ok) {
+    return (await primaryResponse.json()) as PublicBranchResponse;
+  }
+
+  if (primaryResponse.status !== 404) {
+    throw new Error(`Failed to load branch: ${primaryResponse.status}`);
+  }
+
+  // Keep existing order URLs working even if the brand slug changes later.
+  const fallbackResponse = await fetch(
+    `${API_BASE}/public/branches/slug/${encodeURIComponent(branchSlug)}`,
+    { next: { revalidate: 30 } },
+  );
+
+  if (!fallbackResponse.ok) {
+    return null;
+  }
+
+  return (await fallbackResponse.json()) as PublicBranchResponse;
+}
+
 export default async function OrderPage({ params }: PageProps) {
   const { brandSlug, branchSlug } = await params;
 
@@ -30,26 +74,20 @@ export default async function OrderPage({ params }: PageProps) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured");
   }
 
-  // Fetch branch info (server-side)
-  const branchRes = await fetch(
-    `${API_BASE}/public/brands/${encodeURIComponent(brandSlug)}/branches/${encodeURIComponent(branchSlug)}`,
-    { next: { revalidate: 30 } },
-  );
-
-  if (!branchRes.ok) {
+  const branch = await fetchBranch(brandSlug, branchSlug);
+  if (!branch) {
     notFound();
   }
 
-  const branch = await branchRes.json();
+  const branchId = String(branch.id);
 
-  // products·categories를 병렬로 가져와 워터폴 제거
   const [productsRes, catsRes] = await Promise.all([
     fetch(
-      `${API_BASE}/public/branches/${encodeURIComponent(branch.id)}/products`,
+      `${API_BASE}/public/branches/${encodeURIComponent(branchId)}/products`,
       { next: { revalidate: 30 } },
     ),
     fetch(
-      `${API_BASE}/public/branches/${encodeURIComponent(branch.id)}/categories`,
+      `${API_BASE}/public/branches/${encodeURIComponent(branchId)}/categories`,
       { next: { revalidate: 30 } },
     ),
   ]);

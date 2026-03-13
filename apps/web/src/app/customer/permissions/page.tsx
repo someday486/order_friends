@@ -100,6 +100,7 @@ type MemberHistoryAction =
   | 'ROLE_STATUS_CHANGED';
 
 type MemberHistoryScope = 'BRAND' | 'BRANCH';
+type MemberHistoryFilter = 'ALL' | MemberHistoryAction;
 
 type MemberHistoryItem = {
   id: string;
@@ -168,6 +169,13 @@ const STATUS_BADGE: Record<Status, string> = {
   INACTIVE: 'bg-neutral-500/15 text-text-tertiary',
 };
 
+const HISTORY_ACTION_LABEL: Record<MemberHistoryAction, string> = {
+  INVITE_SENT: '초대',
+  ROLE_CHANGED: '권한 변경',
+  STATUS_CHANGED: '상태 변경',
+  ROLE_STATUS_CHANGED: '권한 + 상태',
+};
+
 function mapBrandRole(raw: string): Role {
   if (raw === 'OWNER') return 'BRAND_OWNER';
   if (raw === 'ADMIN') return 'MANAGER';
@@ -218,6 +226,26 @@ function formatHistoryDate(value: string) {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  }).format(date);
+}
+
+function getHistoryDateKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatHistoryDateGroup(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
   }).format(date);
 }
 
@@ -1296,6 +1324,58 @@ function HistoryModal({
 }: HistoryModalProps) {
   if (!open) return null;
 
+  const [actionFilter, setActionFilter] = useState<MemberHistoryFilter>('ALL');
+  const [keyword, setKeyword] = useState('');
+
+  const filteredItems = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+
+    return items.filter((item) => {
+      if (actionFilter !== 'ALL' && item.actionType !== actionFilter) {
+        return false;
+      }
+
+      if (!normalizedKeyword) return true;
+
+      const haystack = [
+        getHistoryActorLabel(item),
+        getHistoryTargetLabel(item),
+        getHistoryMessage(item),
+        HISTORY_ACTION_LABEL[item.actionType],
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedKeyword);
+    });
+  }, [actionFilter, items, keyword]);
+
+  const groupedItems = useMemo(() => {
+    const groups: Array<{
+      dateKey: string;
+      label: string;
+      items: MemberHistoryItem[];
+    }> = [];
+
+    for (const item of filteredItems) {
+      const dateKey = getHistoryDateKey(item.createdAt);
+      const lastGroup = groups[groups.length - 1];
+
+      if (!lastGroup || lastGroup.dateKey !== dateKey) {
+        groups.push({
+          dateKey,
+          label: formatHistoryDateGroup(item.createdAt),
+          items: [item],
+        });
+        continue;
+      }
+
+      lastGroup.items.push(item);
+    }
+
+    return groups;
+  }, [filteredItems]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
       <div className="w-full max-w-2xl rounded-2xl border border-border bg-background shadow-2xl">
@@ -1319,6 +1399,41 @@ function HistoryModal({
         </div>
 
         <div className="max-h-[32rem] overflow-y-auto px-5 py-4">
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border bg-bg-secondary p-4 sm:flex-row sm:items-end">
+            <div className="sm:w-48">
+              <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
+                유형 필터
+              </label>
+              <select
+                value={actionFilter}
+                onChange={(e) =>
+                  setActionFilter(e.target.value as MemberHistoryFilter)
+                }
+                className="input-field h-10 w-full text-sm"
+                disabled={loading}
+              >
+                <option value="ALL">전체 유형</option>
+                <option value="INVITE_SENT">초대</option>
+                <option value="ROLE_CHANGED">권한 변경</option>
+                <option value="STATUS_CHANGED">상태 변경</option>
+                <option value="ROLE_STATUS_CHANGED">권한 + 상태</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
+                검색
+              </label>
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="작업자, 대상, 변경 내용 검색"
+                className="input-field h-10 w-full text-sm"
+                disabled={loading}
+              />
+            </div>
+          </div>
+
           {loading ? (
             <div className="rounded-xl border border-border bg-bg-secondary px-4 py-10 text-center text-sm text-text-secondary">
               변경 이력을 불러오는 중입니다.
@@ -1336,77 +1451,98 @@ function HistoryModal({
                 초대, 권한 변경, 상태 변경 내역이 여기에 표시됩니다.
               </div>
             </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="rounded-xl border border-border bg-bg-secondary px-4 py-10 text-center">
+              <div className="text-sm font-semibold text-foreground">
+                필터 조건에 맞는 이력이 없습니다.
+              </div>
+              <div className="mt-1 text-xs text-text-tertiary">
+                필터를 변경하거나 검색어를 지워보세요.
+              </div>
+            </div>
           ) : (
             <div className="space-y-3">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-border bg-bg-secondary px-4 py-3"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">
-                        {getHistoryMessage(item)}
-                      </div>
-                      <div className="mt-1 text-xs text-text-tertiary">
-                        {item.scopeType === 'BRANCH'
-                          ? '매장 권한'
-                          : '브랜드 권한'}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-xs text-text-tertiary">
-                      {formatHistoryDate(item.createdAt)}
-                    </div>
+              {groupedItems.map((group) => (
+                <div key={group.dateKey} className="space-y-3">
+                  <div className="sticky top-0 z-10 -mx-1 rounded-lg bg-background/95 px-1 py-1 text-xs font-bold text-text-secondary backdrop-blur">
+                    {group.label}
                   </div>
-                  {(item.beforeRole ||
-                    item.beforeStatus ||
-                    item.afterRole ||
-                    item.afterStatus) && (
-                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <div className="rounded-lg border border-border/80 bg-background px-3 py-2">
-                        <div className="text-[11px] font-semibold text-text-secondary">
-                          이전 값
+                  {group.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-border bg-bg-secondary px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex h-6 items-center rounded-full bg-bg-tertiary px-2.5 text-[11px] font-semibold text-text-secondary">
+                              {HISTORY_ACTION_LABEL[item.actionType]}
+                            </span>
+                            <span className="text-xs text-text-tertiary">
+                              {item.scopeType === 'BRANCH'
+                                ? '매장 권한'
+                                : '브랜드 권한'}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-sm font-semibold text-foreground">
+                            {getHistoryMessage(item)}
+                          </div>
                         </div>
-                        <div className="mt-1 text-xs text-text-tertiary">
-                          역할:{' '}
-                          {item.beforeRole
-                            ? getRoleLabelByRawRole(
-                                item.beforeRole as InviteRole,
-                              )
-                            : '-'}
-                        </div>
-                        <div className="mt-0.5 text-xs text-text-tertiary">
-                          상태:{' '}
-                          {item.beforeStatus
-                            ? item.beforeStatus === 'SUSPENDED'
-                              ? '비활성화'
-                              : STATUS_LABEL[mapStatus(item.beforeStatus)]
-                            : '-'}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-border/80 bg-background px-3 py-2">
-                        <div className="text-[11px] font-semibold text-text-secondary">
-                          변경 후
-                        </div>
-                        <div className="mt-1 text-xs text-text-tertiary">
-                          역할:{' '}
-                          {item.afterRole
-                            ? getRoleLabelByRawRole(
-                                item.afterRole as InviteRole,
-                              )
-                            : '-'}
-                        </div>
-                        <div className="mt-0.5 text-xs text-text-tertiary">
-                          상태:{' '}
-                          {item.afterStatus
-                            ? item.afterStatus === 'SUSPENDED'
-                              ? '비활성화'
-                              : STATUS_LABEL[mapStatus(item.afterStatus)]
-                            : '-'}
+                        <div className="shrink-0 text-xs text-text-tertiary">
+                          {formatHistoryDate(item.createdAt)}
                         </div>
                       </div>
+                      {(item.beforeRole ||
+                        item.beforeStatus ||
+                        item.afterRole ||
+                        item.afterStatus) && (
+                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <div className="rounded-lg border border-border/80 bg-background px-3 py-2">
+                            <div className="text-[11px] font-semibold text-text-secondary">
+                              이전 값
+                            </div>
+                            <div className="mt-1 text-xs text-text-tertiary">
+                              역할:{' '}
+                              {item.beforeRole
+                                ? getRoleLabelByRawRole(
+                                    item.beforeRole as InviteRole,
+                                  )
+                                : '-'}
+                            </div>
+                            <div className="mt-0.5 text-xs text-text-tertiary">
+                              상태:{' '}
+                              {item.beforeStatus
+                                ? item.beforeStatus === 'SUSPENDED'
+                                  ? '비활성화'
+                                  : STATUS_LABEL[mapStatus(item.beforeStatus)]
+                                : '-'}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-border/80 bg-background px-3 py-2">
+                            <div className="text-[11px] font-semibold text-text-secondary">
+                              변경 후
+                            </div>
+                            <div className="mt-1 text-xs text-text-tertiary">
+                              역할:{' '}
+                              {item.afterRole
+                                ? getRoleLabelByRawRole(
+                                    item.afterRole as InviteRole,
+                                  )
+                                : '-'}
+                            </div>
+                            <div className="mt-0.5 text-xs text-text-tertiary">
+                              상태:{' '}
+                              {item.afterStatus
+                                ? item.afterStatus === 'SUSPENDED'
+                                  ? '비활성화'
+                                  : STATUS_LABEL[mapStatus(item.afterStatus)]
+                                : '-'}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               ))}
             </div>

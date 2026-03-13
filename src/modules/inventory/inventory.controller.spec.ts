@@ -138,12 +138,17 @@ describe('InventoryController', () => {
   it('getInventoryByProduct should call service and return result', async () => {
     mockService.getInventoryByProduct.mockResolvedValue({ id: 'inv-1' });
 
-    const result = await controller.getInventoryByProduct(makeReq(), 'prod-1');
+    const result = await controller.getInventoryByProduct(
+      makeReq(),
+      'prod-1',
+      'branch-1',
+    );
 
     expect(result).toEqual({ id: 'inv-1' });
     expect(mockService.getInventoryByProduct).toHaveBeenCalledWith(
       'user-1',
       'prod-1',
+      'branch-1',
       [],
       [],
     );
@@ -151,7 +156,11 @@ describe('InventoryController', () => {
 
   it('getInventoryByProduct should throw when user is missing', async () => {
     await expect(
-      controller.getInventoryByProduct(makeReq({ user: undefined }), 'prod-1'),
+      controller.getInventoryByProduct(
+        makeReq({ user: undefined }),
+        'prod-1',
+        'branch-1',
+      ),
     ).rejects.toThrow('Missing user');
   });
 
@@ -159,13 +168,19 @@ describe('InventoryController', () => {
     mockService.updateInventory.mockResolvedValue({ id: 'inv-1' });
 
     const dto = { qty: 10 } as any;
-    const result = await controller.updateInventory(makeReq(), 'prod-1', dto);
+    const result = await controller.updateInventory(
+      makeReq(),
+      'prod-1',
+      'branch-1',
+      dto,
+    );
 
     expect(result).toEqual({ id: 'inv-1' });
     expect(mockService.updateInventory).toHaveBeenCalledWith(
       'user-1',
       'prod-1',
       dto,
+      'branch-1',
       [],
       [],
     );
@@ -176,6 +191,7 @@ describe('InventoryController', () => {
       controller.updateInventory(
         makeReq({ user: undefined }),
         'prod-1',
+        'branch-1',
         {} as any,
       ),
     ).rejects.toThrow('Missing user');
@@ -185,13 +201,19 @@ describe('InventoryController', () => {
     mockService.adjustInventory.mockResolvedValue({ id: 'inv-1' });
 
     const dto = { change: 2 } as any;
-    const result = await controller.adjustInventory(makeReq(), 'prod-1', dto);
+    const result = await controller.adjustInventory(
+      makeReq(),
+      'prod-1',
+      'branch-1',
+      dto,
+    );
 
     expect(result).toEqual({ id: 'inv-1' });
     expect(mockService.adjustInventory).toHaveBeenCalledWith(
       'user-1',
       'prod-1',
       dto,
+      'branch-1',
       [],
       [],
     );
@@ -202,6 +224,7 @@ describe('InventoryController', () => {
       controller.adjustInventory(
         makeReq({ user: undefined }),
         'prod-1',
+        'branch-1',
         {} as any,
       ),
     ).rejects.toThrow('Missing user');
@@ -340,11 +363,13 @@ describe('InventoryController', () => {
             branchMemberships: undefined,
           }),
           'prod-1',
+          'branch-1',
         ),
       expectCall: () =>
         expect(mockService.getInventoryByProduct).toHaveBeenCalledWith(
           'user-1',
           'prod-1',
+          'branch-1',
           [],
           [],
         ),
@@ -360,6 +385,7 @@ describe('InventoryController', () => {
             branchMemberships: undefined,
           }),
           'prod-1',
+          'branch-1',
           { qty: 10 } as any,
         ),
       expectCall: () =>
@@ -367,6 +393,7 @@ describe('InventoryController', () => {
           'user-1',
           'prod-1',
           { qty: 10 },
+          'branch-1',
           [],
           [],
         ),
@@ -382,6 +409,7 @@ describe('InventoryController', () => {
             branchMemberships: undefined,
           }),
           'prod-1',
+          'branch-1',
           { change: 2 } as any,
         ),
       expectCall: () =>
@@ -389,6 +417,7 @@ describe('InventoryController', () => {
           'user-1',
           'prod-1',
           { change: 2 },
+          'branch-1',
           [],
           [],
         ),

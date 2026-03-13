@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Search, X } from "lucide-react";
+import { ChevronDown, Download, History, Search, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { exportToExcel } from "@/lib/excel-export";
 import { TableRowSkeleton } from "@/components/ui/Skeleton";
 import toast from "react-hot-toast";
 
@@ -45,6 +46,19 @@ type InventoryItem = {
   category_name?: string | null;
 };
 
+type InventoryLog = {
+  id: string;
+  product_id: string;
+  branch_id: string;
+  transaction_type: string;
+  qty_change: number;
+  qty_before: number;
+  qty_after: number;
+  notes?: string | null;
+  created_at: string;
+  created_by?: string;
+};
+
 type Branch = {
   id: string;
   name: string;
@@ -56,6 +70,11 @@ type BulkDeactivateResponse = {
   total: number;
   successful: number;
   alreadyInactive?: number;
+};
+
+type InventoryHistoryItem = InventoryLog & {
+  branch_name?: string;
+  product_name?: string;
 };
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -89,8 +108,277 @@ const TRANSACTION_TYPES = [
   { value: "RETURN", label: "반품" },
 ];
 
+const TRANSACTION_LABELS: Record<string, string> = {
+  RESTOCK: "재입고",
+  ADJUSTMENT: "재고 조정",
+  DAMAGE: "파손/폐기",
+  RETURN: "반품",
+  SALE: "판매",
+  RESERVATION: "예약",
+  RESERVE: "예약",
+  RELEASE: "예약 해제",
+};
+
+const TRANSACTION_BADGE_CLASSES: Record<string, string> = {
+  RESTOCK: "bg-success/20 text-success",
+  ADJUSTMENT: "bg-primary-500/20 text-primary-500",
+  DAMAGE: "bg-danger-500/20 text-danger-500",
+  RETURN: "bg-warning-500/20 text-warning-500",
+  SALE: "bg-neutral-500/20 text-neutral-400",
+  RESERVATION: "bg-primary-500/10 text-primary-500",
+  RESERVE: "bg-primary-500/10 text-primary-500",
+  RELEASE: "bg-bg-tertiary text-text-secondary",
+};
+
+function getTransactionLabel(type: string) {
+  return TRANSACTION_LABELS[type] || type;
+}
+
+function getHistoryDateKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatHistoryDateGroup(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
+}
+
 function isLowStock(item: InventoryItem): boolean {
   return item.is_low_stock;
+}
+
+function InventoryHistoryModal({
+  open,
+  logs,
+  loading,
+  error,
+  onClose,
+  onExport,
+}: {
+  open: boolean;
+  logs: InventoryHistoryItem[];
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onExport: () => void;
+}) {
+  const [filter, setFilter] = useState<string>("ALL");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setFilter("ALL");
+      setSearch("");
+    }
+  }, [open]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      if (filter !== "ALL" && log.transaction_type !== filter) {
+        return false;
+      }
+
+      if (!search.trim()) return true;
+
+      const query = search.toLowerCase();
+      return [
+        log.product_name || "",
+        log.branch_name || "",
+        log.notes || "",
+        getTransactionLabel(log.transaction_type),
+        String(log.qty_before),
+        String(log.qty_after),
+        String(log.qty_change),
+      ].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [filter, logs, search]);
+
+  const groupedLogs = useMemo(() => {
+    const groups = new Map<string, InventoryHistoryItem[]>();
+
+    filteredLogs.forEach((log) => {
+      const key = getHistoryDateKey(log.created_at);
+      const current = groups.get(key) || [];
+      current.push(log);
+      groups.set(key, current);
+    });
+
+    return Array.from(groups.entries()).map(([key, items]) => ({
+      key,
+      label: formatHistoryDateGroup(items[0]?.created_at || key),
+      items,
+    }));
+  }, [filteredLogs]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-6xl rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">재고 변경 이력</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              현재 선택된 매장 기준의 재고 변동 내역을 확인합니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-bg-secondary text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="border-b border-border px-5 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFilter("ALL")}
+                className={`h-9 rounded-full px-4 text-sm font-semibold transition-colors ${
+                  filter === "ALL"
+                    ? "bg-primary-500 text-white"
+                    : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground"
+                }`}
+              >
+                전체 유형
+              </button>
+              {TRANSACTION_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => setFilter(type.value)}
+                  className={`h-9 rounded-full px-4 text-sm font-semibold transition-colors ${
+                    filter === type.value
+                      ? "bg-primary-500 text-white"
+                      : "border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground"
+                  }`}
+                >
+                  {getTransactionLabel(type.value)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative w-full lg:w-80">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="상품, 매장, 메모 검색"
+                  className="input-field h-9 w-full pl-9 pr-9 text-sm"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary transition-colors hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onExport}
+                disabled={filteredLogs.length === 0}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-3 text-sm font-semibold text-foreground transition-colors hover:bg-bg-tertiary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                엑셀
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-h-[32rem] overflow-y-auto px-5 py-4">
+          {loading ? (
+            <div className="rounded-xl border border-border bg-bg-secondary p-12 text-center text-text-secondary">
+              변경 이력을 불러오는 중입니다...
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-danger-500 bg-danger-500/10 p-4 text-danger-500">
+              {error}
+            </div>
+          ) : groupedLogs.length === 0 ? (
+            <div className="rounded-xl border border-border bg-bg-secondary p-12 text-center">
+              <div className="text-base text-text-secondary">표시할 변경 이력이 없습니다</div>
+              <div className="mt-1 text-sm text-text-tertiary">선택된 매장을 조정하거나 재고를 변경한 뒤 다시 확인해보세요</div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {groupedLogs.map((group) => (
+                <section key={group.key}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <div className="text-xs font-bold uppercase tracking-[0.12em] text-text-tertiary">
+                      {group.label}
+                    </div>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+
+                  <div className="space-y-3">
+                    {group.items.map((log) => (
+                      <article
+                        key={log.id}
+                        className="rounded-xl border border-border bg-bg-secondary p-4"
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`inline-flex h-6 items-center rounded-full px-2.5 text-xs font-semibold ${
+                                  TRANSACTION_BADGE_CLASSES[log.transaction_type] ||
+                                  "bg-neutral-500/20 text-neutral-400"
+                                }`}
+                              >
+                                {getTransactionLabel(log.transaction_type)}
+                              </span>
+                              <span className="text-sm font-semibold text-text-secondary">
+                                {log.branch_name || "-"}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground">
+                              {log.product_name || "상품"} 재고가 {log.qty_before}개에서 {log.qty_after}개로 변경되었습니다.
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+                              <span>변경량 {log.qty_change > 0 ? "+" : ""}{log.qty_change}</span>
+                              <span>변경 전 {log.qty_before}</span>
+                              <span>변경 후 {log.qty_after}</span>
+                            </div>
+                            <p className="mt-2 text-sm text-text-secondary">
+                              {log.notes?.trim() || "메모 없음"}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-xs font-medium text-text-tertiary">
+                            {new Date(log.created_at).toLocaleString("ko-KR")}
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -118,6 +406,10 @@ export default function CustomerInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isBranchPanelOpen, setIsBranchPanelOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<InventoryHistoryItem[]>([]);
 
   // ── Bulk
   const [selectedInventoryIds, setSelectedInventoryIds] = useState<Set<string>>(new Set());
@@ -401,6 +693,7 @@ export default function CustomerInventoryPage() {
       setBulkQty("");
       setBulkNotes("");
       setSelectedBranchIds((prev) => new Set(prev));
+      if (historyOpen) void loadHistory();
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "일괄 조정에 실패했습니다");
@@ -442,12 +735,90 @@ export default function CustomerInventoryPage() {
 
       setSelectedInventoryIds(new Set());
       setSelectedBranchIds((prev) => new Set(prev));
+      if (historyOpen) void loadHistory();
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "일괄 비활성화에 실패했습니다");
     } finally {
       setBulkDeactivating(false);
     }
+  };
+
+  const loadHistory = useCallback(async () => {
+    if (selectedBranchIds.size === 0) {
+      setHistoryItems([]);
+      return;
+    }
+
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+
+      const branchIds = Array.from(selectedBranchIds);
+      const responses = await Promise.all(
+        branchIds.map((branchId) =>
+          apiClient
+            .get<InventoryLog[]>(
+              `/customer/inventory/logs?branchId=${encodeURIComponent(branchId)}`,
+            )
+            .then((items) =>
+              items.map((item) => ({
+                ...item,
+                branch_name:
+                  branches.find((branch) => branch.id === item.branch_id)?.name ||
+                  "-",
+                product_name:
+                  inventory.find(
+                    (inv) =>
+                      inv.product_id === item.product_id &&
+                      inv.branch_id === item.branch_id,
+                  )?.product_name || "",
+              })),
+            )
+            .catch(() => [] as InventoryHistoryItem[]),
+        ),
+      );
+
+      const merged = responses
+        .flat()
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+
+      setHistoryItems(merged);
+    } catch (e) {
+      console.error(e);
+      setHistoryError(
+        e instanceof Error ? e.message : "변경 이력을 불러올 수 없습니다",
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [branches, inventory, selectedBranchIds]);
+
+  const handleOpenHistory = async () => {
+    setHistoryOpen(true);
+    await loadHistory();
+  };
+
+  const handleExportHistory = () => {
+    if (historyItems.length === 0) return;
+
+    exportToExcel(
+      historyItems.map((item) => ({
+        일시: new Date(item.created_at).toLocaleString("ko-KR"),
+        매장: item.branch_name || "",
+        상품: item.product_name || "",
+        거래유형: getTransactionLabel(item.transaction_type),
+        변경량: item.qty_change,
+        변경전: item.qty_before,
+        변경후: item.qty_after,
+        메모: item.notes || "",
+      })),
+      "inventory-history",
+      "재고변경이력",
+    );
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -485,6 +856,18 @@ export default function CustomerInventoryPage() {
       {/* Header */}
       <div className="mb-4">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">재고 관리</h1>
+      </div>
+
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => void handleOpenHistory()}
+          disabled={selectedBranchIds.size === 0}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:bg-bg-tertiary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <History className="h-4 w-4 text-text-secondary" />
+          변경 이력
+        </button>
       </div>
 
       {/* Sticky filter bar */}
@@ -972,6 +1355,15 @@ export default function CustomerInventoryPage() {
           )}
         </>
       )}
+
+      <InventoryHistoryModal
+        open={historyOpen}
+        logs={historyItems}
+        loading={historyLoading}
+        error={historyError}
+        onClose={() => setHistoryOpen(false)}
+        onExport={handleExportHistory}
+      />
     </div>
   );
 }

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
-import { ChevronDown, ChevronRight, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Search, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
+import toast from 'react-hot-toast';
 
 type Brand = {
   id: string;
@@ -20,6 +21,17 @@ type Branch = {
 };
 
 type BrandSection = { brand: Brand; branches: Branch[] };
+
+type RecentVisit = {
+  branchId: string;
+  branchName: string;
+  brandName: string;
+  url: string;
+  visitedAt: string;
+};
+
+const RECENT_VISITS_KEY = 'customer-order-recent-visits';
+const MAX_RECENT_VISITS = 3;
 
 function getBranchOrderUrl(
   brandSlug: string | null,
@@ -40,6 +52,7 @@ export default function CustomerOrderLauncherPage() {
   const [hideEmptyBrands, setHideEmptyBrands] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [openBrands, setOpenBrands] = useState<Record<string, boolean>>({});
+  const [recentVisits, setRecentVisits] = useState<RecentVisit[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -52,9 +65,7 @@ export default function CustomerOrderLauncherPage() {
         apiClient.get<Branch[]>('/customer/branches').catch(() => []),
       ]);
 
-      const sortedBrands = brands.sort((a, b) =>
-        a.name.localeCompare(b.name, 'ko'),
-      );
+      const sortedBrands = brands.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
       setProgress({ done: 1, total: 2 });
 
       const branchesByBrand: Record<string, Branch[]> = {};
@@ -89,11 +100,7 @@ export default function CustomerOrderLauncherPage() {
       });
     } catch (e) {
       console.error(e);
-      setError(
-        e instanceof Error
-          ? e.message
-          : '주문 페이지 정보를 불러오지 못했습니다.',
-      );
+      setError(e instanceof Error ? e.message : '주문 페이지 정보를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -103,8 +110,66 @@ export default function CustomerOrderLauncherPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const stored = window.localStorage.getItem(RECENT_VISITS_KEY);
+      if (!stored) return;
+
+      const parsed = JSON.parse(stored) as RecentVisit[];
+      if (!Array.isArray(parsed)) return;
+
+      setRecentVisits(
+        parsed.filter(
+          (item) =>
+            item &&
+            typeof item.branchId === 'string' &&
+            typeof item.branchName === 'string' &&
+            typeof item.brandName === 'string' &&
+            typeof item.url === 'string' &&
+            typeof item.visitedAt === 'string',
+        ),
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const toggleBrand = (brandId: string) => {
     setOpenBrands((prev) => ({ ...prev, [brandId]: !prev[brandId] }));
+  };
+
+  const handleRecentVisit = (visit: Omit<RecentVisit, 'visitedAt'>) => {
+    if (typeof window === 'undefined') return;
+
+    const nextVisit: RecentVisit = {
+      ...visit,
+      visitedAt: new Date().toISOString(),
+    };
+
+    const nextVisits = [
+      nextVisit,
+      ...recentVisits.filter((item) => item.branchId !== visit.branchId),
+    ].slice(0, MAX_RECENT_VISITS);
+
+    setRecentVisits(nextVisits);
+
+    try {
+      window.localStorage.setItem(RECENT_VISITS_KEY, JSON.stringify(nextVisits));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCopyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('주문 링크를 복사했습니다.');
+    } catch (e) {
+      console.error(e);
+      toast.error('링크 복사에 실패했습니다.');
+    }
   };
 
   const filteredSections = useMemo(() => {
@@ -147,9 +212,9 @@ export default function CustomerOrderLauncherPage() {
   return (
     <div>
       {loading && (
-        <div className="mb-4 p-3 rounded-md bg-bg-tertiary/40 border border-border text-sm text-text-secondary flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-border bg-bg-tertiary/40 p-3 text-sm text-text-secondary">
           <svg
-            className="w-4 h-4 animate-spin text-text-tertiary"
+            className="h-4 w-4 animate-spin text-text-tertiary"
             viewBox="0 0 24 24"
             fill="none"
           >
@@ -174,11 +239,11 @@ export default function CustomerOrderLauncherPage() {
       )}
 
       {!loading && error && (
-        <div className="mb-4 p-3 rounded-md border border-danger-500 bg-danger-500/10 text-danger-500 text-sm flex items-center justify-between gap-3">
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-danger-500 bg-danger-500/10 p-3 text-sm text-danger-500">
           <span>{error}</span>
           <button
             onClick={() => void load()}
-            className="flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded border border-danger-500/30 bg-danger-500/20 hover:bg-danger-500/30 transition-colors"
+            className="flex-shrink-0 rounded border border-danger-500/30 bg-danger-500/20 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-danger-500/30"
           >
             다시 시도
           </button>
@@ -187,47 +252,76 @@ export default function CustomerOrderLauncherPage() {
 
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-extrabold text-foreground">
-            브랜드 주문 선택
-          </h1>
-          <p className="text-text-secondary mt-2">
-            원하는 브랜드와 매장을 선택해 주문 페이지로 이동하세요.
+          <h1 className="text-2xl font-extrabold text-foreground">주문 페이지 바로가기</h1>
+          <p className="mt-2 text-text-secondary">
+            원하는 브랜드와 매장을 선택해 주문 페이지로 바로 이동하세요.
           </p>
         </div>
-        {showContent && sections.length > 0 && (
-          <div className="shrink-0 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-text-secondary select-none">
-              <input
-                type="checkbox"
-                checked={hideEmptyBrands}
-                onChange={(e) => setHideEmptyBrands(e.target.checked)}
-                className="w-4 h-4 rounded accent-primary"
-              />
-              매장 없는 브랜드 숨기기
-            </label>
-          </div>
-        )}
       </div>
 
       {showContent && sections.length > 0 && (
-        <div className="mb-4 relative w-full max-w-[360px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="브랜드나 매장 검색"
-            className="input-field w-full pl-9 pr-8"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-tertiary text-text-tertiary hover:text-text-secondary transition-colors"
-              aria-label="검색 초기화"
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full max-w-[420px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="브랜드나 매장 검색"
+              className="input-field w-full pl-9 pr-8"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 rounded p-1 text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-secondary"
+                aria-label="검색 초기화"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              checked={hideEmptyBrands}
+              onChange={(e) => setHideEmptyBrands(e.target.checked)}
+              className="h-4 w-4 rounded accent-primary"
+            />
+            매장 없는 브랜드 숨기기
+          </label>
+        </div>
+      )}
+
+      {showContent && recentVisits.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg-secondary/60 px-3 py-2">
+          <span className="text-xs font-semibold text-text-tertiary">최근 방문</span>
+          {recentVisits.map((visit) => (
+            <Link
+              key={visit.branchId}
+              href={visit.url}
+              target="_blank"
+              rel="noreferrer"
+              prefetch={false}
+              className="min-w-0 max-w-[180px] rounded-full border border-border bg-background px-3 py-1.5 no-underline transition-colors hover:bg-bg-tertiary"
             >
-              <X size={14} />
-            </button>
-          )}
+              <span className="truncate text-sm font-medium text-foreground">
+                {visit.branchName}
+              </span>
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setRecentVisits([]);
+              if (typeof window !== 'undefined') {
+                window.localStorage.removeItem(RECENT_VISITS_KEY);
+              }
+            }}
+            className="ml-auto text-xs font-medium text-text-secondary transition-colors hover:text-foreground"
+          >
+            전체 삭제
+          </button>
         </div>
       )}
 
@@ -238,8 +332,8 @@ export default function CustomerOrderLauncherPage() {
               key={i}
               className="rounded-xl border border-border bg-bg-secondary p-4"
             >
-              <Skeleton className="h-5 w-40 mb-3" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <Skeleton className="mb-3 h-5 w-40" />
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
                 <Skeleton className="h-16 rounded-md" />
                 <Skeleton className="h-16 rounded-md" />
               </div>
@@ -257,9 +351,7 @@ export default function CustomerOrderLauncherPage() {
       {showContent && sections.length > 0 && filteredSections.length === 0 && (
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base">
-            {searchQuery
-              ? '검색 결과가 없습니다.'
-              : '표시할 브랜드가 없습니다.'}
+            {searchQuery ? '검색 결과가 없습니다.' : '표시할 브랜드가 없습니다.'}
           </div>
         </div>
       )}
@@ -269,63 +361,129 @@ export default function CustomerOrderLauncherPage() {
           {filteredSections.map((section) => (
             <div
               key={section.brand.id}
-              className="rounded-md border border-border bg-bg-secondary overflow-hidden"
+              className="overflow-hidden rounded-md border border-border bg-bg-secondary"
             >
-              <button
-                type="button"
-                onClick={() => toggleBrand(section.brand.id)}
-                className="w-full px-4 py-3 bg-bg-tertiary/60 flex items-center justify-between cursor-pointer hover:bg-bg-tertiary/80 transition-colors"
-              >
-                <div className="flex items-center gap-3 text-left min-w-0">
-                  <span className="font-bold text-foreground truncate">
-                    {section.brand.name}
-                  </span>
-                  <span className="flex-shrink-0 text-xs bg-bg-tertiary border border-border px-2 py-0.5 rounded text-text-secondary">
-                    지점 {section.branches.length}개
-                  </span>
+              <div className="flex items-center justify-between gap-3 bg-bg-tertiary/60 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-3 text-left min-w-0">
+                    <span className="truncate font-bold text-foreground">
+                      {section.brand.name}
+                    </span>
+                    <span className="flex-shrink-0 rounded border border-border bg-bg-tertiary px-2 py-0.5 text-xs text-text-secondary">
+                      지점 {section.branches.length}개
+                    </span>
+                  </div>
+
                 </div>
-                <div className="flex-shrink-0 ml-2">
+
+                <button
+                  type="button"
+                  onClick={() => toggleBrand(section.brand.id)}
+                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-border bg-background text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
+                  aria-label={openBrands[section.brand.id] ? '브랜드 접기' : '브랜드 펼치기'}
+                >
                   {openBrands[section.brand.id] ? (
-                    <ChevronDown size={16} className="text-text-secondary" />
+                    <ChevronDown size={16} className="text-current" />
                   ) : (
-                    <ChevronRight size={16} className="text-text-secondary" />
+                    <ChevronRight size={16} className="text-current" />
                   )}
-                </div>
-              </button>
+                </button>
+              </div>
 
               {openBrands[section.brand.id] && (
                 <div className="p-3 transition-all duration-200">
                   {section.branches.length === 0 ? (
-                    <div className="text-text-tertiary text-sm py-3 text-center">
+                    <div className="py-3 text-center text-sm text-text-tertiary">
                       등록된 지점이 없습니다.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {section.branches.map((branch) => {
-                        const url = getBranchOrderUrl(
-                          section.brand.slug,
-                          branch.slug,
-                          branch.id,
-                        );
-                        return (
-                          <Link
-                            key={branch.id}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            prefetch={false}
-                            className="block p-3 rounded-md border border-border bg-background no-underline transition-all duration-200 hover:bg-bg-tertiary/50 hover:-translate-y-[1px] hover:shadow-sm"
-                          >
-                            <div className="font-semibold text-sm text-foreground">
+                    <>
+                      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-text-tertiary">
+                          바로 열기
+                        </span>
+                        {section.branches.slice(0, 2).map((branch) => {
+                          const quickUrl = getBranchOrderUrl(
+                            section.brand.slug,
+                            branch.slug,
+                            branch.id,
+                          );
+
+                          return (
+                            <Link
+                              key={branch.id}
+                              href={quickUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              prefetch={false}
+                              onClick={() =>
+                                handleRecentVisit({
+                                  branchId: branch.id,
+                                  branchName: branch.name,
+                                  brandName: section.brand.name,
+                                  url: quickUrl,
+                                })
+                              }
+                              className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-text-secondary no-underline transition-colors hover:bg-bg-tertiary hover:text-foreground"
+                            >
                               {branch.name}
-                            </div>
-                            <div className="text-xs text-text-tertiary mt-1 truncate">
-                              {url}
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+                        {section.branches.map((branch) => {
+                          const url = getBranchOrderUrl(
+                            section.brand.slug,
+                            branch.slug,
+                            branch.id,
+                          );
+
+                          return (
+                            <Link
+                              key={branch.id}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              prefetch={false}
+                              onClick={() =>
+                                handleRecentVisit({
+                                  branchId: branch.id,
+                                  branchName: branch.name,
+                                  brandName: section.brand.name,
+                                  url,
+                                })
+                              }
+                              className="block rounded-md border border-border bg-background p-3 no-underline transition-all duration-200 hover:-translate-y-[1px] hover:bg-bg-tertiary/50 hover:shadow-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-foreground">
+                                    {branch.name}
+                                  </div>
+                                  <div className="mt-1 truncate text-xs text-text-tertiary">
+                                    {url}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    void handleCopyLink(url);
+                                  }}
+                                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
+                                  aria-label="주문 링크 복사"
+                                  title="주문 링크 복사"
+                                >
+                                  <Copy size={14} />
+                                </button>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -335,12 +493,9 @@ export default function CustomerOrderLauncherPage() {
       )}
 
       {showContent && searchQuery && filteredSections.length > 0 && (
-        <div className="mt-3 text-xs text-text-tertiary text-center">
+        <div className="mt-3 text-center text-xs text-text-tertiary">
           {filteredSections.length}개 브랜드, 총{' '}
-          {filteredSections.reduce(
-            (sum, section) => sum + section.branches.length,
-            0,
-          )}
+          {filteredSections.reduce((sum, section) => sum + section.branches.length, 0)}
           개 지점
         </div>
       )}

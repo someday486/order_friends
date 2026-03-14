@@ -30,6 +30,7 @@ type OrderInfo = {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
+  requestedTime: string | null;
   paymentMethod: PaymentMethod | null;
   fulfillmentType: FulfillmentType | null;
   transferAccount: TransferAccountInfo;
@@ -120,6 +121,7 @@ function normalizeOrder(raw: unknown): OrderInfo | null {
 
   const paymentMethodRaw = toText(source.paymentMethod ?? source.payment_method);
   const fulfillmentTypeRaw = toText(source.fulfillmentType ?? source.fulfillment_type);
+  const requestedTime = toText(source.requestedTime ?? source.requested_time);
 
   const transferAccountRaw =
     source.transferAccount && typeof source.transferAccount === "object"
@@ -136,6 +138,7 @@ function normalizeOrder(raw: unknown): OrderInfo | null {
     status,
     totalAmount,
     createdAt,
+    requestedTime,
     paymentMethod: isPaymentMethod(paymentMethodRaw) ? paymentMethodRaw : null,
     fulfillmentType: isFulfillmentType(fulfillmentTypeRaw) ? fulfillmentTypeRaw : null,
     transferAccount: transferAccountRaw
@@ -188,6 +191,7 @@ function mergeOrder(primary: OrderInfo, fallback: OrderInfo | null): OrderInfo {
     ...primary,
     paymentMethod: primary.paymentMethod ?? fallback.paymentMethod,
     fulfillmentType: primary.fulfillmentType ?? fallback.fulfillmentType,
+    requestedTime: primary.requestedTime ?? fallback.requestedTime,
     transferAccount: primary.transferAccount ?? fallback.transferAccount,
     customerName: primary.customerName ?? fallback.customerName,
     customerPhone: primary.customerPhone ?? fallback.customerPhone,
@@ -455,6 +459,11 @@ export default function TrackOrderPage() {
           <div className="mt-2 text-xs text-text-secondary">
             주문일시: {formatDateTimeFull(order.createdAt)}
           </div>
+          {order.requestedTime && (
+            <div className="mt-1 text-xs text-text-secondary">
+              픽업 희망 시간: {formatDateTimeFull(order.requestedTime)}
+            </div>
+          )}
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${

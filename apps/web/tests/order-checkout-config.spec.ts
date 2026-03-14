@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 type CheckoutDraft = {
   cart: Array<{
@@ -49,6 +49,24 @@ function makeDraft(partial?: Partial<CheckoutDraft>): CheckoutDraft {
   };
 }
 
+async function mockBranchConfig(
+  page: Page,
+  overrides?: Record<string, unknown>,
+) {
+  await page.route('**/public/branches/branch-1', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        enabledFulfillmentTypes: ['PICKUP', 'DELIVERY'],
+        allowedPaymentMethods: ['CARD', 'CASH'],
+        transferAccount: null,
+        ...overrides,
+      }),
+    });
+  });
+}
+
 test.describe('Order checkout config', () => {
   test('sends selected fulfillment/payment to public order API', async ({
     page,
@@ -88,6 +106,48 @@ test.describe('Order checkout config', () => {
     expect(requestBody?.branchId).toBe('branch-1');
   });
 
+  test('sends requested pickup time to public order API', async ({ page }) => {
+    const draft = makeDraft({
+      enabledFulfillmentTypes: ['PICKUP'],
+      selectedFulfillmentType: 'PICKUP',
+    });
+
+    await page.addInitScript((payload) => {
+      localStorage.setItem('order:checkout-draft:v1', JSON.stringify(payload));
+      sessionStorage.removeItem('orderCart');
+      sessionStorage.removeItem('orderBranchId');
+      sessionStorage.removeItem('orderBrandSlug');
+      sessionStorage.removeItem('orderBranchSlug');
+    }, draft);
+
+    let requestBody: Record<string, unknown> | null = null;
+    await page.route('**/public/orders', async (route) => {
+      requestBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'order-pickup-time' }),
+      });
+    });
+    await mockBranchConfig(page, {
+      enabledFulfillmentTypes: ['PICKUP'],
+      pickupTimeConfig: {
+        startTime: '09:00',
+        endTime: '10:00',
+      },
+    });
+
+    await page.goto('/order/branch/branch-1/checkout');
+    await page.getByTestId('customer-name-input').fill('Tester');
+    const pickupTimeInput = page.getByTestId('pickup-time-input');
+    const selectedPickupTime = await pickupTimeInput.inputValue();
+    await page.getByTestId('submit-order-button').click();
+
+    await expect.poll(() => requestBody).not.toBeNull();
+    expect(requestBody?.fulfillmentType).toBe('PICKUP');
+    expect(requestBody?.requestedTime).toBe(selectedPickupTime);
+  });
+
   test('hides options not allowed by branch config', async ({ page }) => {
     const draft = makeDraft({
       enabledFulfillmentTypes: ['PICKUP'],
@@ -110,6 +170,32 @@ test.describe('Order checkout config', () => {
     await expect(page.getByTestId('payment-card')).toBeVisible();
     await expect(page.getByTestId('fulfillment-delivery')).toHaveCount(0);
     await expect(page.getByTestId('payment-cash')).toHaveCount(0);
+  });
+
+  test('disables pickup time input when branch pickup schedule is not configured', async ({
+    page,
+  }) => {
+    const draft = makeDraft({
+      enabledFulfillmentTypes: ['PICKUP'],
+      selectedFulfillmentType: 'PICKUP',
+    });
+
+    await page.addInitScript((payload) => {
+      localStorage.setItem('order:checkout-draft:v1', JSON.stringify(payload));
+      sessionStorage.removeItem('orderCart');
+      sessionStorage.removeItem('orderBranchId');
+      sessionStorage.removeItem('orderBrandSlug');
+      sessionStorage.removeItem('orderBranchSlug');
+    }, draft);
+
+    await mockBranchConfig(page, {
+      enabledFulfillmentTypes: ['PICKUP'],
+      pickupTimeConfig: null,
+    });
+
+    await page.goto('/order/branch/branch-1/checkout');
+
+    await expect(page.getByTestId('pickup-time-input')).toBeDisabled();
   });
 
   test('blocks delivery order when address is empty', async ({ page }) => {

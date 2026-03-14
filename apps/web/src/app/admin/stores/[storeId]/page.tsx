@@ -24,6 +24,10 @@ type Branch = {
     accountNumber?: string | null;
     accountHolder?: string | null;
   } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
 };
 
 type Brand = {
@@ -88,6 +92,11 @@ function toggleItem<T extends string>(items: T[], value: T): T[] {
   return [...items, value];
 }
 
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 export default function StoreDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -106,6 +115,8 @@ export default function StoreDetailPage() {
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [pickupStartTime, setPickupStartTime] = useState("");
+  const [pickupEndTime, setPickupEndTime] = useState("");
 
   const [members, setMembers] = useState<BranchMember[]>([]);
 
@@ -133,13 +144,17 @@ export default function StoreDetailPage() {
       transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
       transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
       transferAccountHolder.trim() === (branch.transferAccount?.accountHolder ?? "");
+    const samePickupTimeConfig =
+      pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
+      pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
 
     return (
       name.trim() !== branch.name ||
       slug.trim() !== (branch.slug ?? "") ||
       !sameFulfillment ||
       !samePayments ||
-      !sameTransferInfo
+      !sameTransferInfo ||
+      !samePickupTimeConfig
     );
   }, [
     allowedPaymentMethods,
@@ -150,6 +165,8 @@ export default function StoreDetailPage() {
     transferAccountHolder,
     transferAccountNumber,
     transferBankName,
+    pickupEndTime,
+    pickupStartTime,
   ]);
 
   useEffect(() => {
@@ -181,6 +198,8 @@ export default function StoreDetailPage() {
         setTransferBankName(data.transferAccount?.bankName ?? "");
         setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
         setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
+        setPickupStartTime(data.pickupTimeConfig?.startTime ?? "");
+        setPickupEndTime(data.pickupTimeConfig?.endTime ?? "");
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
@@ -246,6 +265,8 @@ export default function StoreDetailPage() {
     setTransferBankName(branch.transferAccount?.bankName ?? "");
     setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
     setTransferAccountHolder(branch.transferAccount?.accountHolder ?? "");
+    setPickupStartTime(branch.pickupTimeConfig?.startTime ?? "");
+    setPickupEndTime(branch.pickupTimeConfig?.endTime ?? "");
   };
 
   const handleSave = async () => {
@@ -287,6 +308,23 @@ export default function StoreDetailPage() {
       return;
     }
 
+    if (
+      (pickupStartTime.trim() && !pickupEndTime.trim()) ||
+      (!pickupStartTime.trim() && pickupEndTime.trim())
+    ) {
+      toast.error("픽업 가능 시간의 시작/종료 시간을 모두 입력해 주세요.");
+      return;
+    }
+
+    if (
+      pickupStartTime.trim() &&
+      pickupEndTime.trim() &&
+      timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)
+    ) {
+      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
+      return;
+    }
+
     try {
       setSaving(true);
       const updated = await apiClient.patch<Branch>(`/admin/branches/${branch.id}`, {
@@ -299,6 +337,13 @@ export default function StoreDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        pickupTimeConfig:
+          pickupStartTime.trim() && pickupEndTime.trim()
+            ? {
+                startTime: pickupStartTime.trim(),
+                endTime: pickupEndTime.trim(),
+              }
+            : null,
       });
 
       setBranch(updated);
@@ -317,6 +362,8 @@ export default function StoreDetailPage() {
       setTransferBankName(updated.transferAccount?.bankName ?? "");
       setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");
       setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
+      setPickupStartTime(updated.pickupTimeConfig?.startTime ?? "");
+      setPickupEndTime(updated.pickupTimeConfig?.endTime ?? "");
 
       toast.success("매장을 수정했습니다.");
     } catch (e: unknown) {
@@ -445,6 +492,29 @@ export default function StoreDetailPage() {
                     </label>
                   );
                 })}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">픽업 가능 시간</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  type="time"
+                  step={1800}
+                  value={pickupStartTime}
+                  onChange={(e) => setPickupStartTime(e.target.value)}
+                  className="input-field w-full"
+                />
+                <input
+                  type="time"
+                  step={1800}
+                  value={pickupEndTime}
+                  onChange={(e) => setPickupEndTime(e.target.value)}
+                  className="input-field w-full"
+                />
+              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                30분 단위로 고객이 선택할 수 있는 픽업 시간을 설정합니다.
               </div>
             </div>
 

@@ -12,6 +12,10 @@ export class BranchListItemResponse {
     accountNumber?: string | null;
     accountHolder?: string | null;
   } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
   createdAt: string;
 }
 
@@ -29,6 +33,10 @@ export class BranchDetailResponse {
     bankName?: string | null;
     accountNumber?: string | null;
     accountHolder?: string | null;
+  } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
   } | null;
   createdAt: string;
 }

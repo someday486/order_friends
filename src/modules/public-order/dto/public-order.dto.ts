@@ -6,6 +6,7 @@ import {
   ValidateNested,
   Min,
   IsEnum,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -26,6 +27,10 @@ export class PublicBranchResponse {
     bankName?: string | null;
     accountNumber?: string | null;
     accountHolder?: string | null;
+  } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
   } | null;
 }
 
@@ -75,6 +80,7 @@ export class PublicOrderResponse {
   status: string;
   totalAmount: number;
   createdAt: string;
+  requestedTime?: string | null;
   paymentMethod?: string | null;
   fulfillmentType?: string | null;
   transferAccount?: {
@@ -215,6 +221,14 @@ export class CreatePublicOrderRequest {
   @IsEnum(FulfillmentType)
   @IsOptional()
   fulfillmentType?: FulfillmentType = FulfillmentType.PICKUP;
+
+  @ApiPropertyOptional({
+    description: '픽업 희망 시간 (ISO 8601)',
+    example: '2026-03-15T06:30:00.000Z',
+  })
+  @IsDateString()
+  @IsOptional()
+  requestedTime?: string;
 
   @ApiProperty({
     description: '주문 상품 목록',

@@ -1225,4 +1225,55 @@ describe('PublicOrderService - Inventory Integration', () => {
       }),
     );
   });
+
+  it('should save requestedTime for pickup orders', async () => {
+    const requestedTime = '2026-03-15T06:30:00.000Z';
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      fulfillmentType: 'PICKUP',
+      requestedTime,
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.requestedTime).toBe(requestedTime);
+    expect(anonChains.orders.insert).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        requested_time: expect.anything(),
+      }),
+    );
+  });
 });

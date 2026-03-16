@@ -375,4 +375,57 @@ describe('branch-order-config.util', () => {
       order_notice: '재료 소진 시 일부 메뉴가 조기 마감될 수 있습니다.',
     });
   });
+
+  it('should fallback to metadata when direct order notice update fails', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        order_notice: null,
+        metadata: { existing: true },
+      },
+      error: null,
+    });
+
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle,
+        }),
+      }),
+    };
+
+    const directUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({
+        error: { message: 'column "order_notice" does not exist' },
+      }),
+    });
+    const metadataUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    });
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce({ update: directUpdate })
+        .mockReturnValueOnce({ update: metadataUpdate }),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      orderNotice: '공지사항 테스트',
+    });
+
+    expect(directUpdate).toHaveBeenCalledWith({
+      order_notice: '공지사항 테스트',
+    });
+    expect(metadataUpdate).toHaveBeenCalledWith({
+      metadata: {
+        existing: true,
+        orderNotice: '공지사항 테스트',
+        order_notice: '공지사항 테스트',
+        notice: '공지사항 테스트',
+        announcement: '공지사항 테스트',
+      },
+    });
+  });
 });

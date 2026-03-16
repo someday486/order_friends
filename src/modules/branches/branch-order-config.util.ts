@@ -551,8 +551,13 @@ async function persistTransferAccountToBranch(
   }
 
   if (Object.keys(directPayload).length > 0) {
-    await sb.from('branches').update(directPayload).eq('id', branchId);
-    return;
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
   }
 
   const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
@@ -578,11 +583,13 @@ async function persistTransferAccountToBranch(
         : null,
     };
 
-    await sb
+    const { error } = await sb
       .from('branches')
       .update({ [column]: next })
       .eq('id', branchId);
-    return;
+    if (!error) {
+      return;
+    }
   }
 }
 
@@ -625,8 +632,13 @@ async function persistPickupTimeConfigToBranch(
   }
 
   if (Object.keys(directPayload).length > 0) {
-    await sb.from('branches').update(directPayload).eq('id', branchId);
-    return;
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
   }
 
   const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
@@ -650,11 +662,13 @@ async function persistPickupTimeConfigToBranch(
         : null,
     };
 
-    await sb
+    const { error } = await sb
       .from('branches')
       .update({ [column]: next })
       .eq('id', branchId);
-    return;
+    if (!error) {
+      return;
+    }
   }
 }
 
@@ -681,8 +695,13 @@ async function persistOrderNoticeToBranch(
   }
 
   if (Object.keys(directPayload).length > 0) {
-    await sb.from('branches').update(directPayload).eq('id', branchId);
-    return;
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
   }
 
   const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
@@ -698,11 +717,13 @@ async function persistOrderNoticeToBranch(
       announcement: orderNotice,
     };
 
-    await sb
+    const { error } = await sb
       .from('branches')
       .update({ [column]: next })
       .eq('id', branchId);
-    return;
+    if (!error) {
+      return;
+    }
   }
 }
 

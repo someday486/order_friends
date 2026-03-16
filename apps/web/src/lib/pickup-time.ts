@@ -11,6 +11,11 @@ export type PickupTimeOption = {
   label: string;
 };
 
+export type PickupDateOption = {
+  value: string;
+  label: string;
+};
+
 const HALF_HOUR_MINUTES = 30;
 const DEFAULT_SLOT_DAYS = 7;
 
@@ -53,6 +58,71 @@ function roundUpToHalfHour(date: Date): Date {
 
 export function hasPickupTimeConfig(config: PickupTimeConfig): boolean {
   return Boolean(config?.startTime && config?.endTime);
+}
+
+function isValidDate(value: Date): boolean {
+  return !Number.isNaN(value.getTime());
+}
+
+function formatDateKey(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getPickupDateKey(value: string): string | null {
+  const date = new Date(value);
+  if (!isValidDate(date)) {
+    return null;
+  }
+
+  return formatDateKey(date);
+}
+
+export function buildPickupDateOptions(
+  options: PickupTimeOption[],
+): PickupDateOption[] {
+  const formatter = new Intl.DateTimeFormat('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  });
+  const seen = new Set<string>();
+  const dates: PickupDateOption[] = [];
+
+  for (const option of options) {
+    const date = new Date(option.value);
+    if (!isValidDate(date)) {
+      continue;
+    }
+
+    const value = formatDateKey(date);
+    if (seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    dates.push({
+      value,
+      label: formatter.format(date),
+    });
+  }
+
+  return dates;
+}
+
+export function filterPickupTimeOptionsByDate(
+  options: PickupTimeOption[],
+  dateValue: string,
+): PickupTimeOption[] {
+  if (!dateValue) {
+    return [];
+  }
+
+  return options.filter(
+    (option) => getPickupDateKey(option.value) === dateValue,
+  );
 }
 
 export function buildPickupTimeOptions(

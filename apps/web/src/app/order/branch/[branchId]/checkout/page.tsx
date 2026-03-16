@@ -21,6 +21,11 @@ import {
 } from "@/lib/order-session";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
+import {
+  buildPickupTimeOptions,
+  hasPickupTimeConfig,
+  type PickupTimeConfig,
+} from "@/lib/pickup-time";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -52,6 +57,7 @@ type CreateOrderResult = {
   status?: string;
   totalAmount?: number;
   createdAt?: string;
+  requestedTime?: string | null;
   items?: unknown[];
   transferAccount?: {
     bankName?: string | null;
@@ -63,6 +69,7 @@ type CreateOrderResult = {
 type PublicBranchConfigResponse = {
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
+  pickupTimeConfig?: PickupTimeConfig;
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -145,10 +152,31 @@ export default function CheckoutPage() {
   const [customerAddress1, setCustomerAddress1] = useState("");
   const [customerAddress2, setCustomerAddress2] = useState("");
   const [customerMemo, setCustomerMemo] = useState("");
+  const [requestedPickupTime, setRequestedPickupTime] = useState("");
+  const [pickupTimeConfig, setPickupTimeConfig] = useState<PickupTimeConfig>(null);
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const authInfoRequestedRef = useRef(false);
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const pickupTimeOptions = useMemo(() => buildPickupTimeOptions(pickupTimeConfig), [pickupTimeConfig]);
+  const hasScheduledPickupConfig = hasPickupTimeConfig(pickupTimeConfig);
+
+  useEffect(() => {
+    if (!hasScheduledPickupConfig) {
+      return;
+    }
+
+    if (pickupTimeOptions.length === 0) {
+      setRequestedPickupTime("");
+      return;
+    }
+
+    setRequestedPickupTime((current) =>
+      pickupTimeOptions.some((option) => option.value === current)
+        ? current
+        : pickupTimeOptions[0].value,
+    );
+  }, [hasScheduledPickupConfig, pickupTimeOptions]);
 
   // 저장된 고객 정보 로드
   useEffect(() => {
@@ -319,8 +347,10 @@ export default function CheckoutPage() {
           normalizedPaymentMethods = latestPaymentMethods;
         }
         setTransferAccount(latestConfig?.transferAccount ?? null);
+        setPickupTimeConfig(latestConfig?.pickupTimeConfig ?? null);
       } catch {
         setTransferAccount(null);
+        setPickupTimeConfig(null);
       }
 
       const selectedFulfillment = isFulfillmentType(recovered.selectedFulfillmentType)
@@ -370,6 +400,42 @@ export default function CheckoutPage() {
       return;
     }
 
+    const requestedTime =
+      fulfillmentType !== "PICKUP"
+        ? null
+        : hasScheduledPickupConfig
+          ? requestedPickupTime.trim() || null
+          : null;
+    if (
+      fulfillmentType === "PICKUP" &&
+      hasScheduledPickupConfig &&
+      pickupTimeOptions.length === 0
+    ) {
+      toast.error("선택 가능한 픽업 시간이 없습니다.");
+      return;
+    }
+    if (
+      fulfillmentType === "PICKUP" &&
+      hasScheduledPickupConfig &&
+      requestedTime &&
+      !pickupTimeOptions.some((option) => option.value === requestedTime)
+    ) {
+      toast.error("픽업 시간을 다시 선택해 주세요.");
+      return;
+    }
+    if (
+      fulfillmentType === "PICKUP" &&
+      hasScheduledPickupConfig &&
+      !requestedTime
+    ) {
+      toast.error("픽업 시간을 선택해 주세요.");
+      return;
+    }
+    if (requestedTime && new Date(requestedTime).getTime() < Date.now() - 60_000) {
+      toast.error("픽업 시간은 현재 이후로 선택해주세요.");
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
@@ -388,6 +454,7 @@ export default function CheckoutPage() {
         customerAddress1: customerAddress1 || undefined,
         customerAddress2: customerAddress2 || undefined,
         customerMemo: customerMemo || undefined,
+        requestedTime: requestedTime || undefined,
         paymentMethod,
         fulfillmentType,
         items: cart.map((item) => ({
@@ -410,6 +477,7 @@ export default function CheckoutPage() {
           customerAddress1: customerAddress1 || null,
           customerAddress2: customerAddress2 || null,
           customerMemo: customerMemo || null,
+          requestedTime: result.requestedTime ?? requestedTime ?? null,
           paymentMethod,
           fulfillmentType,
           branchId,
@@ -598,6 +666,38 @@ export default function CheckoutPage() {
             </div>
 
             {/* 배달일 때만 주소 표시 */}
+            {fulfillmentType === "PICKUP" && (
+              <div className="animate-fade-in">
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5">
+                  픽업 희망 시간
+                </label>
+                <select
+                  value={hasScheduledPickupConfig ? requestedPickupTime : ""}
+                  onChange={(e) => setRequestedPickupTime(e.target.value)}
+                  data-testid="pickup-time-input"
+                  className="input-field w-full h-12"
+                  disabled={!hasScheduledPickupConfig || pickupTimeOptions.length === 0}
+                >
+                  {!hasScheduledPickupConfig ? (
+                    <option value="">매장에서 픽업 시간을 설정하지 않았습니다.</option>
+                  ) : pickupTimeOptions.length === 0 ? (
+                    <option value="">선택 가능한 픽업 시간이 없습니다.</option>
+                  ) : (
+                    pickupTimeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className="mt-2 text-xs text-text-tertiary">
+                  {hasScheduledPickupConfig
+                    ? "매장에서 설정한 픽업 가능 시간만 30분 단위로 표시됩니다."
+                    : "매장에서 픽업 가능 시간을 설정하면 이곳에서 선택할 수 있습니다."}
+                </p>
+              </div>
+            )}
+
             {fulfillmentType === "DELIVERY" && (
               <div className="animate-fade-in">
                 <label className="block text-xs font-semibold text-text-secondary mb-1.5">

@@ -1225,6 +1225,7 @@ export class PublicOrderService {
         config.allowedPaymentMethods,
       ),
       transferAccount: config.transferAccount ?? null,
+      pickupTimeConfig: config.pickupTimeConfig ?? null,
       channelByType: config.channelByType,
     };
   }
@@ -1345,6 +1346,7 @@ export class PublicOrderService {
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
     };
   }
 
@@ -1396,6 +1398,7 @@ export class PublicOrderService {
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
     };
   }
 
@@ -1453,6 +1456,7 @@ export class PublicOrderService {
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
     };
   }
 
@@ -1760,6 +1764,7 @@ export class PublicOrderService {
       status: order.status,
       totalAmount: order.total_amount,
       createdAt: order.created_at,
+      requestedTime: null,
       paymentMethod: order.payment_method ?? null,
       fulfillmentType: order.fulfillment_type ?? null,
       transferAccount: order.transfer_account ?? null,
@@ -2103,6 +2108,11 @@ export class PublicOrderService {
     }
 
     const fulfillmentType = requestedFulfillmentType as FulfillmentType;
+    // TODO: persist requestedTime after the orders schema adds requested_time.
+    const requestedTime =
+      fulfillmentType === FulfillmentType.PICKUP
+        ? (this.normalizeOptional(dto.requestedTime) ?? null)
+        : null;
     const fallbackChannelId = Object.values(branchOrderConfig.channelByType)[0];
     const channelId =
       branchOrderConfig.channelByType[fulfillmentType] ??
@@ -2616,6 +2626,7 @@ export class PublicOrderService {
       status: createdOrder.status,
       totalAmount: createdOrder.total_amount,
       createdAt: createdOrder.created_at,
+      requestedTime,
       paymentMethod,
       fulfillmentType,
       transferAccount: branchOrderConfig.transferAccount ?? null,

@@ -265,6 +265,7 @@ export class CustomerBranchesService {
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
       createdAt: branch.created_at,
       myRole: branchMembership?.role || brandMembership?.role,
     };
@@ -328,6 +329,7 @@ export class CustomerBranchesService {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
       allowedPaymentMethods: dto.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
+      pickupTimeConfig: dto.pickupTimeConfig,
     });
     const orderConfig = await getBranchOrderConfig(sb, data.id);
 
@@ -342,6 +344,7 @@ export class CustomerBranchesService {
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
       createdAt: data.created_at,
       myRole: membership.role,
     };
@@ -389,7 +392,8 @@ export class CustomerBranchesService {
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
       dto.allowedPaymentMethods !== undefined ||
-      dto.transferAccount !== undefined;
+      dto.transferAccount !== undefined ||
+      dto.pickupTimeConfig !== undefined;
 
     if (Object.keys(updateFields).length === 0) {
       if (hasOrderConfigUpdate) {
@@ -397,6 +401,7 @@ export class CustomerBranchesService {
           enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
           allowedPaymentMethods: dto.allowedPaymentMethods,
           transferAccount: dto.transferAccount,
+          pickupTimeConfig: dto.pickupTimeConfig,
         });
       }
       return this.getMyBranch(
@@ -432,6 +437,7 @@ export class CustomerBranchesService {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
       allowedPaymentMethods: dto.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
+      pickupTimeConfig: dto.pickupTimeConfig,
     });
     const orderConfig = await getBranchOrderConfig(sb, branchId);
 
@@ -446,6 +452,7 @@ export class CustomerBranchesService {
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
       createdAt: data.created_at,
       myRole: role,
     };

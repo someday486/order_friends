@@ -111,4 +111,56 @@ describe('branch-order-config.util', () => {
     expect(updateSpy).toHaveBeenCalledWith({ is_active: true });
     expect(updateEqSpy).toHaveBeenCalledWith('id', 'ch-delivery');
   });
+
+  it('should persist pickup time config into branch metadata', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: 'branch-1', metadata: { existing: true } },
+      error: null,
+    });
+    const selectEq = jest.fn().mockReturnValue({
+      maybeSingle,
+    });
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: selectEq,
+      }),
+    };
+
+    const updateEq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({
+      eq: updateEq,
+    });
+    const updateBuilder = {
+      update,
+    };
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce(updateBuilder),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      pickupTimeConfig: {
+        startTime: '09:00',
+        endTime: '21:00',
+      },
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      metadata: {
+        existing: true,
+        pickupTimeConfig: {
+          startTime: '09:00',
+          endTime: '21:00',
+        },
+        pickup_time_config: {
+          start_time: '09:00',
+          end_time: '21:00',
+        },
+      },
+    });
+    expect(updateEq).toHaveBeenCalledWith('id', 'branch-1');
+  });
 });

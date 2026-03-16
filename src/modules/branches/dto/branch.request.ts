@@ -34,6 +34,18 @@ export class TransferAccountRequest {
   accountHolder?: string;
 }
 
+export class PickupTimeConfigRequest {
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  startTime?: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  endTime?: string;
+}
+
 export class CreateBranchRequest {
   @IsString()
   brandId: string;
@@ -73,6 +85,11 @@ export class CreateBranchRequest {
   @Type(() => TransferAccountRequest)
   @IsOptional()
   transferAccount?: TransferAccountRequest;
+
+  @ValidateNested()
+  @Type(() => PickupTimeConfigRequest)
+  @IsOptional()
+  pickupTimeConfig?: PickupTimeConfigRequest;
 }
 
 export class UpdateBranchRequest {
@@ -113,4 +130,9 @@ export class UpdateBranchRequest {
   @Type(() => TransferAccountRequest)
   @IsOptional()
   transferAccount?: TransferAccountRequest;
+
+  @ValidateNested()
+  @Type(() => PickupTimeConfigRequest)
+  @IsOptional()
+  pickupTimeConfig?: PickupTimeConfigRequest;
 }

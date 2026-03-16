@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import OrderPageClient from "./OrderPageClient";
 import type { ProductCardProduct } from "@/components/ui/ProductCard";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
 
 type PageProps = {
   params: Promise<{ brandSlug: string; branchSlug: string }>;

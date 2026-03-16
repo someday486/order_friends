@@ -24,6 +24,7 @@ type OrderResult = {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
+  requestedTime?: string | null;
   paymentMethod?: string | null;
   customer?: {
     phone?: string | null;
@@ -49,6 +50,7 @@ function normalizeOrder(raw: unknown): OrderResult | null {
   const status = source.status;
   const totalAmount = source.totalAmount ?? source.total_amount;
   const createdAt = source.createdAt ?? source.created_at;
+  const requestedTime = source.requestedTime ?? source.requested_time;
   const items = Array.isArray(source.items) ? source.items : [];
 
   if (typeof orderNo !== "string") return null;
@@ -71,6 +73,7 @@ function normalizeOrder(raw: unknown): OrderResult | null {
     status: status as OrderStatus,
     totalAmount,
     createdAt,
+    requestedTime: typeof requestedTime === "string" ? requestedTime : null,
     paymentMethod: typeof source.paymentMethod === "string" ? source.paymentMethod : null,
     customer: customerRaw
       ? {
@@ -330,6 +333,12 @@ export default function CompletePage() {
               <span className="text-sm text-text-tertiary">주문일시</span>
               <span className="text-sm text-foreground">{formatDateTimeFull(order.createdAt)}</span>
             </div>
+            {order.requestedTime && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-text-tertiary">픽업 희망 시간</span>
+                <span className="text-sm text-foreground">{formatDateTimeFull(order.requestedTime)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center border-t border-border pt-3">
               <span className="text-sm font-semibold text-foreground">결제금액</span>
               <span className="text-xl font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>

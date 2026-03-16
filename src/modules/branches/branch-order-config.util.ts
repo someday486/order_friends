@@ -16,10 +16,16 @@ export type TransferAccountInfo = {
   accountHolder: string | null;
 };
 
+export type PickupTimeConfig = {
+  startTime: string | null;
+  endTime: string | null;
+};
+
 export type BranchOrderConfig = {
   enabledFulfillmentTypes: OrderFulfillmentType[];
   allowedPaymentMethods: OrderPaymentMethod[];
   transferAccount: TransferAccountInfo | null;
+  pickupTimeConfig: PickupTimeConfig | null;
   channelByType: Partial<Record<OrderFulfillmentType, string>>;
 };
 
@@ -40,6 +46,17 @@ function normalizeOptionalString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeHalfHourTime(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return /^([01]\d|2[0-3]):(00|30)$/.test(normalized) ? normalized : null;
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map((part) => Number(part));
+  return hours * 60 + minutes;
 }
 
 function normalizeTransferAccount(value: unknown): TransferAccountInfo | null {
@@ -64,6 +81,38 @@ function normalizeTransferAccount(value: unknown): TransferAccountInfo | null {
     bankName,
     accountNumber,
     accountHolder,
+  };
+}
+
+function normalizePickupTimeConfig(value: unknown): PickupTimeConfig | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const startTime = normalizeHalfHourTime(
+    row.startTime ??
+      row.start_time ??
+      row.pickupStartTime ??
+      row.pickup_start_time,
+  );
+  const endTime = normalizeHalfHourTime(
+    row.endTime ?? row.end_time ?? row.pickupEndTime ?? row.pickup_end_time,
+  );
+
+  if (!startTime && !endTime) {
+    return null;
+  }
+
+  if (!startTime || !endTime) {
+    return null;
+  }
+
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+    return null;
+  }
+
+  return {
+    startTime,
+    endTime,
   };
 }
 
@@ -177,6 +226,38 @@ function getTransferAccountFromBranchRow(
   return null;
 }
 
+function getPickupTimeConfigFromBranchRow(
+  branchRow: Record<string, unknown>,
+): PickupTimeConfig | null {
+  const direct = normalizePickupTimeConfig({
+    start_time: branchRow.start_time,
+    end_time: branchRow.end_time,
+    pickup_start_time: branchRow.pickup_start_time,
+    pickup_end_time: branchRow.pickup_end_time,
+  });
+  if (direct) return direct;
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const config = normalizePickupTimeConfig(
+      candidate.pickupTimeConfig ??
+        candidate.pickup_time_config ??
+        candidate.pickupWindow ??
+        candidate.pickup_window ??
+        candidate,
+    );
+    if (config) return config;
+  }
+
+  return null;
+}
+
 async function fetchBranchRow(
   sb: any,
   branchId: string,
@@ -241,11 +322,15 @@ export async function getBranchOrderConfig(
   const transferAccount = branchRow
     ? getTransferAccountFromBranchRow(branchRow)
     : null;
+  const pickupTimeConfig = branchRow
+    ? getPickupTimeConfigFromBranchRow(branchRow)
+    : null;
 
   return {
     enabledFulfillmentTypes,
     allowedPaymentMethods,
     transferAccount,
+    pickupTimeConfig,
     channelByType,
   };
 }
@@ -429,6 +514,62 @@ async function persistTransferAccountToBranch(
   }
 }
 
+async function persistPickupTimeConfigToBranch(
+  sb: any,
+  branchId: string,
+  pickupTimeConfig: PickupTimeConfig | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('pickup_start_time' in branchRow) {
+    directPayload.pickup_start_time = pickupTimeConfig?.startTime ?? null;
+  }
+  if ('pickup_end_time' in branchRow) {
+    directPayload.pickup_end_time = pickupTimeConfig?.endTime ?? null;
+  }
+  if ('start_time' in branchRow) {
+    directPayload.start_time = pickupTimeConfig?.startTime ?? null;
+  }
+  if ('end_time' in branchRow) {
+    directPayload.end_time = pickupTimeConfig?.endTime ?? null;
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    await sb.from('branches').update(directPayload).eq('id', branchId);
+    return;
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      pickupTimeConfig: pickupTimeConfig
+        ? {
+            startTime: pickupTimeConfig.startTime,
+            endTime: pickupTimeConfig.endTime,
+          }
+        : null,
+      pickup_time_config: pickupTimeConfig
+        ? {
+            start_time: pickupTimeConfig.startTime,
+            end_time: pickupTimeConfig.endTime,
+          }
+        : null,
+    };
+
+    await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    return;
+  }
+}
+
 export async function saveBranchOrderConfig(
   sb: any,
   branchId: string,
@@ -436,6 +577,7 @@ export async function saveBranchOrderConfig(
     enabledFulfillmentTypes?: unknown;
     allowedPaymentMethods?: unknown;
     transferAccount?: unknown;
+    pickupTimeConfig?: unknown;
   },
 ) {
   if (input.enabledFulfillmentTypes !== undefined) {
@@ -451,5 +593,10 @@ export async function saveBranchOrderConfig(
   if (input.transferAccount !== undefined) {
     const transferAccount = normalizeTransferAccount(input.transferAccount);
     await persistTransferAccountToBranch(sb, branchId, transferAccount);
+  }
+
+  if (input.pickupTimeConfig !== undefined) {
+    const pickupTimeConfig = normalizePickupTimeConfig(input.pickupTimeConfig);
+    await persistPickupTimeConfigToBranch(sb, branchId, pickupTimeConfig);
   }
 }

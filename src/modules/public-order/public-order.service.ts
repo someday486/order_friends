@@ -58,6 +58,48 @@ export class PublicOrderService {
       Number.isFinite(limit) && limit > 0 ? Math.min(limit, 20) : 5;
   }
 
+  private getPrimaryImageUrl(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (!Array.isArray(parsed)) return null;
+        const first = parsed.find(
+          (item) => typeof item === 'string' && item.trim().length > 0,
+        );
+        return typeof first === 'string' ? first.trim() : null;
+      } catch {
+        return null;
+      }
+    }
+
+    return trimmed;
+  }
+
+  private getImageUrls(value: unknown): string[] {
+    if (typeof value !== 'string') return [];
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (!Array.isArray(parsed)) return [];
+        return [...new Set(parsed.filter((item) => typeof item === 'string'))]
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, 10);
+      } catch {
+        return [];
+      }
+    }
+
+    return [trimmed];
+  }
+
   /**
    * Get public brand list for shop landing
    */
@@ -519,9 +561,7 @@ export class PublicOrderService {
     const fetchAllTemplates = (withOnlineShopFilter: boolean) => {
       let query = adminSb
         .from('brand_products')
-        .select(
-          'id, name, description, base_price, image_url, sort_order, is_active, created_at',
-        )
+        .select('*')
         .eq('brand_id', brandId)
         .eq('is_active', true);
 
@@ -579,9 +619,7 @@ export class PublicOrderService {
 
     const { data: linkedProducts, error: linkedError } = await adminSb
       .from('products')
-      .select(
-        'id, branch_id, brand_product_id, is_hidden, name, description, base_price, image_url, sort_order',
-      )
+      .select('*')
       .eq('branch_id', branchId)
       .in('brand_product_id', allTemplateIds)
       .limit(2000);
@@ -608,8 +646,11 @@ export class PublicOrderService {
         name: template.name,
         description: template.description ?? null,
         base_price: template.base_price ?? 0,
-        image_url: template.image_url ?? null,
+        image_url: this.getPrimaryImageUrl(template.image_url),
         sort_order: template.sort_order ?? 0,
+        urgent_discount_price: template.urgent_discount_price ?? null,
+        urgent_discount_start_at: template.urgent_discount_start_at ?? null,
+        urgent_discount_end_at: template.urgent_discount_end_at ?? null,
         is_hidden: false,
       };
 
@@ -666,9 +707,7 @@ export class PublicOrderService {
   ): Promise<void> {
     const { data: templates, error: templatesError } = await adminSb
       .from('brand_products')
-      .select(
-        'id, name, description, base_price, image_url, sort_order, is_active',
-      )
+      .select('*')
       .eq('brand_id', brandId)
       .eq('is_active', true)
       .limit(2000);
@@ -715,11 +754,14 @@ export class PublicOrderService {
         name: template.name ?? '이름 없는 상품',
         description: template.description ?? null,
         base_price: this.getPriceFromRow(template),
-        image_url: template.image_url ?? null,
+        image_url: this.getPrimaryImageUrl(template.image_url),
         sort_order:
           template.sort_order !== undefined && template.sort_order !== null
             ? template.sort_order
             : 0,
+        urgent_discount_price: template.urgent_discount_price ?? null,
+        urgent_discount_start_at: template.urgent_discount_start_at ?? null,
+        urgent_discount_end_at: template.urgent_discount_end_at ?? null,
       }));
 
     if (rowsToInsert.length === 0) return;
@@ -744,9 +786,7 @@ export class PublicOrderService {
     const fetchTemplates = async (withOnlineShopFilter: boolean) => {
       let query = adminSb
         .from('brand_products')
-        .select(
-          'id, name, description, base_price, image_url, sort_order, created_at',
-        )
+        .select('*')
         .eq('brand_id', context.brandId)
         .eq('is_active', true);
 
@@ -887,15 +927,33 @@ export class PublicOrderService {
         const linked = linkedProductMap.get(template.id);
         if (!linked) return null;
 
-        const linkedPrice = this.getPriceFromRow(linked);
-        const templatePrice = this.getPriceFromRow(template);
+        const linkedPrice = this.getPriceSummaryFromRow(linked);
+        const templatePrice = this.getPriceSummaryFromRow(template);
+        const templateImageUrls = this.getImageUrls(template.image_url);
+        const linkedImageUrls = this.getImageUrls(linked.image_url);
+        const imageUrls =
+          linkedImageUrls.length > 0 ? linkedImageUrls : templateImageUrls;
+        const finalPrice =
+          linkedPrice.price > 0 ? linkedPrice.price : templatePrice.price;
+        const finalDiscountPrice =
+          linkedPrice.discountPrice ??
+          (linkedPrice.price > 0 ? undefined : templatePrice.discountPrice);
+        const finalUrgentDiscountEndAt =
+          linkedPrice.urgentDiscountEndAt ??
+          (linkedPrice.price > 0
+            ? undefined
+            : templatePrice.urgentDiscountEndAt);
 
         return {
           id: template.id,
           name: template.name ?? linked.name,
           description: template.description ?? linked.description ?? null,
-          price: linkedPrice > 0 ? linkedPrice : templatePrice,
-          imageUrl: linked.image_url ?? template.image_url ?? null,
+          price: finalPrice,
+          discountPrice: finalDiscountPrice,
+          urgentDiscountEndAt: finalUrgentDiscountEndAt ?? null,
+          imageUrl:
+            linkedImageUrls[0] ?? this.getPrimaryImageUrl(template.image_url),
+          imageUrls,
           categoryId: linked.category_id ?? null,
           categoryName: categoryMap.get(linked.category_id) ?? null,
           sortOrder: template.sort_order ?? linked.sort_order ?? 0,
@@ -1060,13 +1118,70 @@ export class PublicOrderService {
   }
 
   private getPriceFromRow(row: any): number {
-    if (!row) return 0;
-    if (row.base_price !== undefined && row.base_price !== null)
-      return row.base_price;
-    if (row.price !== undefined && row.price !== null) return row.price;
-    if (row.price_amount !== undefined && row.price_amount !== null)
-      return row.price_amount;
-    return 0;
+    const summary = this.getPriceSummaryFromRow(row);
+    return summary.discountPrice ?? summary.price;
+  }
+
+  private getPriceSummaryFromRow(row: any): {
+    price: number;
+    discountPrice?: number;
+    urgentDiscountEndAt?: string | null;
+  } {
+    if (!row) return { price: 0 };
+
+    let basePrice = 0;
+    if (row.base_price !== undefined && row.base_price !== null) {
+      basePrice = Number(row.base_price);
+    } else if (row.price !== undefined && row.price !== null) {
+      basePrice = Number(row.price);
+    } else if (row.price_amount !== undefined && row.price_amount !== null) {
+      basePrice = Number(row.price_amount);
+    }
+    if (!Number.isFinite(basePrice) || basePrice < 0) {
+      basePrice = 0;
+    }
+
+    const rawDiscountValue = row?.urgent_discount_price;
+    if (
+      rawDiscountValue === null ||
+      rawDiscountValue === undefined ||
+      rawDiscountValue === ''
+    ) {
+      return { price: basePrice };
+    }
+
+    const rawDiscount = Number(rawDiscountValue);
+    if (
+      !Number.isFinite(rawDiscount) ||
+      rawDiscount < 0 ||
+      rawDiscount >= basePrice
+    ) {
+      return { price: basePrice };
+    }
+
+    const now = Date.now();
+    const startRaw = row.urgent_discount_start_at;
+    const endRaw = row.urgent_discount_end_at;
+    const startTs =
+      typeof startRaw === 'string' && startRaw.trim()
+        ? Date.parse(startRaw)
+        : null;
+    const endTs =
+      typeof endRaw === 'string' && endRaw.trim() ? Date.parse(endRaw) : null;
+
+    if (startTs && !Number.isNaN(startTs) && now < startTs) {
+      return { price: basePrice };
+    }
+    if (endTs && !Number.isNaN(endTs) && now > endTs) {
+      return { price: basePrice };
+    }
+
+    return {
+      price: basePrice,
+      discountPrice: rawDiscount,
+      urgentDiscountEndAt:
+        typeof endRaw === 'string' && endRaw.trim() ? endRaw : null,
+    };
   }
 
   private compareShopBranchPriority(
@@ -1585,6 +1700,30 @@ export class PublicOrderService {
 
     const products = data ?? [];
 
+    const templateIds = [
+      ...new Set(
+        products
+          .map((product: any) => product?.brand_product_id)
+          .filter(
+            (id: unknown): id is string =>
+              typeof id === 'string' && id.trim().length > 0,
+          ),
+      ),
+    ];
+    const templateImageMap = new Map<string, string[]>();
+    if (templateIds.length > 0) {
+      const adminSb = this.supabase.adminClient();
+      const { data: templates } = await adminSb
+        .from('brand_products')
+        .select('id, image_url')
+        .in('id', templateIds);
+
+      for (const template of templates ?? []) {
+        const imageUrls = this.getImageUrls((template as any).image_url);
+        templateImageMap.set((template as any).id, imageUrls);
+      }
+    }
+
     // Fetch category names for mapping
     const categoryIds = [
       ...new Set(products.map((p: any) => p.category_id).filter(Boolean)),
@@ -1600,17 +1739,33 @@ export class PublicOrderService {
       }
     }
 
-    return products.map((product: any) => ({
-      id: product.id,
-      name: product.name,
-      description: product.description ?? null,
-      price: this.getPriceFromRow(product),
-      imageUrl: product.image_url ?? null,
-      categoryId: product.category_id ?? null,
-      categoryName: categoryMap.get(product.category_id) ?? null,
-      sortOrder: product.sort_order ?? 0,
-      options: [],
-    }));
+    return products.map((product: any) => {
+      const productImageUrls = this.getImageUrls(product.image_url);
+      const templateImageUrls =
+        templateImageMap.get(product.brand_product_id) ?? [];
+      const imageUrls =
+        productImageUrls.length > 1
+          ? productImageUrls
+          : templateImageUrls.length > 0
+            ? templateImageUrls
+            : productImageUrls;
+      const priceSummary = this.getPriceSummaryFromRow(product);
+      const imageUrl = imageUrls[0] ?? null;
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description ?? null,
+        price: priceSummary.price,
+        discountPrice: priceSummary.discountPrice,
+        urgentDiscountEndAt: priceSummary.urgentDiscountEndAt ?? null,
+        imageUrl,
+        imageUrls,
+        categoryId: product.category_id ?? null,
+        categoryName: categoryMap.get(product.category_id) ?? null,
+        sortOrder: product.sort_order ?? 0,
+        options: [],
+      };
+    });
   }
 
   private buildOrderSignature(

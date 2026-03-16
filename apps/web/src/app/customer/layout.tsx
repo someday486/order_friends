@@ -2,11 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type UserRole } from "@/hooks/useUserRole";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import {
@@ -119,15 +119,12 @@ const menuSections: MenuSection[] = [
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, signOut } = useAuth();
-  const { role, loading: roleLoading } = useUserRole();
+  const { role } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark, toggle } = useDarkMode();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const isActive = (href: string) => {
     if (href === "/customer") return pathname === "/customer";
@@ -144,6 +141,32 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       }))
       .filter((section) => section.items.length > 0);
   }, [role]);
+
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      if (prefetchedRoutesRef.current.has(href)) return;
+      prefetchedRoutesRef.current.add(href);
+      void router.prefetch(href);
+    },
+    [router],
+  );
+
+  const prefetchTargets = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...visibleSections.flatMap((section) => section.items.map((item) => item.href)),
+        "/customer/mypage",
+      ]),
+    );
+  }, [visibleSections]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      prefetchTargets.forEach((href) => prefetchRoute(href));
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [prefetchTargets, prefetchRoute]);
   
 
   return (
@@ -191,7 +214,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           <div className="h-[72px] px-4 border-b border-border flex items-center justify-between">
             <Link href="/customer" className="no-underline text-foreground flex items-center gap-2">
             <Image
-              src={mounted && isDark ? "/logo2.png" : "/logo.png"}
+              src={isDark ? "/logo2.png" : "/logo.png"}
               alt="주문프렌즈 로고"
               width={170}
               height={50}
@@ -223,6 +246,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                     <Link
                       key={item.href}
                       href={item.href}
+                      onMouseEnter={() => prefetchRoute(item.href)}
+                      onFocus={() => prefetchRoute(item.href)}
                       onClick={() => setSidebarOpen(false)}
                       className={`
                         flex items-center px-3 py-2.5 rounded-md text-sm no-underline
@@ -253,6 +278,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
             <Link
               href="/customer/mypage"
+              onMouseEnter={() => prefetchRoute("/customer/mypage")}
+              onFocus={() => prefetchRoute("/customer/mypage")}
               onClick={() => setSidebarOpen(false)}
               className={`
                 flex items-center justify-center px-3 py-2.5 rounded-md text-sm no-underline
@@ -273,7 +300,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
               onClick={toggle}
               className="w-full py-2 px-3 rounded text-sm text-text-secondary border border-border bg-transparent hover:bg-bg-tertiary transition-colors cursor-pointer mb-2"
             >
-              {mounted ? (isDark ? "라이트 모드" : "다크 모드") : "테마"}
+              {isDark ? "라이트 모드" : "다크 모드"}
             </button>
             <button
               onClick={signOut}
@@ -289,7 +316,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             <button
               onClick={toggle}
               className="py-2 px-4 rounded-md border border-border bg-transparent text-sm text-foreground hover:bg-bg-tertiary transition-colors">
-              {mounted ? (isDark ? "라이트 모드" : "다크 모드") : "테마"}
+              {isDark ? "라이트 모드" : "다크 모드"}
             </button>
             <NotificationBell />
           </div>

@@ -16,7 +16,10 @@ export class PublicShopBrandProductResponse {
   name: string;
   description?: string | null;
   price: number;
+  discountPrice?: number;
+  urgentDiscountEndAt?: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[];
   categoryId?: string | null;
   categoryName?: string | null;
   sortOrder?: number;

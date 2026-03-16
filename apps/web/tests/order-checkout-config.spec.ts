@@ -148,6 +148,85 @@ test.describe('Order checkout config', () => {
     expect(requestBody?.requestedTime).toBe(selectedPickupTime);
   });
 
+  test('selects pickup date before pickup time', async ({ page }) => {
+    const draft = makeDraft({
+      enabledFulfillmentTypes: ['PICKUP'],
+      selectedFulfillmentType: 'PICKUP',
+    });
+
+    await page.addInitScript((payload) => {
+      localStorage.setItem('order:checkout-draft:v1', JSON.stringify(payload));
+      sessionStorage.removeItem('orderCart');
+      sessionStorage.removeItem('orderBranchId');
+      sessionStorage.removeItem('orderBrandSlug');
+      sessionStorage.removeItem('orderBranchSlug');
+    }, draft);
+
+    await mockBranchConfig(page, {
+      enabledFulfillmentTypes: ['PICKUP'],
+      pickupTimeConfig: {
+        startTime: '09:00',
+        endTime: '10:00',
+      },
+    });
+
+    await page.goto('/order/branch/branch-1/checkout');
+
+    const pickupDateInput = page.getByTestId('pickup-date-input');
+    const pickupTimeInput = page.getByTestId('pickup-time-input');
+    await expect(pickupDateInput).toBeVisible();
+
+    const dateOptions = await pickupDateInput
+      .locator('option')
+      .evaluateAll((options) =>
+        options
+          .map((option) => (option as HTMLOptionElement).value)
+          .filter(Boolean),
+      );
+
+    expect(dateOptions.length).toBeGreaterThan(1);
+    await pickupDateInput.selectOption(dateOptions[1]);
+    await expect(pickupTimeInput).toHaveValue(new RegExp(`^${dateOptions[1]}`));
+  });
+
+  test('uses the correct 조사 in transfer payment guidance', async ({
+    page,
+  }) => {
+    const draft = makeDraft({
+      allowedPaymentMethods: ['CARD', 'TRANSFER'],
+      selectedPaymentMethod: 'TRANSFER',
+    });
+
+    await page.addInitScript((payload) => {
+      localStorage.setItem('order:checkout-draft:v1', JSON.stringify(payload));
+      sessionStorage.removeItem('orderCart');
+      sessionStorage.removeItem('orderBranchId');
+      sessionStorage.removeItem('orderBrandSlug');
+      sessionStorage.removeItem('orderBranchSlug');
+    }, draft);
+
+    await mockBranchConfig(page, {
+      allowedPaymentMethods: ['CARD', 'TRANSFER'],
+      transferAccount: {
+        bankName: '국민은행',
+        accountNumber: '123-456-7890',
+        accountHolder: '오더프렌즈',
+      },
+    });
+
+    await page.goto('/order/branch/branch-1/checkout');
+    await page.getByTestId('payment-transfer').click();
+    await page.getByTestId('customer-name-input').fill('김한나');
+    await expect(
+      page.getByText('입금자명을 김한나로 입력해 주세요.'),
+    ).toBeVisible();
+
+    await page.getByTestId('customer-name-input').fill('김지훈');
+    await expect(
+      page.getByText('입금자명을 김지훈으로 입력해 주세요.'),
+    ).toBeVisible();
+  });
+
   test('hides options not allowed by branch config', async ({ page }) => {
     const draft = makeDraft({
       enabledFulfillmentTypes: ['PICKUP'],

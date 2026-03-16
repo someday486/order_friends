@@ -22,10 +22,13 @@ import {
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 import {
+  buildPickupDateOptions,
   buildPickupTimeOptions,
+  filterPickupTimeOptionsByDate,
   hasPickupTimeConfig,
   type PickupTimeConfig,
 } from "@/lib/pickup-time";
+import { appendEuroRo } from "@/lib/korean-particles";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -152,6 +155,7 @@ export default function CheckoutPage() {
   const [customerAddress1, setCustomerAddress1] = useState("");
   const [customerAddress2, setCustomerAddress2] = useState("");
   const [customerMemo, setCustomerMemo] = useState("");
+  const [selectedPickupDate, setSelectedPickupDate] = useState("");
   const [requestedPickupTime, setRequestedPickupTime] = useState("");
   const [pickupTimeConfig, setPickupTimeConfig] = useState<PickupTimeConfig>(null);
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
@@ -159,24 +163,50 @@ export default function CheckoutPage() {
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const pickupTimeOptions = useMemo(() => buildPickupTimeOptions(pickupTimeConfig), [pickupTimeConfig]);
+  const pickupDateOptions = useMemo(() => buildPickupDateOptions(pickupTimeOptions), [pickupTimeOptions]);
+  const pickupTimeOptionsForSelectedDate = useMemo(
+    () => filterPickupTimeOptionsByDate(pickupTimeOptions, selectedPickupDate),
+    [pickupTimeOptions, selectedPickupDate],
+  );
   const hasScheduledPickupConfig = hasPickupTimeConfig(pickupTimeConfig);
+  const depositAccountGuide = useMemo(() => appendEuroRo(customerName, "주문자명"), [customerName]);
+
+  useEffect(() => {
+    if (!hasScheduledPickupConfig) {
+      setSelectedPickupDate("");
+      setRequestedPickupTime("");
+      return;
+    }
+
+    if (pickupDateOptions.length === 0) {
+      setSelectedPickupDate("");
+      setRequestedPickupTime("");
+      return;
+    }
+
+    setSelectedPickupDate((current) =>
+      pickupDateOptions.some((option) => option.value === current)
+        ? current
+        : pickupDateOptions[0].value,
+    );
+  }, [hasScheduledPickupConfig, pickupDateOptions]);
 
   useEffect(() => {
     if (!hasScheduledPickupConfig) {
       return;
     }
 
-    if (pickupTimeOptions.length === 0) {
+    if (pickupTimeOptionsForSelectedDate.length === 0) {
       setRequestedPickupTime("");
       return;
     }
 
     setRequestedPickupTime((current) =>
-      pickupTimeOptions.some((option) => option.value === current)
+      pickupTimeOptionsForSelectedDate.some((option) => option.value === current)
         ? current
-        : pickupTimeOptions[0].value,
+        : pickupTimeOptionsForSelectedDate[0].value,
     );
-  }, [hasScheduledPickupConfig, pickupTimeOptions]);
+  }, [hasScheduledPickupConfig, pickupTimeOptionsForSelectedDate]);
 
   // 저장된 고객 정보 로드
   useEffect(() => {
@@ -671,19 +701,50 @@ export default function CheckoutPage() {
                 <label className="block text-xs font-semibold text-text-secondary mb-1.5">
                   픽업 희망 시간
                 </label>
+                <div className="mb-2">
+                  <label className="block text-[11px] font-semibold text-text-tertiary mb-1.5">
+                    1. 날짜 선택
+                  </label>
+                  <select
+                    value={hasScheduledPickupConfig ? selectedPickupDate : ""}
+                    onChange={(e) => setSelectedPickupDate(e.target.value)}
+                    data-testid="pickup-date-input"
+                    className="input-field w-full h-12"
+                    disabled={!hasScheduledPickupConfig || pickupDateOptions.length === 0}
+                  >
+                    {!hasScheduledPickupConfig ? (
+                      <option value="">매장에서 픽업 가능 시간을 설정하지 않았습니다.</option>
+                    ) : pickupDateOptions.length === 0 ? (
+                      <option value="">선택 가능한 날짜가 없습니다.</option>
+                    ) : (
+                      pickupDateOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <label className="block text-[11px] font-semibold text-text-tertiary mb-1.5">
+                  2. 시간 선택
+                </label>
                 <select
                   value={hasScheduledPickupConfig ? requestedPickupTime : ""}
                   onChange={(e) => setRequestedPickupTime(e.target.value)}
                   data-testid="pickup-time-input"
                   className="input-field w-full h-12"
-                  disabled={!hasScheduledPickupConfig || pickupTimeOptions.length === 0}
+                  disabled={
+                    !hasScheduledPickupConfig ||
+                    !selectedPickupDate ||
+                    pickupTimeOptionsForSelectedDate.length === 0
+                  }
                 >
                   {!hasScheduledPickupConfig ? (
                     <option value="">매장에서 픽업 시간을 설정하지 않았습니다.</option>
-                  ) : pickupTimeOptions.length === 0 ? (
+                  ) : pickupTimeOptionsForSelectedDate.length === 0 ? (
                     <option value="">선택 가능한 픽업 시간이 없습니다.</option>
                   ) : (
-                    pickupTimeOptions.map((option) => (
+                    pickupTimeOptionsForSelectedDate.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -780,7 +841,7 @@ export default function CheckoutPage() {
                 </div>
               </div>
               <p className="mt-2 text-xs text-text-secondary">
-                입금자명을 <strong>{customerName || "주문자명"}</strong>으로 입력해 주세요.
+                입금자명을 <strong>{depositAccountGuide}</strong> 입력해 주세요.
               </p>
             </div>
           )}

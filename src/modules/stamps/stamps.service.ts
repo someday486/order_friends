@@ -1,6 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import type {
+  BrandMembership,
+  BranchMembership,
+} from '../../common/types/auth-request';
 import { UpsertStampCardConfigDto } from './dto/stamp-card-config.dto';
+
+const BRAND_MANAGE_ROLES = new Set(['OWNER', 'ADMIN']);
+const BRANCH_MANAGE_ROLES = new Set(['BRANCH_OWNER', 'BRANCH_ADMIN']);
 
 export type StampCardConfig = {
   id: string;
@@ -50,6 +57,39 @@ export class StampsService {
       return null;
     }
     return data ? rowToConfig(data as Record<string, unknown>) : null;
+  }
+
+  async canManageConfig(
+    branchId: string,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ): Promise<boolean> {
+    const branchMembership = branchMemberships.find(
+      (membership) => membership.branch_id === branchId,
+    );
+    if (branchMembership && BRANCH_MANAGE_ROLES.has(branchMembership.role)) {
+      return true;
+    }
+
+    const client = this.supabase.adminClient();
+    const { data: branch, error } = await client
+      .from('branches')
+      .select('brand_id')
+      .eq('id', branchId)
+      .maybeSingle();
+
+    if (error || !branch?.brand_id) {
+      this.logger.warn(
+        `canManageConfig branch lookup failed for ${branchId}: ${error?.message ?? 'not found'}`,
+      );
+      return false;
+    }
+
+    return brandMemberships.some(
+      (membership) =>
+        membership.brand_id === branch.brand_id &&
+        BRAND_MANAGE_ROLES.has(membership.role),
+    );
   }
 
   // ── Admin: upsert config ──────────────────────────────────────

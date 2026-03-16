@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
+import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -527,20 +528,30 @@ export default function BranchDetailPage() {
             <section>
               <SectionHeading>픽업 시간 설정</SectionHeading>
               <div className="grid gap-2 sm:grid-cols-2">
-                <input
-                  type="time"
-                  step={1800}
+                <select
                   value={pickupStartTime}
                   onChange={(e) => setPickupStartTime(e.target.value)}
                   className="input-field w-full"
-                />
-                <input
-                  type="time"
-                  step={1800}
+                >
+                  <option value="">시작 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-start-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
                   value={pickupEndTime}
                   onChange={(e) => setPickupEndTime(e.target.value)}
                   className="input-field w-full"
-                />
+                >
+                  <option value="">종료 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-end-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <p className="text-xs text-text-tertiary mt-1.5">
                 설정하면 포장 주문에서 30분 단위 픽업 시간을 선택할 수 있습니다.

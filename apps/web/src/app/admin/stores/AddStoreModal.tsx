@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
+import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
 
@@ -198,20 +199,30 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         <div className="mt-3 grid gap-2">
           <label className="block text-xs text-text-secondary mb-0">픽업 가능 시간</label>
           <div className="grid gap-2 sm:grid-cols-2">
-            <input
-              type="time"
-              step={1800}
+            <select
               className="input-field w-full"
               value={pickupStartTime}
               onChange={(e) => setPickupStartTime(e.target.value)}
-            />
-            <input
-              type="time"
-              step={1800}
+            >
+              <option value="">시작 시간 선택</option>
+              {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                <option key={`pickup-start-${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
               className="input-field w-full"
               value={pickupEndTime}
               onChange={(e) => setPickupEndTime(e.target.value)}
-            />
+            >
+              <option value="">종료 시간 선택</option>
+              {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                <option key={`pickup-end-${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
           <label className="block text-xs text-text-secondary mb-0">계좌이체 입금 정보</label>
           <input

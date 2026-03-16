@@ -14,6 +14,21 @@ export type PickupTimeOption = {
 const HALF_HOUR_MINUTES = 30;
 const DEFAULT_SLOT_DAYS = 7;
 
+export const HALF_HOUR_TIME_OF_DAY_OPTIONS: PickupTimeOption[] = Array.from(
+  { length: (24 * 60) / HALF_HOUR_MINUTES },
+  (_, index) => {
+    const totalMinutes = index * HALF_HOUR_MINUTES;
+    const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const minutes = String(totalMinutes % 60).padStart(2, '0');
+    const value = `${hours}:${minutes}`;
+
+    return {
+      value,
+      label: value,
+    };
+  },
+);
+
 function toMinutes(value: string | null | undefined): number | null {
   if (!value) return null;
 

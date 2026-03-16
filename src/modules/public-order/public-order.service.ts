@@ -1224,6 +1224,7 @@ export class PublicOrderService {
       allowedPaymentMethods: normalizePaymentMethods(
         config.allowedPaymentMethods,
       ),
+      orderNotice: config.orderNotice ?? null,
       transferAccount: config.transferAccount ?? null,
       pickupTimeConfig: config.pickupTimeConfig ?? null,
       channelByType: config.channelByType,
@@ -1345,6 +1346,7 @@ export class PublicOrderService {
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
     };
@@ -1397,6 +1399,7 @@ export class PublicOrderService {
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
     };
@@ -1455,6 +1458,7 @@ export class PublicOrderService {
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
     };

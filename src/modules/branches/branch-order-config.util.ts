@@ -26,6 +26,7 @@ export type BranchOrderConfig = {
   allowedPaymentMethods: OrderPaymentMethod[];
   transferAccount: TransferAccountInfo | null;
   pickupTimeConfig: PickupTimeConfig | null;
+  orderNotice: string | null;
   channelByType: Partial<Record<OrderFulfillmentType, string>>;
 };
 
@@ -52,6 +53,12 @@ function normalizeHalfHourTime(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return /^([01]\d|2[0-3]):(00|30)$/.test(normalized) ? normalized : null;
+}
+
+function normalizeOrderNotice(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
 }
 
 function timeToMinutes(value: string): number {
@@ -268,6 +275,41 @@ function getPickupTimeConfigFromBranchRow(
   return null;
 }
 
+function getOrderNoticeFromBranchRow(
+  branchRow: Record<string, unknown>,
+): string | null {
+  const directCandidates = [
+    branchRow.orderNotice,
+    branchRow.order_notice,
+    branchRow.notice,
+    branchRow.announcement,
+  ];
+
+  for (const candidate of directCandidates) {
+    const notice = normalizeOrderNotice(candidate);
+    if (notice) return notice;
+  }
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const notice = normalizeOrderNotice(
+      candidate.orderNotice ??
+        candidate.order_notice ??
+        candidate.notice ??
+        candidate.announcement,
+    );
+    if (notice) return notice;
+  }
+
+  return null;
+}
+
 async function fetchBranchRow(
   sb: any,
   branchId: string,
@@ -335,12 +377,14 @@ export async function getBranchOrderConfig(
   const pickupTimeConfig = branchRow
     ? getPickupTimeConfigFromBranchRow(branchRow)
     : null;
+  const orderNotice = branchRow ? getOrderNoticeFromBranchRow(branchRow) : null;
 
   return {
     enabledFulfillmentTypes,
     allowedPaymentMethods,
     transferAccount,
     pickupTimeConfig,
+    orderNotice,
     channelByType,
   };
 }
@@ -614,6 +658,54 @@ async function persistPickupTimeConfigToBranch(
   }
 }
 
+async function persistOrderNoticeToBranch(
+  sb: any,
+  branchId: string,
+  orderNotice: string | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('order_notice' in branchRow) {
+    directPayload.order_notice = orderNotice;
+  }
+  if ('orderNotice' in branchRow) {
+    directPayload.orderNotice = orderNotice;
+  }
+  if ('notice' in branchRow) {
+    directPayload.notice = orderNotice;
+  }
+  if ('announcement' in branchRow) {
+    directPayload.announcement = orderNotice;
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    await sb.from('branches').update(directPayload).eq('id', branchId);
+    return;
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      orderNotice: orderNotice,
+      order_notice: orderNotice,
+      notice: orderNotice,
+      announcement: orderNotice,
+    };
+
+    await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    return;
+  }
+}
+
 export async function saveBranchOrderConfig(
   sb: any,
   branchId: string,
@@ -622,6 +714,7 @@ export async function saveBranchOrderConfig(
     allowedPaymentMethods?: unknown;
     transferAccount?: unknown;
     pickupTimeConfig?: unknown;
+    orderNotice?: unknown;
   },
 ) {
   if (input.enabledFulfillmentTypes !== undefined) {
@@ -642,5 +735,10 @@ export async function saveBranchOrderConfig(
   if (input.pickupTimeConfig !== undefined) {
     const pickupTimeConfig = normalizePickupTimeConfig(input.pickupTimeConfig);
     await persistPickupTimeConfigToBranch(sb, branchId, pickupTimeConfig);
+  }
+
+  if (input.orderNotice !== undefined) {
+    const orderNotice = normalizeOrderNotice(input.orderNotice);
+    await persistOrderNoticeToBranch(sb, branchId, orderNotice);
   }
 }

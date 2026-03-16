@@ -16,6 +16,7 @@ export class BranchListItemResponse {
     startTime?: string | null;
     endTime?: string | null;
   } | null;
+  orderNotice?: string | null;
   createdAt: string;
 }
 
@@ -38,5 +39,6 @@ export class BranchDetailResponse {
     startTime?: string | null;
     endTime?: string | null;
   } | null;
+  orderNotice?: string | null;
   createdAt: string;
 }

@@ -25,6 +25,7 @@ type Branch = {
   coverImageUrl?: string | null;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
+  orderNotice?: string | null;
 };
 
 type Category = {
@@ -332,6 +333,25 @@ export default function OrderPageClient({
               </div>
             </div>
           )}
+
+        {branch.orderNotice?.trim() && (
+          <div
+            data-testid="order-notice-banner"
+            className="mx-4 mt-4 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3"
+          >
+            <div className="flex items-start gap-2.5">
+              <span className="text-base leading-none">📢</span>
+              <div className="min-w-0">
+                <div className="text-xs font-bold uppercase tracking-wide text-warning-800">
+                  가게 공지
+                </div>
+                <p className="mt-1 text-sm text-warning-900 whitespace-pre-wrap break-words">
+                  {branch.orderNotice.trim()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Category Tabs */}
         {categories.length > 0 && (

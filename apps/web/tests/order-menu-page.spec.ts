@@ -8,6 +8,7 @@ const MOCK_BRANCH = {
   slug: 'gangnam-main',
   enabledFulfillmentTypes: ['PICKUP', 'DELIVERY'],
   allowedPaymentMethods: ['CARD', 'CASH'],
+  orderNotice: '포장은 20분 전에 미리 주문해 주세요.',
 };
 
 const MOCK_PRODUCTS = [
@@ -106,6 +107,33 @@ test.describe('Order menu page (branch ID route)', () => {
     await expect(page.getByText(/4,500원|4500원/)).toBeVisible({
       timeout: 5000,
     });
+  });
+
+  test('shows branch notice above the menu list', async ({ page }) => {
+    await page.route(`${API_BASE}/public/branches/branch-1`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_BRANCH),
+      });
+    });
+
+    await page.route(
+      `${API_BASE}/public/branches/branch-1/products`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(MOCK_PRODUCTS),
+        });
+      },
+    );
+
+    await page.goto('/order/branch/branch-1');
+
+    await expect(page.getByTestId('order-notice-banner')).toContainText(
+      '포장은 20분 전에 미리 주문해 주세요.',
+    );
   });
 });
 

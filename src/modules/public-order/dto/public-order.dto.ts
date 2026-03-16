@@ -23,6 +23,7 @@ export class PublicBranchResponse {
   coverImageUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
+  orderNotice?: string | null;
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;

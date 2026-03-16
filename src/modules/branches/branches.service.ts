@@ -98,6 +98,7 @@ export class BranchesService {
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
   }
@@ -141,6 +142,7 @@ export class BranchesService {
         allowedPaymentMethods: dto.allowedPaymentMethods,
         transferAccount: dto.transferAccount,
         pickupTimeConfig: dto.pickupTimeConfig,
+        orderNotice: dto.orderNotice,
       });
       const orderConfig = await getBranchOrderConfig(
         this.supabase.adminClient(),
@@ -159,6 +161,7 @@ export class BranchesService {
         allowedPaymentMethods: orderConfig.allowedPaymentMethods,
         transferAccount: orderConfig.transferAccount,
         pickupTimeConfig: orderConfig.pickupTimeConfig,
+        orderNotice: orderConfig.orderNotice,
         createdAt: data.created_at ?? '',
       };
     }
@@ -207,6 +210,7 @@ export class BranchesService {
       allowedPaymentMethods: dto.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
       pickupTimeConfig: dto.pickupTimeConfig,
+      orderNotice: dto.orderNotice,
     });
     const orderConfig = await getBranchOrderConfig(
       this.supabase.adminClient(),
@@ -225,6 +229,7 @@ export class BranchesService {
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
   }
@@ -253,7 +258,8 @@ export class BranchesService {
       dto.enabledFulfillmentTypes !== undefined ||
       dto.allowedPaymentMethods !== undefined ||
       dto.transferAccount !== undefined ||
-      dto.pickupTimeConfig !== undefined;
+      dto.pickupTimeConfig !== undefined ||
+      dto.orderNotice !== undefined;
 
     if (Object.keys(updateData).length === 0) {
       if (hasOrderConfigUpdate) {
@@ -262,6 +268,7 @@ export class BranchesService {
           allowedPaymentMethods: dto.allowedPaymentMethods,
           transferAccount: dto.transferAccount,
           pickupTimeConfig: dto.pickupTimeConfig,
+          orderNotice: dto.orderNotice,
         });
       }
       return this.getBranch(accessToken, branchId, isAdmin);
@@ -292,6 +299,7 @@ export class BranchesService {
       allowedPaymentMethods: dto.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
       pickupTimeConfig: dto.pickupTimeConfig,
+      orderNotice: dto.orderNotice,
     });
     const orderConfig = await getBranchOrderConfig(adminSb, branchId);
 
@@ -307,6 +315,7 @@ export class BranchesService {
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
   }

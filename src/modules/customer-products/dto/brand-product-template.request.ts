@@ -1,6 +1,7 @@
 ﻿import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayNotEmpty,
+  ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
@@ -8,6 +9,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsDateString,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -50,6 +52,37 @@ export class CreateBrandProductTemplateRequest {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @ApiPropertyOptional({
+    description: '긴급할인 가격 (설정 시 기본 가격보다 낮아야 함)',
+    minimum: 0,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  urgentDiscountPrice?: number;
+
+  @ApiPropertyOptional({ description: '긴급할인 시작 시각 (ISO 문자열)' })
+  @IsDateString()
+  @IsOptional()
+  urgentDiscountStartAt?: string;
+
+  @ApiPropertyOptional({ description: '긴급할인 종료 시각 (ISO 문자열)' })
+  @IsDateString()
+  @IsOptional()
+  urgentDiscountEndAt?: string;
+
+  @ApiPropertyOptional({
+    description: '이미지 URL 목록 (첫 번째가 대표 이미지)',
+    type: [String],
+    maxItems: 10,
+  })
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @IsOptional()
+  imageUrls?: string[];
 
   @ApiPropertyOptional({ description: '정렬 순서', default: 0 })
   @IsNumber()
@@ -123,6 +156,42 @@ export class UpdateBrandProductTemplateRequest {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @ApiPropertyOptional({
+    description:
+      '긴급할인 가격. null을 보내면 긴급할인을 해제합니다. 설정 시 기본 가격보다 낮아야 함.',
+    minimum: 0,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  urgentDiscountPrice?: number | null;
+
+  @ApiPropertyOptional({
+    description: '긴급할인 시작 시각 (ISO 문자열). null이면 시작 제한 없음.',
+  })
+  @IsDateString()
+  @IsOptional()
+  urgentDiscountStartAt?: string | null;
+
+  @ApiPropertyOptional({
+    description: '긴급할인 종료 시각 (ISO 문자열). null이면 종료 제한 없음.',
+  })
+  @IsDateString()
+  @IsOptional()
+  urgentDiscountEndAt?: string | null;
+
+  @ApiPropertyOptional({
+    description: '이미지 URL 목록 (첫 번째가 대표 이미지)',
+    type: [String],
+    maxItems: 10,
+  })
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @IsOptional()
+  imageUrls?: string[];
 
   @ApiPropertyOptional({ description: '정렬 순서' })
   @IsNumber()

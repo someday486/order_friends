@@ -11,6 +11,11 @@ type TransferAccountInput = {
   accountHolder: string;
 };
 
+type PickupTimeConfigInput = {
+  startTime: string;
+  endTime: string;
+} | null;
+
 type Props = {
   open: boolean;
   brandId: string;
@@ -20,6 +25,7 @@ type Props = {
     slug: string;
     allowedPaymentMethods: PaymentMethod[];
     transferAccount: TransferAccountInput;
+    pickupTimeConfig: PickupTimeConfigInput;
   }) => Promise<void>;
   adding: boolean;
 };
@@ -40,6 +46,11 @@ function normalizeSlug(v: string) {
     .replace(/^-|-$/g, "");
 }
 
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding }: Props) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -51,6 +62,8 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
+  const [pickupStartTime, setPickupStartTime] = useState("");
+  const [pickupEndTime, setPickupEndTime] = useState("");
 
   const isTransferEnabled = allowedPaymentMethods.includes("TRANSFER");
 
@@ -71,7 +84,12 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       !slug.trim() ||
       allowedPaymentMethods.length === 0 ||
       (isTransferEnabled &&
-        (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())),
+        (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())) ||
+      ((pickupStartTime.trim() && !pickupEndTime.trim()) ||
+        (!pickupStartTime.trim() && pickupEndTime.trim())) ||
+      (pickupStartTime.trim() &&
+        pickupEndTime.trim() &&
+        timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)),
     [
       accountHolder,
       accountNumber,
@@ -81,6 +99,8 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       brandId,
       isTransferEnabled,
       name,
+      pickupEndTime,
+      pickupStartTime,
       slug,
     ],
   );
@@ -111,6 +131,13 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
                   accountNumber: accountNumber.trim(),
                   accountHolder: accountHolder.trim(),
                 },
+                pickupTimeConfig:
+                  pickupStartTime.trim() && pickupEndTime.trim()
+                    ? {
+                        startTime: pickupStartTime.trim(),
+                        endTime: pickupEndTime.trim(),
+                      }
+                    : null,
               })
             }
             disabled={disabled}
@@ -169,6 +196,23 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         </div>
 
         <div className="mt-3 grid gap-2">
+          <label className="block text-xs text-text-secondary mb-0">픽업 가능 시간</label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              type="time"
+              step={1800}
+              className="input-field w-full"
+              value={pickupStartTime}
+              onChange={(e) => setPickupStartTime(e.target.value)}
+            />
+            <input
+              type="time"
+              step={1800}
+              className="input-field w-full"
+              value={pickupEndTime}
+              onChange={(e) => setPickupEndTime(e.target.value)}
+            />
+          </div>
           <label className="block text-xs text-text-secondary mb-0">계좌이체 입금 정보</label>
           <input
             className="input-field w-full"

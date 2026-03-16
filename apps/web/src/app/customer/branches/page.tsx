@@ -90,6 +90,11 @@ function getBrandShopUrl(brandSlug: string | null | undefined): string | null {
   return `/shop/${encodeURIComponent(brandSlug)}`;
 }
 
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 function isInternalOnlineShopBranch(branch: Branch, brandName?: string | null): boolean {
   if (branch.slug) return false;
   const branchName = (branch.name ?? "").trim();
@@ -193,10 +198,31 @@ export default function CustomerBranchesPage() {
     });
   };
 
+  const formData = {
+    pickupStartTime: "",
+    pickupEndTime: "",
+  };
+
   const handleSaveShopPaymentMethods = async () => {
     if (!selectedBrandId) return;
     if (shopPaymentMethods.length === 0) {
       toast.error("온라인샵 결제수단은 1개 이상 선택해야 합니다.");
+      return;
+    }
+
+    if (
+      (formData.pickupStartTime.trim() && !formData.pickupEndTime.trim()) ||
+      (!formData.pickupStartTime.trim() && formData.pickupEndTime.trim())
+    ) {
+      toast.error("픽업 시간은 시작과 종료를 모두 입력해주세요.");
+      return;
+    }
+    if (
+      formData.pickupStartTime.trim() &&
+      formData.pickupEndTime.trim() &&
+      timeToMinutes(formData.pickupEndTime) <= timeToMinutes(formData.pickupStartTime)
+    ) {
+      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
       return;
     }
 
@@ -483,6 +509,8 @@ function AddBranchModal({
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",
+    pickupStartTime: "",
+    pickupEndTime: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -512,6 +540,21 @@ function AddBranchModal({
       return;
     }
     if (
+      (formData.pickupStartTime.trim() && !formData.pickupEndTime.trim()) ||
+      (!formData.pickupStartTime.trim() && formData.pickupEndTime.trim())
+    ) {
+      toast.error("픽업 시간은 시작과 종료를 모두 입력해주세요.");
+      return;
+    }
+    if (
+      formData.pickupStartTime.trim() &&
+      formData.pickupEndTime.trim() &&
+      timeToMinutes(formData.pickupEndTime) <= timeToMinutes(formData.pickupStartTime)
+    ) {
+      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
+      return;
+    }
+    if (
       isTransferEnabled &&
       (!formData.transferBankName.trim() ||
         !formData.transferAccountNumber.trim() ||
@@ -533,6 +576,13 @@ function AddBranchModal({
           accountNumber: formData.transferAccountNumber.trim(),
           accountHolder: formData.transferAccountHolder.trim(),
         },
+        pickupTimeConfig:
+          formData.pickupStartTime.trim() && formData.pickupEndTime.trim()
+            ? {
+                startTime: formData.pickupStartTime.trim(),
+                endTime: formData.pickupEndTime.trim(),
+              }
+            : null,
       });
 
       toast.success("지점이 추가되었습니다.");
@@ -598,6 +648,26 @@ function AddBranchModal({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">픽업 가능 시간</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input
+                type="time"
+                step={1800}
+                value={formData.pickupStartTime}
+                onChange={(e) => setFormData({ ...formData, pickupStartTime: e.target.value })}
+                className="input-field"
+              />
+              <input
+                type="time"
+                step={1800}
+                value={formData.pickupEndTime}
+                onChange={(e) => setFormData({ ...formData, pickupEndTime: e.target.value })}
+                className="input-field"
+              />
             </div>
           </div>
 

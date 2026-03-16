@@ -195,6 +195,11 @@ function getPaymentMethodsFromBranchRow(
 function getTransferAccountFromBranchRow(
   branchRow: Record<string, unknown>,
 ): TransferAccountInfo | null {
+  const directObject = normalizeTransferAccount(
+    branchRow.transferAccount ?? branchRow.transfer_account,
+  );
+  if (directObject) return directObject;
+
   const direct = normalizeTransferAccount({
     transfer_bank_name: branchRow.transfer_bank_name,
     transfer_account_number: branchRow.transfer_account_number,
@@ -229,6 +234,11 @@ function getTransferAccountFromBranchRow(
 function getPickupTimeConfigFromBranchRow(
   branchRow: Record<string, unknown>,
 ): PickupTimeConfig | null {
+  const directObject = normalizePickupTimeConfig(
+    branchRow.pickupTimeConfig ?? branchRow.pickup_time_config,
+  );
+  if (directObject) return directObject;
+
   const direct = normalizePickupTimeConfig({
     start_time: branchRow.start_time,
     end_time: branchRow.end_time,
@@ -477,6 +487,24 @@ async function persistTransferAccountToBranch(
   if ('account_holder' in branchRow) {
     directPayload.account_holder = transferAccount?.accountHolder ?? null;
   }
+  if ('transfer_account' in branchRow) {
+    directPayload.transfer_account = transferAccount
+      ? {
+          bank_name: transferAccount.bankName,
+          account_number: transferAccount.accountNumber,
+          account_holder: transferAccount.accountHolder,
+        }
+      : null;
+  }
+  if ('transferAccount' in branchRow) {
+    directPayload.transferAccount = transferAccount
+      ? {
+          bankName: transferAccount.bankName,
+          accountNumber: transferAccount.accountNumber,
+          accountHolder: transferAccount.accountHolder,
+        }
+      : null;
+  }
 
   if (Object.keys(directPayload).length > 0) {
     await sb.from('branches').update(directPayload).eq('id', branchId);
@@ -534,6 +562,22 @@ async function persistPickupTimeConfigToBranch(
   }
   if ('end_time' in branchRow) {
     directPayload.end_time = pickupTimeConfig?.endTime ?? null;
+  }
+  if ('pickup_time_config' in branchRow) {
+    directPayload.pickup_time_config = pickupTimeConfig
+      ? {
+          start_time: pickupTimeConfig.startTime,
+          end_time: pickupTimeConfig.endTime,
+        }
+      : null;
+  }
+  if ('pickupTimeConfig' in branchRow) {
+    directPayload.pickupTimeConfig = pickupTimeConfig
+      ? {
+          startTime: pickupTimeConfig.startTime,
+          endTime: pickupTimeConfig.endTime,
+        }
+      : null;
   }
 
   if (Object.keys(directPayload).length > 0) {

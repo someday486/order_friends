@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import toast from "react-hot-toast";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 
@@ -198,31 +199,10 @@ export default function CustomerBranchesPage() {
     });
   };
 
-  const formData = {
-    pickupStartTime: "",
-    pickupEndTime: "",
-  };
-
   const handleSaveShopPaymentMethods = async () => {
     if (!selectedBrandId) return;
     if (shopPaymentMethods.length === 0) {
       toast.error("온라인샵 결제수단은 1개 이상 선택해야 합니다.");
-      return;
-    }
-
-    if (
-      (formData.pickupStartTime.trim() && !formData.pickupEndTime.trim()) ||
-      (!formData.pickupStartTime.trim() && formData.pickupEndTime.trim())
-    ) {
-      toast.error("픽업 시간은 시작과 종료를 모두 입력해주세요.");
-      return;
-    }
-    if (
-      formData.pickupStartTime.trim() &&
-      formData.pickupEndTime.trim() &&
-      timeToMinutes(formData.pickupEndTime) <= timeToMinutes(formData.pickupStartTime)
-    ) {
-      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
       return;
     }
 
@@ -654,20 +634,30 @@ function AddBranchModal({
           <div className="mb-6">
             <label className="block text-sm text-text-secondary mb-2 font-semibold">픽업 가능 시간</label>
             <div className="grid gap-2 sm:grid-cols-2">
-              <input
-                type="time"
-                step={1800}
+              <select
                 value={formData.pickupStartTime}
                 onChange={(e) => setFormData({ ...formData, pickupStartTime: e.target.value })}
                 className="input-field"
-              />
-              <input
-                type="time"
-                step={1800}
+              >
+                <option value="">시작 시간 선택</option>
+                {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                  <option key={`pickup-start-${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
                 value={formData.pickupEndTime}
                 onChange={(e) => setFormData({ ...formData, pickupEndTime: e.target.value })}
                 className="input-field"
-              />
+              >
+                <option value="">종료 시간 선택</option>
+                {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                  <option key={`pickup-end-${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -15,13 +15,6 @@ import type { AuthRequest } from '../../common/types/auth-request';
 import { StampsService } from './stamps.service';
 import { UpsertStampCardConfigDto } from './dto/stamp-card-config.dto';
 
-const MANAGE_ROLES = new Set([
-  'OWNER',
-  'ADMIN',
-  'BRANCH_OWNER',
-  'BRANCH_ADMIN',
-]);
-
 @ApiTags('stamps')
 @Controller('customer/branches/:branchId/stamp-card')
 @ApiBearerAuth()
@@ -35,7 +28,7 @@ export class StampsController {
     @Param('branchId') branchId: string,
     @Req() req: AuthRequest,
   ) {
-    this.assertCanManage(req, branchId);
+    await this.assertCanManage(req, branchId);
     return this.stampsService.getConfig(branchId);
   }
 
@@ -46,15 +39,18 @@ export class StampsController {
     @Body() dto: UpsertStampCardConfigDto,
     @Req() req: AuthRequest,
   ) {
-    this.assertCanManage(req, branchId);
+    await this.assertCanManage(req, branchId);
     return this.stampsService.upsertConfig(branchId, dto);
   }
 
-  private assertCanManage(req: AuthRequest, branchId: string) {
-    const membership = req.branchMemberships?.find(
-      (m) => m.branch_id === branchId,
+  private async assertCanManage(req: AuthRequest, branchId: string) {
+    const canManage = await this.stampsService.canManageConfig(
+      branchId,
+      req.brandMemberships ?? [],
+      req.branchMemberships ?? [],
     );
-    if (!membership || !MANAGE_ROLES.has(membership.role)) {
+
+    if (!canManage) {
       throw new ForbiddenException('스탬프 설정 권한이 없습니다.');
     }
   }

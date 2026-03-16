@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
+import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
@@ -498,20 +499,30 @@ export default function StoreDetailPage() {
             <div className="mt-4">
               <div className="text-[13px] font-semibold text-foreground mb-2">픽업 가능 시간</div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <input
-                  type="time"
-                  step={1800}
+                <select
                   value={pickupStartTime}
                   onChange={(e) => setPickupStartTime(e.target.value)}
                   className="input-field w-full"
-                />
-                <input
-                  type="time"
-                  step={1800}
+                >
+                  <option value="">시작 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-start-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
                   value={pickupEndTime}
                   onChange={(e) => setPickupEndTime(e.target.value)}
                   className="input-field w-full"
-                />
+                >
+                  <option value="">종료 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-end-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="mt-1.5 text-xs text-text-tertiary">
                 30분 단위로 고객이 선택할 수 있는 픽업 시간을 설정합니다.

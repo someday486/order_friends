@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -26,7 +26,10 @@ type ShopProduct = {
   name: string;
   description?: string | null;
   price: number;
+  discountPrice?: number;
+  urgentDiscountEndAt?: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[];
   categoryId?: string | null;
   categoryName?: string | null;
   sortOrder?: number;
@@ -119,6 +122,123 @@ function ProductImageFallback() {
   );
 }
 
+function getShopProductImageUrls(product: ShopProduct): string[] {
+  const imageUrls = Array.isArray(product.imageUrls)
+    ? product.imageUrls
+        .filter((url): url is string => typeof url === 'string')
+        .map((url) => url.trim())
+        .filter(Boolean)
+    : [];
+  if (imageUrls.length > 0) return imageUrls;
+  if (product.imageUrl && product.imageUrl.trim()) return [product.imageUrl.trim()];
+  return [];
+}
+
+function hasActiveUrgentDiscount(product: ShopProduct) {
+  return (
+    typeof product.discountPrice === 'number' &&
+    product.discountPrice >= 0 &&
+    product.discountPrice < product.price
+  );
+}
+
+function getEffectivePrice(product: ShopProduct) {
+  return hasActiveUrgentDiscount(product) ? product.discountPrice! : product.price;
+}
+
+function getUrgentDiscountRemainingLabel(urgentDiscountEndAt?: string | null) {
+  if (!urgentDiscountEndAt) return null;
+  const endTs = Date.parse(urgentDiscountEndAt);
+  if (Number.isNaN(endTs)) return null;
+  const diffMs = endTs - Date.now();
+  if (diffMs <= 0) return '곧 종료';
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return '1분 미만';
+  if (minutes < 60) return `${minutes}분 남음`;
+  const hours = Math.floor(minutes / 60);
+  const remainMinutes = minutes % 60;
+  if (remainMinutes === 0) return `${hours}시간 남음`;
+  return `${hours}시간 ${remainMinutes}분 남음`;
+}
+
+function ShopProductImageCarousel({
+  product,
+  onOpenPreview,
+}: {
+  product: ShopProduct;
+  onOpenPreview: (product: ShopProduct, startIndex?: number) => void;
+}) {
+  const imageUrls = getShopProductImageUrls(product);
+  const [index, setIndex] = useState(0);
+
+  const safeIndex = imageUrls.length > 0 ? index % imageUrls.length : 0;
+  const currentUrl = imageUrls[safeIndex] ?? null;
+
+  if (!currentUrl) {
+    return <ProductImageFallback />;
+  }
+
+  return (
+    <div className="group relative h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-bg-tertiary md:h-44 md:w-44">
+      <button
+        type="button"
+        onClick={() => onOpenPreview(product, safeIndex)}
+        className="relative h-full w-full border-0 p-0"
+        aria-label={`${product.name} 이미지 크게 보기`}
+      >
+        <Image
+          src={currentUrl}
+          alt={product.name}
+          fill
+          sizes="(max-width: 768px) 128px, 176px"
+          quality={100}
+          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
+          크게 보기
+        </div>
+      </button>
+
+      {imageUrls.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+            }}
+            className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 text-white text-xs leading-none inline-flex items-center justify-center hover:bg-black/70 transition-colors"
+            aria-label="이전 이미지"
+          >
+            {'<'}
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+            }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 text-white text-xs leading-none inline-flex items-center justify-center hover:bg-black/70 transition-colors"
+            aria-label="다음 이미지"
+          >
+            {'>'}
+          </button>
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1">
+            {imageUrls.slice(0, 5).map((_, dotIndex) => (
+              <span
+                key={dotIndex}
+                className={`w-1.5 h-1.5 rounded-full ${
+                  dotIndex === safeIndex ? 'bg-white' : 'bg-white/45'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ShopBrandPageClient({
   brandSlug,
   initialData,
@@ -151,6 +271,7 @@ export default function ShopBrandPageClient({
   const [previewProduct, setPreviewProduct] = useState<ShopProduct | null>(
     null,
   );
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -324,12 +445,24 @@ export default function ShopBrandPageClient({
   const filteredProducts = useMemo(() => {
     const products = data?.products ?? [];
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return products;
-
-    return products.filter((product) => {
+    const filtered = !keyword
+      ? products
+      : products.filter((product) => {
       const target =
         `${product.name} ${product.description ?? ''}`.toLowerCase();
       return target.includes(keyword);
+    });
+
+    return [...filtered].sort((a, b) => {
+      const aUrgent = hasActiveUrgentDiscount(a);
+      const bUrgent = hasActiveUrgentDiscount(b);
+      if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
+
+      const aSort = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const bSort = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aSort !== bSort) return aSort - bSort;
+
+      return a.name.localeCompare(b.name, 'ko');
     });
   }, [data, query]);
 
@@ -345,7 +478,7 @@ export default function ShopBrandPageClient({
     [cartItems],
   );
   const totalAmount = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
+    () => cartItems.reduce((sum, item) => sum + getEffectivePrice(item) * item.qty, 0),
     [cartItems],
   );
 
@@ -360,8 +493,11 @@ export default function ShopBrandPageClient({
     });
   };
 
-  const openProductPreview = (product: ShopProduct) => {
-    if (!product.imageUrl) return;
+  const openProductPreview = (product: ShopProduct, startIndex = 0) => {
+    const imageUrls = getShopProductImageUrls(product);
+    if (imageUrls.length === 0) return;
+    const safeIndex = Math.min(Math.max(0, startIndex), imageUrls.length - 1);
+    setPreviewImageIndex(safeIndex);
     setPreviewProduct(product);
   };
 
@@ -568,33 +704,24 @@ export default function ShopBrandPageClient({
               <div className="space-y-3 lg:max-w-[620px]">
                 {filteredProducts.map((product) => {
                   const qty = cart[product.id] ?? 0;
+                  const hasDiscount = hasActiveUrgentDiscount(product);
+                  const discountRate = hasDiscount
+                    ? Math.round(
+                        ((product.price - product.discountPrice!) / product.price) * 100,
+                      )
+                    : 0;
+                  const urgentLabel = hasDiscount
+                    ? getUrgentDiscountRemainingLabel(product.urgentDiscountEndAt)
+                    : null;
                   return (
                     <article
                       key={product.id}
                       className="rounded-2xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-4"
                     >
-                      {product.imageUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => openProductPreview(product)}
-                          className="group relative h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-bg-tertiary md:h-44 md:w-44"
-                          aria-label={`${product.name} 이미지 크게 보기`}
-                        >
-                          <Image
-                            src={product.imageUrl}
-                            alt={product.name}
-                            fill
-                            sizes="(max-width: 768px) 128px, 176px"
-                            quality={100}
-                            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                          />
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
-                            크게 보기
-                          </div>
-                        </button>
-                      ) : (
-                        <ProductImageFallback />
-                      )}
+                      <ShopProductImageCarousel
+                        product={product}
+                        onOpenPreview={openProductPreview}
+                      />
 
                       <div className="flex min-h-32 flex-1 flex-col md:min-h-44">
                         <div className="flex items-start justify-between gap-2">
@@ -602,14 +729,37 @@ export default function ShopBrandPageClient({
                             <h3 className="text-base md:text-lg font-bold break-keep">
                               {product.name}
                             </h3>
+                            {hasDiscount && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center rounded-full bg-danger-500 px-2 py-0.5 text-[10px] font-bold text-white animate-pulse-slow">
+                                  ⚡ 긴급할인{urgentLabel ? ` · ${urgentLabel}` : ''}
+                                </span>
+                              </div>
+                            )}
                             {product.categoryName ? (
                               <p className="text-xs text-text-tertiary mt-0.5">
                                 {product.categoryName}
                               </p>
                             ) : null}
                           </div>
-                          <div className="text-sm md:text-base font-bold whitespace-nowrap text-foreground">
-                            {formatWon(product.price)}
+                          <div className="text-right whitespace-nowrap">
+                            {hasDiscount ? (
+                              <>
+                                <div className="text-[11px] md:text-xs text-text-tertiary line-through">
+                                  {formatWon(product.price)}
+                                </div>
+                                <div className="text-[11px] md:text-xs font-bold text-danger-500">
+                                  {discountRate}% 할인
+                                </div>
+                                <div className="text-base md:text-lg font-extrabold text-danger-500">
+                                  {formatWon(product.discountPrice)}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm md:text-base font-bold text-foreground">
+                                {formatWon(product.price)}
+                              </div>
+                            )}
                           </div>
                         </div>
                         {product.description ? (
@@ -734,7 +884,7 @@ export default function ShopBrandPageClient({
                           ×{item.qty}
                         </span>
                         <span className="text-sm font-semibold">
-                          {formatWon(item.price * item.qty)}
+                          {formatWon(getEffectivePrice(item) * item.qty)}
                         </span>
                       </div>
                     </div>
@@ -922,31 +1072,85 @@ export default function ShopBrandPageClient({
 
       <Modal
         open={previewProduct !== null}
-        onClose={() => setPreviewProduct(null)}
+        onClose={() => {
+          setPreviewProduct(null);
+          setPreviewImageIndex(0);
+        }}
         title={previewProduct?.name ?? '상품 이미지'}
         width={960}
       >
-        {previewProduct?.imageUrl ? (
-          <div className="space-y-4">
-            <div className="relative mx-auto w-full max-w-[820px] overflow-hidden rounded-2xl border border-border bg-bg-tertiary">
-              <div className="relative aspect-square w-full">
-                <Image
-                  src={previewProduct.imageUrl}
-                  alt={previewProduct.name}
-                  fill
-                  sizes="(max-width: 1024px) 92vw, 820px"
-                  quality={100}
-                  className="object-contain"
-                />
+        {previewProduct ? (() => {
+          const imageUrls = getShopProductImageUrls(previewProduct);
+          const currentUrl = imageUrls[previewImageIndex] ?? imageUrls[0] ?? null;
+          if (!currentUrl) return null;
+
+          return (
+            <div className="space-y-4">
+              <div className="relative mx-auto w-full max-w-[820px] overflow-hidden rounded-2xl border border-border bg-bg-tertiary">
+                <div className="relative aspect-square w-full">
+                  <Image
+                    src={currentUrl}
+                    alt={previewProduct.name}
+                    fill
+                    sizes="(max-width: 1024px) 92vw, 820px"
+                    quality={100}
+                    className="object-contain"
+                  />
+                </div>
+                {imageUrls.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewImageIndex((prev) =>
+                          prev === 0 ? imageUrls.length - 1 : prev - 1,
+                        )
+                      }
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/55 text-white text-sm leading-none inline-flex items-center justify-center hover:bg-black/70 transition-colors"
+                      aria-label="이전 이미지"
+                    >
+                      {'<'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewImageIndex((prev) =>
+                          prev === imageUrls.length - 1 ? 0 : prev + 1,
+                        )
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/55 text-white text-sm leading-none inline-flex items-center justify-center hover:bg-black/70 transition-colors"
+                      aria-label="다음 이미지"
+                    >
+                      {'>'}
+                    </button>
+                  </>
+                )}
               </div>
+
+              {imageUrls.length > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  {imageUrls.map((url, idx) => (
+                    <button
+                      key={`${url}-${idx}`}
+                      type="button"
+                      onClick={() => setPreviewImageIndex(idx)}
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        idx === previewImageIndex ? 'bg-foreground' : 'bg-border'
+                      }`}
+                      aria-label={`이미지 ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {previewProduct.description ? (
+                <p className="text-sm text-text-secondary">
+                  {previewProduct.description}
+                </p>
+              ) : null}
             </div>
-            {previewProduct.description ? (
-              <p className="text-sm text-text-secondary">
-                {previewProduct.description}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+          );
+        })() : null}
       </Modal>
     </div>
   );

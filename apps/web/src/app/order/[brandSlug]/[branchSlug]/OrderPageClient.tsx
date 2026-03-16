@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
@@ -64,6 +64,42 @@ function calculateItemPrice(
   return price;
 }
 
+function getProductImageUrls(product: ProductCardProduct): string[] {
+  const fromList = Array.isArray(product.imageUrls)
+    ? product.imageUrls
+        .filter((url): url is string => typeof url === 'string')
+        .map((url) => url.trim())
+        .filter(Boolean)
+    : [];
+  if (fromList.length > 0) return fromList;
+  if (typeof product.imageUrl === 'string' && product.imageUrl.trim()) {
+    return [product.imageUrl.trim()];
+  }
+  return [];
+}
+
+function hasActiveUrgentDiscount(product: ProductCardProduct) {
+  return (
+    typeof product.discountPrice === 'number' &&
+    product.discountPrice >= 0 &&
+    product.discountPrice < product.price
+  );
+}
+function formatUrgentDeadlineLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const isSameYear = date.getFullYear() === now.getFullYear();
+  const isSameMonth = date.getMonth() === now.getMonth();
+  const isSameDate = date.getDate() === now.getDate();
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  if (isSameYear && isSameMonth && isSameDate) {
+    return `오늘 ${hh}:${mm} 마감`;
+  }
+  return `${date.getMonth() + 1}/${date.getDate()} ${hh}:${mm} 마감`;
+}
+
 // ============================================================
 // Component
 // ============================================================
@@ -82,9 +118,11 @@ export default function OrderPageClient({
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedProduct, setSelectedProduct] =
     useState<ProductCardProduct | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const productDialogTitleId = 'order-product-dialog-title';
 
   // 재주문 배너
@@ -108,7 +146,7 @@ export default function OrderPageClient({
     setCart(lastOrderCart);
     setQuantities(newQuantities);
     setReorderDismissed(true);
-    toast.success('저번 주문 내역을 장바구니에 담았어요!');
+    toast.success('지난 주문 내역을 장바구니에 담았어요!');
   };
 
   useEffect(() => {
@@ -129,10 +167,47 @@ export default function OrderPageClient({
     };
   }, [selectedProduct]);
 
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, []);
+
   const filteredProducts = useMemo(() => {
-    if (!selectedCategory) return products;
-    return products.filter((p) => p.categoryId === selectedCategory);
+    const base = !selectedCategory
+      ? products
+      : products.filter((p) => p.categoryId === selectedCategory);
+
+    return [...base].sort((a, b) => {
+      const aUrgent = hasActiveUrgentDiscount(a);
+      const bUrgent = hasActiveUrgentDiscount(b);
+      if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
+
+      const aSort = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const bSort = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aSort !== bSort) return aSort - bSort;
+
+      return a.name.localeCompare(b.name, 'ko');
+    });
   }, [products, selectedCategory]);
+  const urgentDiscountDeadlineLabel = useMemo(() => {
+    const candidates = filteredProducts
+      .filter((product) => hasActiveUrgentDiscount(product))
+      .map((product) => product.urgentDiscountEndAt)
+      .filter(
+        (value): value is string =>
+          typeof value === 'string' && value.trim().length > 0,
+      )
+      .map((value) => ({ raw: value, ts: Date.parse(value) }))
+      .filter((item) => !Number.isNaN(item.ts) && item.ts > nowTs)
+      .sort((a, b) => a.ts - b.ts);
+    if (candidates.length === 0) return null;
+    return formatUrgentDeadlineLabel(candidates[0].raw);
+  }, [filteredProducts, nowTs]);
 
   const handleQuantityChange = (productId: string, quantity: number) => {
     setQuantities((prev) => ({ ...prev, [productId]: quantity }));
@@ -168,11 +243,10 @@ export default function OrderPageClient({
   };
 
   const handleProductClick = (product: ProductCardProduct) => {
-    if (product.options && product.options.length > 0) {
-      setSelectedProduct(product);
-      setSelectedOptions([]);
-      setQty(1);
-    }
+    setSelectedProduct(product);
+    setSelectedOptions([]);
+    setQty(1);
+    setSelectedImageIndex(0);
   };
 
   const toggleOption = (option: ProductOption) => {
@@ -234,7 +308,7 @@ export default function OrderPageClient({
 
   const goToCheckout = () => {
     if (cart.length === 0) {
-      toast.error('장바구니에 상품을 추가해 주세요.');
+      toast.error('장바구니에 상품을 추가해주세요.');
       return;
     }
 
@@ -300,20 +374,20 @@ export default function OrderPageClient({
           </div>
         </header>
 
-        {/* ── 재주문 배너 ── */}
+        {/* 재주문 배너 */}
         {lastOrderCart &&
           lastOrderCart.length > 0 &&
           !reorderDismissed &&
           cart.length === 0 && (
             <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary p-3 flex items-center gap-3">
-              <div className="text-xl">🔄</div>
+              <div className="text-xl">🧾</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-foreground">
-                  저번 주문 다시 담기
+                  지난 주문 다시 담기
                 </div>
                 <div className="text-xs text-text-tertiary truncate">
                   {lastOrderCart
-                    .map((i) => `${i.product.name}×${i.qty}`)
+                    .map((i) => `${i.product.name} × ${i.qty}`)
                     .join(', ')}
                 </div>
               </div>
@@ -328,7 +402,7 @@ export default function OrderPageClient({
                   onClick={() => setReorderDismissed(true)}
                   className="text-xs text-text-tertiary px-2 py-1.5"
                 >
-                  ✕
+                  닫기
                 </button>
               </div>
             </div>
@@ -384,6 +458,14 @@ export default function OrderPageClient({
               </span>
             )}
           </h2>
+          {urgentDiscountDeadlineLabel && (
+            <div className="mb-3 rounded-xl border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-danger-500">
+              <span className="font-extrabold">⚡ 긴급할인 진행 중</span>
+              <span className="ml-2 font-semibold">
+                {urgentDiscountDeadlineLabel}
+              </span>
+            </div>
+          )}
 
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-text-tertiary">
@@ -399,6 +481,7 @@ export default function OrderPageClient({
                   quantity={quantities[product.id] || 0}
                   onQuantityChange={(q) => handleQuantityChange(product.id, q)}
                   onCardClick={() => handleProductClick(product)}
+                  nowTs={nowTs}
                 />
               ))}
             </div>
@@ -425,7 +508,7 @@ export default function OrderPageClient({
                         onClick={() => setCartOpen(false)}
                         className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-bg-tertiary text-text-secondary"
                       >
-                        ✕
+                        닫기
                       </button>
                     </div>
                     <div className="p-3 space-y-2">
@@ -528,7 +611,10 @@ export default function OrderPageClient({
         {selectedProduct && (
           <div
             className="fixed inset-0 z-[100] bg-black/60 flex items-end justify-center"
-            onClick={() => setSelectedProduct(null)}
+            onClick={() => {
+              setSelectedProduct(null);
+              setSelectedImageIndex(0);
+            }}
           >
             <div
               className="w-full max-w-lg bg-background rounded-t-xl p-5 animate-slide-up max-h-[80vh] overflow-y-auto"
@@ -543,6 +629,74 @@ export default function OrderPageClient({
               >
                 {selectedProduct.name}
               </h3>
+              {(() => {
+                const imageUrls = getProductImageUrls(selectedProduct);
+                const currentImage =
+                  imageUrls[
+                    Math.min(selectedImageIndex, Math.max(0, imageUrls.length - 1))
+                  ] ?? null;
+                if (!currentImage) return null;
+                return (
+                  <div className="mb-4">
+                    <div className="relative overflow-hidden rounded-lg border border-border bg-bg-tertiary">
+                      <div className="relative aspect-square w-full">
+                        <Image
+                          src={currentImage}
+                          alt={selectedProduct.name}
+                          fill
+                          sizes="(max-width: 768px) 92vw, 480px"
+                          className="object-cover"
+                        />
+                      </div>
+                      {imageUrls.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedImageIndex((prev) =>
+                                prev === 0 ? imageUrls.length - 1 : prev - 1,
+                              )
+                            }
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/55 text-white text-xs leading-none inline-flex items-center justify-center hover:bg-black/70 transition-colors"
+                            aria-label="이전 이미지"
+                          >
+                            {'<'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedImageIndex((prev) =>
+                                prev === imageUrls.length - 1 ? 0 : prev + 1,
+                              )
+                            }
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/55 text-white text-xs leading-none inline-flex items-center justify-center hover:bg-black/70 transition-colors"
+                            aria-label="다음 이미지"
+                          >
+                            {'>'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {imageUrls.length > 1 && (
+                      <div className="mt-2 flex items-center justify-center gap-1.5">
+                        {imageUrls.map((url, idx) => (
+                          <button
+                            key={`${url}-${idx}`}
+                            type="button"
+                            onClick={() => setSelectedImageIndex(idx)}
+                            className={`w-2 h-2 rounded-full ${
+                              idx === selectedImageIndex
+                                ? 'bg-foreground'
+                                : 'bg-border'
+                            }`}
+                            aria-label={`이미지 ${idx + 1}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="text-text-secondary mb-4">
                 {formatWon(
                   selectedProduct.discountPrice ?? selectedProduct.price,
@@ -622,3 +776,4 @@ export default function OrderPageClient({
     </div>
   );
 }
+

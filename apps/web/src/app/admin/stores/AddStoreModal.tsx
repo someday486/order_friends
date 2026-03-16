@@ -79,18 +79,22 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
 
   const disabled = useMemo(
     () =>
-      adding ||
-      !brandId ||
-      !name.trim() ||
-      !slug.trim() ||
-      allowedPaymentMethods.length === 0 ||
-      (isTransferEnabled &&
-        (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())) ||
-      ((pickupStartTime.trim() && !pickupEndTime.trim()) ||
-        (!pickupStartTime.trim() && pickupEndTime.trim())) ||
-      (pickupStartTime.trim() &&
-        pickupEndTime.trim() &&
-        timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)),
+      Boolean(
+        adding ||
+          !brandId ||
+          !name.trim() ||
+          !slug.trim() ||
+          allowedPaymentMethods.length === 0 ||
+          (isTransferEnabled &&
+            (!bankName.trim() ||
+              !accountNumber.trim() ||
+              !accountHolder.trim())) ||
+          ((pickupStartTime.trim() && !pickupEndTime.trim()) ||
+            (!pickupStartTime.trim() && pickupEndTime.trim())) ||
+          (pickupStartTime.trim() &&
+            pickupEndTime.trim() &&
+            timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)),
+      ),
     [
       accountHolder,
       accountNumber,

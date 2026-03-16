@@ -90,6 +90,10 @@ export class CreateBranchRequest {
   @Type(() => PickupTimeConfigRequest)
   @IsOptional()
   pickupTimeConfig?: PickupTimeConfigRequest;
+
+  @IsString()
+  @IsOptional()
+  orderNotice?: string;
 }
 
 export class UpdateBranchRequest {
@@ -135,4 +139,8 @@ export class UpdateBranchRequest {
   @Type(() => PickupTimeConfigRequest)
   @IsOptional()
   pickupTimeConfig?: PickupTimeConfigRequest;
+
+  @IsString()
+  @IsOptional()
+  orderNotice?: string;
 }

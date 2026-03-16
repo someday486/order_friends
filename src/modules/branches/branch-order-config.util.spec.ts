@@ -297,4 +297,82 @@ describe('branch-order-config.util', () => {
       },
     });
   });
+
+  it('should read order notice from top-level text column', async () => {
+    const orderChannelsActiveEq = jest.fn().mockResolvedValue({
+      data: [{ id: 'ch-pickup', type: 'PICKUP', is_active: true }],
+      error: null,
+    });
+    const orderChannelsBranchEq = jest.fn().mockReturnValue({
+      eq: orderChannelsActiveEq,
+    });
+    const orderChannelsBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: orderChannelsBranchEq,
+      }),
+    };
+
+    const branchMaybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        order_notice: '포장은 20분 전에 미리 주문해 주세요.',
+      },
+      error: null,
+    });
+    const branchBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: branchMaybeSingle,
+        }),
+      }),
+    };
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(orderChannelsBuilder)
+        .mockReturnValueOnce(branchBuilder),
+    };
+
+    const result = await getBranchOrderConfig(sb, 'branch-1');
+
+    expect(result.orderNotice).toBe('포장은 20분 전에 미리 주문해 주세요.');
+  });
+
+  it('should persist order notice into top-level text column when present', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        order_notice: null,
+      },
+      error: null,
+    });
+
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle,
+        }),
+      }),
+    };
+
+    const update = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    });
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce({ update }),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      orderNotice: '재료 소진 시 일부 메뉴가 조기 마감될 수 있습니다.',
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      order_notice: '재료 소진 시 일부 메뉴가 조기 마감될 수 있습니다.',
+    });
+  });
 });

@@ -29,6 +29,7 @@ type Branch = {
     startTime?: string | null;
     endTime?: string | null;
   } | null;
+  orderNotice?: string | null;
 };
 
 type Brand = {
@@ -118,6 +119,7 @@ export default function StoreDetailPage() {
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
+  const [orderNotice, setOrderNotice] = useState("");
 
   const [members, setMembers] = useState<BranchMember[]>([]);
 
@@ -148,6 +150,7 @@ export default function StoreDetailPage() {
     const samePickupTimeConfig =
       pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
       pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
+    const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -155,7 +158,8 @@ export default function StoreDetailPage() {
       !sameFulfillment ||
       !samePayments ||
       !sameTransferInfo ||
-      !samePickupTimeConfig
+      !samePickupTimeConfig ||
+      !sameOrderNotice
     );
   }, [
     allowedPaymentMethods,
@@ -168,6 +172,7 @@ export default function StoreDetailPage() {
     transferBankName,
     pickupEndTime,
     pickupStartTime,
+    orderNotice,
   ]);
 
   useEffect(() => {
@@ -201,6 +206,7 @@ export default function StoreDetailPage() {
         setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
         setPickupStartTime(data.pickupTimeConfig?.startTime ?? "");
         setPickupEndTime(data.pickupTimeConfig?.endTime ?? "");
+        setOrderNotice(data.orderNotice ?? "");
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
@@ -268,6 +274,7 @@ export default function StoreDetailPage() {
     setTransferAccountHolder(branch.transferAccount?.accountHolder ?? "");
     setPickupStartTime(branch.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(branch.pickupTimeConfig?.endTime ?? "");
+    setOrderNotice(branch.orderNotice ?? "");
   };
 
   const handleSave = async () => {
@@ -338,6 +345,7 @@ export default function StoreDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        orderNotice: orderNotice.trim() || null,
         pickupTimeConfig:
           pickupStartTime.trim() && pickupEndTime.trim()
             ? {
@@ -365,6 +373,7 @@ export default function StoreDetailPage() {
       setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
       setPickupStartTime(updated.pickupTimeConfig?.startTime ?? "");
       setPickupEndTime(updated.pickupTimeConfig?.endTime ?? "");
+      setOrderNotice(updated.orderNotice ?? "");
 
       toast.success("매장을 수정했습니다.");
     } catch (e: unknown) {
@@ -526,6 +535,19 @@ export default function StoreDetailPage() {
               </div>
               <div className="mt-1.5 text-xs text-text-tertiary">
                 30분 단위로 고객이 선택할 수 있는 픽업 시간을 설정합니다.
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">주문창 상단 공지사항</div>
+              <textarea
+                value={orderNotice}
+                onChange={(e) => setOrderNotice(e.target.value)}
+                className="input-field w-full min-h-[96px] resize-y py-3"
+                placeholder="예: 포장은 20분 전 미리 주문해 주세요."
+              />
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                주문 메뉴 상단에 고객에게 노출되는 안내 문구입니다.
               </div>
             </div>
 

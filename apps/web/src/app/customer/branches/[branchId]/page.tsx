@@ -31,6 +31,7 @@ type Branch = {
     startTime?: string | null;
     endTime?: string | null;
   } | null;
+  orderNotice?: string | null;
 };
 
 type Brand = {
@@ -114,6 +115,7 @@ export default function BranchDetailPage() {
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
+  const [orderNotice, setOrderNotice] = useState("");
 
   const [stampActive, setStampActive] = useState(false);
   const [stampPerOrder, setStampPerOrder] = useState(1);
@@ -152,6 +154,7 @@ export default function BranchDetailPage() {
     const samePickupTimeConfig =
       pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
       pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
+    const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -161,7 +164,8 @@ export default function BranchDetailPage() {
       !sameFulfillment ||
       !samePayments ||
       !sameTransferInfo ||
-      !samePickupTimeConfig
+      !samePickupTimeConfig ||
+      !sameOrderNotice
     );
   }, [
     allowedPaymentMethods,
@@ -176,6 +180,7 @@ export default function BranchDetailPage() {
     transferBankName,
     pickupEndTime,
     pickupStartTime,
+    orderNotice,
   ]);
 
   const resetForm = (source: Branch) => {
@@ -198,6 +203,7 @@ export default function BranchDetailPage() {
     setTransferAccountHolder(source.transferAccount?.accountHolder ?? "");
     setPickupStartTime(source.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(source.pickupTimeConfig?.endTime ?? "");
+    setOrderNotice(source.orderNotice ?? "");
   };
 
   useEffect(() => {
@@ -338,6 +344,7 @@ export default function BranchDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        orderNotice: orderNotice.trim() || null,
         pickupTimeConfig:
           pickupStartTime.trim() && pickupEndTime.trim()
             ? {
@@ -558,6 +565,19 @@ export default function BranchDetailPage() {
               </p>
             </section>
 
+            <section>
+              <SectionHeading>주문창 상단 공지사항</SectionHeading>
+              <textarea
+                value={orderNotice}
+                onChange={(e) => setOrderNotice(e.target.value)}
+                className="input-field w-full min-h-[96px] resize-y py-3"
+                placeholder="예: 재료 소진 시 일부 메뉴가 조기 마감될 수 있습니다."
+              />
+              <p className="text-xs text-text-tertiary mt-1.5">
+                주문 메뉴 화면 상단에 노출되는 안내 문구입니다.
+              </p>
+            </section>
+
             {allowedPaymentMethods.includes("TRANSFER") && (
               <section>
                 <SectionHeading>계좌이체 입금 정보</SectionHeading>
@@ -692,6 +712,13 @@ export default function BranchDetailPage() {
                         {PAYMENT_LABEL[item]}
                       </span>
                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">주문창 상단 공지사항</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground whitespace-pre-wrap">
+                    {branch.orderNotice?.trim() || "-"}
                   </div>
                 </div>
 

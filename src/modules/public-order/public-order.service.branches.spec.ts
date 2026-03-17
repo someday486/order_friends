@@ -4,6 +4,7 @@ import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Branch Coverage', () => {
   const originalEnv = process.env;
@@ -12,6 +13,7 @@ describe('PublicOrderService - Branch Coverage', () => {
   let adminChains: Record<string, any>;
   let adminClient: any;
   let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => {
     const chain: any = {
@@ -54,6 +56,11 @@ describe('PublicOrderService - Branch Coverage', () => {
     stampsService = {
       earnStamps: jest.fn().mockResolvedValue(undefined),
     };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -67,6 +74,7 @@ describe('PublicOrderService - Branch Coverage', () => {
         },
         { provide: InventoryService, useValue: {} },
         { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -89,6 +97,7 @@ describe('PublicOrderService - Branch Coverage', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
     );
     expect((withOverrides as any).duplicateWindowMs).toBe(30000);
     expect((withOverrides as any).weakDuplicateWindowMs).toBe(10000);
@@ -101,6 +110,7 @@ describe('PublicOrderService - Branch Coverage', () => {
       PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT: 'abc',
     };
     const withDefaults = new PublicOrderService(
+      {} as any,
       {} as any,
       {} as any,
       {} as any,
@@ -118,7 +128,12 @@ describe('PublicOrderService - Branch Coverage', () => {
       PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT: '0',
     };
 
-    const withNaN = new PublicOrderService({} as any, {} as any, {} as any);
+    const withNaN = new PublicOrderService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     expect((withNaN as any).duplicateWindowMs).toBe(60000);
     expect((withNaN as any).weakDuplicateWindowMs).toBe(20000);
     expect((withNaN as any).duplicateLookbackLimit).toBe(5);

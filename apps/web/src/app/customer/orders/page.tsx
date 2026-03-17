@@ -911,7 +911,7 @@ export default function CustomerOrdersPage() {
             setBrandFilter(e.target.value);
             setPage(1);
           }}
-          className="input-field h-9 text-sm min-w-[160px] max-w-[220px]"
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[160px] sm:max-w-[220px]"
         >
           <option value="ALL">모든 브랜드</option>
           {brands.map((brand) => (
@@ -928,7 +928,7 @@ export default function CustomerOrdersPage() {
               setBranchFilter(e.target.value);
               setPage(1);
             }}
-            className="input-field h-9 text-sm min-w-[140px] max-w-[200px]"
+            className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[200px]"
           >
             <option value="ALL">모든 지점</option>
             {validBranches.map((branch) => (
@@ -939,12 +939,12 @@ export default function CustomerOrdersPage() {
           </select>
         )}
 
-        <div className="flex items-center gap-1.5">
+        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:flex sm:w-auto">
           <input
             type="date"
             value={dateStartInput}
             onChange={(e) => setDateStartInput(e.target.value)}
-            className="input-field h-9 text-sm w-[140px]"
+            className="input-field h-9 text-sm w-full min-w-0 sm:w-[140px]"
             placeholder="시작일"
           />
           <span className="text-text-tertiary text-sm select-none">~</span>
@@ -953,7 +953,7 @@ export default function CustomerOrdersPage() {
             value={dateEndInput}
             min={dateStartInput || undefined}
             onChange={(e) => setDateEndInput(e.target.value)}
-            className="input-field h-9 text-sm w-[140px]"
+            className="input-field h-9 text-sm w-full min-w-0 sm:w-[140px]"
             placeholder="종료일"
           />
         </div>
@@ -962,12 +962,12 @@ export default function CustomerOrdersPage() {
           type="button"
           onClick={handleApplyFilter}
           disabled={isInvalidDateRange}
-          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity"
+          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity w-full sm:w-auto"
         >
           조회
         </button>
 
-        <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none">
+        <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
           <input
             type="checkbox"
             checked={autoRefreshEnabled}
@@ -980,7 +980,7 @@ export default function CustomerOrdersPage() {
         <select
           value={autoRefreshMode}
           onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
-          className="input-field h-9 text-sm min-w-[124px] max-w-[140px]"
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
           aria-label="자동갱신 속도"
           disabled={!autoRefreshEnabled}
         >
@@ -1000,7 +1000,7 @@ export default function CustomerOrdersPage() {
         <button
           type="button"
           onClick={() => setShowExportDialog(true)}
-          className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+          className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
         >
           <svg
             width="14"
@@ -1454,9 +1454,9 @@ export default function CustomerOrdersPage() {
             border-t border-border bg-bg-secondary/95 backdrop-blur shadow-lg
           ">
           <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-3">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               {/* 왼쪽: 선택 건수 */}
-              <div className="flex items-center gap-3 flex-shrink-0 text-sm text-text-secondary">
+              <div className="flex flex-wrap items-center gap-3 flex-shrink-0 text-sm text-text-secondary">
                 <span className="font-semibold text-foreground">
                   {selectedCount}건 선택됨
                 </span>
@@ -1472,11 +1472,11 @@ export default function CustomerOrdersPage() {
 
 
               {/* 오른쪽: 컨트롤 */}
-              <div className="flex items-center gap-4 justify-end flex-nowrap">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 justify-end w-full sm:w-auto">
                 <select
                   value={bulkStatus}
                   onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
-                  className="input-field h-9 text-sm min-w-[55px]"
+                  className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[120px]"
                   disabled={bulkUpdating}
                 >
                   {BULK_STATUS_OPTIONS.map((opt) => {
@@ -1498,7 +1498,7 @@ export default function CustomerOrdersPage() {
                   type="button"
                   onClick={() => void handleBulkStatusUpdate()}
                   disabled={bulkUpdating}
-                  className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 whitespace-nowrap shrink-0"
+                  className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 whitespace-nowrap shrink-0 w-full sm:w-auto"
                 >
                   {bulkUpdating ? "변경 중..." : "일괄 변경"}
                 </button>

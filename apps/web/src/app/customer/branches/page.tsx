@@ -348,7 +348,7 @@ export default function CustomerBranchesPage() {
           <div className="text-sm">새로운 지점을 추가해보세요</div>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {visibleBranches.map((branch) => (
             <BranchCard key={branch.id} branch={branch} />
           ))}

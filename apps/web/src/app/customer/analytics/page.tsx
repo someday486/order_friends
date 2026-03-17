@@ -815,7 +815,7 @@ function AnalyticsContent() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-4 items-end">
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-sm mb-1 text-text-secondary">지점</label>
             <select
               value={effectiveBranchId ?? ""}
@@ -829,7 +829,7 @@ function AnalyticsContent() {
                 selectBranch(value);
                 router.replace(`/customer/analytics?branchId=${encodeURIComponent(value)}`);
               }}
-              className="input-field min-w-[200px]"
+              className="input-field w-full sm:w-auto sm:min-w-[200px]"
               disabled={branchLoading || branches.length === 0}
             >
               <option value="">{branchPlaceholder}</option>
@@ -843,7 +843,7 @@ function AnalyticsContent() {
               <p className="text-xs text-danger-500 mt-1">{branchError}</p>
             )}
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-sm mb-1 text-text-secondary">시작일</label>
             <input
               type="date"
@@ -852,10 +852,10 @@ function AnalyticsContent() {
                 setQuickRangeType("custom");
                 setStartDate(e.target.value);
               }}
-              className="input-field"
+              className="input-field w-full"
             />
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-sm mb-1 text-text-secondary">종료일</label>
             <input
               type="date"
@@ -864,10 +864,10 @@ function AnalyticsContent() {
                 setQuickRangeType("custom");
                 setEndDate(e.target.value);
               }}
-              className="input-field"
+              className="input-field w-full"
             />
           </div>
-          <details className="min-w-[180px]">
+          <details className="w-full sm:w-auto sm:min-w-[180px]">
             <summary className="cursor-pointer select-none text-sm text-text-secondary">
               비교 옵션
             </summary>

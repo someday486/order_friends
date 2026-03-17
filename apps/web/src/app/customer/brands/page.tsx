@@ -108,7 +108,7 @@ export default function CustomerBrandsPage() {
           <div className="text-sm">If you need access, request brand membership or create a new brand.</div>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {brands.map((brand) => (
             <BrandCard key={brand.id} brand={brand} />
           ))}

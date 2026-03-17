@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
@@ -311,7 +312,7 @@ function BranchChecklistTable({
     : allBranchesChecked;
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className="border border-border rounded-lg overflow-x-auto overflow-y-hidden">
       <div className="p-3 border-b border-border bg-bg-tertiary">
         <input
           type="text"
@@ -1691,7 +1692,7 @@ export default function CustomerProductsPage() {
         {selectedBrandId && canManage && (
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors flex-shrink-0"
+            className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors flex-shrink-0 w-full sm:w-auto"
           >
             + 상품등록
           </button>
@@ -1700,7 +1701,7 @@ export default function CustomerProductsPage() {
 
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-3 mb-3">
       <div className="flex flex-wrap items-end gap-3">
-        <div ref={brandDropdownRef} className="flex-1 min-w-[200px] relative">
+        <div ref={brandDropdownRef} className="relative w-full min-w-0 sm:flex-1 sm:min-w-[200px]">
           <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
 
           {/* Trigger */}
@@ -1786,7 +1787,7 @@ export default function CustomerProductsPage() {
 
         {selectedBrandId && (
           <>
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-full min-w-0 sm:flex-1 sm:min-w-[200px]">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">판매채널</label>
               <select
                 value={salesChannelFilter}
@@ -1803,7 +1804,7 @@ export default function CustomerProductsPage() {
               </select>
             </div>
 
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-full min-w-0 sm:flex-1 sm:min-w-[200px]">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">카테고리</label>
               <select
                 value={categoryFilter}
@@ -1823,7 +1824,7 @@ export default function CustomerProductsPage() {
               </select>
             </div>
 
-            <div className="w-80">
+            <div className="w-full lg:w-80">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">검색</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
@@ -2515,7 +2516,16 @@ export default function CustomerProductsPage() {
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
                               {editForm.imageUrls.map((url, index) => (
                                 <div key={`${url}-${index}`} className="relative border border-border rounded-md overflow-hidden bg-bg-secondary">
-                                  <img src={url} alt={`메뉴 이미지 ${index + 1}`} className="w-full aspect-square object-cover" />
+                                  <div className="relative w-full aspect-square">
+                                    <Image
+                                      src={url}
+                                      alt={`메뉴 이미지 ${index + 1}`}
+                                      fill
+                                      unoptimized
+                                      sizes="(max-width: 640px) 50vw, 33vw"
+                                      className="object-cover"
+                                    />
+                                  </div>
                                   <div className="p-2 flex items-center gap-1">
                                     <button
                                       type="button"
@@ -2628,7 +2638,7 @@ export default function CustomerProductsPage() {
 
       {isBulkOpen && hasSelectedTemplates && (
         <div className="fixed bottom-0 right-0 left-0 md:left-64 z-40 bg-background/95 backdrop-blur border-t border-border shadow-lg">
-          <div className="w-full px-6 py-3 flex items-center justify-between gap-3">
+          <div className="w-full px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-sm text-text-secondary">
               <span className="font-semibold text-foreground">
                 {selectedTemplateIds.size}개 메뉴 선택됨
@@ -2638,7 +2648,7 @@ export default function CustomerProductsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -2646,7 +2656,7 @@ export default function CustomerProductsPage() {
                   setBulkAutoOpenDisabled(true);
                   setIsBulkOpen(false);
                 }}
-                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-text-secondary text-sm font-semibold hover:bg-bg-tertiary transition-colors"
+                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-text-secondary text-sm font-semibold hover:bg-bg-tertiary transition-colors w-full sm:w-auto"
               >
                 접기
               </button>
@@ -2659,7 +2669,7 @@ export default function CustomerProductsPage() {
                   !hasSelectedTemplates ||
                   (!bulkChangeStatus && !bulkChangeInventory && !bulkChangeChannels)
                 }
-                className="px-5 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors w-full sm:w-auto"
               >
                 일괄 변경 실행
               </button>
@@ -2937,7 +2947,16 @@ export default function CustomerProductsPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
                       {createForm.imageUrls.map((url, index) => (
                         <div key={`${url}-${index}`} className="relative border border-border rounded-md overflow-hidden bg-bg-secondary">
-                          <img src={url} alt={`등록 이미지 ${index + 1}`} className="w-full aspect-square object-cover" />
+                          <div className="relative w-full aspect-square">
+                            <Image
+                              src={url}
+                              alt={`등록 이미지 ${index + 1}`}
+                              fill
+                              unoptimized
+                              sizes="(max-width: 640px) 50vw, 33vw"
+                              className="object-cover"
+                            />
+                          </div>
                           <div className="p-2 flex items-center gap-1">
                             <button
                               type="button"

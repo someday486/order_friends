@@ -21,6 +21,8 @@ import {
 } from "@/lib/order-session";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
+import { PickupDateCalendar } from "@/components/order/PickupDateCalendar";
+import { type WeeklyBusinessHours } from "@/lib/business-hours";
 import {
   buildPickupDateOptions,
   buildPickupTimeOptions,
@@ -73,6 +75,7 @@ type PublicBranchConfigResponse = {
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
   pickupTimeConfig?: PickupTimeConfig;
+  businessHours?: WeeklyBusinessHours;
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -158,17 +161,21 @@ export default function CheckoutPage() {
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
   const [requestedPickupTime, setRequestedPickupTime] = useState("");
   const [pickupTimeConfig, setPickupTimeConfig] = useState<PickupTimeConfig>(null);
+  const [businessHours, setBusinessHours] = useState<WeeklyBusinessHours>(null);
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const authInfoRequestedRef = useRef(false);
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const pickupTimeOptions = useMemo(() => buildPickupTimeOptions(pickupTimeConfig), [pickupTimeConfig]);
+  const pickupTimeOptions = useMemo(
+    () => buildPickupTimeOptions(pickupTimeConfig, businessHours),
+    [businessHours, pickupTimeConfig],
+  );
   const pickupDateOptions = useMemo(() => buildPickupDateOptions(pickupTimeOptions), [pickupTimeOptions]);
   const pickupTimeOptionsForSelectedDate = useMemo(
     () => filterPickupTimeOptionsByDate(pickupTimeOptions, selectedPickupDate),
     [pickupTimeOptions, selectedPickupDate],
   );
-  const hasScheduledPickupConfig = hasPickupTimeConfig(pickupTimeConfig);
+  const hasScheduledPickupConfig = hasPickupTimeConfig(pickupTimeConfig, businessHours);
   const depositAccountGuide = useMemo(() => appendEuroRo(customerName, "주문자명"), [customerName]);
 
   useEffect(() => {
@@ -378,6 +385,7 @@ export default function CheckoutPage() {
         }
         setTransferAccount(latestConfig?.transferAccount ?? null);
         setPickupTimeConfig(latestConfig?.pickupTimeConfig ?? null);
+        setBusinessHours(latestConfig?.businessHours ?? null);
       } catch {
         setTransferAccount(null);
         setPickupTimeConfig(null);
@@ -705,11 +713,22 @@ export default function CheckoutPage() {
                   <label className="block text-[11px] font-semibold text-text-tertiary mb-1.5">
                     1. 날짜 선택
                   </label>
+                  <PickupDateCalendar
+                    options={pickupDateOptions}
+                    selectedDate={hasScheduledPickupConfig ? selectedPickupDate : ""}
+                    onSelectDate={setSelectedPickupDate}
+                    disabled={!hasScheduledPickupConfig || pickupDateOptions.length === 0}
+                    emptyMessage={
+                      !hasScheduledPickupConfig
+                        ? "매장에서 픽업 가능 시간을 설정하지 않았습니다."
+                        : "선택 가능한 날짜가 없습니다."
+                    }
+                  />
                   <select
                     value={hasScheduledPickupConfig ? selectedPickupDate : ""}
                     onChange={(e) => setSelectedPickupDate(e.target.value)}
-                    data-testid="pickup-date-input"
-                    className="input-field w-full h-12"
+                    data-testid="pickup-date-select"
+                    className="hidden"
                     disabled={!hasScheduledPickupConfig || pickupDateOptions.length === 0}
                   >
                     {!hasScheduledPickupConfig ? (

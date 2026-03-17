@@ -157,10 +157,110 @@ describe('branch-order-config.util', () => {
         pickupTimeConfig: {
           startTime: '09:00',
           endTime: '21:00',
+          businessHours: null,
+          business_hours: null,
         },
         pickup_time_config: {
           start_time: '09:00',
           end_time: '21:00',
+          businessHours: null,
+          business_hours: null,
+        },
+      },
+    });
+    expect(updateEq).toHaveBeenCalledWith('id', 'branch-1');
+  });
+
+  it('should persist business hours into branch metadata', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: 'branch-1', metadata: { existing: true } },
+      error: null,
+    });
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle,
+        }),
+      }),
+    };
+
+    const updateEq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({
+      eq: updateEq,
+    });
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce({ update }),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      businessHours: {
+        monday: {
+          isOpen: false,
+          openTime: null,
+          closeTime: null,
+        },
+        tuesday: {
+          isOpen: true,
+          openTime: '09:00',
+          closeTime: '18:00',
+        },
+      },
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      metadata: {
+        existing: true,
+        businessHours: {
+          monday: {
+            isOpen: false,
+            openTime: null,
+            closeTime: null,
+          },
+          tuesday: {
+            isOpen: true,
+            openTime: '09:00',
+            closeTime: '18:00',
+          },
+        },
+        business_hours: {
+          monday: {
+            is_open: false,
+            open_time: null,
+            close_time: null,
+          },
+          tuesday: {
+            is_open: true,
+            open_time: '09:00',
+            close_time: '18:00',
+          },
+        },
+        weeklySchedule: {
+          monday: {
+            isOpen: false,
+            openTime: null,
+            closeTime: null,
+          },
+          tuesday: {
+            isOpen: true,
+            openTime: '09:00',
+            closeTime: '18:00',
+          },
+        },
+        weekly_schedule: {
+          monday: {
+            is_open: false,
+            open_time: null,
+            close_time: null,
+          },
+          tuesday: {
+            is_open: true,
+            open_time: '09:00',
+            close_time: '18:00',
+          },
         },
       },
     });
@@ -221,6 +321,138 @@ describe('branch-order-config.util', () => {
     expect(result.pickupTimeConfig).toEqual({
       startTime: '09:00',
       endTime: '21:00',
+    });
+  });
+
+  it('should read business hours from metadata', async () => {
+    const orderChannelsActiveEq = jest.fn().mockResolvedValue({
+      data: [{ id: 'ch-pickup', type: 'PICKUP', is_active: true }],
+      error: null,
+    });
+    const orderChannelsBranchEq = jest.fn().mockReturnValue({
+      eq: orderChannelsActiveEq,
+    });
+    const orderChannelsBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: orderChannelsBranchEq,
+      }),
+    };
+
+    const branchMaybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        metadata: {
+          businessHours: {
+            monday: {
+              isOpen: false,
+              openTime: null,
+              closeTime: null,
+            },
+            tuesday: {
+              isOpen: true,
+              openTime: '09:00',
+              closeTime: '18:00',
+            },
+          },
+        },
+      },
+      error: null,
+    });
+    const branchBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: branchMaybeSingle,
+        }),
+      }),
+    };
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(orderChannelsBuilder)
+        .mockReturnValueOnce(branchBuilder),
+    };
+
+    const result = await getBranchOrderConfig(sb, 'branch-1');
+
+    expect(result.businessHours).toEqual({
+      monday: {
+        isOpen: false,
+        openTime: null,
+        closeTime: null,
+      },
+      tuesday: {
+        isOpen: true,
+        openTime: '09:00',
+        closeTime: '18:00',
+      },
+    });
+  });
+
+  it('should read business hours from pickup_time_config json column', async () => {
+    const orderChannelsActiveEq = jest.fn().mockResolvedValue({
+      data: [{ id: 'ch-pickup', type: 'PICKUP', is_active: true }],
+      error: null,
+    });
+    const orderChannelsBranchEq = jest.fn().mockReturnValue({
+      eq: orderChannelsActiveEq,
+    });
+    const orderChannelsBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: orderChannelsBranchEq,
+      }),
+    };
+
+    const branchMaybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        pickup_time_config: {
+          start_time: '09:00',
+          end_time: '21:00',
+          business_hours: {
+            monday: {
+              is_open: false,
+              open_time: null,
+              close_time: null,
+            },
+            tuesday: {
+              is_open: true,
+              open_time: '09:00',
+              close_time: '18:00',
+            },
+          },
+        },
+      },
+      error: null,
+    });
+    const branchBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: branchMaybeSingle,
+        }),
+      }),
+    };
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(orderChannelsBuilder)
+        .mockReturnValueOnce(branchBuilder),
+    };
+
+    const result = await getBranchOrderConfig(sb, 'branch-1');
+
+    expect(result.businessHours).toEqual({
+      monday: {
+        isOpen: false,
+        openTime: null,
+        closeTime: null,
+      },
+      tuesday: {
+        isOpen: true,
+        openTime: '09:00',
+        closeTime: '18:00',
+      },
     });
   });
 
@@ -294,6 +526,86 @@ describe('branch-order-config.util', () => {
       pickup_time_config: {
         start_time: '09:00',
         end_time: '21:00',
+        businessHours: null,
+        business_hours: null,
+      },
+    });
+  });
+
+  it('should persist business hours into pickup_time_config when that is the available config column', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        pickup_time_config: {
+          start_time: '09:00',
+          end_time: '21:00',
+        },
+      },
+      error: null,
+    });
+
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle,
+        }),
+      }),
+    };
+
+    const update = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    });
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce({ update }),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      businessHours: {
+        monday: {
+          isOpen: false,
+          openTime: null,
+          closeTime: null,
+        },
+        tuesday: {
+          isOpen: true,
+          openTime: '09:00',
+          closeTime: '18:00',
+        },
+      },
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      pickup_time_config: {
+        start_time: '09:00',
+        end_time: '21:00',
+        businessHours: {
+          monday: {
+            isOpen: false,
+            openTime: null,
+            closeTime: null,
+          },
+          tuesday: {
+            isOpen: true,
+            openTime: '09:00',
+            closeTime: '18:00',
+          },
+        },
+        business_hours: {
+          monday: {
+            is_open: false,
+            open_time: null,
+            close_time: null,
+          },
+          tuesday: {
+            is_open: true,
+            open_time: '09:00',
+            close_time: '18:00',
+          },
+        },
       },
     });
   });

@@ -1344,6 +1344,7 @@ export class PublicOrderService {
       orderNotice: config.orderNotice ?? null,
       transferAccount: config.transferAccount ?? null,
       pickupTimeConfig: config.pickupTimeConfig ?? null,
+      businessHours: config.businessHours ?? null,
       channelByType: config.channelByType,
     };
   }
@@ -1471,6 +1472,7 @@ export class PublicOrderService {
       orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
     };
   }
 
@@ -1524,6 +1526,7 @@ export class PublicOrderService {
       orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
     };
   }
 
@@ -1583,6 +1586,7 @@ export class PublicOrderService {
       orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
     };
   }
 

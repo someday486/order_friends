@@ -98,6 +98,7 @@ export class BranchesService {
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
@@ -142,6 +143,7 @@ export class BranchesService {
         allowedPaymentMethods: dto.allowedPaymentMethods,
         transferAccount: dto.transferAccount,
         pickupTimeConfig: dto.pickupTimeConfig,
+        businessHours: dto.businessHours,
         orderNotice: dto.orderNotice,
       });
       const orderConfig = await getBranchOrderConfig(
@@ -161,6 +163,7 @@ export class BranchesService {
         allowedPaymentMethods: orderConfig.allowedPaymentMethods,
         transferAccount: orderConfig.transferAccount,
         pickupTimeConfig: orderConfig.pickupTimeConfig,
+        businessHours: orderConfig.businessHours,
         orderNotice: orderConfig.orderNotice,
         createdAt: data.created_at ?? '',
       };
@@ -210,6 +213,7 @@ export class BranchesService {
       allowedPaymentMethods: dto.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
       pickupTimeConfig: dto.pickupTimeConfig,
+      businessHours: dto.businessHours,
       orderNotice: dto.orderNotice,
     });
     const orderConfig = await getBranchOrderConfig(
@@ -229,6 +233,7 @@ export class BranchesService {
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
@@ -259,6 +264,7 @@ export class BranchesService {
       dto.allowedPaymentMethods !== undefined ||
       dto.transferAccount !== undefined ||
       dto.pickupTimeConfig !== undefined ||
+      dto.businessHours !== undefined ||
       dto.orderNotice !== undefined;
 
     if (Object.keys(updateData).length === 0) {
@@ -268,6 +274,7 @@ export class BranchesService {
           allowedPaymentMethods: dto.allowedPaymentMethods,
           transferAccount: dto.transferAccount,
           pickupTimeConfig: dto.pickupTimeConfig,
+          businessHours: dto.businessHours,
           orderNotice: dto.orderNotice,
         });
       }
@@ -299,6 +306,7 @@ export class BranchesService {
       allowedPaymentMethods: dto.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
       pickupTimeConfig: dto.pickupTimeConfig,
+      businessHours: dto.businessHours,
       orderNotice: dto.orderNotice,
     });
     const orderConfig = await getBranchOrderConfig(adminSb, branchId);
@@ -315,6 +323,7 @@ export class BranchesService {
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };

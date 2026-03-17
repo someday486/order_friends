@@ -1,10 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
+import {
+  BUSINESS_HOUR_DAY_KEYS,
+  BUSINESS_HOUR_DAY_LABELS,
+  createBusinessHoursFormState,
+  serializeBusinessHoursForm,
+  type BusinessHoursFormState,
+} from "@/lib/business-hours";
 import toast from "react-hot-toast";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 
@@ -18,6 +26,7 @@ type Branch = {
   brandId: string;
   name: string;
   slug: string | null;
+  logoUrl?: string | null;
   brandSlug?: string | null;
   myRole: string | null;
   createdAt: string;
@@ -381,9 +390,19 @@ function BranchCard({ branch }: { branch: Branch }) {
       {/* 상단: 아이콘 + 지점명/역할 + 외부링크 아이콘 */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-2xl flex-shrink-0">
+          {branch.logoUrl ? (
+            <Image
+              src={branch.logoUrl}
+              alt={branch.name}
+              width={48}
+              height={48}
+              className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-2xl flex-shrink-0">
             🏪
-          </div>
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="font-bold text-base mb-1 truncate">{branch.name}</div>
             {branch.myRole && (
@@ -482,16 +501,27 @@ function AddBranchModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    slug: string;
+    allowedPaymentMethods: BranchPaymentMethod[];
+    transferBankName: string;
+    transferAccountNumber: string;
+    transferAccountHolder: string;
+    pickupStartTime: string;
+    pickupEndTime: string;
+    businessHours: BusinessHoursFormState;
+  }>(() => ({
     name: "",
     slug: "",
-    allowedPaymentMethods: ["CARD", "TRANSFER", "CASH"] as BranchPaymentMethod[],
+    allowedPaymentMethods: ["CARD", "TRANSFER", "CASH"],
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",
     pickupStartTime: "",
     pickupEndTime: "",
-  });
+    businessHours: createBusinessHoursFormState(),
+  }));
   const [saving, setSaving] = useState(false);
 
   const isTransferEnabled = formData.allowedPaymentMethods.includes("TRANSFER");
@@ -506,6 +536,25 @@ function AddBranchModal({
       }
       return { ...prev, allowedPaymentMethods: Array.from(next) as BranchPaymentMethod[] };
     });
+  };
+
+  const updateBusinessHours = <
+    K extends keyof BusinessHoursFormState["monday"],
+  >(
+    dayKey: (typeof BUSINESS_HOUR_DAY_KEYS)[number],
+    field: K,
+    value: BusinessHoursFormState["monday"][K],
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      businessHours: {
+        ...prev.businessHours,
+        [dayKey]: {
+          ...prev.businessHours[dayKey],
+          [field]: value,
+        },
+      },
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -533,6 +582,22 @@ function AddBranchModal({
     ) {
       toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
       return;
+    }
+    for (const dayKey of BUSINESS_HOUR_DAY_KEYS) {
+      const day = formData.businessHours[dayKey];
+      if (!day.isOpen) {
+        continue;
+      }
+
+      if (!day.openTime.trim() || !day.closeTime.trim()) {
+        toast.error(`${BUSINESS_HOUR_DAY_LABELS[dayKey]}요일 영업시간을 모두 선택해 주세요.`);
+        return;
+      }
+
+      if (timeToMinutes(day.closeTime) <= timeToMinutes(day.openTime)) {
+        toast.error(`${BUSINESS_HOUR_DAY_LABELS[dayKey]}요일 마감 시간은 시작 시간보다 늦어야 합니다.`);
+        return;
+      }
     }
     if (
       isTransferEnabled &&
@@ -563,6 +628,7 @@ function AddBranchModal({
                 endTime: formData.pickupEndTime.trim(),
               }
             : null,
+        businessHours: serializeBusinessHoursForm(formData.businessHours),
       });
 
       toast.success("지점이 추가되었습니다.");
@@ -632,7 +698,7 @@ function AddBranchModal({
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">픽업 가능 시간</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">기본 픽업 시간</label>
             <div className="grid gap-2 sm:grid-cols-2">
               <select
                 value={formData.pickupStartTime}
@@ -659,6 +725,63 @@ function AddBranchModal({
                 ))}
               </select>
             </div>
+            <p className="mt-1 text-xs text-text-tertiary">
+              요일별 영업일을 따로 설정하지 않으면 이 시간대로 모든 날짜가 열립니다.
+            </p>
+          </div>
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">요일별 영업일 설정</label>
+            <div className="space-y-2">
+              {BUSINESS_HOUR_DAY_KEYS.map((dayKey) => {
+                const day = formData.businessHours[dayKey];
+                return (
+                  <div
+                    key={dayKey}
+                    className="grid gap-2 rounded-xl border border-border bg-bg-secondary p-3 sm:grid-cols-[72px_110px_minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
+                  >
+                    <div className="text-sm font-semibold text-foreground">
+                      {BUSINESS_HOUR_DAY_LABELS[dayKey]}요일
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={day.isOpen}
+                        onChange={(e) => updateBusinessHours(dayKey, "isOpen", e.target.checked)}
+                      />
+                      영업
+                    </label>
+                    <select
+                      value={day.openTime}
+                      onChange={(e) => updateBusinessHours(dayKey, "openTime", e.target.value)}
+                      disabled={!day.isOpen}
+                      className="input-field disabled:opacity-60"
+                    >
+                      {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                        <option key={`${dayKey}-open-${option.value}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={day.closeTime}
+                      onChange={(e) => updateBusinessHours(dayKey, "closeTime", e.target.value)}
+                      disabled={!day.isOpen}
+                      className="input-field disabled:opacity-60"
+                    >
+                      {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                        <option key={`${dayKey}-close-${option.value}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-text-tertiary">
+              예: 월요일 휴무, 화요일 09:00~18:00, 수~일 10:00~20:00처럼 설정할 수 있습니다.
+            </p>
           </div>
 
           <div className="mb-6">

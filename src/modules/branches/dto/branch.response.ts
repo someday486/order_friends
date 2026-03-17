@@ -16,6 +16,43 @@ export class BranchListItemResponse {
     startTime?: string | null;
     endTime?: string | null;
   } | null;
+  businessHours?: {
+    monday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    tuesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    wednesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    thursday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    friday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    saturday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    sunday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+  } | null;
   orderNotice?: string | null;
   createdAt: string;
 }
@@ -38,6 +75,43 @@ export class BranchDetailResponse {
   pickupTimeConfig?: {
     startTime?: string | null;
     endTime?: string | null;
+  } | null;
+  businessHours?: {
+    monday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    tuesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    wednesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    thursday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    friday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    saturday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    sunday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
   } | null;
   orderNotice?: string | null;
   createdAt: string;

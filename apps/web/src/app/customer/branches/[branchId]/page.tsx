@@ -7,6 +7,15 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
+import {
+  BUSINESS_HOUR_DAY_KEYS,
+  BUSINESS_HOUR_DAY_LABELS,
+  createBusinessHoursFormState,
+  formatBusinessHoursSummary,
+  serializeBusinessHoursForm,
+  type BusinessHoursFormState,
+  type WeeklyBusinessHours,
+} from "@/lib/business-hours";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -31,6 +40,7 @@ type Branch = {
     startTime?: string | null;
     endTime?: string | null;
   } | null;
+  businessHours?: WeeklyBusinessHours;
   orderNotice?: string | null;
 };
 
@@ -83,6 +93,10 @@ function timeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
+function hasBusinessHoursRows(businessHours?: WeeklyBusinessHours) {
+  return formatBusinessHoursSummary(businessHours).length > 0;
+}
+
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[11px] font-bold text-text-tertiary uppercase tracking-wider mb-3">
@@ -115,6 +129,9 @@ export default function BranchDetailPage() {
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
+  const [businessHours, setBusinessHours] = useState<BusinessHoursFormState>(
+    () => createBusinessHoursFormState(),
+  );
   const [orderNotice, setOrderNotice] = useState("");
 
   const [stampActive, setStampActive] = useState(false);
@@ -154,6 +171,9 @@ export default function BranchDetailPage() {
     const samePickupTimeConfig =
       pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
       pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
+    const sameBusinessHours =
+      JSON.stringify(serializeBusinessHoursForm(businessHours)) ===
+      JSON.stringify(branch.businessHours ?? null);
     const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
 
     return (
@@ -165,10 +185,12 @@ export default function BranchDetailPage() {
       !samePayments ||
       !sameTransferInfo ||
       !samePickupTimeConfig ||
+      !sameBusinessHours ||
       !sameOrderNotice
     );
   }, [
     allowedPaymentMethods,
+    businessHours,
     branch,
     coverImageUrl,
     enabledFulfillmentTypes,
@@ -203,6 +225,12 @@ export default function BranchDetailPage() {
     setTransferAccountHolder(source.transferAccount?.accountHolder ?? "");
     setPickupStartTime(source.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(source.pickupTimeConfig?.endTime ?? "");
+    setBusinessHours(
+      createBusinessHoursFormState(
+        source.businessHours,
+        source.pickupTimeConfig ?? null,
+      ),
+    );
     setOrderNotice(source.orderNotice ?? "");
   };
 
@@ -279,6 +307,20 @@ export default function BranchDetailPage() {
     }
   };
 
+  const updateBusinessHours = <K extends keyof BusinessHoursFormState["monday"]>(
+    dayKey: (typeof BUSINESS_HOUR_DAY_KEYS)[number],
+    field: K,
+    value: BusinessHoursFormState["monday"][K],
+  ) => {
+    setBusinessHours((current) => ({
+      ...current,
+      [dayKey]: {
+        ...current[dayKey],
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSave = async () => {
     if (!branch) return;
 
@@ -329,6 +371,23 @@ export default function BranchDetailPage() {
       return;
     }
 
+    for (const dayKey of BUSINESS_HOUR_DAY_KEYS) {
+      const day = businessHours[dayKey];
+      if (!day.isOpen) {
+        continue;
+      }
+
+      if (!day.openTime.trim() || !day.closeTime.trim()) {
+        toast.error(`${BUSINESS_HOUR_DAY_LABELS[dayKey]}요일 영업시간을 모두 선택해 주세요.`);
+        return;
+      }
+
+      if (timeToMinutes(day.closeTime) <= timeToMinutes(day.openTime)) {
+        toast.error(`${BUSINESS_HOUR_DAY_LABELS[dayKey]}요일 마감 시간은 시작 시간보다 늦어야 합니다.`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
 
@@ -352,6 +411,7 @@ export default function BranchDetailPage() {
                 endTime: pickupEndTime.trim(),
               }
             : null,
+        businessHours: serializeBusinessHoursForm(businessHours),
       });
 
       setBranch(updated);
@@ -533,7 +593,7 @@ export default function BranchDetailPage() {
             </section>
 
             <section>
-              <SectionHeading>픽업 시간 설정</SectionHeading>
+              <SectionHeading>기본 픽업 시간</SectionHeading>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select
                   value={pickupStartTime}
@@ -561,7 +621,62 @@ export default function BranchDetailPage() {
                 </select>
               </div>
               <p className="text-xs text-text-tertiary mt-1.5">
-                설정하면 포장 주문에서 30분 단위 픽업 시간을 선택할 수 있습니다.
+                요일별 영업일을 따로 설정하지 않으면 이 시간대로 모든 날짜가 열립니다.
+              </p>
+            </section>
+
+            <section>
+              <SectionHeading>요일별 영업일 설정</SectionHeading>
+              <div className="space-y-2">
+                {BUSINESS_HOUR_DAY_KEYS.map((dayKey) => {
+                  const day = businessHours[dayKey];
+                  return (
+                    <div
+                      key={dayKey}
+                      className="grid gap-2 rounded-xl border border-border bg-bg-secondary p-3 sm:grid-cols-[72px_110px_minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
+                    >
+                      <div className="text-sm font-semibold text-foreground">
+                        {BUSINESS_HOUR_DAY_LABELS[dayKey]}요일
+                      </div>
+                      <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          className="accent-primary"
+                          checked={day.isOpen}
+                          onChange={(e) => updateBusinessHours(dayKey, "isOpen", e.target.checked)}
+                        />
+                        영업
+                      </label>
+                      <select
+                        value={day.openTime}
+                        onChange={(e) => updateBusinessHours(dayKey, "openTime", e.target.value)}
+                        disabled={!day.isOpen}
+                        className="input-field w-full disabled:opacity-60"
+                      >
+                        {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                          <option key={`${dayKey}-open-${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={day.closeTime}
+                        onChange={(e) => updateBusinessHours(dayKey, "closeTime", e.target.value)}
+                        disabled={!day.isOpen}
+                        className="input-field w-full disabled:opacity-60"
+                      >
+                        {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                          <option key={`${dayKey}-close-${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-text-tertiary mt-1.5">
+                예: 월요일 휴무, 화요일 09:00~18:00, 수~일 10:00~20:00처럼 요일별로 다르게 설정할 수 있습니다.
               </p>
             </section>
 
@@ -723,11 +838,26 @@ export default function BranchDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-[13px] text-text-secondary mb-1.5">픽업 가능 시간</div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">기본 픽업 시간</div>
                   <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground">
                     {branch.pickupTimeConfig?.startTime && branch.pickupTimeConfig?.endTime
                       ? `${branch.pickupTimeConfig.startTime} - ${branch.pickupTimeConfig.endTime}`
                       : "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">요일별 영업일</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border space-y-1">
+                    {hasBusinessHoursRows(branch.businessHours) ? (
+                      formatBusinessHoursSummary(branch.businessHours).map((line) => (
+                        <div key={line} className="text-sm text-foreground">
+                          {line}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-foreground">-</div>
+                    )}
                   </div>
                 </div>
 

@@ -177,15 +177,17 @@ test.describe('Order checkout config', () => {
     await expect(pickupDateInput).toBeVisible();
 
     const dateOptions = await pickupDateInput
-      .locator('option')
-      .evaluateAll((options) =>
-        options
-          .map((option) => (option as HTMLOptionElement).value)
+      .locator('button[data-date-key]:not([disabled])')
+      .evaluateAll((buttons) =>
+        buttons
+          .map((button) => (button as HTMLButtonElement).dataset.dateKey ?? '')
           .filter(Boolean),
       );
 
     expect(dateOptions.length).toBeGreaterThan(1);
-    await pickupDateInput.selectOption(dateOptions[1]);
+    await pickupDateInput
+      .locator(`button[data-date-key="${dateOptions[1]}"]`)
+      .click();
     await expect(pickupTimeInput).toHaveValue(new RegExp(`^${dateOptions[1]}`));
   });
 

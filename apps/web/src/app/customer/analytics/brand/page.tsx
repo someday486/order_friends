@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { ChevronDown, Search, Star, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import { apiClient } from "@/lib/api-client";
@@ -12,6 +13,7 @@ import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import Tooltip from "@/components/ui/Tooltip";
 import type { AbcAnalysis, CohortAnalysis, RfmAnalysis } from "@/types/analytics";
+
 
 // ============================================================
 // Types
@@ -179,6 +181,110 @@ export default function BrandAnalyticsPage() {
   const { branchId: selectedBranchId } = useSelectedBranch();
 
   const [brands, setBrands] = useState<Brand[]>([]);
+
+  // ============================
+  // Brand favorites (localStorage)
+  // ============================
+  const [favoriteBrandIds, setFavoriteBrandIds] = useState<string[]>([]);
+  const [isBrandOpen, setIsBrandOpen] = useState(false);
+  const [brandSearch, setBrandSearch] = useState("");
+  const brandDropdownRef = useRef<HTMLDivElement | null>(null);
+  const brandSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const toggleFavoriteBrand = useCallback((brandId: string) => {
+    setFavoriteBrandIds((prev) => {
+      const idx = prev.indexOf(brandId);
+      if (idx !== -1) {
+        const next = prev.slice();
+        next.splice(idx, 1);
+        return next;
+      }
+      return [...prev, brandId]; // 즐겨찾기한 순서 유지
+    });
+  }, []);
+
+  const favoriteSet = useMemo(() => new Set(favoriteBrandIds), [favoriteBrandIds]);
+
+  const filteredBrands = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase();
+    if (!q) return brands;
+    return brands.filter((b) => (b.name ?? "").toLowerCase().includes(q));
+  }, [brands, brandSearch]);
+
+  const sortedBrands = useMemo(() => {
+    const byId = new Map(filteredBrands.map((b) => [b.id, b]));
+
+    const favoritesInOrder = favoriteBrandIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as Brand[];
+
+    const rest = filteredBrands
+      .filter((b) => !favoriteSet.has(b.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+    return [...favoritesInOrder, ...rest];
+  }, [filteredBrands, favoriteBrandIds, favoriteSet]);
+
+  // mount 시 즐겨찾기 로드
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("brandAnalytics.favoriteBrandIds");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+        setFavoriteBrandIds(parsed);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // 변경 시 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem("brandAnalytics.favoriteBrandIds", JSON.stringify(favoriteBrandIds));
+    } catch {
+      // ignore
+    }
+  }, [favoriteBrandIds]);
+
+  // dropdown 닫기 (밖클릭/ESC)
+  useEffect(() => {
+    if (!isBrandOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const el = brandDropdownRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setIsBrandOpen(false);
+        setBrandSearch("");
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsBrandOpen(false);
+        setBrandSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isBrandOpen]);
+
+  useEffect(() => {
+    if (isBrandOpen) {
+      setTimeout(() => brandSearchInputRef.current?.focus(), 0);
+    }
+  }, [isBrandOpen]);
+
+
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [compare, setCompare] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -330,8 +436,12 @@ export default function BrandAnalyticsPage() {
           <p className="text-text-secondary text-[13px] mt-1">전체 지점 통합 분석</p>
         </div>
         {branchLinkId ? (
-          <Link href={branchLink} className="text-xs text-primary-500 hover:underline">
+          <Link
+            href={branchLink}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-secondary px-3 py-2 text-xs font-semibold text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors"
+          >
             지점별 분석 보기
+            <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
           </Link>
         ) : (
           <span className="text-xs text-text-tertiary">
@@ -342,34 +452,115 @@ export default function BrandAnalyticsPage() {
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <select
-          value={selectedBrandId}
-          onChange={(e) => setSelectedBrandId(e.target.value)}
-          className="input-field max-w-[240px]"
-        >
-          <option value="">브랜드 선택</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <div ref={brandDropdownRef} className="relative w-full sm:max-w-[240px]">
+          <button
+            type="button"
+            onClick={() => setIsBrandOpen((v) => !v)}
+            className="input-field w-full flex items-center justify-between gap-2"
+            aria-haspopup="listbox"
+            aria-expanded={isBrandOpen}
+          >
+            <span className="truncate">
+              {brands.find((b) => b.id === selectedBrandId)?.name ?? "브랜드 선택"}
+            </span>
+            <ChevronDown className="w-4 h-4 text-text-secondary flex-shrink-0" />
+          </button>
 
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="input-field w-[140px]"
-        />
-        <span className="self-center text-text-tertiary">~</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="input-field w-[140px]"
-        />
+          {isBrandOpen && (
+            <div
+              className="absolute left-0 top-full mt-2 w-full z-30 rounded-lg border border-border bg-bg-secondary shadow-lg overflow-hidden"
+              role="listbox"
+            >
+              <div className="p-2 border-b border-border bg-bg-tertiary">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                  <input
+                    ref={brandSearchInputRef}
+                    value={brandSearch}
+                    onChange={(e) => setBrandSearch(e.target.value)}
+                    placeholder="브랜드 검색"
+                    className="input-field w-full text-xs pl-9 pr-9"
+                  />
+                  {brandSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setBrandSearch("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-foreground transition-colors"
+                      aria-label="검색어 지우기"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer self-center">
+              <div className="max-h-72 overflow-y-auto">
+                {sortedBrands.map((brand) => {
+                  const isFav = favoriteSet.has(brand.id);
+                  const isSelected = brand.id === selectedBrandId;
+
+                  return (
+                    <div
+                      key={brand.id}
+                      className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-bg-tertiary ${
+                        isSelected ? "bg-bg-tertiary/60" : ""
+                      }`}
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedBrandId(brand.id);
+                        setBrandSearch("");
+                        setIsBrandOpen(false);
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-foreground">{brand.name}</div>
+                      </div>
+
+                      {/* ⭐ 즐겨찾기 버튼 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteBrand(brand.id);
+                        }}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
+                        aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                        title={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      >
+                        <Star className={`w-4 h-4 ${isFav ? "fill-current text-yellow-500" : ""}`} />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {sortedBrands.length === 0 && (
+                  <div className="px-3 py-6 text-center text-sm text-text-secondary">
+                    브랜드가 없습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 sm:flex sm:w-auto">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="input-field w-full min-w-0 sm:w-[140px]"
+          />
+          <span className="self-center text-center text-text-tertiary">~</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="input-field w-full min-w-0 sm:w-[140px]"
+          />
+        </div>
+
+        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer w-full sm:w-auto sm:self-center">
           <input
             type="checkbox"
             checked={compare}
@@ -457,13 +648,13 @@ export default function BrandAnalyticsPage() {
                   {
                     dataKey: "revenue",
                     name: "매출",
-                    color: "#2563eb",
+                    color: "#ef4444",
                     yAxisId: "left",
                   },
                   {
                     dataKey: "orderCount",
                     name: "주문 수",
-                    color: "#22c55e",
+                    color: "#2563eb",
                     yAxisId: "right",
                   },
                 ]}
@@ -673,7 +864,7 @@ export default function BrandAnalyticsPage() {
                 <h3 className="text-sm font-semibold text-foreground mb-2">
                   <HelpLabel
                     label="RFM 분석"
-                    description="R=최근성, F=빈도, M=금액 기준으로 고객을 분류합니다."
+                    description="고객을 최근 방문일(R), 방문 횟수(F), 사용 금액(M)을 기준으로 나누어 고객분류를 한눈에 파악할 수 있게 해주는 분석입니다."
                   />
                 </h3>
                 {rfmSummary.length > 0 ? (

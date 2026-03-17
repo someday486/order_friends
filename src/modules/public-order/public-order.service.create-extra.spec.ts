@@ -3,12 +3,16 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Create Order Branches', () => {
   let service: PublicOrderService;
   let anonChains: Record<string, any>;
   let adminChains: Record<string, any>;
   let adminClient: any;
+  let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -43,6 +47,14 @@ describe('PublicOrderService - Create Order Branches', () => {
       from: jest.fn((table: string) => adminChains[table]),
       rpc: jest.fn(),
     };
+    stampsService = {
+      earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -55,6 +67,8 @@ describe('PublicOrderService - Create Order Branches', () => {
           },
         },
         { provide: InventoryService, useValue: {} },
+        { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 

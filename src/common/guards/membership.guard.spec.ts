@@ -122,7 +122,7 @@ describe('MembershipGuard', () => {
     expect(ctx._req.role).toBe(Role.OWNER);
   });
 
-  it('should infer STAFF role when no owner is present', async () => {
+  it('should infer OWNER role for admin brand memberships when no scope is provided', async () => {
     brandMembersChain.eq
       .mockReturnValueOnce(brandMembersChain)
       .mockResolvedValueOnce({
@@ -135,7 +135,7 @@ describe('MembershipGuard', () => {
     const result = await guard.canActivate(ctx);
 
     expect(result).toBe(true);
-    expect(ctx._req.role).toBe(Role.STAFF);
+    expect(ctx._req.role).toBe(Role.OWNER);
   });
 
   it('should allow request when no scope and no memberships', async () => {
@@ -220,7 +220,7 @@ describe('MembershipGuard', () => {
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
     branchMembersChain.maybeSingle.mockResolvedValueOnce({
-      data: { role: BranchRole.MANAGER, status: MemberStatus.ACTIVE },
+      data: { role: BranchRole.BRANCH_ADMIN, status: MemberStatus.ACTIVE },
       error: null,
     });
 
@@ -246,12 +246,12 @@ describe('MembershipGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
-  it('should fallback when branch membership inactive', async () => {
+  it('should fallback to OWNER role when branch membership is inactive but brand admin is active', async () => {
     branchMembersChain.eq
       .mockReturnValueOnce(branchMembersChain)
       .mockReturnValueOnce(branchMembersChain);
     branchMembersChain.maybeSingle.mockResolvedValueOnce({
-      data: { role: BranchRole.MANAGER, status: MemberStatus.SUSPENDED },
+      data: { role: BranchRole.BRANCH_ADMIN, status: MemberStatus.SUSPENDED },
       error: null,
     });
 
@@ -273,7 +273,7 @@ describe('MembershipGuard', () => {
 
     const result = await guard.canActivate(ctx);
     expect(result).toBe(true);
-    expect(ctx._req.role).toBe(Role.STAFF);
+    expect(ctx._req.role).toBe(Role.OWNER);
   });
 
   it('should fallback to brand membership when branch membership is missing', async () => {

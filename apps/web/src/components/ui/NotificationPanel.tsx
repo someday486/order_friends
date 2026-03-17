@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useNotifications, type Notification } from "@/providers/NotificationProvider";
 import { useRouter } from "next/navigation";
@@ -16,8 +16,8 @@ function formatTimeAgo(dateStr: string) {
 
 const TYPE_ICONS: Record<string, string> = {
   LOW_STOCK: "📦",
-  NEW_ORDER: "🛎",
-  ORDER_STATUS: "📋",
+  NEW_ORDER: "🛎️",
+  ORDER_STATUS: "🔄",
 };
 
 const TYPE_COLORS: Record<string, string> = {

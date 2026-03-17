@@ -2,6 +2,8 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Public Queries', () => {
   let service: PublicOrderService;
@@ -44,6 +46,12 @@ describe('PublicOrderService - Public Queries', () => {
     service = new PublicOrderService(
       supabase as SupabaseService,
       {} as InventoryService,
+      { earnStamps: jest.fn().mockResolvedValue(undefined) } as StampsService,
+      {
+        sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+          success: true,
+        }),
+      } as unknown as NotificationsService,
     );
   });
 

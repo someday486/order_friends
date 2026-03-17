@@ -10,9 +10,46 @@ export const ORDER_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'CASH'] as const;
 export type OrderFulfillmentType = (typeof ORDER_FULFILLMENT_TYPES)[number];
 export type OrderPaymentMethod = (typeof ORDER_PAYMENT_METHODS)[number];
 
+export type TransferAccountInfo = {
+  bankName: string | null;
+  accountNumber: string | null;
+  accountHolder: string | null;
+};
+
+export type PickupTimeConfig = {
+  startTime: string | null;
+  endTime: string | null;
+};
+
+export const BUSINESS_HOUR_DAY_KEYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+export type BusinessHourDayKey = (typeof BUSINESS_HOUR_DAY_KEYS)[number];
+
+export type BusinessHourDay = {
+  isOpen: boolean;
+  openTime: string | null;
+  closeTime: string | null;
+};
+
+export type WeeklyBusinessHours = Partial<
+  Record<BusinessHourDayKey, BusinessHourDay>
+>;
+
 export type BranchOrderConfig = {
   enabledFulfillmentTypes: OrderFulfillmentType[];
   allowedPaymentMethods: OrderPaymentMethod[];
+  transferAccount: TransferAccountInfo | null;
+  pickupTimeConfig: PickupTimeConfig | null;
+  businessHours: WeeklyBusinessHours | null;
+  orderNotice: string | null;
   channelByType: Partial<Record<OrderFulfillmentType, string>>;
 };
 
@@ -27,6 +64,148 @@ function normalizeStringArray(value: unknown): string[] {
   return value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0);
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeHalfHourTime(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return /^([01]\d|2[0-3]):(00|30)$/.test(normalized) ? normalized : null;
+}
+
+function normalizeOrderNotice(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map((part) => Number(part));
+  return hours * 60 + minutes;
+}
+
+function normalizeTransferAccount(value: unknown): TransferAccountInfo | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const bankName = normalizeOptionalString(
+    row.bankName ?? row.bank_name ?? row.transfer_bank_name,
+  );
+  const accountNumber = normalizeOptionalString(
+    row.accountNumber ?? row.account_number ?? row.transfer_account_number,
+  );
+  const accountHolder = normalizeOptionalString(
+    row.accountHolder ?? row.account_holder ?? row.transfer_account_holder,
+  );
+
+  if (!bankName && !accountNumber && !accountHolder) {
+    return null;
+  }
+
+  return {
+    bankName,
+    accountNumber,
+    accountHolder,
+  };
+}
+
+function normalizePickupTimeConfig(value: unknown): PickupTimeConfig | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const startTime = normalizeHalfHourTime(
+    row.startTime ??
+      row.start_time ??
+      row.pickupStartTime ??
+      row.pickup_start_time,
+  );
+  const endTime = normalizeHalfHourTime(
+    row.endTime ?? row.end_time ?? row.pickupEndTime ?? row.pickup_end_time,
+  );
+
+  if (!startTime && !endTime) {
+    return null;
+  }
+
+  if (!startTime || !endTime) {
+    return null;
+  }
+
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+    return null;
+  }
+
+  return {
+    startTime,
+    endTime,
+  };
+}
+
+function normalizeBusinessHourDay(value: unknown): BusinessHourDay | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const isClosed =
+    row.closed === true ||
+    row.isClosed === true ||
+    row.is_closed === true ||
+    row.isOpen === false ||
+    row.is_open === false;
+  const openTime = normalizeHalfHourTime(
+    row.openTime ?? row.open_time ?? row.startTime ?? row.start_time,
+  );
+  const closeTime = normalizeHalfHourTime(
+    row.closeTime ?? row.close_time ?? row.endTime ?? row.end_time,
+  );
+
+  if (isClosed || (!openTime && !closeTime)) {
+    return {
+      isOpen: false,
+      openTime: null,
+      closeTime: null,
+    };
+  }
+
+  if (!openTime || !closeTime) {
+    return null;
+  }
+
+  if (timeToMinutes(closeTime) <= timeToMinutes(openTime)) {
+    return null;
+  }
+
+  return {
+    isOpen: true,
+    openTime,
+    closeTime,
+  };
+}
+
+function normalizeBusinessHours(value: unknown): WeeklyBusinessHours | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const result: WeeklyBusinessHours = {};
+  let hasAnyDay = false;
+
+  for (const dayKey of BUSINESS_HOUR_DAY_KEYS) {
+    const dayValue = normalizeBusinessHourDay(
+      row[dayKey] ?? row[dayKey.slice(0, 3)],
+    );
+    if (!dayValue) {
+      continue;
+    }
+
+    result[dayKey] = dayValue;
+    hasAnyDay = true;
+  }
+
+  return hasAnyDay ? result : null;
 }
 
 export function normalizeFulfillmentTypes(
@@ -105,6 +284,152 @@ function getPaymentMethodsFromBranchRow(
   return [...ORDER_PAYMENT_METHODS];
 }
 
+function getTransferAccountFromBranchRow(
+  branchRow: Record<string, unknown>,
+): TransferAccountInfo | null {
+  const directObject = normalizeTransferAccount(
+    branchRow.transferAccount ?? branchRow.transfer_account,
+  );
+  if (directObject) return directObject;
+
+  const direct = normalizeTransferAccount({
+    transfer_bank_name: branchRow.transfer_bank_name,
+    transfer_account_number: branchRow.transfer_account_number,
+    transfer_account_holder: branchRow.transfer_account_holder,
+    bank_name: branchRow.bank_name,
+    account_number: branchRow.account_number,
+    account_holder: branchRow.account_holder,
+  });
+  if (direct) return direct;
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const account = normalizeTransferAccount(
+      candidate.transferAccount ??
+        candidate.transfer_account ??
+        candidate.bankAccount ??
+        candidate.bank_account ??
+        candidate,
+    );
+    if (account) return account;
+  }
+
+  return null;
+}
+
+function getPickupTimeConfigFromBranchRow(
+  branchRow: Record<string, unknown>,
+): PickupTimeConfig | null {
+  const directObject = normalizePickupTimeConfig(
+    branchRow.pickupTimeConfig ?? branchRow.pickup_time_config,
+  );
+  if (directObject) return directObject;
+
+  const direct = normalizePickupTimeConfig({
+    start_time: branchRow.start_time,
+    end_time: branchRow.end_time,
+    pickup_start_time: branchRow.pickup_start_time,
+    pickup_end_time: branchRow.pickup_end_time,
+  });
+  if (direct) return direct;
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const config = normalizePickupTimeConfig(
+      candidate.pickupTimeConfig ??
+        candidate.pickup_time_config ??
+        candidate.pickupWindow ??
+        candidate.pickup_window ??
+        candidate,
+    );
+    if (config) return config;
+  }
+
+  return null;
+}
+
+function getOrderNoticeFromBranchRow(
+  branchRow: Record<string, unknown>,
+): string | null {
+  const directCandidates = [
+    branchRow.orderNotice,
+    branchRow.order_notice,
+    branchRow.notice,
+    branchRow.announcement,
+  ];
+
+  for (const candidate of directCandidates) {
+    const notice = normalizeOrderNotice(candidate);
+    if (notice) return notice;
+  }
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const notice = normalizeOrderNotice(
+      candidate.orderNotice ??
+        candidate.order_notice ??
+        candidate.notice ??
+        candidate.announcement,
+    );
+    if (notice) return notice;
+  }
+
+  return null;
+}
+
+function getBusinessHoursFromBranchRow(
+  branchRow: Record<string, unknown>,
+): WeeklyBusinessHours | null {
+  const directObject = normalizeBusinessHours(
+    branchRow.businessHours ??
+      branchRow.business_hours ??
+      toRecord(branchRow.pickupTimeConfig)?.businessHours ??
+      toRecord(branchRow.pickupTimeConfig)?.business_hours ??
+      toRecord(branchRow.pickup_time_config)?.businessHours ??
+      toRecord(branchRow.pickup_time_config)?.business_hours ??
+      branchRow.weeklySchedule ??
+      branchRow.weekly_schedule,
+  );
+  if (directObject) return directObject;
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const businessHours = normalizeBusinessHours(
+      candidate.businessHours ??
+        candidate.business_hours ??
+        candidate.weeklySchedule ??
+        candidate.weekly_schedule,
+    );
+    if (businessHours) return businessHours;
+  }
+
+  return null;
+}
+
 async function fetchBranchRow(
   sb: any,
   branchId: string,
@@ -166,10 +491,24 @@ export async function getBranchOrderConfig(
   const allowedPaymentMethods = branchRow
     ? getPaymentMethodsFromBranchRow(branchRow)
     : [...ORDER_PAYMENT_METHODS];
+  const transferAccount = branchRow
+    ? getTransferAccountFromBranchRow(branchRow)
+    : null;
+  const pickupTimeConfig = branchRow
+    ? getPickupTimeConfigFromBranchRow(branchRow)
+    : null;
+  const businessHours = branchRow
+    ? getBusinessHoursFromBranchRow(branchRow)
+    : null;
+  const orderNotice = branchRow ? getOrderNoticeFromBranchRow(branchRow) : null;
 
   return {
     enabledFulfillmentTypes,
     allowedPaymentMethods,
+    transferAccount,
+    pickupTimeConfig,
+    businessHours,
+    orderNotice,
     channelByType,
   };
 }
@@ -287,12 +626,361 @@ async function persistPaymentMethodsToBranch(
   }
 }
 
+async function persistTransferAccountToBranch(
+  sb: any,
+  branchId: string,
+  transferAccount: TransferAccountInfo | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('transfer_bank_name' in branchRow) {
+    directPayload.transfer_bank_name = transferAccount?.bankName ?? null;
+  }
+  if ('transfer_account_number' in branchRow) {
+    directPayload.transfer_account_number =
+      transferAccount?.accountNumber ?? null;
+  }
+  if ('transfer_account_holder' in branchRow) {
+    directPayload.transfer_account_holder =
+      transferAccount?.accountHolder ?? null;
+  }
+  if ('bank_name' in branchRow) {
+    directPayload.bank_name = transferAccount?.bankName ?? null;
+  }
+  if ('account_number' in branchRow) {
+    directPayload.account_number = transferAccount?.accountNumber ?? null;
+  }
+  if ('account_holder' in branchRow) {
+    directPayload.account_holder = transferAccount?.accountHolder ?? null;
+  }
+  if ('transfer_account' in branchRow) {
+    directPayload.transfer_account = transferAccount
+      ? {
+          bank_name: transferAccount.bankName,
+          account_number: transferAccount.accountNumber,
+          account_holder: transferAccount.accountHolder,
+        }
+      : null;
+  }
+  if ('transferAccount' in branchRow) {
+    directPayload.transferAccount = transferAccount
+      ? {
+          bankName: transferAccount.bankName,
+          accountNumber: transferAccount.accountNumber,
+          accountHolder: transferAccount.accountHolder,
+        }
+      : null;
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      transferAccount: transferAccount
+        ? {
+            bankName: transferAccount.bankName,
+            accountNumber: transferAccount.accountNumber,
+            accountHolder: transferAccount.accountHolder,
+          }
+        : null,
+      transfer_account: transferAccount
+        ? {
+            bank_name: transferAccount.bankName,
+            account_number: transferAccount.accountNumber,
+            account_holder: transferAccount.accountHolder,
+          }
+        : null,
+    };
+
+    const { error } = await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+}
+
+async function persistPickupTimeConfigToBranch(
+  sb: any,
+  branchId: string,
+  pickupTimeConfig: PickupTimeConfig | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+  const existingPickupConfigRecord =
+    toRecord(branchRow.pickup_time_config) ??
+    toRecord(branchRow.pickupTimeConfig) ??
+    null;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('pickup_start_time' in branchRow) {
+    directPayload.pickup_start_time = pickupTimeConfig?.startTime ?? null;
+  }
+  if ('pickup_end_time' in branchRow) {
+    directPayload.pickup_end_time = pickupTimeConfig?.endTime ?? null;
+  }
+  if ('start_time' in branchRow) {
+    directPayload.start_time = pickupTimeConfig?.startTime ?? null;
+  }
+  if ('end_time' in branchRow) {
+    directPayload.end_time = pickupTimeConfig?.endTime ?? null;
+  }
+  if ('pickup_time_config' in branchRow) {
+    directPayload.pickup_time_config = pickupTimeConfig
+      ? {
+          start_time: pickupTimeConfig.startTime,
+          end_time: pickupTimeConfig.endTime,
+          businessHours: existingPickupConfigRecord?.businessHours ?? null,
+          business_hours: existingPickupConfigRecord?.business_hours ?? null,
+        }
+      : null;
+  }
+  if ('pickupTimeConfig' in branchRow) {
+    directPayload.pickupTimeConfig = pickupTimeConfig
+      ? {
+          startTime: pickupTimeConfig.startTime,
+          endTime: pickupTimeConfig.endTime,
+          businessHours: existingPickupConfigRecord?.businessHours ?? null,
+          business_hours: existingPickupConfigRecord?.business_hours ?? null,
+        }
+      : null;
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      pickupTimeConfig: pickupTimeConfig
+        ? {
+            startTime: pickupTimeConfig.startTime,
+            endTime: pickupTimeConfig.endTime,
+            businessHours: existingPickupConfigRecord?.businessHours ?? null,
+            business_hours: existingPickupConfigRecord?.business_hours ?? null,
+          }
+        : null,
+      pickup_time_config: pickupTimeConfig
+        ? {
+            start_time: pickupTimeConfig.startTime,
+            end_time: pickupTimeConfig.endTime,
+            businessHours: existingPickupConfigRecord?.businessHours ?? null,
+            business_hours: existingPickupConfigRecord?.business_hours ?? null,
+          }
+        : null,
+    };
+
+    const { error } = await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+}
+
+async function persistOrderNoticeToBranch(
+  sb: any,
+  branchId: string,
+  orderNotice: string | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('order_notice' in branchRow) {
+    directPayload.order_notice = orderNotice;
+  }
+  if ('orderNotice' in branchRow) {
+    directPayload.orderNotice = orderNotice;
+  }
+  if ('notice' in branchRow) {
+    directPayload.notice = orderNotice;
+  }
+  if ('announcement' in branchRow) {
+    directPayload.announcement = orderNotice;
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      orderNotice: orderNotice,
+      order_notice: orderNotice,
+      notice: orderNotice,
+      announcement: orderNotice,
+    };
+
+    const { error } = await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+}
+
+async function persistBusinessHoursToBranch(
+  sb: any,
+  branchId: string,
+  businessHours: WeeklyBusinessHours | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const snakeCaseBusinessHours = businessHours
+    ? Object.fromEntries(
+        Object.entries(businessHours).map(([dayKey, value]) => [
+          dayKey,
+          value.isOpen
+            ? {
+                is_open: true,
+                open_time: value.openTime,
+                close_time: value.closeTime,
+              }
+            : {
+                is_open: false,
+                open_time: null,
+                close_time: null,
+              },
+        ]),
+      )
+    : null;
+  const camelCaseBusinessHours = businessHours
+    ? Object.fromEntries(
+        Object.entries(businessHours).map(([dayKey, value]) => [
+          dayKey,
+          value.isOpen
+            ? {
+                isOpen: true,
+                openTime: value.openTime,
+                closeTime: value.closeTime,
+              }
+            : {
+                isOpen: false,
+                openTime: null,
+                closeTime: null,
+              },
+        ]),
+      )
+    : null;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('business_hours' in branchRow) {
+    directPayload.business_hours = snakeCaseBusinessHours;
+  }
+  if ('businessHours' in branchRow) {
+    directPayload.businessHours = camelCaseBusinessHours;
+  }
+  if ('weekly_schedule' in branchRow) {
+    directPayload.weekly_schedule = snakeCaseBusinessHours;
+  }
+  if ('weeklySchedule' in branchRow) {
+    directPayload.weeklySchedule = camelCaseBusinessHours;
+  }
+  if ('pickup_time_config' in branchRow) {
+    const currentPickupConfig = toRecord(branchRow.pickup_time_config) ?? {};
+    directPayload.pickup_time_config = {
+      ...currentPickupConfig,
+      businessHours: camelCaseBusinessHours,
+      business_hours: snakeCaseBusinessHours,
+    };
+  }
+  if ('pickupTimeConfig' in branchRow) {
+    const currentPickupConfig = toRecord(branchRow.pickupTimeConfig) ?? {};
+    directPayload.pickupTimeConfig = {
+      ...currentPickupConfig,
+      businessHours: camelCaseBusinessHours,
+      business_hours: snakeCaseBusinessHours,
+    };
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      businessHours: camelCaseBusinessHours,
+      business_hours: snakeCaseBusinessHours,
+      weeklySchedule: camelCaseBusinessHours,
+      weekly_schedule: snakeCaseBusinessHours,
+    };
+
+    const { error } = await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+}
+
 export async function saveBranchOrderConfig(
   sb: any,
   branchId: string,
   input: {
     enabledFulfillmentTypes?: unknown;
     allowedPaymentMethods?: unknown;
+    transferAccount?: unknown;
+    pickupTimeConfig?: unknown;
+    businessHours?: unknown;
+    orderNotice?: unknown;
   },
 ) {
   if (input.enabledFulfillmentTypes !== undefined) {
@@ -303,5 +991,25 @@ export async function saveBranchOrderConfig(
   if (input.allowedPaymentMethods !== undefined) {
     const methods = normalizePaymentMethods(input.allowedPaymentMethods);
     await persistPaymentMethodsToBranch(sb, branchId, methods);
+  }
+
+  if (input.transferAccount !== undefined) {
+    const transferAccount = normalizeTransferAccount(input.transferAccount);
+    await persistTransferAccountToBranch(sb, branchId, transferAccount);
+  }
+
+  if (input.pickupTimeConfig !== undefined) {
+    const pickupTimeConfig = normalizePickupTimeConfig(input.pickupTimeConfig);
+    await persistPickupTimeConfigToBranch(sb, branchId, pickupTimeConfig);
+  }
+
+  if (input.businessHours !== undefined) {
+    const businessHours = normalizeBusinessHours(input.businessHours);
+    await persistBusinessHoursToBranch(sb, branchId, businessHours);
+  }
+
+  if (input.orderNotice !== undefined) {
+    const orderNotice = normalizeOrderNotice(input.orderNotice);
+    await persistOrderNoticeToBranch(sb, branchId, orderNotice);
   }
 }

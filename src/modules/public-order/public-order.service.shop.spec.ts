@@ -3,10 +3,14 @@ import { BadRequestException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Shop Flow', () => {
   let service: PublicOrderService;
   let adminChains: Record<string, any>;
+  let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -39,6 +43,14 @@ describe('PublicOrderService - Shop Flow', () => {
     const anonClient = {
       from: jest.fn((table: string) => adminChains[table]),
     };
+    stampsService = {
+      earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -51,6 +63,8 @@ describe('PublicOrderService - Shop Flow', () => {
           },
         },
         { provide: InventoryService, useValue: {} },
+        { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -75,7 +89,14 @@ describe('PublicOrderService - Shop Flow', () => {
       error: null,
     });
     adminChains.branches.limit.mockResolvedValueOnce({
-      data: [{ id: 'branch-1', created_at: '2026-01-01T00:00:00.000Z' }],
+      data: [
+        {
+          id: 'branch-1',
+          name: '강남점',
+          slug: 'gangnam',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       error: null,
     });
     adminChains.branches.maybeSingle.mockResolvedValueOnce({
@@ -120,7 +141,9 @@ describe('PublicOrderService - Shop Flow', () => {
           id: 'prod-2',
           brand_product_id: 'tpl-2',
           base_price: 6000,
-          is_hidden: true,
+          image_url: 'prod-img-2',
+          category_id: 'cat-1',
+          is_hidden: false,
           is_sold_out: false,
         },
       ],
@@ -137,7 +160,7 @@ describe('PublicOrderService - Shop Flow', () => {
     expect(result.brandSlug).toBe('test-brand');
     expect(result.fulfillmentType).toBe('DELIVERY');
     expect(result.paymentMethods).toEqual(expect.arrayContaining(['CARD']));
-    expect(result.products).toHaveLength(1);
+    expect(result.products).toHaveLength(2);
     expect(result.products[0]).toEqual(
       expect.objectContaining({
         id: 'tpl-1',
@@ -146,6 +169,117 @@ describe('PublicOrderService - Shop Flow', () => {
         categoryName: 'Coffee',
       }),
     );
+  });
+
+  it('getShopBrandBySlug should fall back to dedicated online shop branch when regular branches miss linked products', async () => {
+    adminChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-1',
+          name: 'Test Brand',
+          slug: 'test-brand',
+          logo_url: null,
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
+    adminChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'branch-1',
+          name: '강남점',
+          slug: 'gangnam',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: { id: 'branch-1', allowed_payment_methods: ['CARD'] },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'branch-shop', allowed_payment_methods: ['CARD'] },
+        error: null,
+      });
+    adminChains.brand_products.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'tpl-1',
+          name: 'Americano',
+          description: 'Hot',
+          base_price: 5000,
+          image_url: 'img-1',
+          sort_order: 1,
+          created_at: '2026-01-01',
+        },
+      ],
+      error: null,
+    });
+    adminChains.products.limit
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'prod-shop-1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            is_sold_out: false,
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'prod-shop-1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            is_sold_out: false,
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'prod-shop-1',
+            brand_product_id: 'tpl-1',
+            base_price: 5000,
+            image_url: 'img-1',
+            category_id: null,
+            is_hidden: false,
+            is_sold_out: false,
+          },
+        ],
+        error: null,
+      });
+
+    const ensureCandidateSpy = jest
+      .spyOn<any, any>(service as any, 'ensureOnlineShopCandidate')
+      .mockResolvedValue({
+        branchId: 'branch-shop',
+        paymentMethods: ['CARD'],
+        supportsDelivery: true,
+        hasDeliveryChannel: true,
+        createdAt: '2026-01-02T00:00:00.000Z',
+      });
+
+    const result = await service.getShopBrandBySlug('test-brand');
+
+    expect(ensureCandidateSpy).toHaveBeenCalled();
+    expect(result.products).toEqual([
+      expect.objectContaining({
+        id: 'tpl-1',
+        name: 'Americano',
+        price: 5000,
+      }),
+    ]);
   });
 
   it('createShopOrderByBrandSlug should map template product ids to branch product ids', async () => {
@@ -162,7 +296,14 @@ describe('PublicOrderService - Shop Flow', () => {
       error: null,
     });
     adminChains.branches.limit.mockResolvedValueOnce({
-      data: [{ id: 'branch-1', created_at: '2026-01-01T00:00:00.000Z' }],
+      data: [
+        {
+          id: 'branch-1',
+          name: '강남점',
+          slug: 'gangnam',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       error: null,
     });
     adminChains.branches.maybeSingle.mockResolvedValueOnce({
@@ -227,7 +368,14 @@ describe('PublicOrderService - Shop Flow', () => {
       error: null,
     });
     adminChains.branches.limit.mockResolvedValueOnce({
-      data: [{ id: 'branch-1', created_at: '2026-01-01T00:00:00.000Z' }],
+      data: [
+        {
+          id: 'branch-1',
+          name: '강남점',
+          slug: 'gangnam',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       error: null,
     });
     adminChains.order_channels.eq
@@ -298,7 +446,14 @@ describe('PublicOrderService - Shop Flow', () => {
       error: null,
     });
     adminChains.branches.limit.mockResolvedValueOnce({
-      data: [{ id: 'branch-1', created_at: '2026-01-01T00:00:00.000Z' }],
+      data: [
+        {
+          id: 'branch-1',
+          name: '강남점',
+          slug: 'gangnam',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       error: null,
     });
     adminChains.branches.maybeSingle.mockResolvedValueOnce({
@@ -335,11 +490,23 @@ describe('PublicOrderService - Shop Flow', () => {
         error: null,
       })
       .mockResolvedValueOnce({
-        data: [{ id: 'branch-auto', created_at: '2026-01-01T00:00:00.000Z' }],
+        data: [
+          {
+            id: 'branch-auto',
+            name: 'No Branch Brand 온라인샵',
+            slug: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
         error: null,
       });
     adminChains.branches.single.mockResolvedValueOnce({
-      data: { id: 'branch-auto', created_at: '2026-01-01T00:00:00.000Z' },
+      data: {
+        id: 'branch-auto',
+        name: 'No Branch Brand 온라인샵',
+        slug: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
       error: null,
     });
     adminChains.order_channels.eq
@@ -371,5 +538,101 @@ describe('PublicOrderService - Shop Flow', () => {
     );
     expect(result.brandId).toBe('brand-1');
     expect(result.products).toEqual([]);
+  });
+
+  it('createShopOrderByBrandSlug should fall back to dedicated online shop branch when regular branches miss linked products', async () => {
+    adminChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-1',
+          name: 'Test Brand',
+          slug: 'test-brand',
+          logo_url: null,
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
+    adminChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'branch-1',
+          name: '강남점',
+          slug: 'gangnam',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: { id: 'branch-1', allowed_payment_methods: ['CARD'] },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'branch-shop', allowed_payment_methods: ['CARD'] },
+        error: null,
+      });
+    adminChains.brand_products.limit.mockResolvedValueOnce({
+      data: [{ id: 'tpl-1' }],
+      error: null,
+    });
+    adminChains.products.limit
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'prod-shop-1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            is_sold_out: false,
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+    jest
+      .spyOn<any, any>(service as any, 'ensureOnlineShopCandidate')
+      .mockResolvedValue({
+        branchId: 'branch-shop',
+        paymentMethods: ['CARD'],
+        supportsDelivery: true,
+        hasDeliveryChannel: true,
+        createdAt: '2026-01-02T00:00:00.000Z',
+      });
+
+    const createOrderSpy = jest
+      .spyOn(service, 'createOrder')
+      .mockResolvedValue({
+        id: 'order-1',
+        orderNo: 'order-1',
+        status: 'CREATED',
+        totalAmount: 5000,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        items: [],
+      });
+
+    await service.createShopOrderByBrandSlug('test-brand', {
+      customerName: 'Lee',
+      customerPhone: '010-1234-5678',
+      customerAddress1: 'Seoul',
+      paymentMethod: 'CARD' as any,
+      items: [{ productId: 'tpl-1', qty: 1 }],
+    });
+
+    expect(createOrderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branchId: 'branch-shop',
+        fulfillmentType: 'DELIVERY',
+        items: [{ productId: 'prod-shop-1', qty: 1 }],
+      }),
+    );
   });
 });

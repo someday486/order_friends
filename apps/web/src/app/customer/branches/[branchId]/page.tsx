@@ -6,6 +6,16 @@ import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
+import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
+import {
+  BUSINESS_HOUR_DAY_KEYS,
+  BUSINESS_HOUR_DAY_LABELS,
+  createBusinessHoursFormState,
+  formatBusinessHoursSummary,
+  serializeBusinessHoursForm,
+  type BusinessHoursFormState,
+  type WeeklyBusinessHours,
+} from "@/lib/business-hours";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -21,6 +31,17 @@ type Branch = {
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
   allowedPaymentMethods?: PaymentMethod[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
+  businessHours?: WeeklyBusinessHours;
+  orderNotice?: string | null;
 };
 
 type Brand = {
@@ -67,6 +88,23 @@ function toggleItem<T extends string>(items: T[], value: T): T[] {
   return [...items, value];
 }
 
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function hasBusinessHoursRows(businessHours?: WeeklyBusinessHours) {
+  return formatBusinessHoursSummary(businessHours).length > 0;
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[11px] font-bold text-text-tertiary uppercase tracking-wider mb-3">
+      {children}
+    </div>
+  );
+}
+
 export default function BranchDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -86,6 +124,22 @@ export default function BranchDetailPage() {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+  const [transferBankName, setTransferBankName] = useState("");
+  const [transferAccountNumber, setTransferAccountNumber] = useState("");
+  const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [pickupStartTime, setPickupStartTime] = useState("");
+  const [pickupEndTime, setPickupEndTime] = useState("");
+  const [businessHours, setBusinessHours] = useState<BusinessHoursFormState>(
+    () => createBusinessHoursFormState(),
+  );
+  const [orderNotice, setOrderNotice] = useState("");
+
+  const [stampActive, setStampActive] = useState(false);
+  const [stampPerOrder, setStampPerOrder] = useState(1);
+  const [stampThreshold, setStampThreshold] = useState(10);
+  const [stampRewardDesc, setStampRewardDesc] = useState("스탬프 적립 완료 보상");
+  const [stampSaving, setStampSaving] = useState(false);
+  const [stampLoaded, setStampLoaded] = useState(false);
 
   const canEdit = useMemo(
     () => branch && (branch.myRole === "OWNER" || branch.myRole === "ADMIN"),
@@ -110,6 +164,17 @@ export default function BranchDetailPage() {
     const samePayments =
       allowedPaymentMethods.length === originPayments.length &&
       allowedPaymentMethods.every((item) => originPayments.includes(item));
+    const sameTransferInfo =
+      transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
+      transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
+      transferAccountHolder.trim() === (branch.transferAccount?.accountHolder ?? "");
+    const samePickupTimeConfig =
+      pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
+      pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
+    const sameBusinessHours =
+      JSON.stringify(serializeBusinessHoursForm(businessHours)) ===
+      JSON.stringify(branch.businessHours ?? null);
+    const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -117,9 +182,28 @@ export default function BranchDetailPage() {
       logoUrl !== (branch.logoUrl ?? null) ||
       coverImageUrl !== (branch.coverImageUrl ?? null) ||
       !sameFulfillment ||
-      !samePayments
+      !samePayments ||
+      !sameTransferInfo ||
+      !samePickupTimeConfig ||
+      !sameBusinessHours ||
+      !sameOrderNotice
     );
-  }, [allowedPaymentMethods, branch, coverImageUrl, enabledFulfillmentTypes, logoUrl, name, slug]);
+  }, [
+    allowedPaymentMethods,
+    businessHours,
+    branch,
+    coverImageUrl,
+    enabledFulfillmentTypes,
+    logoUrl,
+    name,
+    slug,
+    transferAccountHolder,
+    transferAccountNumber,
+    transferBankName,
+    pickupEndTime,
+    pickupStartTime,
+    orderNotice,
+  ]);
 
   const resetForm = (source: Branch) => {
     setName(source.name ?? "");
@@ -136,6 +220,18 @@ export default function BranchDetailPage() {
         ? source.allowedPaymentMethods
         : ["CARD", "TRANSFER", "CASH"],
     );
+    setTransferBankName(source.transferAccount?.bankName ?? "");
+    setTransferAccountNumber(source.transferAccount?.accountNumber ?? "");
+    setTransferAccountHolder(source.transferAccount?.accountHolder ?? "");
+    setPickupStartTime(source.pickupTimeConfig?.startTime ?? "");
+    setPickupEndTime(source.pickupTimeConfig?.endTime ?? "");
+    setBusinessHours(
+      createBusinessHoursFormState(
+        source.businessHours,
+        source.pickupTimeConfig ?? null,
+      ),
+    );
+    setOrderNotice(source.orderNotice ?? "");
   };
 
   useEffect(() => {
@@ -176,6 +272,55 @@ export default function BranchDetailPage() {
     loadBrandSlug();
   }, [branch?.brandId]);
 
+  useEffect(() => {
+    if (!branchId || !canEdit) return;
+    apiClient
+      .get<{ isActive: boolean; stampsPerOrder: number; rewardThreshold: number; rewardDescription: string } | null>(
+        `/customer/branches/${branchId}/stamp-card`,
+      )
+      .then((data) => {
+        if (data) {
+          setStampActive(data.isActive ?? false);
+          setStampPerOrder(data.stampsPerOrder ?? 1);
+          setStampThreshold(data.rewardThreshold ?? 10);
+          setStampRewardDesc(data.rewardDescription ?? "스탬프 적립 완료 보상");
+        }
+        setStampLoaded(true);
+      })
+      .catch(() => setStampLoaded(true));
+  }, [branchId, canEdit]);
+
+  const handleStampSave = async () => {
+    setStampSaving(true);
+    try {
+      await apiClient.put(`/customer/branches/${branchId}/stamp-card`, {
+        isActive: stampActive,
+        stampsPerOrder: stampPerOrder,
+        rewardThreshold: stampThreshold,
+        rewardDescription: stampRewardDesc || "스탬프 적립 완료 보상",
+      });
+      toast.success("스탬프 카드 설정이 저장됐어요.");
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message ?? "저장에 실패했습니다.");
+    } finally {
+      setStampSaving(false);
+    }
+  };
+
+  const updateBusinessHours = <K extends keyof BusinessHoursFormState["monday"]>(
+    dayKey: (typeof BUSINESS_HOUR_DAY_KEYS)[number],
+    field: K,
+    value: BusinessHoursFormState["monday"][K],
+  ) => {
+    setBusinessHours((current) => ({
+      ...current,
+      [dayKey]: {
+        ...current[dayKey],
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSave = async () => {
     if (!branch) return;
 
@@ -199,6 +344,50 @@ export default function BranchDetailPage() {
       return;
     }
 
+    if (
+      allowedPaymentMethods.includes("TRANSFER") &&
+      (!transferBankName.trim() ||
+        !transferAccountNumber.trim() ||
+        !transferAccountHolder.trim())
+    ) {
+      toast.error("계좌이체를 사용하려면 은행명, 계좌번호, 예금주를 모두 입력해 주세요.");
+      return;
+    }
+
+    if (
+      (pickupStartTime.trim() && !pickupEndTime.trim()) ||
+      (!pickupStartTime.trim() && pickupEndTime.trim())
+    ) {
+      toast.error("픽업 가능 시작/종료 시간을 모두 입력해주세요.");
+      return;
+    }
+
+    if (
+      pickupStartTime.trim() &&
+      pickupEndTime.trim() &&
+      timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)
+    ) {
+      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
+      return;
+    }
+
+    for (const dayKey of BUSINESS_HOUR_DAY_KEYS) {
+      const day = businessHours[dayKey];
+      if (!day.isOpen) {
+        continue;
+      }
+
+      if (!day.openTime.trim() || !day.closeTime.trim()) {
+        toast.error(`${BUSINESS_HOUR_DAY_LABELS[dayKey]}요일 영업시간을 모두 선택해 주세요.`);
+        return;
+      }
+
+      if (timeToMinutes(day.closeTime) <= timeToMinutes(day.openTime)) {
+        toast.error(`${BUSINESS_HOUR_DAY_LABELS[dayKey]}요일 마감 시간은 시작 시간보다 늦어야 합니다.`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
 
@@ -209,15 +398,29 @@ export default function BranchDetailPage() {
         coverImageUrl,
         enabledFulfillmentTypes,
         allowedPaymentMethods,
+        transferAccount: {
+          bankName: transferBankName.trim(),
+          accountNumber: transferAccountNumber.trim(),
+          accountHolder: transferAccountHolder.trim(),
+        },
+        orderNotice: orderNotice.trim() || null,
+        pickupTimeConfig:
+          pickupStartTime.trim() && pickupEndTime.trim()
+            ? {
+                startTime: pickupStartTime.trim(),
+                endTime: pickupEndTime.trim(),
+              }
+            : null,
+        businessHours: serializeBusinessHoursForm(businessHours),
       });
 
       setBranch(updated);
       resetForm(updated);
       setIsEditing(false);
-      toast.success("지점 설정을 저장했습니다.");
+      toast.success("지점을 수정했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "지점 저장에 실패했습니다.");
+      toast.error(err?.message ?? "지점 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -226,7 +429,7 @@ export default function BranchDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 지점을 삭제할까요?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(`"${branch.name}" 지점을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`);
     if (!confirmed) return;
 
     try {
@@ -254,7 +457,7 @@ export default function BranchDetailPage() {
           onClick={() => router.back()}
           className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
         >
-          ← 뒤로 가기
+          뒤로 가기
         </button>
         <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점</h1>
         <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
@@ -270,22 +473,22 @@ export default function BranchDetailPage() {
         onClick={() => router.back()}
         className="py-2 px-4 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer mb-6 hover:bg-bg-tertiary transition-colors"
       >
-        ← 뒤로 가기
+        뒤로 가기
       </button>
 
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 상세</h1>
         {canEdit && !isEditing && (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setIsEditing(true)}
-              className="py-2.5 px-5 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm cursor-pointer font-semibold hover:bg-bg-secondary transition-colors"
+              className="py-2 px-4 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm font-semibold hover:bg-bg-secondary transition-colors"
             >
               수정하기
             </button>
             <button
               onClick={handleDelete}
-              className="py-2.5 px-5 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm cursor-pointer font-semibold hover:bg-danger-500/10 transition-colors"
+              className="py-2 px-4 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm font-semibold hover:bg-danger-500/10 transition-colors"
             >
               삭제
             </button>
@@ -295,116 +498,257 @@ export default function BranchDetailPage() {
 
       <div className="card p-6">
         {isEditing ? (
-          <div>
-            <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">지점명</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-field w-full"
-                placeholder="지점명을 입력하세요"
-              />
-            </div>
-
-            <div className="mb-5">
-              <label className="block text-[13px] text-text-secondary mb-2 font-semibold">주문 URL</label>
-              <input
-                type="text"
-                value={slug}
-                onChange={(e) => setSlug(normalizeSlug(e.target.value))}
-                className="input-field w-full"
-                placeholder="예: gangnam-main"
-                pattern="[a-z0-9-]+"
-              />
-              <div className="text-xs text-text-tertiary mt-1">영문/숫자/하이픈(-)만 사용 가능합니다.</div>
-            </div>
-
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 mb-6">
-              <ImageUpload
-                value={logoUrl}
-                onChange={setLogoUrl}
-                folder="branches/logos"
-                label="로고"
-                aspectRatio="1/1"
-              />
-              <ImageUpload
-                value={coverImageUrl}
-                onChange={setCoverImageUrl}
-                folder="branches/covers"
-                label="커버 이미지"
-                aspectRatio="16/9"
-              />
-            </div>
-
-            <div className="mb-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 주문 방식</div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {ALL_FULFILLMENT_TYPES.map((type) => (
-                  <label
-                    key={type}
-                    className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={enabledFulfillmentTypes.includes(type)}
-                      onChange={() => setEnabledFulfillmentTypes((prev) => toggleItem(prev, type))}
-                    />
-                    <span className="text-sm text-foreground">{FULFILLMENT_LABEL[type]}</span>
-                  </label>
-                ))}
+          <div className="space-y-8">
+            <section>
+              <SectionHeading>기본 정보</SectionHeading>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">지점명</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="지점명을 입력하세요"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">주문 URL (slug)</label>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) => setSlug(normalizeSlug(e.target.value))}
+                    className="input-field w-full"
+                    placeholder="예: gangnam-main"
+                    pattern="[a-z0-9-]+"
+                  />
+                  <p className="text-xs text-text-tertiary mt-1">영문/숫자/하이픈(-)만 사용 가능합니다.</p>
+                </div>
               </div>
-            </div>
+            </section>
 
-            <div className="mb-6">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 결제 수단</div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {ALL_PAYMENT_METHODS.map((method) => (
-                  <label
-                    key={method}
-                    className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={allowedPaymentMethods.includes(method)}
-                      onChange={() => setAllowedPaymentMethods((prev) => toggleItem(prev, method))}
-                    />
-                    <span className="text-sm text-foreground">{PAYMENT_LABEL[method]}</span>
-                  </label>
-                ))}
+            <section>
+              <SectionHeading>이미지 설정</SectionHeading>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+                <ImageUpload
+                  value={logoUrl}
+                  onChange={setLogoUrl}
+                  folder="branches/logos"
+                  label="로고"
+                  aspectRatio="1/1"
+                />
+                <ImageUpload
+                  value={coverImageUrl}
+                  onChange={setCoverImageUrl}
+                  folder="branches/covers"
+                  label="커버 이미지"
+                  aspectRatio="16/9"
+                />
               </div>
-            </div>
+            </section>
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleSave}
-                disabled={saving || !isDirty}
-                className="btn-primary flex-1 py-2.5 px-5 text-sm"
-              >
-                {saving ? "저장 중..." : "저장"}
-              </button>
+            <section>
+              <SectionHeading>주문 설정</SectionHeading>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 주문 방식</div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {ALL_FULFILLMENT_TYPES.map((type) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-primary"
+                          checked={enabledFulfillmentTypes.includes(type)}
+                          onChange={() => setEnabledFulfillmentTypes((prev) => toggleItem(prev, type))}
+                        />
+                        <span className="text-sm text-foreground">{FULFILLMENT_LABEL[type]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 결제 수단</div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {ALL_PAYMENT_METHODS.map((method) => (
+                      <label
+                        key={method}
+                        className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-primary"
+                          checked={allowedPaymentMethods.includes(method)}
+                          onChange={() => setAllowedPaymentMethods((prev) => toggleItem(prev, method))}
+                        />
+                        <span className="text-sm text-foreground">{PAYMENT_LABEL[method]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <SectionHeading>기본 픽업 시간</SectionHeading>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select
+                  value={pickupStartTime}
+                  onChange={(e) => setPickupStartTime(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="">시작 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-start-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={pickupEndTime}
+                  onChange={(e) => setPickupEndTime(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="">종료 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-end-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-text-tertiary mt-1.5">
+                요일별 영업일을 따로 설정하지 않으면 이 시간대로 모든 날짜가 열립니다.
+              </p>
+            </section>
+
+            <section>
+              <SectionHeading>요일별 영업일 설정</SectionHeading>
+              <div className="space-y-2">
+                {BUSINESS_HOUR_DAY_KEYS.map((dayKey) => {
+                  const day = businessHours[dayKey];
+                  return (
+                    <div
+                      key={dayKey}
+                      className="grid gap-2 rounded-xl border border-border bg-bg-secondary p-3 sm:grid-cols-[72px_110px_minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
+                    >
+                      <div className="text-sm font-semibold text-foreground">
+                        {BUSINESS_HOUR_DAY_LABELS[dayKey]}요일
+                      </div>
+                      <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          className="accent-primary"
+                          checked={day.isOpen}
+                          onChange={(e) => updateBusinessHours(dayKey, "isOpen", e.target.checked)}
+                        />
+                        영업
+                      </label>
+                      <select
+                        value={day.openTime}
+                        onChange={(e) => updateBusinessHours(dayKey, "openTime", e.target.value)}
+                        disabled={!day.isOpen}
+                        className="input-field w-full disabled:opacity-60"
+                      >
+                        {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                          <option key={`${dayKey}-open-${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={day.closeTime}
+                        onChange={(e) => updateBusinessHours(dayKey, "closeTime", e.target.value)}
+                        disabled={!day.isOpen}
+                        className="input-field w-full disabled:opacity-60"
+                      >
+                        {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                          <option key={`${dayKey}-close-${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-text-tertiary mt-1.5">
+                예: 월요일 휴무, 화요일 09:00~18:00, 수~일 10:00~20:00처럼 요일별로 다르게 설정할 수 있습니다.
+              </p>
+            </section>
+
+            <section>
+              <SectionHeading>주문창 상단 공지사항</SectionHeading>
+              <textarea
+                value={orderNotice}
+                onChange={(e) => setOrderNotice(e.target.value)}
+                className="input-field w-full min-h-[96px] resize-y py-3"
+                placeholder="예: 재료 소진 시 일부 메뉴가 조기 마감될 수 있습니다."
+              />
+              <p className="text-xs text-text-tertiary mt-1.5">
+                주문 메뉴 화면 상단에 노출되는 안내 문구입니다.
+              </p>
+            </section>
+
+            {allowedPaymentMethods.includes("TRANSFER") && (
+              <section>
+                <SectionHeading>계좌이체 입금 정보</SectionHeading>
+                <div className="grid gap-2">
+                  <input
+                    value={transferBankName}
+                    onChange={(e) => setTransferBankName(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="은행명"
+                  />
+                  <input
+                    value={transferAccountNumber}
+                    onChange={(e) => setTransferAccountNumber(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="계좌번호"
+                  />
+                  <input
+                    value={transferAccountHolder}
+                    onChange={(e) => setTransferAccountHolder(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="예금주"
+                  />
+                </div>
+              </section>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
               <button
                 onClick={() => {
                   setIsEditing(false);
                   resetForm(branch);
                 }}
                 disabled={saving}
-                className="flex-1 py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm cursor-pointer hover:bg-bg-tertiary transition-colors"
+                className="py-2.5 px-5 rounded-lg border border-border bg-transparent text-text-secondary text-sm font-medium cursor-pointer hover:bg-bg-tertiary transition-colors disabled:opacity-50"
               >
                 취소
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !isDirty}
+                className="btn-primary py-2.5 px-6 text-sm"
+              >
+                {saving ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>
         ) : (
           <div>
             {branch.coverImageUrl && (
-              <div className="mb-6">
+              <div className="mb-6 -mx-6 -mt-6 overflow-hidden rounded-t-xl">
                 <Image
                   src={branch.coverImageUrl}
                   alt="커버 이미지"
                   width={1200}
                   height={675}
-                  className="w-full rounded-lg object-cover"
+                  className="w-full object-cover"
                   style={{ aspectRatio: "16/9" }}
                 />
               </div>
@@ -415,54 +759,223 @@ export default function BranchDetailPage() {
                 <Image
                   src={branch.logoUrl}
                   alt={branch.name}
-                  width={80}
-                  height={80}
-                  className="w-20 h-20 rounded-xl object-cover"
+                  width={72}
+                  height={72}
+                  className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-xl bg-bg-tertiary flex items-center justify-center text-[40px]">
+                <div className="w-16 h-16 rounded-xl bg-bg-tertiary flex items-center justify-center text-[36px] flex-shrink-0">
                   🏪
                 </div>
               )}
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold text-foreground truncate">{branch.name}</h2>
+                {branch.myRole && (
+                  <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-bg-tertiary border border-border text-text-secondary">
+                    {branch.myRole}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <section className="mb-6">
+              <SectionHeading>기본 정보</SectionHeading>
               <div>
-                <h2 className="text-xl font-bold mb-2 text-foreground">{branch.name}</h2>
-                {branch.myRole && <div className="text-sm text-text-secondary">역할: {branch.myRole}</div>}
+                <div className="text-[13px] text-text-secondary mb-1.5">주문 URL</div>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border min-w-0">
+                  <span className="font-mono text-sm text-foreground break-all flex-1 min-w-0">{orderUrl}</span>
+                  <button
+                    type="button"
+                    title="복사"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(orderUrl);
+                      toast.success("URL이 복사됐습니다.");
+                    }}
+                    className="shrink-0 text-xs text-text-tertiary hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-border bg-bg-secondary"
+                  >
+                    복사
+                  </button>
+                </div>
               </div>
-            </div>
+            </section>
 
-            <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">주문 URL</div>
-              <div className="text-[15px] text-foreground">{orderUrl}</div>
-            </div>
+            <section className="mb-6">
+              <SectionHeading>주문 설정</SectionHeading>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">주문 방식</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(branch.enabledFulfillmentTypes ?? ["PICKUP"]).map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-bg-tertiary border border-border text-foreground"
+                      >
+                        {FULFILLMENT_LABEL[item]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">주문 방식</div>
-              <div className="text-[15px] text-foreground">
-                {(branch.enabledFulfillmentTypes ?? ["PICKUP"]).map((item) => FULFILLMENT_LABEL[item]).join(", ")}
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">결제 수단</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"]).map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-bg-tertiary border border-border text-foreground"
+                      >
+                        {PAYMENT_LABEL[item]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">주문창 상단 공지사항</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground whitespace-pre-wrap">
+                    {branch.orderNotice?.trim() || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">기본 픽업 시간</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground">
+                    {branch.pickupTimeConfig?.startTime && branch.pickupTimeConfig?.endTime
+                      ? `${branch.pickupTimeConfig.startTime} - ${branch.pickupTimeConfig.endTime}`
+                      : "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">요일별 영업일</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border space-y-1">
+                    {hasBusinessHoursRows(branch.businessHours) ? (
+                      formatBusinessHoursSummary(branch.businessHours).map((line) => (
+                        <div key={line} className="text-sm text-foreground">
+                          {line}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-foreground">-</div>
+                    )}
+                  </div>
+                </div>
+
+                {(branch.allowedPaymentMethods ?? []).includes("TRANSFER") && (
+                  <div>
+                    <div className="text-[13px] text-text-secondary mb-1.5">계좌이체 입금 정보</div>
+                    <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">은행명</span>
+                        <span className="text-foreground">{branch.transferAccount?.bankName?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">계좌번호</span>
+                        <span className="text-foreground font-mono">{branch.transferAccount?.accountNumber?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">예금주</span>
+                        <span className="text-foreground">{branch.transferAccount?.accountHolder?.trim() || "-"}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            </section>
 
-            <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">결제 수단</div>
-              <div className="text-[15px] text-foreground">
-                {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"]).map((item) => PAYMENT_LABEL[item]).join(", ")}
+            <div className="pt-4 border-t border-border flex flex-wrap gap-x-6 gap-y-1">
+              <div className="text-[12px] text-text-tertiary">
+                생성일: {new Date(branch.createdAt).toLocaleString("ko-KR")}
               </div>
-            </div>
-
-            <div className="mb-5">
-              <div className="text-[13px] text-text-secondary mb-2">브랜드 ID</div>
-              <div className="text-[15px] text-foreground font-mono">{branch.brandId}</div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <div>
-                <div className="text-[11px] text-text-tertiary mb-1">등록일</div>
-                <div className="text-sm text-foreground">{new Date(branch.createdAt).toLocaleString()}</div>
+              <div className="text-[12px] text-text-tertiary font-mono truncate">
+                ID: {branch.brandId}
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {canEdit && stampLoaded && (
+        <div className="card p-6 mt-6">
+          <div className="flex items-center gap-2.5 mb-6">
+            <span className="text-xl">🎫</span>
+            <h2 className="text-lg font-bold text-foreground m-0">스탬프 카드 설정</h2>
+          </div>
+
+          <section className="mb-6">
+            <SectionHeading>활성 여부</SectionHeading>
+            <label className="flex items-center gap-3 cursor-pointer w-fit">
+              <div
+                className={`relative w-10 h-6 rounded-full transition-colors ${stampActive ? "bg-foreground" : "bg-bg-tertiary border border-border"}`}
+                onClick={() => setStampActive((v) => !v)}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${stampActive ? "translate-x-5" : "translate-x-1"}`}
+                />
+              </div>
+              <span className="text-sm font-semibold text-foreground">
+                {stampActive ? "활성화됨" : "비활성화됨"}
+              </span>
+            </label>
+          </section>
+
+          <section className="mb-6">
+            <SectionHeading>적립 설정</SectionHeading>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">
+                  주문 1회당 적립 스탬프 수 (1~10)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={stampPerOrder}
+                  onChange={(e) => setStampPerOrder(Math.max(1, Math.min(10, Number(e.target.value))))}
+                  className="input-field w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">
+                  보상 기준 스탬프 수 (2~100)
+                </label>
+                <input
+                  type="number"
+                  min={2}
+                  max={100}
+                  value={stampThreshold}
+                  onChange={(e) => setStampThreshold(Math.max(2, Math.min(100, Number(e.target.value))))}
+                  className="input-field w-full"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="mb-6">
+            <SectionHeading>보상 설정</SectionHeading>
+            <div>
+              <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">보상 설명</label>
+              <input
+                type="text"
+                value={stampRewardDesc}
+                onChange={(e) => setStampRewardDesc(e.target.value)}
+                className="input-field w-full"
+                placeholder="예: 아메리카노 무료 증정"
+              />
+            </div>
+          </section>
+
+          <div className="flex justify-end pt-4 border-t border-border">
+            <button
+              onClick={handleStampSave}
+              disabled={stampSaving}
+              className="btn-primary py-2.5 px-6 text-sm"
+            >
+              {stampSaving ? "저장 중..." : "스탬프 설정 저장"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

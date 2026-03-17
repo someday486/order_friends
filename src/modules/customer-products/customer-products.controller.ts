@@ -385,6 +385,38 @@ export class CustomerProductsController {
     );
   }
 
+  @Get('brand-templates/:templateId/urgent-discount-histories')
+  @ApiOperation({
+    summary: '브랜드 메뉴 긴급할인 이력 조회',
+    description:
+      '브랜드 메뉴 템플릿의 긴급할인 변경 이력을 최신순으로 조회합니다.',
+  })
+  @ApiParam({ name: 'templateId', description: '브랜드 메뉴 템플릿 ID' })
+  @ApiQuery({
+    name: 'limit',
+    description: '최대 조회 개수 (기본 20, 최대 100)',
+    required: false,
+  })
+  @ApiResponse({ status: 200, description: '긴급할인 이력 조회 성공' })
+  async getBrandTemplateUrgentDiscountHistories(
+    @Req() req: AuthRequest,
+    @Param('templateId') templateId: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    const parsedLimit = Number.parseInt(limit ?? '20', 10);
+    const safeLimit = Number.isFinite(parsedLimit) ? parsedLimit : 20;
+
+    return this.productsService.getBrandProductTemplateUrgentDiscountHistories(
+      req.user.id,
+      templateId,
+      safeLimit,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
   @Post('brand-templates')
   @ApiOperation({
     summary: '브랜드 메뉴 템플릿 생성',

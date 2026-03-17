@@ -3,6 +3,8 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Branch Coverage', () => {
   const originalEnv = process.env;
@@ -10,6 +12,8 @@ describe('PublicOrderService - Branch Coverage', () => {
   let anonChains: Record<string, any>;
   let adminChains: Record<string, any>;
   let adminClient: any;
+  let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => {
     const chain: any = {
@@ -49,6 +53,14 @@ describe('PublicOrderService - Branch Coverage', () => {
 
     const anonClient = { from: jest.fn((table: string) => anonChains[table]) };
     adminClient = { from: jest.fn((table: string) => adminChains[table]) };
+    stampsService = {
+      earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +73,8 @@ describe('PublicOrderService - Branch Coverage', () => {
           },
         },
         { provide: InventoryService, useValue: {} },
+        { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -79,7 +93,12 @@ describe('PublicOrderService - Branch Coverage', () => {
       PUBLIC_ORDER_ANON_DUPLICATE_WINDOW_MS: '10000',
       PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT: '50',
     };
-    const withOverrides = new PublicOrderService({} as any, {} as any);
+    const withOverrides = new PublicOrderService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     expect((withOverrides as any).duplicateWindowMs).toBe(30000);
     expect((withOverrides as any).weakDuplicateWindowMs).toBe(10000);
     expect((withOverrides as any).duplicateLookbackLimit).toBe(20);
@@ -90,7 +109,12 @@ describe('PublicOrderService - Branch Coverage', () => {
       PUBLIC_ORDER_ANON_DUPLICATE_WINDOW_MS: '0',
       PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT: 'abc',
     };
-    const withDefaults = new PublicOrderService({} as any, {} as any);
+    const withDefaults = new PublicOrderService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     expect((withDefaults as any).duplicateWindowMs).toBe(60000);
     expect((withDefaults as any).weakDuplicateWindowMs).toBe(20000);
     expect((withDefaults as any).duplicateLookbackLimit).toBe(5);
@@ -104,7 +128,12 @@ describe('PublicOrderService - Branch Coverage', () => {
       PUBLIC_ORDER_DUPLICATE_LOOKBACK_LIMIT: '0',
     };
 
-    const withNaN = new PublicOrderService({} as any, {} as any);
+    const withNaN = new PublicOrderService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     expect((withNaN as any).duplicateWindowMs).toBe(60000);
     expect((withNaN as any).weakDuplicateWindowMs).toBe(20000);
     expect((withNaN as any).duplicateLookbackLimit).toBe(5);
@@ -822,6 +851,13 @@ describe('PublicOrderService - Branch Coverage', () => {
           status: 'CREATED',
           total_amount: 1000,
           created_at: 't',
+          payment_method: 'TRANSFER',
+          fulfillment_type: 'DELIVERY',
+          customer_name: 'Kim',
+          customer_phone: '010-0000-0000',
+          customer_address1: 'Seoul',
+          customer_address2: '101',
+          customer_memo: 'memo',
           order_items: [
             {
               product_name_snapshot: 'P1',
@@ -842,6 +878,9 @@ describe('PublicOrderService - Branch Coverage', () => {
 
     const result = await service.getOrder('O-1');
     expect(result.orderNo).toBe('O-1');
+    expect(result.paymentMethod).toBe('TRANSFER');
+    expect(result.fulfillmentType).toBe('DELIVERY');
+    expect(result.customer?.name).toBe('Kim');
     expect(result.items[0].options).toEqual(['Opt']);
   });
 

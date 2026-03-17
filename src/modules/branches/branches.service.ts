@@ -96,6 +96,10 @@ export class BranchesService {
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
+      orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
   }
@@ -137,6 +141,10 @@ export class BranchesService {
       await saveBranchOrderConfig(this.supabase.adminClient(), data.id, {
         enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
         allowedPaymentMethods: dto.allowedPaymentMethods,
+        transferAccount: dto.transferAccount,
+        pickupTimeConfig: dto.pickupTimeConfig,
+        businessHours: dto.businessHours,
+        orderNotice: dto.orderNotice,
       });
       const orderConfig = await getBranchOrderConfig(
         this.supabase.adminClient(),
@@ -153,6 +161,10 @@ export class BranchesService {
         thumbnailUrl: data.thumbnail_url ?? null,
         enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
         allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+        transferAccount: orderConfig.transferAccount,
+        pickupTimeConfig: orderConfig.pickupTimeConfig,
+        businessHours: orderConfig.businessHours,
+        orderNotice: orderConfig.orderNotice,
         createdAt: data.created_at ?? '',
       };
     }
@@ -199,6 +211,10 @@ export class BranchesService {
     await saveBranchOrderConfig(this.supabase.adminClient(), data.id, {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
       allowedPaymentMethods: dto.allowedPaymentMethods,
+      transferAccount: dto.transferAccount,
+      pickupTimeConfig: dto.pickupTimeConfig,
+      businessHours: dto.businessHours,
+      orderNotice: dto.orderNotice,
     });
     const orderConfig = await getBranchOrderConfig(
       this.supabase.adminClient(),
@@ -215,6 +231,10 @@ export class BranchesService {
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
+      orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
   }
@@ -241,13 +261,21 @@ export class BranchesService {
       updateData.thumbnail_url = dto.thumbnailUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
-      dto.allowedPaymentMethods !== undefined;
+      dto.allowedPaymentMethods !== undefined ||
+      dto.transferAccount !== undefined ||
+      dto.pickupTimeConfig !== undefined ||
+      dto.businessHours !== undefined ||
+      dto.orderNotice !== undefined;
 
     if (Object.keys(updateData).length === 0) {
       if (hasOrderConfigUpdate) {
         await saveBranchOrderConfig(adminSb, branchId, {
           enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
           allowedPaymentMethods: dto.allowedPaymentMethods,
+          transferAccount: dto.transferAccount,
+          pickupTimeConfig: dto.pickupTimeConfig,
+          businessHours: dto.businessHours,
+          orderNotice: dto.orderNotice,
         });
       }
       return this.getBranch(accessToken, branchId, isAdmin);
@@ -276,6 +304,10 @@ export class BranchesService {
     await saveBranchOrderConfig(adminSb, branchId, {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
       allowedPaymentMethods: dto.allowedPaymentMethods,
+      transferAccount: dto.transferAccount,
+      pickupTimeConfig: dto.pickupTimeConfig,
+      businessHours: dto.businessHours,
+      orderNotice: dto.orderNotice,
     });
     const orderConfig = await getBranchOrderConfig(adminSb, branchId);
 
@@ -289,6 +321,10 @@ export class BranchesService {
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      transferAccount: orderConfig.transferAccount,
+      pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
+      orderNotice: orderConfig.orderNotice,
       createdAt: data.created_at ?? '',
     };
   }

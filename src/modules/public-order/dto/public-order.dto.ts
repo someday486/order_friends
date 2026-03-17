@@ -6,6 +6,7 @@ import {
   ValidateNested,
   Min,
   IsEnum,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -22,6 +23,53 @@ export class PublicBranchResponse {
   coverImageUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
+  orderNotice?: string | null;
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
+  businessHours?: {
+    monday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    tuesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    wednesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    thursday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    friday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    saturday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    sunday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+  } | null;
 }
 
 export class PublicBrandBranchResponse {
@@ -51,7 +99,10 @@ export class PublicProductResponse {
   name: string;
   description?: string | null;
   price: number;
+  discountPrice?: number;
+  urgentDiscountEndAt?: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[];
   categoryId?: string | null;
   categoryName?: string | null;
   sortOrder?: number;
@@ -70,6 +121,21 @@ export class PublicOrderResponse {
   status: string;
   totalAmount: number;
   createdAt: string;
+  requestedTime?: string | null;
+  paymentMethod?: string | null;
+  fulfillmentType?: string | null;
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
+  customer?: {
+    name?: string | null;
+    phone?: string | null;
+    address1?: string | null;
+    address2?: string | null;
+    memo?: string | null;
+  };
   items: {
     productName: string;
     qty: number;
@@ -196,6 +262,14 @@ export class CreatePublicOrderRequest {
   @IsEnum(FulfillmentType)
   @IsOptional()
   fulfillmentType?: FulfillmentType = FulfillmentType.PICKUP;
+
+  @ApiPropertyOptional({
+    description: '픽업 희망 시간 (ISO 8601)',
+    example: '2026-03-15T06:30:00.000Z',
+  })
+  @IsDateString()
+  @IsOptional()
+  requestedTime?: string;
 
   @ApiProperty({
     description: '주문 상품 목록',

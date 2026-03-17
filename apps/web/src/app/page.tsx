@@ -1,37 +1,24 @@
-"use client";
+'use client';
 
-import { LoginForm } from "@/components/auth/LoginForm";
-import { useAuth } from "@/hooks/useAuth";
-import { useUserRole } from "@/hooks/useUserRole";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { AuthEntryFooter } from '@/components/auth/AuthEntryFooter';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
   const { status } = useAuth();
-  const { role, loading: roleLoading } = useUserRole();
 
+  // roleLoading 대기 없이 인증 확인 즉시 이동 (role fetch 완료 불필요)
   useEffect(() => {
-    if (status === "authenticated" && !roleLoading) {
-      switch (role) {
-        case "system_admin":
-          router.replace("/admin");
-          break;
-        case "brand_owner":
-        case "branch_manager":
-        case "staff":
-          router.replace("/customer");
-          break;
-        case "customer":
-        default:
-          router.replace("/customer");
-          break;
-      }
+    if (status === 'authenticated') {
+      router.replace('/app');
       router.refresh();
     }
-  }, [status, role, roleLoading, router]);
+  }, [status, router]);
 
-  if (status === "loading" || (status === "authenticated" && roleLoading)) {
+  if (status === 'loading' || status === 'authenticated') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center animate-fade-in">
@@ -47,12 +34,17 @@ export default function LoginPage() {
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🍽️</div>
-          <h1 className="text-2xl font-extrabold text-foreground">OrderFriends</h1>
-          <p className="text-sm text-text-secondary mt-2">계정에 로그인하세요</p>
+          <h1 className="text-2xl font-extrabold text-foreground">
+            OrderFriends
+          </h1>
+          <p className="text-sm text-text-secondary mt-2">
+            계정에 로그인하세요
+          </p>
         </div>
 
         <div className="card p-6">
           <LoginForm />
+          <AuthEntryFooter mode="login" />
         </div>
       </div>
     </div>

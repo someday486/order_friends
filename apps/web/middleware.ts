@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
 const PROTECTED_PREFIXES = ['/app', '/admin', '/customer'];
-const AUTH_PAGES = new Set(['/login']);
+const AUTH_PAGES = new Set(['/login', '/signup']);
 const E2E_AUTH_COOKIE = 'of_e2e_auth';
 const E2E_AUTH_HEADER = 'x-of-e2e-auth';
 const E2E_BYPASS_AUTH = process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === 'true';

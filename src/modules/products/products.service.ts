@@ -239,7 +239,9 @@ export class ProductsService {
     const { data: productData, error: productError } = await sb
       .from('products')
       .insert(insertPayload)
-      .select('id')
+      .select(
+        'id, branch_id, name, category_id, description, base_price, image_url, is_hidden, created_at, updated_at',
+      )
       .single();
 
     if (productError) {
@@ -255,8 +257,7 @@ export class ProductsService {
       );
     }
 
-    const productId = productData.id;
-    this.logger.log(`Product created successfully: ${productId}`);
+    this.logger.log(`Product created successfully: ${productData.id}`);
 
     if (dto.options && dto.options.length > 0) {
       this.logger.warn(
@@ -264,7 +265,20 @@ export class ProductsService {
       );
     }
 
-    return this.getProduct(accessToken, productId, isAdmin);
+    return {
+      id: productData.id,
+      branchId: productData.branch_id,
+      name: productData.name,
+      categoryId: productData.category_id ?? null,
+      description: productData.description ?? null,
+      price: this.getPriceFromRow(productData),
+      imageUrl: productData.image_url ?? null,
+      isActive: !(productData.is_hidden ?? false),
+      sortOrder: 0,
+      createdAt: productData.created_at ?? '',
+      updatedAt: productData.updated_at ?? '',
+      options: this.emptyOptions(),
+    };
   }
 
   /**
@@ -294,7 +308,9 @@ export class ProductsService {
       .from('products')
       .update(baseUpdate)
       .eq('id', productId)
-      .select('id')
+      .select(
+        'id, branch_id, name, category_id, description, base_price, image_url, is_hidden, created_at, updated_at',
+      )
       .maybeSingle();
 
     if (error) {
@@ -314,7 +330,20 @@ export class ProductsService {
 
     this.logger.log(`Product updated successfully: ${productId}`);
 
-    return this.getProduct(accessToken, productId, isAdmin);
+    return {
+      id: data.id,
+      branchId: data.branch_id,
+      name: data.name,
+      categoryId: data.category_id ?? null,
+      description: data.description ?? null,
+      price: this.getPriceFromRow(data),
+      imageUrl: data.image_url ?? null,
+      isActive: !(data.is_hidden ?? false),
+      sortOrder: 0,
+      createdAt: data.created_at ?? '',
+      updatedAt: data.updated_at ?? '',
+      options: this.emptyOptions(),
+    };
   }
 
   /**

@@ -46,58 +46,69 @@ export class CustomerDashboardService {
     // 2. 내 매장 수
     const myBranchesCount = allBranchIds.length;
 
-    // 3. 총 주문 수
-    const { count: totalOrders } = await sb
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .in('branch_id', allBranchIds);
-
-    // 4. 오늘 주문 수
     const today = new Date().toISOString().split('T')[0];
-    const { count: todayOrders } = await sb
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .in('branch_id', allBranchIds)
-      .gte('created_at', `${today}T00:00:00`);
 
-    // 5. 대기 중인 주문
-    const { count: pendingOrders } = await sb
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .in('branch_id', allBranchIds)
-      .in('status', ['CREATED', 'CONFIRMED', 'PREPARING']);
+    // 3~8. 나머지 쿼리를 모두 병렬로 실행
+    const [
+      { count: totalOrders },
+      { count: todayOrders },
+      { count: pendingOrders },
+      { count: totalProducts },
+      { data: brands },
+      { data: recentOrders },
+    ] = await Promise.all([
+      // 3. 총 주문 수
+      sb
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .in('branch_id', allBranchIds),
 
-    // 6. 총 상품 수
-    const { count: totalProducts } = await sb
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .in('branch_id', allBranchIds)
-      .eq('is_active', true);
+      // 4. 오늘 주문 수
+      sb
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .in('branch_id', allBranchIds)
+        .gte('created_at', `${today}T00:00:00`),
 
-    // 7. 브랜드 목록 (간단 정보)
-    const { data: brands } = await sb
-      .from('brands')
-      .select('id, name, created_at')
-      .in('id', brandIds)
-      .order('created_at', { ascending: false });
+      // 5. 대기 중인 주문
+      sb
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .in('branch_id', allBranchIds)
+        .in('status', ['CREATED', 'CONFIRMED', 'PREPARING']),
 
-    // 8. 최근 주문 5개
-    const { data: recentOrders } = await sb
-      .from('orders')
-      .select(
-        `
-        id,
-        order_no,
-        status,
-        total_amount,
-        customer_name,
-        created_at,
-        branch:branches(id, name)
-      `,
-      )
-      .in('branch_id', allBranchIds)
-      .order('created_at', { ascending: false })
-      .limit(5);
+      // 6. 총 상품 수
+      sb
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .in('branch_id', allBranchIds)
+        .eq('is_active', true),
+
+      // 7. 브랜드 목록 (간단 정보)
+      sb
+        .from('brands')
+        .select('id, name, created_at')
+        .in('id', brandIds)
+        .order('created_at', { ascending: false }),
+
+      // 8. 최근 주문 5개
+      sb
+        .from('orders')
+        .select(
+          `
+          id,
+          order_no,
+          status,
+          total_amount,
+          customer_name,
+          created_at,
+          branch:branches(id, name)
+        `,
+        )
+        .in('branch_id', allBranchIds)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
 
     this.logger.log(`Dashboard stats fetched for user: ${userId}`);
 

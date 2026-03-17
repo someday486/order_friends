@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
+import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
@@ -19,6 +20,16 @@ type Branch = {
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
   allowedPaymentMethods?: PaymentMethod[];
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
+  orderNotice?: string | null;
 };
 
 type Brand = {
@@ -83,6 +94,11 @@ function toggleItem<T extends string>(items: T[], value: T): T[] {
   return [...items, value];
 }
 
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 export default function StoreDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -98,6 +114,12 @@ export default function StoreDetailPage() {
   const [slug, setSlug] = useState("");
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+  const [transferBankName, setTransferBankName] = useState("");
+  const [transferAccountNumber, setTransferAccountNumber] = useState("");
+  const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [pickupStartTime, setPickupStartTime] = useState("");
+  const [pickupEndTime, setPickupEndTime] = useState("");
+  const [orderNotice, setOrderNotice] = useState("");
 
   const [members, setMembers] = useState<BranchMember[]>([]);
 
@@ -121,14 +143,37 @@ export default function StoreDetailPage() {
     const samePayments =
       allowedPaymentMethods.length === branchPayments.length &&
       allowedPaymentMethods.every((item) => branchPayments.includes(item));
+    const sameTransferInfo =
+      transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
+      transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
+      transferAccountHolder.trim() === (branch.transferAccount?.accountHolder ?? "");
+    const samePickupTimeConfig =
+      pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
+      pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
+    const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
 
     return (
       name.trim() !== branch.name ||
       slug.trim() !== (branch.slug ?? "") ||
       !sameFulfillment ||
-      !samePayments
+      !samePayments ||
+      !sameTransferInfo ||
+      !samePickupTimeConfig ||
+      !sameOrderNotice
     );
-  }, [allowedPaymentMethods, branch, enabledFulfillmentTypes, name, slug]);
+  }, [
+    allowedPaymentMethods,
+    branch,
+    enabledFulfillmentTypes,
+    name,
+    slug,
+    transferAccountHolder,
+    transferAccountNumber,
+    transferBankName,
+    pickupEndTime,
+    pickupStartTime,
+    orderNotice,
+  ]);
 
   useEffect(() => {
     if (!ready) return;
@@ -156,6 +201,12 @@ export default function StoreDetailPage() {
             ? data.allowedPaymentMethods
             : ["CARD", "TRANSFER", "CASH"],
         );
+        setTransferBankName(data.transferAccount?.bankName ?? "");
+        setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
+        setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
+        setPickupStartTime(data.pickupTimeConfig?.startTime ?? "");
+        setPickupEndTime(data.pickupTimeConfig?.endTime ?? "");
+        setOrderNotice(data.orderNotice ?? "");
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
@@ -218,6 +269,12 @@ export default function StoreDetailPage() {
         ? branch.allowedPaymentMethods
         : ["CARD", "TRANSFER", "CASH"],
     );
+    setTransferBankName(branch.transferAccount?.bankName ?? "");
+    setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
+    setTransferAccountHolder(branch.transferAccount?.accountHolder ?? "");
+    setPickupStartTime(branch.pickupTimeConfig?.startTime ?? "");
+    setPickupEndTime(branch.pickupTimeConfig?.endTime ?? "");
+    setOrderNotice(branch.orderNotice ?? "");
   };
 
   const handleSave = async () => {
@@ -249,6 +306,33 @@ export default function StoreDetailPage() {
       return;
     }
 
+    if (
+      allowedPaymentMethods.includes("TRANSFER") &&
+      (!transferBankName.trim() ||
+        !transferAccountNumber.trim() ||
+        !transferAccountHolder.trim())
+    ) {
+      toast.error("계좌이체를 사용하려면 은행명, 계좌번호, 예금주를 모두 입력해 주세요.");
+      return;
+    }
+
+    if (
+      (pickupStartTime.trim() && !pickupEndTime.trim()) ||
+      (!pickupStartTime.trim() && pickupEndTime.trim())
+    ) {
+      toast.error("픽업 가능 시간의 시작/종료 시간을 모두 입력해 주세요.");
+      return;
+    }
+
+    if (
+      pickupStartTime.trim() &&
+      pickupEndTime.trim() &&
+      timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)
+    ) {
+      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
+      return;
+    }
+
     try {
       setSaving(true);
       const updated = await apiClient.patch<Branch>(`/admin/branches/${branch.id}`, {
@@ -256,6 +340,19 @@ export default function StoreDetailPage() {
         slug: normalizedSlug,
         enabledFulfillmentTypes,
         allowedPaymentMethods,
+        transferAccount: {
+          bankName: transferBankName.trim(),
+          accountNumber: transferAccountNumber.trim(),
+          accountHolder: transferAccountHolder.trim(),
+        },
+        orderNotice: orderNotice.trim() || null,
+        pickupTimeConfig:
+          pickupStartTime.trim() && pickupEndTime.trim()
+            ? {
+                startTime: pickupStartTime.trim(),
+                endTime: pickupEndTime.trim(),
+              }
+            : null,
       });
 
       setBranch(updated);
@@ -271,11 +368,17 @@ export default function StoreDetailPage() {
           ? updated.allowedPaymentMethods
           : ["CARD", "TRANSFER", "CASH"],
       );
+      setTransferBankName(updated.transferAccount?.bankName ?? "");
+      setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");
+      setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
+      setPickupStartTime(updated.pickupTimeConfig?.startTime ?? "");
+      setPickupEndTime(updated.pickupTimeConfig?.endTime ?? "");
+      setOrderNotice(updated.orderNotice ?? "");
 
-      toast.success("매장 설정을 저장했습니다.");
+      toast.success("매장을 수정했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 저장에 실패했습니다.");
+      toast.error(err?.message ?? "매장 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -284,7 +387,7 @@ export default function StoreDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 매장을 삭제할까요?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(`"${branch.name}" 매장을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`);
     if (!confirmed) return;
 
     try {
@@ -306,7 +409,7 @@ export default function StoreDetailPage() {
     <div>
       <div className="mb-4">
         <Link href="/admin/stores" className="text-text-secondary text-xs hover:text-foreground transition-colors">
-          ← 매장 목록으로 돌아가기
+          매장 목록으로 돌아가기
         </Link>
         <h1 className="text-[22px] font-extrabold mt-2 text-foreground">{branch?.name ?? "매장 상세"}</h1>
         <p className="text-text-secondary mt-1 text-[13px]">
@@ -340,9 +443,7 @@ export default function StoreDetailPage() {
                   className="input-field w-full"
                   placeholder="예: gangnam-main"
                 />
-                <div className="text-xs text-text-tertiary mt-1.5">
-                  영문/숫자/하이픈(-)만 가능합니다.
-                </div>
+                <div className="text-xs text-text-tertiary mt-1.5">영문/숫자/하이픈(-)만 가능합니다.</div>
               </div>
 
               <div>
@@ -361,7 +462,7 @@ export default function StoreDetailPage() {
             <div className="text-xs text-text-secondary">주문 설정</div>
 
             <div className="mt-3">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 주문 방식</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 주문 방식</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_FULFILLMENT_TYPES.map((type) => {
                   const checked = enabledFulfillmentTypes.includes(type);
@@ -383,7 +484,7 @@ export default function StoreDetailPage() {
             </div>
 
             <div className="mt-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">소비자에게 노출할 결제 수단</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 결제 수단</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ALL_PAYMENT_METHODS.map((method) => {
                   const checked = allowedPaymentMethods.includes(method);
@@ -402,6 +503,77 @@ export default function StoreDetailPage() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">픽업 가능 시간</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select
+                  value={pickupStartTime}
+                  onChange={(e) => setPickupStartTime(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="">시작 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-start-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={pickupEndTime}
+                  onChange={(e) => setPickupEndTime(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="">종료 시간 선택</option>
+                  {HALF_HOUR_TIME_OF_DAY_OPTIONS.map((option) => (
+                    <option key={`pickup-end-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                30분 단위로 고객이 선택할 수 있는 픽업 시간을 설정합니다.
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">주문창 상단 공지사항</div>
+              <textarea
+                value={orderNotice}
+                onChange={(e) => setOrderNotice(e.target.value)}
+                className="input-field w-full min-h-[96px] resize-y py-3"
+                placeholder="예: 포장은 20분 전 미리 주문해 주세요."
+              />
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                주문 메뉴 상단에 고객에게 노출되는 안내 문구입니다.
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">계좌이체 입금 정보</div>
+              <div className="grid gap-2">
+                <input
+                  value={transferBankName}
+                  onChange={(e) => setTransferBankName(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="은행명"
+                />
+                <input
+                  value={transferAccountNumber}
+                  onChange={(e) => setTransferAccountNumber(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="계좌번호"
+                />
+                <input
+                  value={transferAccountHolder}
+                  onChange={(e) => setTransferAccountHolder(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="예금주"
+                />
+              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">계좌이체 결제 화면에 노출되는 정보입니다.</div>
             </div>
           </div>
 
@@ -452,7 +624,7 @@ export default function StoreDetailPage() {
                       <div className="text-xs text-text-tertiary">{member.userId}</div>
                     </div>
                     <div className="text-xs text-text-secondary">
-                      {member.role} · {member.status}
+                      {member.role} / {member.status}
                     </div>
                   </div>
                 ))}

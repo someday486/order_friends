@@ -167,8 +167,9 @@ export default function StoresPage() {
         brandId={brandId}
         adding={adding}
         onClose={() => setShowAddForm(false)}
-        onSubmit={async ({ name, slug }) => {
+        onSubmit={async ({ name, slug, allowedPaymentMethods, transferAccount, pickupTimeConfig }) => {
           if (!name.trim() || !slug.trim() || !brandId) return;
+          if (allowedPaymentMethods.length === 0) return;
 
           try {
             setAdding(true);
@@ -177,6 +178,9 @@ export default function StoresPage() {
               brandId,
               name,
               slug,
+              allowedPaymentMethods,
+              transferAccount,
+              pickupTimeConfig,
             });
             setBranches((prev) => [data, ...prev]);
             setShowAddForm(false);

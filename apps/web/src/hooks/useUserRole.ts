@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
 import { apiClient } from '@/lib/api-client';
 
@@ -28,28 +28,95 @@ export interface UserData {
   }>;
 }
 
+let cachedUserId: string | null = null;
+let cachedUserData: UserData | null = null;
+let inFlightUserId: string | null = null;
+let inFlightUserRolePromise: Promise<UserData | null> | null = null;
+
+function getCachedUserRole(userId: string | null) {
+  if (!userId) return null;
+  if (cachedUserId !== userId) return null;
+  return cachedUserData;
+}
+
+function clearUserRoleCache() {
+  cachedUserId = null;
+  cachedUserData = null;
+  inFlightUserId = null;
+  inFlightUserRolePromise = null;
+}
+
+async function fetchUserRoleData(userId: string): Promise<UserData | null> {
+  const cached = getCachedUserRole(userId);
+  if (cached) {
+    return cached;
+  }
+
+  if (inFlightUserId === userId && inFlightUserRolePromise) {
+    return inFlightUserRolePromise;
+  }
+
+  inFlightUserId = userId;
+  inFlightUserRolePromise = apiClient
+    .get<UserData>('/me')
+    .then((data) => {
+      cachedUserId = userId;
+      cachedUserData = data;
+      return data;
+    })
+    .finally(() => {
+      inFlightUserId = null;
+      inFlightUserRolePromise = null;
+    });
+
+  return inFlightUserRolePromise;
+}
+
 export function useUserRole() {
   const { session, status } = useAuth();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const userId = session?.user?.id ?? null;
+  const [userData, setUserData] = useState<UserData | null>(() =>
+    getCachedUserRole(userId),
+  );
+  const [loading, setLoading] = useState(() => {
+    if (status === 'loading') return true;
+    if (status !== 'authenticated' || !userId) return false;
+    return !getCachedUserRole(userId);
+  });
   const [error, setError] = useState<Error | null>(null);
+  const hasFetchedRef = useRef(Boolean(getCachedUserRole(userId)));
 
   useEffect(() => {
     if (status === 'loading') {
       return;
     }
 
-    if (status === 'unauthenticated' || !session) {
+    if (status === 'unauthenticated' || !userId) {
+      clearUserRoleCache();
       setUserData(null);
       setLoading(false);
+      setError(null);
+      hasFetchedRef.current = false;
       return;
+    }
+
+    const cached = getCachedUserRole(userId);
+    if (cached) {
+      setUserData(cached);
+      setLoading(false);
+      hasFetchedRef.current = true;
+    } else if (!hasFetchedRef.current) {
+      setLoading(true);
     }
 
     const fetchUserRole = async () => {
       try {
-        setLoading(true);
-        const data = await apiClient.get<UserData>('/me');
-        setUserData(data);
+        setError(null);
+        const data = await fetchUserRoleData(userId);
+        if (data) {
+          setUserData(data);
+          hasFetchedRef.current = true;
+        }
       } catch (err) {
         console.error('Error fetching user role:', err);
         setError(err instanceof Error ? err : new Error('Unknown error'));
@@ -59,7 +126,7 @@ export function useUserRole() {
     };
 
     void fetchUserRole();
-  }, [session, status]);
+  }, [userId, status]);
 
   return {
     userData,

@@ -153,12 +153,11 @@ function InventoryHistoryModal({
   const [filter, setFilter] = useState<HistoryFilter>('ALL');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    if (!open) {
-      setFilter('ALL');
-      setSearch('');
-    }
-  }, [open]);
+  const handleClose = () => {
+    setFilter('ALL');
+    setSearch('');
+    onClose();
+  };
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -215,7 +214,7 @@ function InventoryHistoryModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-bg-secondary text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
           >
             <X className="h-4 w-4" />

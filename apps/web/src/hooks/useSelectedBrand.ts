@@ -1,34 +1,28 @@
-﻿'use client';
+'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import {
+  clearSelectedBrandId,
   getSelectedBrandId,
   setSelectedBrandId,
-  clearSelectedBrandId,
   subscribeSelectedBrandIdChanged,
 } from '@/lib/brandSelection';
 
 export function useSelectedBrand() {
-  const [brandId, setBrandIdState] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setBrandIdState(getSelectedBrandId());
-    setReady(true);
-
-    return subscribeSelectedBrandIdChanged(setBrandIdState);
-  }, []);
+  const brandId = useSyncExternalStore(
+    subscribeSelectedBrandIdChanged,
+    getSelectedBrandId,
+    () => null,
+  );
 
   return {
     brandId,
-    ready,
+    ready: true,
     selectBrand: (id: string) => {
       setSelectedBrandId(id);
-      setBrandIdState(id);
     },
     clearBrand: () => {
       clearSelectedBrandId();
-      setBrandIdState(null);
     },
   };
 }

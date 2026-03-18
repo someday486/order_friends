@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
@@ -58,28 +58,13 @@ export default function OrderLauncher({
   openInNewTab = false,
   headerRight,
 }: OrderLauncherProps) {
-  // ✅ 훅은 항상 컴포넌트 최상단에서 호출
   const [openBrands, setOpenBrands] = useState<Record<string, boolean>>({});
 
-  // ✅ sections 바뀔 때: 기존 상태 유지 + 새 브랜드만 true로 추가
-  useEffect(() => {
-    setOpenBrands((prev) => {
-      const next = { ...prev };
-      for (const s of sections) {
-        if (next[s.brand.id] === undefined) next[s.brand.id] = true;
-      }
-      // sections에서 사라진 브랜드 정리(선택)
-      for (const key of Object.keys(next)) {
-        if (!sections.some((s) => s.brand.id === key)) delete next[key];
-      }
-      return next;
-    });
-  }, [sections]);
-
   const toggleBrand = (brandId: string) => {
+    const currentValue = openBrands[brandId] ?? true;
     setOpenBrands((prev) => ({
       ...prev,
-      [brandId]: !prev[brandId],
+      [brandId]: !currentValue,
     }));
   };
 
@@ -166,7 +151,7 @@ export default function OrderLauncher({
                   <span className="text-xs bg-bg-tertiary border border-border px-2 py-1 rounded text-text-secondary">
                     {section.branches.length}
                   </span>
-                  {openBrands[section.brand.id] ? (
+                  {(openBrands[section.brand.id] ?? true) ? (
                     <ChevronDown size={16} className="text-text-secondary" />
                   ) : (
                     <ChevronRight size={16} className="text-text-secondary" />
@@ -174,7 +159,7 @@ export default function OrderLauncher({
                 </div>
               </button>
 
-              {openBrands[section.brand.id] && (
+              {(openBrands[section.brand.id] ?? true) && (
                 <div className="p-4 bg-white dark:bg-bg-secondary border-t border-border transition-all duration-200">
                   {section.branches.length === 0 ? (
                     <div className="text-text-tertiary text-sm py-2">No branches.</div>

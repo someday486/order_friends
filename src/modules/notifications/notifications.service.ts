@@ -148,6 +148,14 @@ export class NotificationsService {
       this.logger.warn(
         'KakaoTalk API not fully configured - KakaoTalk notifications in mock mode',
       );
+    } else if (
+      /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(
+        this.publicWebBaseUrl,
+      )
+    ) {
+      this.logger.warn(
+        'PUBLIC_WEB_BASE_URL is using a local URL while live KakaoTalk sending is enabled. Order tracking links may be invalid.',
+      );
     }
 
     if (!this.mockEmailMode && !this.mockSmsMode && !this.mockKakaoTalkMode) {

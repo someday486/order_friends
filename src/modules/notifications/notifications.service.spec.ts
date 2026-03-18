@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from './notifications.service';
 import { NotificationType } from './dto/notification.dto';
@@ -94,6 +95,32 @@ describe('NotificationsService', () => {
     expect(lowStockResult.success).toBe(true);
     expect(readySms.success).toBe(true);
     expect(completeSms.success).toBe(true);
+  });
+
+  it('should warn when live KakaoTalk sending uses a localhost web URL', () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+
+    try {
+      new NotificationsService(
+        makeConfig({
+          SENDGRID_API_KEY: 'sg',
+          SENDGRID_LIVE_MODE: 'true',
+          SMS_API_KEY: 'sms',
+          SMS_API_URL: 'https://example.com/sms',
+          SMS_LIVE_MODE: 'true',
+          SOLAPI_API_KEY: 'solapi-key',
+          SOLAPI_API_SECRET: 'solapi-secret',
+          SOLAPI_KAKAO_PF_ID: 'KA01PF0000000000000000000',
+          SOLAPI_KAKAO_TEMPLATE_ID: 'KA01TP0000000000000000000',
+        }),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        'PUBLIC_WEB_BASE_URL is using a local URL while live KakaoTalk sending is enabled. Order tracking links may be invalid.',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('should send email and sms in non-mock mode', async () => {

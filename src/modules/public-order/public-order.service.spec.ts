@@ -176,6 +176,72 @@ describe('PublicOrderService - Inventory Integration', () => {
     );
   });
 
+  it('should log a warning when order completion KakaoTalk sending fails', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1, unitPrice: 10000 }],
+    };
+
+    notificationsService.sendOrderCompletionKakao.mockResolvedValueOnce({
+      success: false,
+      errorMessage: 'KakaoTalk API error: 400 invalid template',
+    });
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 10000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-123',
+        order_no: 'ORD-001',
+        total_amount: 10000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: { transfer_account: null },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { name: '테스트매장' },
+        error: null,
+      });
+
+    const warnSpy = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation();
+
+    await service.createOrder(mockOrderDto as any);
+    await Promise.resolve();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to send order completion KakaoTalk for order order-123: KakaoTalk API error: 400 invalid template',
+    );
+  });
+
   it('getBrands should group brands and build order paths', async () => {
     anonChains.branches.limit.mockResolvedValueOnce({
       data: [

@@ -2131,6 +2131,13 @@ export class PublicOrderService {
         },
         params.customerPhone,
       )
+      .then((result) => {
+        if (!result.success) {
+          this.logger.warn(
+            `Failed to send order completion KakaoTalk for order ${order.id}: ${result.errorMessage ?? 'unknown error'}`,
+          );
+        }
+      })
       .catch((error) =>
         this.logger.warn(
           `Failed to send order completion KakaoTalk for order ${order.id}: ${error instanceof Error ? error.message : String(error)}`,

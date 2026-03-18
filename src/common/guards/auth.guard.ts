@@ -59,7 +59,23 @@ export class AuthGuard implements CanActivate {
     // Cache miss — validate with Supabase
     const sb = this.supabase.userClient(token);
 
-    const { data, error } = await sb.auth.getUser();
+    let data:
+      | {
+          user?: {
+            id: string;
+            email?: string | null;
+          } | null;
+        }
+      | null
+      | undefined;
+    let error: unknown;
+    try {
+      ({ data, error } = await sb.auth.getUser());
+    } catch {
+      this.authCache.delete(token);
+      throw new UnauthorizedException('Invalid token');
+    }
+
     if (error || !data?.user) {
       this.authCache.delete(token);
       throw new UnauthorizedException('Invalid token');
@@ -70,11 +86,20 @@ export class AuthGuard implements CanActivate {
       email: data.user.email ?? undefined,
     };
 
-    const { data: profile, error: profileError } = await sb
-      .from('profiles')
-      .select('is_system_admin')
-      .eq('id', data.user.id)
-      .maybeSingle();
+    let profile: { is_system_admin?: boolean } | null = null;
+    let profileError: unknown;
+    try {
+      const profileResult = await sb
+        .from('profiles')
+        .select('is_system_admin')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      profile = profileResult.data;
+      profileError = profileResult.error;
+    } catch {
+      this.authCache.delete(token);
+      throw new UnauthorizedException('Failed to verify admin permissions');
+    }
 
     if (profileError) {
       this.authCache.delete(token);

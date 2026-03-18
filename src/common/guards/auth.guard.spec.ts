@@ -65,6 +65,21 @@ describe('AuthGuard', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
+  it('should convert auth client errors into unauthorized responses', async () => {
+    const { guard, supabase } = makeGuard({});
+    supabase.userClient.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockRejectedValue(new Error('fetch failed')),
+      },
+    });
+
+    await expect(
+      guard.canActivate(
+        makeContext({ headers: { authorization: 'Bearer bad-network' } }),
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
   it('should set request user and admin flags from config', async () => {
     const { guard, supabase } = makeGuard({
       ADMIN_EMAILS: 'admin@example.com; other@example.com',
@@ -158,6 +173,29 @@ describe('AuthGuard', () => {
     await expect(
       guard.canActivate(
         makeContext({ headers: { authorization: 'Bearer token5' } }),
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('should reject requests when profile admin lookup throws', async () => {
+    const { guard, supabase } = makeGuard({});
+    supabase.userClient.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: 'user-13', email: 'user@test.com' } },
+          error: null,
+        }),
+      },
+      from: jest.fn(() => ({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockRejectedValue(new Error('fetch failed')),
+      })),
+    });
+
+    await expect(
+      guard.canActivate(
+        makeContext({ headers: { authorization: 'Bearer token6' } }),
       ),
     ).rejects.toThrow(UnauthorizedException);
   });

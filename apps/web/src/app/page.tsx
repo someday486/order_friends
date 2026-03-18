@@ -2,6 +2,7 @@
 
 import { AuthEntryFooter } from '@/components/auth/AuthEntryFooter';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -12,10 +13,29 @@ export default function LoginPage() {
 
   // roleLoading 대기 없이 인증 확인 즉시 이동 (role fetch 완료 불필요)
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.replace('/app');
+    if (status !== 'authenticated') return;
+
+    let cancelled = false;
+
+    const redirectAuthenticatedUser = async () => {
+      let destination = '/app';
+
+      try {
+        destination = await resolveAuthenticatedDestination();
+      } catch (error) {
+        console.warn('[auth] failed to resolve root login redirect:', error);
+      }
+
+      if (cancelled) return;
+      router.replace(destination);
       router.refresh();
-    }
+    };
+
+    void redirectAuthenticatedUser();
+
+    return () => {
+      cancelled = true;
+    };
   }, [status, router]);
 
   if (status === 'loading' || status === 'authenticated') {

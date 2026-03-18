@@ -40,6 +40,12 @@ services:
       - CORS_ORIGIN=https://orderfriends.app,https://www.orderfriends.app
       - LOG_LEVEL=info
       - NODE_OPTIONS=--max-old-space-size=2048
+      - SOLAPI_API_KEY=${SOLAPI_API_KEY}
+      - SOLAPI_API_SECRET=${SOLAPI_API_SECRET}
+      - SOLAPI_KAKAO_PF_ID=${SOLAPI_KAKAO_PF_ID}
+      - SOLAPI_KAKAO_TEMPLATE_ID=${SOLAPI_KAKAO_TEMPLATE_ID}
+      - SOLAPI_KAKAO_TRANSFER_TEMPLATE_ID=${SOLAPI_KAKAO_TRANSFER_TEMPLATE_ID}
+      - PUBLIC_WEB_BASE_URL=${PUBLIC_WEB_BASE_URL}
     depends_on:
       redis:
         condition: service_healthy

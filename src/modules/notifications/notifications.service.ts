@@ -452,6 +452,7 @@ export class NotificationsService {
         : '매장 수령';
     const orderReference = data.orderNo || '주문';
     const orderTrackingUrl = this.buildOrderTrackingUrl(orderReference);
+    const orderTrackingPath = this.buildOrderTrackingPath(orderReference);
     const bankName = data.transferAccount?.bankName?.trim() || '-';
     const accountNumber = data.transferAccount?.accountNumber?.trim() || '-';
     const accountHolder = data.transferAccount?.accountHolder?.trim() || '-';
@@ -459,12 +460,13 @@ export class NotificationsService {
     return {
       '#{이름}': data.customerName || '고객',
       '#{상품목록}': this.formatOrderItemsForKakao(data.items),
-      '#{금액}': `${data.totalAmount.toLocaleString('ko-KR')}원`,
+      '#{금액}': data.totalAmount.toLocaleString('ko-KR'),
       '#{주문방식}': this.getFulfillmentTypeLabel(data.fulfillmentType),
       '#{배송지}': deliveryAddress,
       '#{매장명}': data.branchName || '매장',
       '#{주문번호}': orderReference,
       '#{주문확인링크}': orderTrackingUrl,
+      '#{LINK}': orderTrackingPath,
       '#{은행명}': bankName,
       '#{은행}': bankName,
       '#{계좌번호}': accountNumber,
@@ -493,7 +495,11 @@ export class NotificationsService {
   }
 
   private buildOrderTrackingUrl(orderReference: string): string {
-    return `${this.publicWebBaseUrl}/order/track/${encodeURIComponent(orderReference)}`;
+    return `${this.publicWebBaseUrl}/${this.buildOrderTrackingPath(orderReference)}`;
+  }
+
+  private buildOrderTrackingPath(orderReference: string): string {
+    return `order/track/${encodeURIComponent(orderReference)}`;
   }
 
   private formatOrderItemsForKakao(

@@ -64,4 +64,12 @@ test.describe('Login page', () => {
     await expect(page).not.toHaveURL(/not-found/);
     await expect(page.locator('body')).toBeVisible();
   });
+
+  test('redirects public order tracking next target without showing login', async ({
+    page,
+  }) => {
+    await page.goto('/login?next=%2Forder%2Ftrack%2FORD-001');
+
+    await expect(page).toHaveURL(/\/order\/track\/ORD-001$/);
+  });
 });

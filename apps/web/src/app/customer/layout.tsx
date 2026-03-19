@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole, type UserRole } from '@/hooks/useUserRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { NotificationProvider } from '@/providers/NotificationProvider';
 import {
@@ -133,10 +134,19 @@ export default function CustomerLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { role } = useUserRole();
+  const { role, userData } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark, toggle } = useDarkMode();
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
+
+  const isBrandCreatorOnboarding =
+    userData?.canCreateBrand === true &&
+    (userData.memberships?.length ?? 0) === 0 &&
+    (userData.ownedBrands?.length ?? 0) === 0;
+
+  const effectiveRole: UserRole = isBrandCreatorOnboarding
+    ? 'brand_owner'
+    : role;
 
   const isActive = (href: string) => {
     if (href === '/customer') return pathname === '/customer';
@@ -148,11 +158,32 @@ export default function CustomerLayout({
       .map((section) => ({
         ...section,
         items: section.items.filter(
-          (item) => !item.allowedRoles || item.allowedRoles.includes(role),
+          (item) =>
+            !item.allowedRoles || item.allowedRoles.includes(effectiveRole),
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [role]);
+  }, [effectiveRole]);
+
+  const getOnboardingDisabledMessage = useCallback((href: string) => {
+    if (href === '/customer/branches') {
+      return '브랜드를 먼저 등록하세요.';
+    }
+
+    if (href === '/customer' || href === '/customer/brands') {
+      return null;
+    }
+
+    return '브랜드와 매장을 먼저 등록하세요.';
+  }, []);
+
+  const isOnboardingItemDisabled = useCallback(
+    (href: string) => {
+      if (!isBrandCreatorOnboarding) return false;
+      return getOnboardingDisabledMessage(href) !== null;
+    },
+    [getOnboardingDisabledMessage, isBrandCreatorOnboarding],
+  );
 
   const prefetchRoute = useCallback(
     (href: string) => {
@@ -272,18 +303,46 @@ export default function CustomerLayout({
                     <Link
                       key={item.href}
                       href={item.href}
-                      onMouseEnter={() => prefetchRoute(item.href)}
-                      onFocus={() => prefetchRoute(item.href)}
-                      onClick={() => setSidebarOpen(false)}
+                      onMouseEnter={() => {
+                        if (!isOnboardingItemDisabled(item.href)) {
+                          prefetchRoute(item.href);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!isOnboardingItemDisabled(item.href)) {
+                          prefetchRoute(item.href);
+                        }
+                      }}
+                      onClick={(event) => {
+                        const disabledMessage = getOnboardingDisabledMessage(
+                          item.href,
+                        );
+
+                        if (
+                          isBrandCreatorOnboarding &&
+                          disabledMessage !== null
+                        ) {
+                          event.preventDefault();
+                          toast(disabledMessage, {
+                            icon: 'i',
+                          });
+                          return;
+                        }
+
+                        setSidebarOpen(false);
+                      }}
                       className={`
                         flex items-center px-3 py-2.5 rounded-md text-sm no-underline
                         transition-all duration-150 touch-feedback
                         ${
-                          isActive(item.href)
+                          isOnboardingItemDisabled(item.href)
+                            ? 'cursor-not-allowed border border-transparent text-text-tertiary opacity-60 hover:bg-transparent hover:text-text-tertiary'
+                            : isActive(item.href)
                             ? 'bg-bg-tertiary border border-border text-foreground font-semibold'
                             : 'border border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-foreground'
                         }
                       `}
+                      aria-disabled={isOnboardingItemDisabled(item.href)}
                     >
                       <item.icon size={18} className="mr-2 flex-shrink-0" />
                       {item.label}

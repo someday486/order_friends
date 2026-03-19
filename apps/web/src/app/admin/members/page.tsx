@@ -8,6 +8,7 @@ import BranchSelector from '@/components/admin/BranchSelector';
 import { useSelectedBrand } from '@/hooks/useSelectedBrand';
 import { useSelectedBranch } from '@/hooks/useSelectedBranch';
 import { apiClient } from '@/lib/api-client';
+import { getAdminBrands } from '@/lib/adminDataCache';
 
 type BrandRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 type BranchRole = 'BRANCH_OWNER' | 'BRANCH_ADMIN' | 'STAFF' | 'VIEWER';
@@ -167,6 +168,9 @@ function MembersPageContent() {
   const [branchRole, setBranchRole] = useState<BranchRole>('STAFF');
   const [addingBrand, setAddingBrand] = useState(false);
   const [addingBranch, setAddingBranch] = useState(false);
+  const [quickApprovingKey, setQuickApprovingKey] = useState<string | null>(
+    null,
+  );
   const [selectedBranchInfo, setSelectedBranchInfo] =
     useState<BranchInfo | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -216,7 +220,7 @@ function MembersPageContent() {
   const fetchBrands = async () => {
     try {
       setBrandsError(null);
-      setBrands(await apiClient.get<BrandInfo[]>('/admin/brands'));
+      setBrands(await getAdminBrands());
     } catch (error) {
       setBrandsError(
         error instanceof Error
@@ -391,6 +395,63 @@ function MembersPageContent() {
       );
     } finally {
       setAddingBranch(false);
+    }
+  };
+
+  const quickApproveBrandCreator = async (user: PendingUser) => {
+    const confirmed = window.confirm(
+      `${user.email ?? user.id} 계정을 브랜드 생성 가능한 사업자 계정으로 승인하시겠습니까?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setQuickApprovingKey(`brand-creator:${user.id}`);
+      await apiClient.post(`/admin/members/approve-brand-creator/${user.id}`);
+      await fetchPending();
+      setSelectedUserId(user.id);
+      setTab('brand');
+      toast.success('브랜드 생성 권한을 승인했습니다.');
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : '브랜드 승인에 실패했습니다.',
+      );
+    } finally {
+      setQuickApprovingKey(null);
+    }
+  };
+
+  const quickApproveBranchMember = async (user: PendingUser) => {
+    if (!branchId || !selectedBranchInfo) {
+      toast.error('먼저 승인할 매장을 선택해 주세요.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${user.email ?? user.id} 계정을 ${selectedBranchInfo.name} 매장 멤버로 승인하시겠습니까?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setQuickApprovingKey(`branch:${user.id}`);
+      await apiClient.post('/admin/members/branch', {
+        branchId,
+        userId: user.id,
+        role: branchRole,
+      });
+      await Promise.all([fetchBranchMembers(), fetchPending()]);
+      setSelectedUserId(user.id);
+      setTab('branch');
+      toast.success('매장 권한을 바로 승인했습니다.');
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : '매장 승인에 실패했습니다.',
+      );
+    } finally {
+      setQuickApprovingKey(null);
     }
   };
 
@@ -665,20 +726,20 @@ function MembersPageContent() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedUserId(user.id);
-                        setTab('brand');
-                      }}
+                      onClick={() => void quickApproveBrandCreator(user)}
+                      disabled={quickApprovingKey !== null}
                       className="rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-bg-tertiary"
                     >
                       브랜드 승인
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedUserId(user.id);
-                        setTab('branch');
-                      }}
+                      onClick={() => void quickApproveBranchMember(user)}
+                      disabled={
+                        quickApprovingKey !== null ||
+                        !branchId ||
+                        !selectedBranchInfo
+                      }
                       className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-600"
                     >
                       매장 승인

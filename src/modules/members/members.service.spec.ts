@@ -96,6 +96,13 @@ describe('MembersService', () => {
             email_confirmed_at: null,
             user_metadata: { full_name: 'Pending Two' },
           },
+          {
+            id: 'approved-brand-creator',
+            email: 'approved@example.com',
+            created_at: '2026-03-04T08:00:00.000Z',
+            email_confirmed_at: '2026-03-04T08:10:00.000Z',
+            user_metadata: { customer_brand_creator_approved: true },
+          },
         ],
       },
       error: null,
@@ -175,6 +182,17 @@ describe('MembersService', () => {
       isEmailConfirmed: false,
     });
     expect(listUsers).toHaveBeenCalledWith({ page: 1, perPage: 200 });
+  });
+
+  it('approveBrandCreator should set onboarding approval metadata', async () => {
+    const result = await service.approveBrandCreator('user-2');
+
+    expect(result).toEqual({ approved: true });
+    expect(
+      supabase.adminClient().auth.admin.updateUserById,
+    ).toHaveBeenCalledWith('user-2', {
+      user_metadata: { customer_brand_creator_approved: true },
+    });
   });
 
   it('getPendingApprovalUsers should throw when auth user lookup fails', async () => {

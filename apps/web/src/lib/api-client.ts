@@ -58,6 +58,7 @@ async function getAccessToken(): Promise<string> {
 
 interface RequestOptions {
   auth?: boolean;
+  cacheTtlMs?: number;
 }
 
 function shouldBypassAuthForE2E(): boolean {
@@ -114,10 +115,14 @@ function readCachedGetResponse<T>(cacheKey: string): T | null {
   return cloneCachedValue(cached.value as T);
 }
 
-function writeCachedGetResponse(cacheKey: string, value: unknown) {
+function writeCachedGetResponse(
+  cacheKey: string,
+  value: unknown,
+  ttlMs: number = GET_CACHE_TTL_MS,
+) {
   cachedGetResponses.set(cacheKey, {
     value,
-    expiresAt: Date.now() + GET_CACHE_TTL_MS,
+    expiresAt: Date.now() + ttlMs,
   });
 }
 
@@ -133,6 +138,7 @@ async function request<T = unknown>(
 ): Promise<T> {
   const method = (init.method ?? 'GET').toUpperCase();
   const authEnabled = options.auth !== false;
+  const cacheTtlMs = options.cacheTtlMs ?? GET_CACHE_TTL_MS;
   const cacheKey = getRequestCacheKey(method, path, authEnabled);
   const canUseGetCache = method === 'GET';
 
@@ -192,7 +198,7 @@ async function request<T = unknown>(
 
   const requestPromise = runRequest()
     .then((data) => {
-      writeCachedGetResponse(cacheKey, data);
+      writeCachedGetResponse(cacheKey, data, cacheTtlMs);
       return cloneCachedValue(data);
     })
     .finally(() => {
@@ -204,6 +210,10 @@ async function request<T = unknown>(
 }
 
 export const apiClient = {
+  clearCache(): void {
+    clearRequestCache();
+  },
+
   get<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
     return request<T>(path, {}, options);
   },

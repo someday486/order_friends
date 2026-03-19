@@ -2,12 +2,13 @@ import Link from 'next/link';
 import { SignupForm } from '@/components/auth/SignupForm';
 import { AuthEntryFooter } from '@/components/auth/AuthEntryFooter';
 
-export default function SignupPage({
+export default async function SignupPage({
   searchParams,
 }: {
-  searchParams?: { next?: string };
+  searchParams?: Promise<{ next?: string }>;
 }) {
-  const next = searchParams?.next?.trim();
+  const resolvedSearchParams = await searchParams;
+  const next = resolvedSearchParams?.next?.trim();
   const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : '/login';
 
   return (

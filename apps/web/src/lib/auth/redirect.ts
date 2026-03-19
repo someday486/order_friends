@@ -11,6 +11,7 @@ type MeResponse = {
   memberships: unknown[];
   ownedBrands: unknown[];
   isSystemAdmin?: boolean;
+  canCreateBrand?: boolean;
 };
 
 let inFlightDestinationPromise: Promise<string> | null = null;
@@ -41,7 +42,15 @@ export async function resolveAuthenticatedDestination(): Promise<string> {
       const hasActiveAccess =
         me.memberships.length > 0 || me.ownedBrands.length > 0;
 
-      return hasActiveAccess ? '/customer' : '/approval-pending';
+      if (hasActiveAccess) {
+        return '/customer';
+      }
+
+      if (me.canCreateBrand) {
+        return '/customer/brands';
+      }
+
+      return '/approval-pending';
     } catch (error) {
       if (isMembershipPendingError(error)) {
         return '/approval-pending';

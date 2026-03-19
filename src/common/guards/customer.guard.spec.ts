@@ -121,6 +121,36 @@ describe('CustomerGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
+  it('should allow approved onboarding user on customer brands route', async () => {
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [], error: null };
+    branchMembersResult = { data: [], error: null };
+
+    const ctx = createContext({
+      user: { id: 'user-1', canCreateBrand: true },
+      path: '/customer/brands',
+    });
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(ctx._req.brandMemberships).toEqual([]);
+    expect(ctx._req.branchMemberships).toEqual([]);
+  });
+
+  it('should still reject approved onboarding user on other customer routes', async () => {
+    brandMembersResult = { data: [], error: null };
+    brandsResult = { data: [], error: null };
+    branchMembersResult = { data: [], error: null };
+
+    const ctx = createContext({
+      user: { id: 'user-1', canCreateBrand: true },
+      path: '/customer/orders',
+    });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
   it('should allow access and attach memberships', async () => {
     brandMembersResult = { data: [], error: null };
     brandsResult = { data: [{ id: 'brand-1' }], error: null };

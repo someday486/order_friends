@@ -3,6 +3,7 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 export type RequestUser = {
   id: string;
   email?: string;
+  canCreateBrand?: boolean;
 };
 
 export const CurrentUser = createParamDecorator(

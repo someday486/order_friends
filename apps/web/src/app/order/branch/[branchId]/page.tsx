@@ -508,7 +508,7 @@ export default function OrderPage() {
       {/* ── Floating Cart Bar ── */}
       {cart.length > 0 && (
         <div
-          className={`fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${cartBounce ? 'animate-pop' : ''}`}
+          className={`fixed bottom-0 left-0 right-0 z-50 ${cartBounce ? 'animate-pop' : ''}`}
         >
           <div className="max-w-lg mx-auto">
             {/* Expandable Cart Items */}
@@ -570,7 +570,7 @@ export default function OrderPage() {
             )}
 
             {/* Bottom Bar */}
-            <div className="flex items-center gap-2 px-4 py-3 bg-foreground text-background shadow-2xl">
+            <div className="flex items-center gap-2 bg-foreground px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] text-background shadow-2xl">
               <button
                 onClick={() => setCartOpen((v) => !v)}
                 className="flex items-center gap-2 flex-1 min-w-0 text-background"

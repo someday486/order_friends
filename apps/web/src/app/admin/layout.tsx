@@ -1,27 +1,31 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { useState } from "react";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { useState } from 'react';
 
 const menuItems = [
-  { href: "/admin", label: "홈", icon: "🏠" },
-  { href: "/admin/orders", label: "주문 관리", icon: "📋" },
-  { href: "/admin/order", label: "주문 바로가기", icon: "🧾" },
-  { href: "/admin/products", label: "상품 관리", icon: "📦" },
-  { href: "/admin/stores", label: "가게 관리", icon: "🏪" },
-  { href: "/admin/brand", label: "브랜드 관리", icon: "🏢" },
-  { href: "/admin/members", label: "권한 관리", icon: "👥" },
+  { href: '/admin', label: '홈', icon: '🏠' },
+  { href: '/admin/orders', label: '주문 관리', icon: '📋' },
+  { href: '/admin/order', label: '주문 바로가기', icon: '🧾' },
+  { href: '/admin/products', label: '상품 관리', icon: '📦' },
+  { href: '/admin/stores', label: '가게 관리', icon: '🏪' },
+  { href: '/admin/brand', label: '브랜드 관리', icon: '🏢' },
+  { href: '/admin/members', label: '권한 관리', icon: '👥' },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
+    if (href === '/admin') return pathname === '/admin';
     return pathname?.startsWith(href);
   };
 
@@ -29,7 +33,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">
       {/* Mobile Header */}
       <div className="md:hidden sticky top-0 z-40 bg-bg-secondary border-b border-border px-4 py-3 flex items-center justify-between">
-        <Link href="/admin" className="no-underline text-foreground font-extrabold text-base">
+        <Link
+          href="/admin"
+          className="no-underline text-foreground font-extrabold text-base"
+        >
           🍽️ OrderFriends
         </Link>
         <button
@@ -37,7 +44,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="w-10 h-10 flex items-center justify-center rounded border border-border bg-transparent text-foreground cursor-pointer hover:bg-bg-tertiary transition-colors"
           aria-label="메뉴 열기"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M3 5h14M3 10h14M3 15h14" />
           </svg>
         </button>
@@ -54,10 +68,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside
         className={`
-          fixed md:sticky top-0 left-0 z-50 h-screen w-[240px]
+          fixed md:sticky top-0 left-0 z-50 h-[100dvh] md:h-screen w-[240px]
           border-r border-border bg-bg-secondary flex flex-col
           transition-transform duration-200 ease-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
         {/* Logo */}
@@ -76,7 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto p-3 flex flex-col gap-1">
           {menuItems.map((item) => (
             <Link
               key={item.href}
@@ -87,8 +101,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 transition-all duration-150 touch-feedback
                 ${
                   isActive(item.href)
-                    ? "bg-bg-tertiary border border-border text-foreground font-semibold"
-                    : "border border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-foreground"
+                    ? 'bg-bg-tertiary border border-border text-foreground font-semibold'
+                    : 'border border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-foreground'
                 }
               `}
             >
@@ -99,7 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* User / Logout */}
-        <div className="p-3 border-t border-border">
+        <div className="border-t border-border p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:pb-3">
           {user && (
             <div className="text-xs text-text-tertiary mb-2 overflow-hidden text-ellipsis">
               {user.email}

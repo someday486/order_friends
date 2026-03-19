@@ -3005,7 +3005,7 @@ export class PublicOrderService {
     };
 
     let { data, error } = await queryOrder(sb);
-    if (!data && this.isUuid(orderIdOrNo)) {
+    if (!data) {
       for (let attempt = 0; attempt < adminRetryCount; attempt += 1) {
         const adminResult = await queryOrder(adminSb);
         if (adminResult.data || adminResult.error) {

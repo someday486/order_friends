@@ -907,6 +907,9 @@ describe('PublicOrderService - Branch Coverage', () => {
     anonChains.orders.maybeSingle
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null });
+    adminChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
 
     await expect(service.getOrder('missing')).rejects.toBeInstanceOf(
       NotFoundException,

@@ -58,6 +58,7 @@ const FULFILLMENT_OPTIONS: {
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
   { value: "DINE_IN", label: "매장" },
+  { value: "SHIPPING", label: "택배" },
 ];
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -87,6 +88,7 @@ const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
+  SHIPPING: "택배",
 };
 
 const FULFILLMENT_VARIANT: Record<
@@ -96,6 +98,7 @@ const FULFILLMENT_VARIANT: Record<
   PICKUP: "info",
   DELIVERY: "warning",
   DINE_IN: "default",
+  SHIPPING: "success",
 };
 
 function formatWon(amount: number) {

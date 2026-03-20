@@ -448,7 +448,7 @@ export class NotificationsService {
     data: OrderCompletionKakaoData,
   ): Record<string, string> {
     const deliveryAddress =
-      data.fulfillmentType === 'DELIVERY'
+      data.fulfillmentType === 'DELIVERY' || data.fulfillmentType === 'SHIPPING'
         ? data.deliveryAddress?.trim() || '-'
         : '매장 수령';
     const orderReference = data.orderNo || '주문';
@@ -527,6 +527,8 @@ export class NotificationsService {
         return '배달';
       case 'DINE_IN':
         return '매장식사';
+      case 'SHIPPING':
+        return '택배';
       case 'PICKUP':
       default:
         return '포장';

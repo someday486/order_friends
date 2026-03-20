@@ -2363,6 +2363,13 @@ export class PublicOrderService {
     }
 
     const fulfillmentType = requestedFulfillmentType as FulfillmentType;
+    if (
+      (fulfillmentType === FulfillmentType.DELIVERY ||
+        fulfillmentType === FulfillmentType.SHIPPING) &&
+      !this.normalizeOptional(dto.customerAddress1)
+    ) {
+      throw new BadRequestException('배송 주문은 주소를 입력해야 합니다.');
+    }
     // TODO: persist requestedTime after the orders schema adds requested_time.
     const requestedTime =
       fulfillmentType === FulfillmentType.PICKUP

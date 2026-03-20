@@ -9,7 +9,7 @@ import { apiClient } from '@/lib/api-client';
 import { loadLastOrderRecord } from '@/lib/order-session';
 
 type PaymentMethod = 'CARD' | 'TRANSFER' | 'CASH';
-type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 
 type TransferAccountInfo = {
   bankName?: string | null;
@@ -70,7 +70,12 @@ function isPaymentMethod(value: unknown): value is PaymentMethod {
 }
 
 function isFulfillmentType(value: unknown): value is FulfillmentType {
-  return value === 'PICKUP' || value === 'DELIVERY' || value === 'DINE_IN';
+  return (
+    value === 'PICKUP' ||
+    value === 'DELIVERY' ||
+    value === 'DINE_IN' ||
+    value === 'SHIPPING'
+  );
 }
 
 function toText(value: unknown): string | null {
@@ -256,6 +261,7 @@ function paymentMethodLabel(method: PaymentMethod | null): string {
 function fulfillmentTypeLabel(type: FulfillmentType | null): string {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
+  if (type === 'SHIPPING') return '택배';
   if (type === 'DINE_IN') return '매장';
   return '-';
 }

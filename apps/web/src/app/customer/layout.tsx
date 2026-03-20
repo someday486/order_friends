@@ -78,16 +78,16 @@ const menuSections: MenuSection[] = [
     title: '상품',
     items: [
       {
-        href: '/customer/products',
-        label: '상품관리',
-        icon: ProductIcon,
-        allowedRoles: ['system_admin', 'brand_owner', 'branch_manager'],
-      },
-      {
         href: '/customer/categories',
         label: '카테고리',
         icon: TagIcon,
         allowedRoles: ['system_admin', 'brand_owner'],
+      },
+      {
+        href: '/customer/products',
+        label: '상품관리',
+        icon: ProductIcon,
+        allowedRoles: ['system_admin', 'brand_owner', 'branch_manager'],
       },
       {
         href: '/customer/inventory',

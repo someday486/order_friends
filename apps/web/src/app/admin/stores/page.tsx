@@ -249,11 +249,13 @@ export default function StoresPage() {
           onSubmit={async ({
             name,
             slug,
+            enabledFulfillmentTypes,
             allowedPaymentMethods,
             transferAccount,
             pickupTimeConfig,
           }) => {
             if (!name.trim() || !slug.trim()) return;
+            if (enabledFulfillmentTypes.length === 0) return;
             if (allowedPaymentMethods.length === 0) return;
 
             try {
@@ -263,6 +265,7 @@ export default function StoresPage() {
                 brandId,
                 name,
                 slug,
+                enabledFulfillmentTypes,
                 allowedPaymentMethods,
                 transferAccount,
                 pickupTimeConfig,

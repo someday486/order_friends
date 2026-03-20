@@ -32,7 +32,7 @@ import {
 } from '@/lib/pickup-time';
 import { appendEuroRo } from '@/lib/korean-particles';
 
-type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 type PaymentMethod = 'CARD' | 'TRANSFER' | 'CASH';
 
 type ProductOption = {
@@ -87,7 +87,12 @@ const DEFAULT_FULFILLMENT_TYPES: FulfillmentType[] = ['PICKUP'];
 const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['CARD', 'TRANSFER', 'CASH'];
 
 function isFulfillmentType(value: unknown): value is FulfillmentType {
-  return value === 'PICKUP' || value === 'DELIVERY' || value === 'DINE_IN';
+  return (
+    value === 'PICKUP' ||
+    value === 'DELIVERY' ||
+    value === 'DINE_IN' ||
+    value === 'SHIPPING'
+  );
 }
 
 function isPaymentMethod(value: unknown): value is PaymentMethod {
@@ -97,12 +102,14 @@ function isPaymentMethod(value: unknown): value is PaymentMethod {
 function getFulfillmentLabel(type: FulfillmentType) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
+  if (type === 'SHIPPING') return '택배';
   return '매장';
 }
 
 function getFulfillmentIcon(type: FulfillmentType) {
   if (type === 'PICKUP') return '🛍️';
   if (type === 'DELIVERY') return '🛵';
+  if (type === 'SHIPPING') return '📦';
   return '🪑';
 }
 
@@ -478,8 +485,11 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (fulfillmentType === 'DELIVERY' && !customerAddress1.trim()) {
-      toast.error('배달 주문은 주소가 필요합니다.');
+    if (
+      (fulfillmentType === 'DELIVERY' || fulfillmentType === 'SHIPPING') &&
+      !customerAddress1.trim()
+    ) {
+      toast.error('배송 주문은 주소가 필요합니다.');
       return;
     }
 
@@ -880,10 +890,12 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {fulfillmentType === 'DELIVERY' && (
+            {(fulfillmentType === 'DELIVERY' ||
+              fulfillmentType === 'SHIPPING') && (
               <div className="animate-fade-in">
                 <label className="block text-xs font-semibold text-text-secondary mb-1.5">
-                  배달 주소 <span className="text-danger-500">*</span>
+                  {fulfillmentType === 'SHIPPING' ? '배송 주소' : '배달 주소'}{' '}
+                  <span className="text-danger-500">*</span>
                 </label>
                 <input
                   type="text"

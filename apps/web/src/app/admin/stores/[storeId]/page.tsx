@@ -9,7 +9,7 @@ import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
 
 type Branch = {
@@ -46,13 +46,14 @@ type BranchMember = {
   status: string;
 };
 
-const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN"];
+const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
+  SHIPPING: "택배",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {

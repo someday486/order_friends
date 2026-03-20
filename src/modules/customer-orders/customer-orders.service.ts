@@ -220,7 +220,7 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
-    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING',
     dateStart?: string,
     dateEnd?: string,
   ) {

@@ -13,6 +13,7 @@ export enum BranchFulfillmentType {
   PICKUP = 'PICKUP',
   DELIVERY = 'DELIVERY',
   DINE_IN = 'DINE_IN',
+  SHIPPING = 'SHIPPING',
 }
 
 export enum BranchPaymentMethod {

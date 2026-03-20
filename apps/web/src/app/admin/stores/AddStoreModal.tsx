@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 
 type TransferAccountInput = {
   bankName: string;
@@ -24,6 +25,7 @@ type Props = {
   onSubmit: (payload: {
     name: string;
     slug: string;
+    enabledFulfillmentTypes: FulfillmentType[];
     allowedPaymentMethods: PaymentMethod[];
     transferAccount: TransferAccountInput;
     pickupTimeConfig: PickupTimeConfigInput;
@@ -35,6 +37,13 @@ const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
   { value: "CARD", label: "카드" },
   { value: "TRANSFER", label: "계좌이체" },
   { value: "CASH", label: "현금" },
+];
+
+const FULFILLMENT_OPTIONS: Array<{ value: FulfillmentType; label: string }> = [
+  { value: "PICKUP", label: "포장" },
+  { value: "DELIVERY", label: "배달" },
+  { value: "DINE_IN", label: "매장" },
+  { value: "SHIPPING", label: "택배" },
 ];
 
 function normalizeSlug(v: string) {
@@ -55,6 +64,9 @@ function timeToMinutes(value: string) {
 export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding }: Props) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<
+    FulfillmentType[]
+  >(["PICKUP"]);
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>([
     "CARD",
     "TRANSFER",
@@ -67,6 +79,15 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [pickupEndTime, setPickupEndTime] = useState("");
 
   const isTransferEnabled = allowedPaymentMethods.includes("TRANSFER");
+
+  const toggleFulfillmentType = (type: FulfillmentType) => {
+    setEnabledFulfillmentTypes((prev) => {
+      if (prev.includes(type)) {
+        return prev.filter((item) => item !== type);
+      }
+      return [...prev, type];
+    });
+  };
 
   const togglePaymentMethod = (method: PaymentMethod) => {
     setAllowedPaymentMethods((prev) => {
@@ -84,6 +105,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
           !brandId ||
           !name.trim() ||
           !slug.trim() ||
+          enabledFulfillmentTypes.length === 0 ||
           allowedPaymentMethods.length === 0 ||
           (isTransferEnabled &&
             (!bankName.trim() ||
@@ -99,6 +121,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       accountHolder,
       accountNumber,
       adding,
+      enabledFulfillmentTypes.length,
       allowedPaymentMethods.length,
       bankName,
       brandId,
@@ -130,6 +153,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
               onSubmit({
                 name,
                 slug,
+                enabledFulfillmentTypes,
                 allowedPaymentMethods,
                 transferAccount: {
                   bankName: bankName.trim(),
@@ -175,6 +199,29 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
             value={slug}
             onChange={(e) => setSlug(normalizeSlug(e.target.value))}
           />
+        </div>
+
+        <div className="mt-3">
+          <label className="block text-xs text-text-secondary mb-1.5">주문방식 노출</label>
+          <div className="flex flex-wrap gap-2">
+            {FULFILLMENT_OPTIONS.map((option) => {
+              const checked = enabledFulfillmentTypes.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggleFulfillmentType(option.value)}
+                  className={`h-9 px-3 rounded-lg border text-xs font-semibold transition-colors ${
+                    checked
+                      ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                      : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="mt-3">

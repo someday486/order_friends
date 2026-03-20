@@ -103,6 +103,7 @@ const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
     { value: 'PICKUP', label: '포장' },
     { value: 'DELIVERY', label: '배달' },
     { value: 'DINE_IN', label: '매장' },
+    { value: 'SHIPPING', label: '택배' },
   ];
 
 // Outlined style: subordinate visual weight compared to status badges
@@ -110,6 +111,7 @@ const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
   PICKUP:   'border border-sky-400/70 text-sky-600',
   DELIVERY: 'border border-orange-400/70 text-orange-600',
   DINE_IN:  'border border-neutral-400/70 text-neutral-500',
+  SHIPPING: 'border border-violet-400/70 text-violet-600',
 };
 
 type AutoRefreshMode = 'FAST' | 'DEFAULT' | 'SAVE';

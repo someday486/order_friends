@@ -191,6 +191,7 @@ export enum FulfillmentType {
   PICKUP = 'PICKUP',
   DELIVERY = 'DELIVERY',
   DINE_IN = 'DINE_IN',
+  SHIPPING = 'SHIPPING',
 }
 
 export class CreatePublicOrderRequest {

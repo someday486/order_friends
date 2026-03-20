@@ -76,6 +76,7 @@ const fulfillmentLabel: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
+  SHIPPING: "택배",
 };
 
 function formatWon(amount: number) {

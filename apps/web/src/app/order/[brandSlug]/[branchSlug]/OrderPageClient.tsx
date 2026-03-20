@@ -331,7 +331,7 @@ export default function OrderPageClient({
         {/* Header */}
         <header className="sticky top-0 z-30 bg-background border-b border-border">
           {branch?.coverImageUrl && (
-            <div className="h-32 -mb-4 relative">
+            <div className="relative z-0 h-32 -mb-4 overflow-hidden">
               <Image
                 src={branch.coverImageUrl}
                 alt=""
@@ -344,14 +344,14 @@ export default function OrderPageClient({
             </div>
           )}
 
-          <div className="px-4 py-3 flex items-center gap-3">
+          <div className="relative z-10 px-4 py-3 flex items-center gap-3">
             {branch?.logoUrl ? (
               <Image
                 src={branch.logoUrl}
                 alt={branch?.name || ''}
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded-full object-cover border border-border"
+                width={48}
+                height={48}
+                className="w-12 h-12 rounded-full object-cover border border-border"
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-bg-tertiary flex items-center justify-center text-lg">

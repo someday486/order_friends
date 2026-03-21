@@ -43,6 +43,13 @@ interface WebhookPaymentRecord {
   refund_amount: number;
 }
 
+interface CancellationPaymentRecord {
+  id: string;
+  status: string;
+  amount: number | null;
+  refund_amount: number | null;
+}
+
 /** Minimal payment row returned by payments list query */
 interface PaymentListRow {
   id: string;
@@ -1052,6 +1059,109 @@ export class PaymentsService {
       refundAmount: newRefundAmount,
       refundedAt,
     };
+  }
+
+  async refundOrderPaymentForCancellation(
+    orderIdOrNo: string,
+    branchId: string,
+    reason = '주문 취소로 인한 자동 환불',
+  ): Promise<void> {
+    const sb = this.supabase.adminClient();
+
+    const resolvedId = await this.resolveOrderId(sb, orderIdOrNo, branchId);
+    if (!resolvedId) {
+      throw new OrderNotFoundException(orderIdOrNo);
+    }
+
+    const { data: order, error: orderError } = await sb
+      .from('orders')
+      .select('id, branch_id, payment_status')
+      .eq('id', resolvedId)
+      .eq('branch_id', branchId)
+      .maybeSingle();
+
+    if (orderError) {
+      this.logger.error(
+        'Failed to fetch order for cancellation refund',
+        orderError,
+      );
+      throw new BusinessException(
+        'Failed to fetch order for refund',
+        'ORDER_FETCH_FAILED',
+        500,
+        { orderId: resolvedId, branchId, error: orderError.message },
+      );
+    }
+
+    if (!order) {
+      throw new OrderNotFoundException(orderIdOrNo);
+    }
+
+    if (
+      !order.payment_status ||
+      order.payment_status === 'PENDING' ||
+      order.payment_status === 'FAILED'
+    ) {
+      return;
+    }
+
+    const { data: payment, error: paymentError } = await sb
+      .from('payments')
+      .select('id, status, amount, refund_amount')
+      .eq('order_id', resolvedId)
+      .maybeSingle();
+
+    if (paymentError) {
+      this.logger.error(
+        'Failed to fetch payment for cancellation refund',
+        paymentError,
+      );
+      throw new BusinessException(
+        'Failed to fetch payment',
+        'PAYMENT_FETCH_FAILED',
+        500,
+        { orderId: resolvedId, branchId, error: paymentError.message },
+      );
+    }
+
+    if (!payment) {
+      throw new BusinessException(
+        'Paid order is missing payment record',
+        'PAYMENT_RECORD_MISSING',
+        500,
+        { orderId: resolvedId, branchId, paymentStatus: order.payment_status },
+      );
+    }
+
+    const paymentRecord = payment as CancellationPaymentRecord;
+
+    if (
+      paymentRecord.status === PaymentStatus.CANCELLED ||
+      paymentRecord.status === PaymentStatus.REFUNDED
+    ) {
+      return;
+    }
+
+    if (
+      paymentRecord.status !== PaymentStatus.SUCCESS &&
+      paymentRecord.status !== PaymentStatus.PARTIAL_REFUNDED
+    ) {
+      throw new RefundNotAllowedException(
+        `Payment status is ${paymentRecord.status}`,
+      );
+    }
+
+    const refundAmount =
+      (paymentRecord.amount ?? 0) - (paymentRecord.refund_amount ?? 0);
+
+    if (refundAmount <= 0) {
+      return;
+    }
+
+    await this.refundPayment(paymentRecord.id, branchId, {
+      reason,
+      amount: refundAmount,
+    });
   }
 
   /**

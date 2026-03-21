@@ -11,12 +11,93 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
+
+  private async releaseInventoryForCancelledOrder(
+    sb: any,
+    orderId: string,
+    branchId: string,
+    orderNo: string | null,
+  ) {
+    try {
+      const { data: orderItems } = await sb
+        .from('order_items')
+        .select('product_id, qty')
+        .eq('order_id', orderId);
+
+      if (!orderItems || orderItems.length === 0) {
+        return;
+      }
+
+      const productIds = orderItems.map((item: any) => item.product_id);
+      const { data: inventories } = await sb
+        .from('product_inventory')
+        .select('product_id, qty_available, qty_reserved')
+        .in('product_id', productIds)
+        .eq('branch_id', branchId);
+
+      const inventoryMap = new Map<string, any>(
+        inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
+      );
+
+      const updatePromises: PromiseLike<any>[] = [];
+      const logRows: any[] = [];
+
+      for (const item of orderItems) {
+        const inventory = inventoryMap.get(item.product_id) as
+          | { qty_available: number; qty_reserved: number }
+          | undefined;
+        if (!inventory) continue;
+
+        updatePromises.push(
+          sb
+            .from('product_inventory')
+            .update({
+              qty_available: inventory.qty_available + item.qty,
+              qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+            })
+            .eq('product_id', item.product_id)
+            .eq('branch_id', branchId),
+        );
+
+        logRows.push({
+          product_id: item.product_id,
+          branch_id: branchId,
+          transaction_type: 'RELEASE',
+          qty_change: item.qty,
+          qty_before: inventory.qty_available,
+          qty_after: inventory.qty_available + item.qty,
+          reference_id: orderId,
+          reference_type: 'ORDER',
+          notes: `주문 취소로 인한 재고 복구 (주문번호: ${orderNo ?? '-'})`,
+        });
+      }
+
+      await Promise.all([
+        ...updatePromises,
+        logRows.length > 0
+          ? sb.from('inventory_logs').insert(logRows)
+          : Promise.resolve(),
+      ]);
+
+      this.logger.log(`Inventory released for cancelled order: ${orderNo}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to release inventory for cancelled order ${orderId}`,
+        error,
+      );
+      // Don't throw - cancellation should remain effective even if inventory sync fails
+    }
+  }
 
   private isUuid(v: string) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -229,6 +310,13 @@ export class OrdersService {
       throw new OrderNotFoundException(orderId);
     }
 
+    if (status === OrderStatus.CANCELLED) {
+      await this.paymentsService.refundOrderPaymentForCancellation(
+        resolvedId,
+        branchId,
+      );
+    }
+
     const { data, error } = await sb
       .from('orders')
       .update({ status })
@@ -254,81 +342,13 @@ export class OrdersService {
       throw new OrderNotFoundException(orderId);
     }
 
-    // ============================================================
-    // Handle inventory release for cancelled orders
-    // ============================================================
     if (status === 'CANCELLED') {
-      try {
-        // Get order items to release inventory
-        const { data: orderItems } = await sb
-          .from('order_items')
-          .select('product_id, qty')
-          .eq('order_id', resolvedId);
-
-        if (orderItems && orderItems.length > 0) {
-          // Get current inventory for these products
-          const productIds = orderItems.map((item: any) => item.product_id);
-          const { data: inventories } = await sb
-            .from('product_inventory')
-            .select('product_id, qty_available, qty_reserved')
-            .in('product_id', productIds)
-            .eq('branch_id', branchId);
-
-          const inventoryMap = new Map(
-            inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
-          );
-
-          // 재고 업데이트 및 로그 삽입을 병렬 처리
-          const updatePromises: PromiseLike<any>[] = [];
-          const logRows: any[] = [];
-
-          for (const item of orderItems) {
-            const inventory = inventoryMap.get(item.product_id);
-            if (!inventory) continue;
-
-            updatePromises.push(
-              sb
-                .from('product_inventory')
-                .update({
-                  qty_available: inventory.qty_available + item.qty,
-                  qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
-                })
-                .eq('product_id', item.product_id)
-                .eq('branch_id', branchId),
-            );
-
-            logRows.push({
-              product_id: item.product_id,
-              branch_id: branchId,
-              transaction_type: 'RELEASE',
-              qty_change: item.qty,
-              qty_before: inventory.qty_available,
-              qty_after: inventory.qty_available + item.qty,
-              reference_id: resolvedId,
-              reference_type: 'ORDER',
-              notes: `주문 취소로 인한 재고 복구 (주문번호: ${data.order_no})`,
-            });
-          }
-
-          // 재고 업데이트 병렬 실행 + 로그 일괄 삽입
-          await Promise.all([
-            ...updatePromises,
-            logRows.length > 0
-              ? sb.from('inventory_logs').insert(logRows)
-              : Promise.resolve(),
-          ]);
-
-          this.logger.log(
-            `Inventory released for cancelled order: ${data.order_no}`,
-          );
-        }
-      } catch (error) {
-        this.logger.error(
-          `Failed to release inventory for cancelled order ${resolvedId}`,
-          error,
-        );
-        // Don't throw - order is already cancelled, just log the error
-      }
+      await this.releaseInventoryForCancelledOrder(
+        sb,
+        resolvedId,
+        branchId,
+        data.order_no ?? null,
+      );
     }
 
     this.logger.log(

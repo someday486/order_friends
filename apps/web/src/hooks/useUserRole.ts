@@ -26,6 +26,7 @@ export interface UserData {
     id: string;
     name: string;
   }>;
+  canCreateBrand?: boolean;
 }
 
 let cachedUserId: string | null = null;

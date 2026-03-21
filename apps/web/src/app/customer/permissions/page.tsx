@@ -722,7 +722,7 @@ export default function PermissionsPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3 mb-4">
-        <div className="flex-1 min-w-[140px]">
+        <div className="w-full min-w-0 sm:flex-1 sm:min-w-[140px]">
           <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
             브랜드
           </label>
@@ -742,7 +742,7 @@ export default function PermissionsPage() {
           </select>
         </div>
 
-        <div className="flex-1 min-w-[140px]">
+        <div className="w-full min-w-0 sm:flex-1 sm:min-w-[140px]">
           <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
             매장
           </label>
@@ -761,7 +761,7 @@ export default function PermissionsPage() {
           </select>
         </div>
 
-        <div className="flex-1 min-w-[130px]">
+        <div className="w-full min-w-0 sm:flex-1 sm:min-w-[130px]">
           <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
             역할
           </label>
@@ -777,7 +777,7 @@ export default function PermissionsPage() {
           </select>
         </div>
 
-        <div className="w-52">
+        <div className="w-full sm:w-52">
           <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
             검색
           </label>
@@ -802,11 +802,11 @@ export default function PermissionsPage() {
           </div>
         </div>
 
-        <div className="flex items-end">
+        <div className="flex items-end w-full sm:w-auto">
           <button
             type="button"
             onClick={handleReset}
-            className="h-9 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+            className="h-9 px-4 rounded-lg border border-border bg-bg-secondary text-sm font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer w-full sm:w-auto"
           >
             초기화
           </button>
@@ -1322,8 +1322,6 @@ function HistoryModal({
   items,
   onClose,
 }: HistoryModalProps) {
-  if (!open) return null;
-
   const [actionFilter, setActionFilter] = useState<MemberHistoryFilter>('ALL');
   const [keyword, setKeyword] = useState('');
 
@@ -1375,6 +1373,8 @@ function HistoryModal({
 
     return groups;
   }, [filteredItems]);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">

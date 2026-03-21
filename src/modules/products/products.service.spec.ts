@@ -76,6 +76,8 @@ describe('ProductsService', () => {
       expect(result[0]).toEqual({
         id: '123',
         name: 'Test Product',
+        description: null,
+        categoryId: null,
         price: 10000,
         isActive: true,
         sortOrder: 0,
@@ -102,6 +104,8 @@ describe('ProductsService', () => {
 
       const result = await service.getProducts('token', 'branch-123', true);
       expect(result[0].price).toBe(5);
+      expect(result[0].description).toBeNull();
+      expect(result[0].categoryId).toBeNull();
       expect(result[1].price).toBe(7);
       expect(result[1].isActive).toBe(false);
     });
@@ -147,6 +151,8 @@ describe('ProductsService', () => {
 
       const result = await service.getProducts('token', 'branch-123', true);
       expect(result[0].price).toBe(0);
+      expect(result[0].description).toBeNull();
+      expect(result[0].categoryId).toBeNull();
       expect(result[0].isActive).toBe(true);
       expect(result[0].createdAt).toBe('');
     });
@@ -248,6 +254,8 @@ describe('ProductsService', () => {
         true,
       );
       expect(result.data).toHaveLength(1);
+      expect(result.data[0].description).toBeNull();
+      expect(result.data[0].categoryId).toBeNull();
       expect(result.pagination.total).toBe(1);
     });
 

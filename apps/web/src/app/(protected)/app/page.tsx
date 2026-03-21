@@ -1,30 +1,9 @@
 'use client';
 
-import { apiClient } from '@/lib/api-client';
+import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-
-type MeResponse = {
-  user: {
-    id: string;
-    email?: string;
-    role: string;
-  };
-  memberships: unknown[];
-  ownedBrands: unknown[];
-  isSystemAdmin?: boolean;
-};
-
-function isMembershipPendingError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes('401') ||
-    message.includes('403') ||
-    message.includes('No active brand or branch memberships found') ||
-    message.includes('Admin users cannot access customer area')
-  );
-}
 
 export default function AppPage() {
   const router = useRouter();
@@ -39,29 +18,13 @@ export default function AppPage() {
     const resolveDestination = async () => {
       try {
         setErrorMsg(null);
-        const me = await apiClient.get<MeResponse>('/me');
+        const destination = await resolveAuthenticatedDestination();
         if (cancelled) return;
 
-        if (me.isSystemAdmin || me.user.role === 'system_admin') {
-          router.replace('/admin');
-          router.refresh();
-          return;
-        }
-
-        const hasActiveAccess =
-          me.memberships.length > 0 || me.ownedBrands.length > 0;
-
-        router.replace(hasActiveAccess ? '/customer' : '/approval-pending');
+        router.replace(destination);
         router.refresh();
       } catch (error) {
         if (cancelled) return;
-
-        if (isMembershipPendingError(error)) {
-          router.replace('/approval-pending');
-          router.refresh();
-          return;
-        }
-
         setErrorMsg(
           error instanceof Error
             ? error.message

@@ -5,6 +5,7 @@ import {
   IsArray,
   IsEnum,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -44,6 +45,59 @@ export class PickupTimeConfigRequest {
   @Matches(/^([01]\d|2[0-3]):(00|30)$/)
   @IsOptional()
   endTime?: string;
+}
+
+export class BusinessHourDayRequest {
+  @IsBoolean()
+  @IsOptional()
+  isOpen?: boolean;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  openTime?: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  closeTime?: string;
+}
+
+export class WeeklyBusinessHoursRequest {
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  monday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  tuesday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  wednesday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  thursday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  friday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  saturday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  sunday?: BusinessHourDayRequest;
 }
 
 export class CreateBranchRequest {
@@ -90,6 +144,11 @@ export class CreateBranchRequest {
   @Type(() => PickupTimeConfigRequest)
   @IsOptional()
   pickupTimeConfig?: PickupTimeConfigRequest;
+
+  @ValidateNested()
+  @Type(() => WeeklyBusinessHoursRequest)
+  @IsOptional()
+  businessHours?: WeeklyBusinessHoursRequest;
 
   @IsString()
   @IsOptional()
@@ -139,6 +198,11 @@ export class UpdateBranchRequest {
   @Type(() => PickupTimeConfigRequest)
   @IsOptional()
   pickupTimeConfig?: PickupTimeConfigRequest;
+
+  @ValidateNested()
+  @Type(() => WeeklyBusinessHoursRequest)
+  @IsOptional()
+  businessHours?: WeeklyBusinessHoursRequest;
 
   @IsString()
   @IsOptional()

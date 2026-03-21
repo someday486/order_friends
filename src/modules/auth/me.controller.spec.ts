@@ -100,6 +100,7 @@ describe('MeController', () => {
       memberships: [],
       ownedBrands: [],
       isSystemAdmin: true,
+      canCreateBrand: false,
     });
     expect(mockSb.from).toHaveBeenCalledWith('profiles');
   });
@@ -142,6 +143,7 @@ describe('MeController', () => {
 
     expect(result.isSystemAdmin).toBe(true);
     expect(result.user.role).toBe('system_admin');
+    expect(result.canCreateBrand).toBe(false);
   });
 
   it('should return profile display name from profiles table', async () => {
@@ -215,6 +217,7 @@ describe('MeController', () => {
     ]);
     expect(result.ownedBrands).toEqual([{ id: 'b1', name: 'Brand' }]);
     expect(result.isSystemAdmin).toBe(false);
+    expect(result.canCreateBrand).toBe(false);
   });
 
   it('should treat brand admins as brand owners for primary role routing', async () => {
@@ -401,6 +404,42 @@ describe('MeController', () => {
 
     expect(result.user.role).toBe('customer');
     expect(result.isSystemAdmin).toBe(false);
+    expect(result.canCreateBrand).toBe(false);
+  });
+
+  it('should return canCreateBrand flag from authenticated user', async () => {
+    profilesChain.maybeSingle.mockResolvedValueOnce({
+      data: { is_system_admin: false },
+      error: null,
+    });
+
+    brandMembersChain.eq
+      .mockReturnValueOnce(brandMembersChain)
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+    branchMembersChain.eq
+      .mockReturnValueOnce(branchMembersChain)
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+    brandsChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await controller.me({
+      id: 'user-1',
+      email: 'user@test.com',
+      canCreateBrand: true,
+    } as any);
+
+    expect(result.user.role).toBe('customer');
+    expect(result.canCreateBrand).toBe(true);
   });
 
   it('should propagate errors from supabase client creation', async () => {

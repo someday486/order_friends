@@ -175,13 +175,11 @@ function InventoryHistoryModal({
 }) {
   const [filter, setFilter] = useState<string>("ALL");
   const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    if (!open) {
-      setFilter("ALL");
-      setSearch("");
-    }
-  }, [open]);
+  const handleClose = () => {
+    setFilter("ALL");
+    setSearch("");
+    onClose();
+  };
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -235,7 +233,7 @@ function InventoryHistoryModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-bg-secondary text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -875,7 +873,7 @@ export default function CustomerInventoryPage() {
         <div className="flex flex-wrap items-end gap-3">
 
           {/* 브랜드 */}
-          <div className="flex-1 min-w-[160px]">
+          <div className="w-full min-w-0 sm:flex-1 sm:min-w-[160px]">
             <label className="block text-xs text-text-secondary mb-1.5 font-semibold">브랜드</label>
             <select
               value={selectedBrandId}
@@ -892,7 +890,7 @@ export default function CustomerInventoryPage() {
           {selectedBrandId && (
             <>
               {/* 판매채널 토글 */}
-              <div className="flex-1 min-w-[160px]">
+              <div className="w-full min-w-0 sm:flex-1 sm:min-w-[160px]">
                 <label className="block text-xs text-text-secondary mb-1.5 font-semibold">판매채널</label>
                 <button
                   type="button"
@@ -910,7 +908,7 @@ export default function CustomerInventoryPage() {
               </div>
 
               {/* 카테고리 */}
-              <div className="flex-1 min-w-[150px]">
+              <div className="w-full min-w-0 sm:flex-1 sm:min-w-[150px]">
                 <label className="block text-xs text-text-secondary mb-1.5 font-semibold">카테고리</label>
                 <select
                   value={categoryFilter}
@@ -931,7 +929,7 @@ export default function CustomerInventoryPage() {
               </div>
 
               {/* 검색 */}
-              <div className="w-64">
+              <div className="w-full lg:w-64">
                 <label className="block text-xs text-text-secondary mb-1.5 font-semibold">검색</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
@@ -960,7 +958,7 @@ export default function CustomerInventoryPage() {
               </div>
 
               {/* 총 개수 */}
-              <div className="flex items-center h-9">
+              <div className="flex items-center h-9 w-full sm:w-auto">
                 <span className="text-sm text-text-secondary whitespace-nowrap">
                   총 {searchedInventory.length}개
                 </span>

@@ -126,6 +126,7 @@ test.describe('Admin/Customer URL display', () => {
             brandId: 'brand-1',
             name: 'Gangnam Main',
             slug: 'gangnam-main',
+            logoUrl: '/branch-logo.png',
             myRole: 'OWNER',
             createdAt: '2026-02-16T00:00:00.000Z',
           },
@@ -138,6 +139,7 @@ test.describe('Admin/Customer URL display', () => {
     await expect(
       page.getByText('/order/test-cafe-chain/gangnam-main'),
     ).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Gangnam Main' })).toBeVisible();
   });
 
   test('customer orders page does not throw useRouter reference error', async ({

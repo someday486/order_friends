@@ -3,6 +3,7 @@ import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Public Queries', () => {
   let service: PublicOrderService;
@@ -46,6 +47,11 @@ describe('PublicOrderService - Public Queries', () => {
       supabase as SupabaseService,
       {} as InventoryService,
       { earnStamps: jest.fn().mockResolvedValue(undefined) } as StampsService,
+      {
+        sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+          success: true,
+        }),
+      } as unknown as NotificationsService,
     );
   });
 
@@ -308,6 +314,9 @@ describe('PublicOrderService - Public Queries', () => {
     anonChains.orders.maybeSingle
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null });
+    adminChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
 
     await expect(service.getOrder('missing')).rejects.toThrow(
       NotFoundException,
@@ -335,6 +344,30 @@ describe('PublicOrderService - Public Queries', () => {
       'e693332e-bedd-458b-bc4e-ac9ee1475ea1',
     );
     expect(result.id).toBe('e693332e-bedd-458b-bc4e-ac9ee1475ea1');
+  });
+
+  it('getOrder should fallback to admin query when order number is not visible to anon', async () => {
+    anonChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    adminChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o-admin-by-no',
+          order_no: 'ORD-ADMIN-1',
+          status: 'CREATED',
+          total_amount: 12,
+          created_at: 't',
+          order_items: [],
+        },
+        error: null,
+      });
+
+    const result = await service.getOrder('ORD-ADMIN-1');
+    expect(result.id).toBe('o-admin-by-no');
+    expect(result.orderNo).toBe('ORD-ADMIN-1');
   });
 
   it('getCategories should return sorted categories', async () => {

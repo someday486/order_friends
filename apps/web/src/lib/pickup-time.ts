@@ -1,3 +1,10 @@
+import {
+  BUSINESS_HOUR_DAY_KEYS,
+  getBusinessHoursForDay,
+  type BusinessHourDayKey,
+  type WeeklyBusinessHours,
+} from '@/lib/business-hours';
+
 export type PickupTimeConfig =
   | {
       startTime?: string | null;
@@ -17,7 +24,7 @@ export type PickupDateOption = {
 };
 
 const HALF_HOUR_MINUTES = 30;
-const DEFAULT_SLOT_DAYS = 7;
+const DEFAULT_SLOT_DAYS = 14;
 
 export const HALF_HOUR_TIME_OF_DAY_OPTIONS: PickupTimeOption[] = Array.from(
   { length: (24 * 60) / HALF_HOUR_MINUTES },
@@ -56,8 +63,25 @@ function roundUpToHalfHour(date: Date): Date {
   return rounded;
 }
 
-export function hasPickupTimeConfig(config: PickupTimeConfig): boolean {
-  return Boolean(config?.startTime && config?.endTime);
+export function hasPickupTimeConfig(
+  config: PickupTimeConfig,
+  businessHours?: WeeklyBusinessHours,
+): boolean {
+  return (
+    Boolean(config?.startTime && config?.endTime) ||
+    hasBusinessHoursConfig(businessHours)
+  );
+}
+
+function hasBusinessHoursConfig(businessHours?: WeeklyBusinessHours): boolean {
+  return BUSINESS_HOUR_DAY_KEYS.some((dayKey) => {
+    const day = businessHours?.[dayKey];
+    return Boolean(day?.isOpen && day.openTime && day.closeTime);
+  });
+}
+
+function getDayKey(date: Date): BusinessHourDayKey {
+  return BUSINESS_HOUR_DAY_KEYS[(date.getDay() + 6) % 7];
 }
 
 function isValidDate(value: Date): boolean {
@@ -127,36 +151,55 @@ export function filterPickupTimeOptionsByDate(
 
 export function buildPickupTimeOptions(
   config: PickupTimeConfig,
+  businessHours?: WeeklyBusinessHours,
   now = new Date(),
   days = DEFAULT_SLOT_DAYS,
 ): PickupTimeOption[] {
-  const startMinutes = toMinutes(config?.startTime);
-  const endMinutes = toMinutes(config?.endTime);
-
-  if (
-    startMinutes === null ||
-    endMinutes === null ||
-    endMinutes <= startMinutes
-  ) {
-    return [];
-  }
-
   const firstAvailableSlot = roundUpToHalfHour(now);
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
 
   const formatter = new Intl.DateTimeFormat('ko-KR', {
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   });
 
   const options: PickupTimeOption[] = [];
+  const useBusinessHours = hasBusinessHoursConfig(businessHours);
+  const fallbackStartMinutes = toMinutes(config?.startTime);
+  const fallbackEndMinutes = toMinutes(config?.endTime);
+
+  if (
+    !useBusinessHours &&
+    (fallbackStartMinutes === null ||
+      fallbackEndMinutes === null ||
+      fallbackEndMinutes <= fallbackStartMinutes)
+  ) {
+    return [];
+  }
+
   for (let dayOffset = 0; dayOffset < days; dayOffset += 1) {
     const currentDay = new Date(dayStart);
     currentDay.setDate(dayStart.getDate() + dayOffset);
+
+    const dailySchedule = useBusinessHours
+      ? getBusinessHoursForDay(businessHours, getDayKey(currentDay))
+      : null;
+    const startMinutes = useBusinessHours
+      ? toMinutes(dailySchedule?.openTime)
+      : fallbackStartMinutes;
+    const endMinutes = useBusinessHours
+      ? toMinutes(dailySchedule?.closeTime)
+      : fallbackEndMinutes;
+
+    if (
+      startMinutes === null ||
+      endMinutes === null ||
+      endMinutes <= startMinutes
+    ) {
+      continue;
+    }
 
     for (
       let minutes = startMinutes;

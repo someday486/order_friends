@@ -2,6 +2,7 @@
 
 import { AuthEntryFooter } from '@/components/auth/AuthEntryFooter';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,10 +19,30 @@ export default function LoginClient({
   const signupHref = `/signup?next=${encodeURIComponent(next)}`;
 
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.replace(next);
+    if (status !== 'authenticated') return;
+
+    let cancelled = false;
+
+    const redirectAuthenticatedUser = async () => {
+      let destination = next;
+      if (next === '/app') {
+        try {
+          destination = await resolveAuthenticatedDestination();
+        } catch (error) {
+          console.warn('[auth] failed to resolve login redirect:', error);
+        }
+      }
+
+      if (cancelled) return;
+      router.replace(destination);
       router.refresh();
-    }
+    };
+
+    void redirectAuthenticatedUser();
+
+    return () => {
+      cancelled = true;
+    };
   }, [status, router, next]);
 
   return (

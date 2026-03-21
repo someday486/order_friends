@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { seedSessionCache } from '@/lib/auth/client';
+import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { supabaseBrowser } from '@/lib/supabase/client';
 
 type Props = {
@@ -27,7 +29,7 @@ export function LoginForm({ redirectTo = '/app' }: Props) {
     setErrorMsg(null);
 
     try {
-      const { error } = await supabaseBrowser.auth.signInWithPassword({
+      const { data, error } = await supabaseBrowser.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -37,9 +39,21 @@ export function LoginForm({ redirectTo = '/app' }: Props) {
         return;
       }
 
-      // onAuthStateChange가 자동으로 세션을 갱신하므로 refresh() 불필요.
-      // window.location.assign(하드 리로드) 대신 소프트 네비게이션 사용.
-      router.push(redirectTo);
+      seedSessionCache(data.session ?? null);
+
+      let nextPath = redirectTo;
+      if (redirectTo === '/app') {
+        try {
+          nextPath = await resolveAuthenticatedDestination();
+        } catch (resolveError) {
+          console.warn(
+            '[auth] failed to resolve post-login destination:',
+            resolveError,
+          );
+        }
+      }
+
+      router.replace(nextPath);
       router.refresh(); // Next.js 라우터 캐시 무효화 (미들웨어가 새 세션 쿠키 인식)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Login failed');

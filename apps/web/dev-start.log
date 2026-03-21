@@ -1,0 +1,68 @@
+
+> web@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.30.1.25:3000
+- Environments: .env.local
+
+✓ Starting...
+✓ Ready in 2.1s
+○ Compiling /order/[brandSlug]/[branchSlug]/checkout ...
+ GET /order/test-cafe-chain/noir-gangnam/checkout 200 in 16.9s (compile: 13.5s, render: 3.4s)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/noir-gangnam/checkout 200 in 360ms (compile: 75ms, render: 285ms)
+○ Compiling /customer/order ...
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /customer/order 200 in 7.7s (compile: 6.1s, render: 1597ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/noir-gangnam 200 in 4.4s (compile: 3.0s, render: 1437ms)
+ GET /order/test-cafe-chain/noir-gangnam/checkout 200 in 89ms (compile: 46ms, render: 43ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /customer/order 200 in 102ms (compile: 19ms, render: 83ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/noir-gangnam 200 in 186ms (compile: 39ms, render: 147ms)
+ GET /order/test-cafe-chain/noir-gangnam/checkout 200 in 101ms (compile: 69ms, render: 32ms)
+ GET /order/test-cafe-chain/noir-gangnam/complete?orderId=80647a17-e7db-4c2f-a46d-073601ad2a5f 200 in 3.6s (compile: 3.6s, render: 30ms)
+ GET /order/test-cafe-chain/noir-gangnam 200 in 91ms (compile: 40ms, render: 51ms)
+ GET /order/branch/61102b88-618a-4067-8034-c352e5a93906 200 in 1428ms
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/hongdae 200 in 1214ms (compile: 32ms, render: 1182ms)
+ GET /order/test-cafe-chain/hongdae/checkout 200 in 70ms (compile: 34ms, render: 36ms)
+ GET /order/test-cafe-chain/hongdae/complete?orderId=9134cf94-a7cf-40b5-8571-b7af2348828a 200 in 1362ms (compile: 102ms, render: 1260ms)
+ GET /order/test-cafe-chain/hongdae 200 in 98ms (compile: 42ms, render: 56ms)
+ GET /order/test-cafe-chain/hongdae/checkout 200 in 59ms (compile: 30ms, render: 30ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/noir-gangnam 200 in 176ms (compile: 31ms, render: 145ms)
+ GET /order/test-cafe-chain/noir-gangnam/checkout 200 in 72ms (compile: 40ms, render: 32ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /customer/order 200 in 450ms (compile: 45ms, render: 405ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/hongdae 200 in 167ms (compile: 34ms, render: 133ms)
+ GET /order/test-cafe-chain/hongdae/checkout 200 in 76ms (compile: 42ms, render: 34ms)
+ GET /order/test-cafe-chain/hongdae/complete?orderId=b3d614c5-ae4e-4242-b776-edf6de6f2cbd 200 in 434ms (compile: 162ms, render: 272ms)
+ GET /customer/brands 200 in 1188ms (compile: 1073ms, render: 115ms)
+ GET /customer/brands/10000000-0000-0000-0000-000000000001 200 in 1784ms (compile: 1749ms, render: 35ms)
+ GET /customer/branches 200 in 1113ms (compile: 1070ms, render: 43ms)
+ GET /customer/branches/5b56b85c-a153-4bbc-b60c-649a13bc2533 200 in 1707ms (compile: 1674ms, render: 33ms)
+ GET /customer/branches/20000000-0000-0000-0000-000000000002 200 in 79ms (compile: 48ms, render: 31ms)
+ GET /order/test-cafe-chain/hongdae 200 in 78ms (compile: 33ms, render: 45ms)
+ GET /customer/order 200 in 46ms (compile: 17ms, render: 29ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/hongdae 200 in 188ms (compile: 28ms, render: 160ms)
+ GET /order/test-cafe-chain/hongdae/checkout 200 in 110ms (compile: 63ms, render: 47ms)
+ GET /order/test-cafe-chain/hongdae/complete?orderId=823e00fd-3a9a-491e-9661-7e01343cbfe4 200 in 61ms (compile: 35ms, render: 25ms)
+ GET /order/test-cafe-chain/hongdae 200 in 105ms (compile: 53ms, render: 52ms)
+ GET /order/test-cafe-chain/hongdae/checkout 200 in 82ms (compile: 50ms, render: 32ms)
+ GET /order/test-cafe-chain/hongdae/complete?orderId=2ceb9908-e0c0-4df5-965d-cd9708d4f8f5 200 in 196ms (compile: 91ms, render: 104ms)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /customer/order 200 in 2.8s (compile: 95ms, render: 2.7s)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /order/test-cafe-chain/hongdae 200 in 206ms (compile: 36ms, render: 170ms)
+ GET /order/test-cafe-chain/hongdae/checkout 200 in 82ms (compile: 46ms, render: 36ms)
+ GET /order/test-cafe-chain/hongdae/complete?orderId=a80d9470-75c3-40c0-ac66-66a001378cee 200 in 77ms (compile: 59ms, render: 18ms)
+ GET /order/test-cafe-chain/noir-gangnam 200 in 163ms (compile: 27ms, render: 136ms)
+ GET / 200 in 1719ms (compile: 1560ms, render: 159ms)
+[?25h

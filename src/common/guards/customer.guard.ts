@@ -34,6 +34,15 @@ export class CustomerGuard implements CanActivate {
 
   constructor(private readonly supabase: SupabaseService) {}
 
+  private canAccessBrandOnboardingRoute(request: AuthRequest): boolean {
+    if (request.user?.canCreateBrand !== true) {
+      return false;
+    }
+
+    const path = request.path ?? request.route?.path ?? '';
+    return path === '/customer/brands' || path === 'customer/brands';
+  }
+
   private normalizeBrandRole(role: string | null | undefined): string {
     return role === 'MANAGER' ? 'ADMIN' : (role ?? 'MEMBER');
   }
@@ -133,6 +142,12 @@ export class CustomerGuard implements CanActivate {
 
     // 5. 최소 하나 이상의 멤버십 필요
     if (allBrandMemberships.length === 0 && allBranchMemberships.length === 0) {
+      if (this.canAccessBrandOnboardingRoute(request)) {
+        request.brandMemberships = [];
+        request.branchMemberships = [];
+        return true;
+      }
+
       this.logger.warn(
         `CustomerGuard: User ${user.id} has no active memberships`,
       );

@@ -318,136 +318,138 @@ export default function CompletePage() {
       <div className="min-h-screen bg-background text-foreground relative">
         {showConfetti && <Confetti />}
 
-        <div className="pt-12 pb-8 px-6 text-center flex flex-col items-center gap-4">
-          <AnimatedCheckmark />
-          <div>
-            <h1 className="text-2xl font-extrabold text-foreground mb-1">주문이 완료되었습니다</h1>
-            <p className="text-text-secondary text-sm">
-              매장에서 주문을 확인하고 있습니다.<br />잠시만 기다려 주세요.
-            </p>
+        <div className="max-w-lg mx-auto">
+          <div className="pt-12 pb-8 px-6 text-center flex flex-col items-center gap-4">
+            <AnimatedCheckmark />
+            <div>
+              <h1 className="text-2xl font-extrabold text-foreground mb-1">주문이 완료되었습니다</h1>
+              <p className="text-text-secondary text-sm">
+                매장에서 주문을 확인하고 있습니다.<br />잠시만 기다려 주세요.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-bg-tertiary">
-            <div className="text-xs text-text-tertiary mb-1">주문번호</div>
-            <div className="font-mono font-extrabold text-xl text-foreground">{order.orderNo}</div>
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-text-tertiary">주문상태</span>
-              <span className="text-sm font-semibold text-success-600">
-                {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
-              </span>
+          <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-bg-tertiary">
+              <div className="text-xs text-text-tertiary mb-1">주문번호</div>
+              <div className="font-mono font-extrabold text-xl text-foreground">{order.orderNo}</div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-text-tertiary">주문일시</span>
-              <span className="text-sm text-foreground">{formatDateTimeFull(order.createdAt)}</span>
-            </div>
-            {order.requestedTime && (
+            <div className="p-4 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-text-tertiary">픽업 희망 시간</span>
-                <span className="text-sm text-foreground">{formatDateTimeFull(order.requestedTime)}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center border-t border-border pt-3">
-              <span className="text-sm font-semibold text-foreground">결제금액</span>
-              <span className="text-xl font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
-            </div>
-          </div>
-        </div>
-
-        {stampInfo?.config && (
-          <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🎫</span>
-              <div className="text-sm font-bold text-foreground">스탬프 적립</div>
-            </div>
-            <div className="mb-2">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-text-tertiary">
-                  {stampInfo.currentStamps} / {stampInfo.config.rewardThreshold}개
+                <span className="text-sm text-text-tertiary">주문상태</span>
+                <span className="text-sm font-semibold text-success-600">
+                  {ORDER_STATUS_LABEL_LONG[order.status] ?? order.status}
                 </span>
-                {stampInfo.rewardsAvailable > 0 && (
-                  <span className="text-xs font-bold text-success-600">🎉 보상 사용 가능!</span>
-                )}
               </div>
-              <div className="w-full bg-bg-tertiary rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-2 rounded-full bg-foreground transition-all duration-700"
-                  style={{
-                    width: `${Math.min(100, (stampInfo.currentStamps / stampInfo.config.rewardThreshold) * 100)}%`,
-                  }}
-                />
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-text-tertiary">주문일시</span>
+                <span className="text-sm text-foreground">{formatDateTimeFull(order.createdAt)}</span>
               </div>
-            </div>
-            <p className="text-xs text-text-tertiary">{stampInfo.config.rewardDescription}</p>
-          </div>
-        )}
-
-        {order.paymentMethod === "TRANSFER" && order.transferAccount && (
-          <div className="mx-4 mb-4 rounded-2xl border border-warning-200 bg-warning-50 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-base">🏦</span>
-              <div className="text-sm font-bold text-foreground">입금 계좌 정보</div>
-            </div>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-text-tertiary">은행명</span>
-                <span className="font-semibold">{order.transferAccount.bankName?.trim() || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-tertiary">계좌번호</span>
-                <span className="font-semibold font-mono">{order.transferAccount.accountNumber?.trim() || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-tertiary">예금주</span>
-                <span className="font-semibold">{order.transferAccount.accountHolder?.trim() || "-"}</span>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-warning-600">
-              입금 확인 후 주문 상태가 변경됩니다. 입금자명을 정확히 입력해 주세요.
-            </p>
-          </div>
-        )}
-
-        {order.items.length > 0 && (
-          <div className="mx-4 mb-6">
-            <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">주문 내역</h3>
-            <div className="rounded-2xl border border-border bg-bg-secondary overflow-hidden">
-              {order.items.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex justify-between px-4 py-3 border-b border-border last:border-0"
-                >
-                  <span className="text-sm text-foreground">
-                    {item.name} <span className="text-text-tertiary">× {item.qty}</span>
-                  </span>
-                  <span className="text-sm font-semibold text-foreground">
-                    {formatWon(item.unitPrice * item.qty)}
-                  </span>
+              {order.requestedTime && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-text-tertiary">픽업 희망 시간</span>
+                  <span className="text-sm text-foreground">{formatDateTimeFull(order.requestedTime)}</span>
                 </div>
-              ))}
+              )}
+              <div className="flex justify-between items-center border-t border-border pt-3">
+                <span className="text-sm font-semibold text-foreground">결제금액</span>
+                <span className="text-xl font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="px-4 pb-8 space-y-3">
-          <Link href={`/order/track/${order.id}`} className="no-underline block">
-            <button className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer flex items-center justify-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              내 주문 상태 확인하기
-            </button>
-          </Link>
+          {stampInfo?.config && (
+            <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🎫</span>
+                <div className="text-sm font-bold text-foreground">스탬프 적립</div>
+              </div>
+              <div className="mb-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-text-tertiary">
+                    {stampInfo.currentStamps} / {stampInfo.config.rewardThreshold}개
+                  </span>
+                  {stampInfo.rewardsAvailable > 0 && (
+                    <span className="text-xs font-bold text-success-600">🎉 보상 사용 가능!</span>
+                  )}
+                </div>
+                <div className="w-full bg-bg-tertiary rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-2 rounded-full bg-foreground transition-all duration-700"
+                    style={{
+                      width: `${Math.min(100, (stampInfo.currentStamps / stampInfo.config.rewardThreshold) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-text-tertiary">{stampInfo.config.rewardDescription}</p>
+            </div>
+          )}
 
-          <Link href={`/order/${brandSlug}/${branchSlug}`} className="no-underline block">
-            <button className="w-full p-3.5 rounded-2xl border border-border bg-transparent text-foreground text-sm font-semibold cursor-pointer">
-              메뉴로 돌아가기
-            </button>
-          </Link>
+          {order.paymentMethod === "TRANSFER" && order.transferAccount && (
+            <div className="mx-4 mb-4 rounded-2xl border border-warning-200 bg-warning-50 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">🏦</span>
+                <div className="text-sm font-bold text-foreground">입금 계좌 정보</div>
+              </div>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">은행명</span>
+                  <span className="font-semibold">{order.transferAccount.bankName?.trim() || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">계좌번호</span>
+                  <span className="font-semibold font-mono">{order.transferAccount.accountNumber?.trim() || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">예금주</span>
+                  <span className="font-semibold">{order.transferAccount.accountHolder?.trim() || "-"}</span>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-warning-600">
+                입금 확인 후 주문 상태가 변경됩니다. 입금자명을 정확히 입력해 주세요.
+              </p>
+            </div>
+          )}
+
+          {order.items.length > 0 && (
+            <div className="mx-4 mb-6">
+              <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">주문 내역</h3>
+              <div className="rounded-2xl border border-border bg-bg-secondary overflow-hidden">
+                {order.items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex justify-between px-4 py-3 border-b border-border last:border-0"
+                  >
+                    <span className="text-sm text-foreground">
+                      {item.name} <span className="text-text-tertiary">× {item.qty}</span>
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {formatWon(item.unitPrice * item.qty)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="px-4 pb-8 space-y-3">
+            <Link href={`/order/track/${order.id}`} className="no-underline block">
+              <button className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer flex items-center justify-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                내 주문 상태 확인하기
+              </button>
+            </Link>
+
+            <Link href={`/order/${brandSlug}/${branchSlug}`} className="no-underline block">
+              <button className="w-full p-3.5 rounded-2xl border border-border bg-transparent text-foreground text-sm font-semibold cursor-pointer">
+                메뉴로 돌아가기
+              </button>
+            </Link>
+          </div>
         </div>
       </div>
     </>

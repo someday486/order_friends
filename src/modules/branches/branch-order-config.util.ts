@@ -21,11 +21,34 @@ export type PickupTimeConfig = {
   endTime: string | null;
 };
 
+export const BUSINESS_HOUR_DAY_KEYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+export type BusinessHourDayKey = (typeof BUSINESS_HOUR_DAY_KEYS)[number];
+
+export type BusinessHourDay = {
+  isOpen: boolean;
+  openTime: string | null;
+  closeTime: string | null;
+};
+
+export type WeeklyBusinessHours = Partial<
+  Record<BusinessHourDayKey, BusinessHourDay>
+>;
+
 export type BranchOrderConfig = {
   enabledFulfillmentTypes: OrderFulfillmentType[];
   allowedPaymentMethods: OrderPaymentMethod[];
   transferAccount: TransferAccountInfo | null;
   pickupTimeConfig: PickupTimeConfig | null;
+  businessHours: WeeklyBusinessHours | null;
   orderNotice: string | null;
   channelByType: Partial<Record<OrderFulfillmentType, string>>;
 };
@@ -121,6 +144,68 @@ function normalizePickupTimeConfig(value: unknown): PickupTimeConfig | null {
     startTime,
     endTime,
   };
+}
+
+function normalizeBusinessHourDay(value: unknown): BusinessHourDay | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const isClosed =
+    row.closed === true ||
+    row.isClosed === true ||
+    row.is_closed === true ||
+    row.isOpen === false ||
+    row.is_open === false;
+  const openTime = normalizeHalfHourTime(
+    row.openTime ?? row.open_time ?? row.startTime ?? row.start_time,
+  );
+  const closeTime = normalizeHalfHourTime(
+    row.closeTime ?? row.close_time ?? row.endTime ?? row.end_time,
+  );
+
+  if (isClosed || (!openTime && !closeTime)) {
+    return {
+      isOpen: false,
+      openTime: null,
+      closeTime: null,
+    };
+  }
+
+  if (!openTime || !closeTime) {
+    return null;
+  }
+
+  if (timeToMinutes(closeTime) <= timeToMinutes(openTime)) {
+    return null;
+  }
+
+  return {
+    isOpen: true,
+    openTime,
+    closeTime,
+  };
+}
+
+function normalizeBusinessHours(value: unknown): WeeklyBusinessHours | null {
+  const row = toRecord(value);
+  if (!row) return null;
+
+  const result: WeeklyBusinessHours = {};
+  let hasAnyDay = false;
+
+  for (const dayKey of BUSINESS_HOUR_DAY_KEYS) {
+    const dayValue = normalizeBusinessHourDay(
+      row[dayKey] ?? row[dayKey.slice(0, 3)],
+    );
+    if (!dayValue) {
+      continue;
+    }
+
+    result[dayKey] = dayValue;
+    hasAnyDay = true;
+  }
+
+  return hasAnyDay ? result : null;
 }
 
 export function normalizeFulfillmentTypes(
@@ -310,6 +395,41 @@ function getOrderNoticeFromBranchRow(
   return null;
 }
 
+function getBusinessHoursFromBranchRow(
+  branchRow: Record<string, unknown>,
+): WeeklyBusinessHours | null {
+  const directObject = normalizeBusinessHours(
+    branchRow.businessHours ??
+      branchRow.business_hours ??
+      toRecord(branchRow.pickupTimeConfig)?.businessHours ??
+      toRecord(branchRow.pickupTimeConfig)?.business_hours ??
+      toRecord(branchRow.pickup_time_config)?.businessHours ??
+      toRecord(branchRow.pickup_time_config)?.business_hours ??
+      branchRow.weeklySchedule ??
+      branchRow.weekly_schedule,
+  );
+  if (directObject) return directObject;
+
+  const objectCandidates = [
+    toRecord(branchRow.order_settings),
+    toRecord(branchRow.settings),
+    toRecord(branchRow.metadata),
+  ];
+
+  for (const candidate of objectCandidates) {
+    if (!candidate) continue;
+    const businessHours = normalizeBusinessHours(
+      candidate.businessHours ??
+        candidate.business_hours ??
+        candidate.weeklySchedule ??
+        candidate.weekly_schedule,
+    );
+    if (businessHours) return businessHours;
+  }
+
+  return null;
+}
+
 async function fetchBranchRow(
   sb: any,
   branchId: string,
@@ -377,6 +497,9 @@ export async function getBranchOrderConfig(
   const pickupTimeConfig = branchRow
     ? getPickupTimeConfigFromBranchRow(branchRow)
     : null;
+  const businessHours = branchRow
+    ? getBusinessHoursFromBranchRow(branchRow)
+    : null;
   const orderNotice = branchRow ? getOrderNoticeFromBranchRow(branchRow) : null;
 
   return {
@@ -384,6 +507,7 @@ export async function getBranchOrderConfig(
     allowedPaymentMethods,
     transferAccount,
     pickupTimeConfig,
+    businessHours,
     orderNotice,
     channelByType,
   };
@@ -600,6 +724,10 @@ async function persistPickupTimeConfigToBranch(
 ) {
   const branchRow = await fetchBranchRow(sb, branchId);
   if (!branchRow) return;
+  const existingPickupConfigRecord =
+    toRecord(branchRow.pickup_time_config) ??
+    toRecord(branchRow.pickupTimeConfig) ??
+    null;
 
   const directPayload: Record<string, unknown> = {};
   if ('pickup_start_time' in branchRow) {
@@ -619,6 +747,8 @@ async function persistPickupTimeConfigToBranch(
       ? {
           start_time: pickupTimeConfig.startTime,
           end_time: pickupTimeConfig.endTime,
+          businessHours: existingPickupConfigRecord?.businessHours ?? null,
+          business_hours: existingPickupConfigRecord?.business_hours ?? null,
         }
       : null;
   }
@@ -627,6 +757,8 @@ async function persistPickupTimeConfigToBranch(
       ? {
           startTime: pickupTimeConfig.startTime,
           endTime: pickupTimeConfig.endTime,
+          businessHours: existingPickupConfigRecord?.businessHours ?? null,
+          business_hours: existingPickupConfigRecord?.business_hours ?? null,
         }
       : null;
   }
@@ -652,12 +784,16 @@ async function persistPickupTimeConfigToBranch(
         ? {
             startTime: pickupTimeConfig.startTime,
             endTime: pickupTimeConfig.endTime,
+            businessHours: existingPickupConfigRecord?.businessHours ?? null,
+            business_hours: existingPickupConfigRecord?.business_hours ?? null,
           }
         : null,
       pickup_time_config: pickupTimeConfig
         ? {
             start_time: pickupTimeConfig.startTime,
             end_time: pickupTimeConfig.endTime,
+            businessHours: existingPickupConfigRecord?.businessHours ?? null,
+            business_hours: existingPickupConfigRecord?.business_hours ?? null,
           }
         : null,
     };
@@ -727,6 +863,114 @@ async function persistOrderNoticeToBranch(
   }
 }
 
+async function persistBusinessHoursToBranch(
+  sb: any,
+  branchId: string,
+  businessHours: WeeklyBusinessHours | null,
+) {
+  const branchRow = await fetchBranchRow(sb, branchId);
+  if (!branchRow) return;
+
+  const snakeCaseBusinessHours = businessHours
+    ? Object.fromEntries(
+        Object.entries(businessHours).map(([dayKey, value]) => [
+          dayKey,
+          value.isOpen
+            ? {
+                is_open: true,
+                open_time: value.openTime,
+                close_time: value.closeTime,
+              }
+            : {
+                is_open: false,
+                open_time: null,
+                close_time: null,
+              },
+        ]),
+      )
+    : null;
+  const camelCaseBusinessHours = businessHours
+    ? Object.fromEntries(
+        Object.entries(businessHours).map(([dayKey, value]) => [
+          dayKey,
+          value.isOpen
+            ? {
+                isOpen: true,
+                openTime: value.openTime,
+                closeTime: value.closeTime,
+              }
+            : {
+                isOpen: false,
+                openTime: null,
+                closeTime: null,
+              },
+        ]),
+      )
+    : null;
+
+  const directPayload: Record<string, unknown> = {};
+  if ('business_hours' in branchRow) {
+    directPayload.business_hours = snakeCaseBusinessHours;
+  }
+  if ('businessHours' in branchRow) {
+    directPayload.businessHours = camelCaseBusinessHours;
+  }
+  if ('weekly_schedule' in branchRow) {
+    directPayload.weekly_schedule = snakeCaseBusinessHours;
+  }
+  if ('weeklySchedule' in branchRow) {
+    directPayload.weeklySchedule = camelCaseBusinessHours;
+  }
+  if ('pickup_time_config' in branchRow) {
+    const currentPickupConfig = toRecord(branchRow.pickup_time_config) ?? {};
+    directPayload.pickup_time_config = {
+      ...currentPickupConfig,
+      businessHours: camelCaseBusinessHours,
+      business_hours: snakeCaseBusinessHours,
+    };
+  }
+  if ('pickupTimeConfig' in branchRow) {
+    const currentPickupConfig = toRecord(branchRow.pickupTimeConfig) ?? {};
+    directPayload.pickupTimeConfig = {
+      ...currentPickupConfig,
+      businessHours: camelCaseBusinessHours,
+      business_hours: snakeCaseBusinessHours,
+    };
+  }
+
+  if (Object.keys(directPayload).length > 0) {
+    const { error } = await sb
+      .from('branches')
+      .update(directPayload)
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+
+  const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
+  for (const column of objectColumns) {
+    if (!(column in branchRow)) continue;
+
+    const current = toRecord(branchRow[column]) ?? {};
+    const next = {
+      ...current,
+      businessHours: camelCaseBusinessHours,
+      business_hours: snakeCaseBusinessHours,
+      weeklySchedule: camelCaseBusinessHours,
+      weekly_schedule: snakeCaseBusinessHours,
+    };
+
+    const { error } = await sb
+      .from('branches')
+      .update({ [column]: next })
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+}
+
 export async function saveBranchOrderConfig(
   sb: any,
   branchId: string,
@@ -735,6 +979,7 @@ export async function saveBranchOrderConfig(
     allowedPaymentMethods?: unknown;
     transferAccount?: unknown;
     pickupTimeConfig?: unknown;
+    businessHours?: unknown;
     orderNotice?: unknown;
   },
 ) {
@@ -756,6 +1001,11 @@ export async function saveBranchOrderConfig(
   if (input.pickupTimeConfig !== undefined) {
     const pickupTimeConfig = normalizePickupTimeConfig(input.pickupTimeConfig);
     await persistPickupTimeConfigToBranch(sb, branchId, pickupTimeConfig);
+  }
+
+  if (input.businessHours !== undefined) {
+    const businessHours = normalizeBusinessHours(input.businessHours);
+    await persistBusinessHoursToBranch(sb, branchId, businessHours);
   }
 
   if (input.orderNotice !== undefined) {

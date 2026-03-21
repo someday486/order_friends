@@ -161,6 +161,7 @@ export class MeController {
         memberships: [],
         ownedBrands: [],
         isSystemAdmin: true,
+        canCreateBrand: false,
       };
     }
 
@@ -229,6 +230,7 @@ export class MeController {
       memberships,
       ownedBrands: ownedBrands || [],
       isSystemAdmin: false,
+      canCreateBrand: user.canCreateBrand === true,
     };
   }
 }

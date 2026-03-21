@@ -65,6 +65,7 @@ export class CustomerBrandsController {
       createData,
       req.user.id,
       req.brandMemberships || [],
+      req.user.canCreateBrand,
     );
   }
 

@@ -4,6 +4,7 @@ import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Inventory Integration', () => {
   let service: PublicOrderService;
@@ -11,6 +12,7 @@ describe('PublicOrderService - Inventory Integration', () => {
   let adminChains: Record<string, any>;
   let adminClient: any;
   let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -35,6 +37,7 @@ describe('PublicOrderService - Inventory Integration', () => {
       order_item_options: makeChain(),
     };
     adminChains = {
+      branches: makeChain(),
       orders: makeChain(),
       order_items: makeChain(),
       product_inventory: makeChain(),
@@ -47,6 +50,11 @@ describe('PublicOrderService - Inventory Integration', () => {
     };
     stampsService = {
       earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -61,6 +69,7 @@ describe('PublicOrderService - Inventory Integration', () => {
         },
         { provide: InventoryService, useValue: {} },
         { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -118,6 +127,21 @@ describe('PublicOrderService - Inventory Integration', () => {
       .mockResolvedValueOnce({ data: { id: 'item-2' }, error: null });
 
     adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          transfer_account: {
+            bank_name: 'Shinhan',
+            account_number: '110-285-321233',
+            account_holder: 'Kim Jihoon',
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { name: '테스트매장' },
+        error: null,
+      });
 
     const result = await service.createOrder(mockOrderDto as any);
 
@@ -134,6 +158,21 @@ describe('PublicOrderService - Inventory Integration', () => {
           { product_id: 'product-2', qty: 1 },
         ],
       },
+    );
+    expect(notificationsService.sendOrderCompletionKakao).toHaveBeenCalledWith(
+      'order-123',
+      expect.objectContaining({
+        customerName: 'Customer',
+        totalAmount: 35000,
+        paymentMethod: 'CARD',
+        transferAccount: {
+          bankName: 'Shinhan',
+          accountNumber: '110-285-321233',
+          accountHolder: 'Kim Jihoon',
+        },
+        branchName: '테스트매장',
+      }),
+      '010-1234-5678',
     );
   });
 
@@ -1100,6 +1139,61 @@ describe('PublicOrderService - Inventory Integration', () => {
     const result = await service.createOrder(mockOrderDto as any);
 
     expect(result.id).toBe('order-admin-1');
+    expect(anonChains.orders.insert).toHaveBeenCalledTimes(1);
+    expect(adminChains.orders.insert).toHaveBeenCalledTimes(1);
+    expect(adminChains.order_items.insert).toHaveBeenCalledTimes(1);
+    expect(anonChains.order_items.insert).not.toHaveBeenCalled();
+  });
+
+  it('should fallback to admin client when anon insert returns Invalid channel_id', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: 'P0001',
+        message: 'Invalid channel_id',
+      },
+    });
+
+    adminChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-admin-2',
+        order_no: 'OA-2',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    adminChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-admin-2' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-admin-2');
     expect(anonChains.orders.insert).toHaveBeenCalledTimes(1);
     expect(adminChains.orders.insert).toHaveBeenCalledTimes(1);
     expect(adminChains.order_items.insert).toHaveBeenCalledTimes(1);

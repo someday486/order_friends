@@ -1,48 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { Search, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import AddStoreModal from "./AddStoreModal";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
-
-// ============================================================
-// Types
-// ============================================================
+import {
+  getAdminBrands,
+  getAdminBranches,
+  invalidateAdminBranches,
+} from "@/lib/adminDataCache";
 
 type Branch = {
   id: string;
   brandId: string;
   name: string;
-  slug?: string;
+  slug?: string | null;
   createdAt: string;
 };
 
 type Brand = {
   id: string;
+  name: string;
   slug?: string | null;
 };
 
-// ============================================================
-// Constants
-// ============================================================
-
-// ============================================================
-// Helpers
-// ============================================================
-
 function formatDate(iso: string) {
   if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleDateString("ko-KR");
+  return new Date(iso).toLocaleDateString("ko-KR");
 }
 
 function getBranchOrderUrl(
   brandSlug: string | null,
-  branchSlug: string | undefined,
+  branchSlug: string | null | undefined,
   branchId: string,
 ) {
   if (brandSlug && branchSlug) {
@@ -52,212 +45,330 @@ function getBranchOrderUrl(
   return `/order/branch/${branchId}`;
 }
 
-// ============================================================
-// Component
-// ============================================================
-
 export default function StoresPage() {
-  const router = useRouter();
-  const { brandId, ready, clearBrand } = useSelectedBrand();
+  const { brandId, ready, selectBrand, clearBrand } = useSelectedBrand();
   const { selectBranch } = useSelectedBranch();
 
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [brandSlug, setBrandSlug] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingBrands, setLoadingBrands] = useState(true);
+  const [loadingBranches, setLoadingBranches] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 신규 가게 등록 모달
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
 
-  // brandId 없으면 brand 선택 페이지로
+  const selectedBrand = useMemo(
+    () => brands.find((item) => item.id === brandId) ?? null,
+    [brands, brandId],
+  );
+
+  const filteredBranches = useMemo(() => {
+    const query = searchInput.trim().toLowerCase();
+    if (!query) return branches;
+
+    return branches.filter((branch) =>
+      [branch.name, branch.slug ?? "", branch.id].some((value) =>
+        value.toLowerCase().includes(query),
+      ),
+    );
+  }, [branches, searchInput]);
+
   useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        setLoadingBrands(true);
+        setError(null);
+        const data = await getAdminBrands();
+        setBrands(data);
+      } catch (e: unknown) {
+        const err = e as Error;
+        setError(err?.message ?? "브랜드 목록을 불러오지 못했습니다.");
+      } finally {
+        setLoadingBrands(false);
+      }
+    };
+
+    void fetchBrands();
+  }, []);
+
+  useEffect(() => {
+    const fetchBranches = async (selectedBrandId: string) => {
+      try {
+        setLoadingBranches(true);
+        setError(null);
+        const data = await getAdminBranches(selectedBrandId);
+        setBranches(data);
+      } catch (e: unknown) {
+        const err = e as Error;
+        setError(err?.message ?? "매장 목록을 불러오지 못했습니다.");
+        setBranches([]);
+      } finally {
+        setLoadingBranches(false);
+      }
+    };
+
     if (!ready) return;
-    if (!brandId) router.replace("/admin/brand");
-  }, [ready, brandId, router]);
 
-  // 가게 목록 조회
-  const fetchBranches = async (bid: string) => {
-    if (!bid) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await apiClient.get<Branch[]>(`/admin/branches?brandId=${encodeURIComponent(bid)}`);
-      setBranches(data);
-    } catch (e: unknown) {
-      const err = e as Error;
-      setError(err?.message ?? "매장 목록을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
+    if (!brandId) {
+      setBranches([]);
+      setLoadingBranches(false);
+      return;
     }
-  };
 
-  const handleDelete = async (branchId: string, branchName: string) => {
+    void fetchBranches(brandId);
+  }, [brandId, ready]);
+
+  const handleDelete = async (branchIdToDelete: string, branchName: string) => {
     if (
       !confirm(
-        `"${branchName}" 가게를 삭제하시겠습니까?\n관련 데이터가 모두 삭제되며 복구할 수 없습니다.`
+        `"${branchName}" 매장을 삭제하시겠습니까?\n관련된 데이터가 모두 삭제되며 복구할 수 없습니다.`,
       )
-    )
+    ) {
       return;
+    }
 
     try {
-      await apiClient.delete("/admin/branches/" + branchId);
-      setBranches((prev) => prev.filter((b) => b.id !== branchId));
+      await apiClient.delete(`/admin/branches/${branchIdToDelete}`);
+      invalidateAdminBranches(brandId);
+      setBranches((prev) => prev.filter((branch) => branch.id !== branchIdToDelete));
     } catch (e: unknown) {
       const err = e as Error;
       toast.error(err?.message ?? "매장 삭제에 실패했습니다.");
     }
   };
 
-  useEffect(() => {
-    if (!ready) return;
-    if (brandId) fetchBranches(brandId);
-  }, [ready, brandId]);
-
-  useEffect(() => {
-    if (!ready || !brandId) return;
-
-    const loadBrandSlug = async () => {
-      try {
-        const brands = await apiClient.get<Brand[]>("/admin/brands");
-        const currentBrand = brands.find((item) => item.id === brandId);
-        setBrandSlug(currentBrand?.slug ?? null);
-      } catch {
-        setBrandSlug(null);
-      }
-    };
-
-    loadBrandSlug();
-  }, [ready, brandId]);
-
-  // 초기 로딩/리다이렉트 처리
   if (!ready) return null;
-  if (!brandId) return null; // redirect 중
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-extrabold m-0 text-foreground">가게 관리</h1>
-          <p className="text-text-secondary mt-1 text-[13px]">
-            총 {branches.length}개
+          <h1 className="m-0 text-[22px] font-extrabold text-foreground">매장관리</h1>
+          <p className="mt-1 text-[13px] text-text-secondary">
+            {brandId
+              ? `총 ${filteredBranches.length}개 / 전체 ${branches.length}개 매장`
+              : "브랜드를 선택하면 매장 목록이 표시됩니다."}
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
-            className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-semibold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
-            onClick={() => { clearBrand(); router.push("/admin/brand"); }}
+            type="button"
+            className="h-9 rounded-lg border border-border bg-transparent px-4 text-[13px] font-semibold text-foreground transition-colors hover:bg-bg-tertiary disabled:opacity-50"
+            onClick={() => clearBrand()}
+            disabled={!brandId}
           >
-            브랜드 다시 선택
+            브랜드 선택 해제
           </button>
-          <button className="btn-primary h-9 px-4 text-[13px]" onClick={() => setShowAddForm(true)}>
-            + 가게 추가
+          <button
+            type="button"
+            className="btn-primary h-9 px-4 text-[13px] disabled:opacity-50"
+            onClick={() => setShowAddForm(true)}
+            disabled={!brandId}
+          >
+            + 매장 추가
           </button>
         </div>
       </div>
 
-      {/* 신규 가게 등록 모달 */}
-      <AddStoreModal
-        key={showAddForm ? "store-modal-open" : "store-modal-closed"}
-        open={showAddForm}
-        brandId={brandId}
-        adding={adding}
-        onClose={() => setShowAddForm(false)}
-        onSubmit={async ({ name, slug, allowedPaymentMethods, transferAccount, pickupTimeConfig }) => {
-          if (!name.trim() || !slug.trim() || !brandId) return;
-          if (allowedPaymentMethods.length === 0) return;
+      <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="w-full lg:max-w-[280px]">
+            <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
+              브랜드 선택
+            </label>
+            <select
+              value={brandId ?? ""}
+              onChange={(e) => {
+                const nextBrandId = e.target.value;
+                if (!nextBrandId) {
+                  clearBrand();
+                  return;
+                }
 
-          try {
-            setAdding(true);
+                selectBrand(nextBrandId);
+              }}
+              className="input-field h-10 w-full text-sm"
+              disabled={loadingBrands}
+            >
+              <option value="">브랜드를 선택하세요</option>
+              {brands.map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            const data = await apiClient.post<Branch>("/admin/branches", {
-              brandId,
-              name,
-              slug,
-              allowedPaymentMethods,
-              transferAccount,
-              pickupTimeConfig,
-            });
-            setBranches((prev) => [data, ...prev]);
-            setShowAddForm(false);
-          } catch (e: unknown) {
-            const err = e as Error;
-            toast.error(err?.message ?? "매장 추가에 실패했습니다.");
-          } finally {
-            setAdding(false);
-          }
-        }}
-      />
+          <div className="min-w-0 flex-1">
+            <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
+              검색
+            </label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchInput("");
+                }}
+                placeholder="매장명, 슬러그, ID 검색"
+                aria-label="매장 검색"
+                className="input-field h-10 w-full pl-10 pr-10 text-sm"
+                disabled={!brandId}
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-foreground"
+                  aria-label="검색어 지우기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
-      {/* Error */}
-      {error && <p className="text-danger-500 mb-4">{error}</p>}
+        <div className="mt-3 text-xs text-text-secondary">
+          {selectedBrand
+            ? `현재 선택한 브랜드: ${selectedBrand.name}`
+            : "브랜드를 먼저 선택하면 매장을 검색하고 관리할 수 있습니다."}
+        </div>
+      </div>
 
-      {/* Table */}
-      <div className="border border-border rounded-xl overflow-hidden">
-        <table className="w-full border-collapse">
-          <thead className="bg-bg-tertiary">
-            <tr>
-              <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">가게명</th>
-              <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">가게 URL</th>
-              <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">생성일</th>
-              <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary">관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+      {brandId && (
+        <AddStoreModal
+          key={showAddForm ? "store-modal-open" : "store-modal-closed"}
+          open={showAddForm}
+          brandId={brandId}
+          adding={adding}
+          onClose={() => setShowAddForm(false)}
+          onSubmit={async ({
+            name,
+            slug,
+            allowedPaymentMethods,
+            transferAccount,
+            pickupTimeConfig,
+          }) => {
+            if (!name.trim() || !slug.trim()) return;
+            if (allowedPaymentMethods.length === 0) return;
+
+            try {
+              setAdding(true);
+
+              const data = await apiClient.post<Branch>("/admin/branches", {
+                brandId,
+                name,
+                slug,
+                allowedPaymentMethods,
+                transferAccount,
+                pickupTimeConfig,
+              });
+
+              invalidateAdminBranches(brandId);
+              setBranches((prev) => [data, ...prev]);
+              setShowAddForm(false);
+            } catch (e: unknown) {
+              const err = e as Error;
+              toast.error(err?.message ?? "매장 추가에 실패했습니다.");
+            } finally {
+              setAdding(false);
+            }
+          }}
+        />
+      )}
+
+      {error && <p className="mb-4 text-danger-500">{error}</p>}
+
+      {!brandId ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-text-tertiary">
+          브랜드를 먼저 선택해주세요.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full border-collapse">
+            <thead className="bg-bg-tertiary">
               <tr>
-                <td colSpan={4} className="py-3 px-3.5 text-[13px] text-center text-text-tertiary">
-                  불러오는 중...
-                </td>
+                <th className="px-3.5 py-3 text-left text-xs font-bold text-text-secondary">
+                  매장명
+                </th>
+                <th className="px-3.5 py-3 text-left text-xs font-bold text-text-secondary">
+                  매장 URL
+                </th>
+                <th className="px-3.5 py-3 text-left text-xs font-bold text-text-secondary">
+                  생성일
+                </th>
+                <th className="px-3.5 py-3 text-center text-xs font-bold text-text-secondary">
+                  관리
+                </th>
               </tr>
-            )}
-
-            {!loading && branches.length === 0 && (
-              <tr>
-                <td colSpan={4} className="py-3 px-3.5 text-[13px] text-center text-text-tertiary">
-                  가게가 없습니다.
-                </td>
-              </tr>
-            )}
-
-            {!loading &&
-              branches.map((branch) => (
-                <tr key={branch.id} className="border-t border-border">
-                  <td className="py-3 px-3.5 text-[13px] text-foreground">
-                    <Link
-                      href={`/admin/stores/${branch.id}`}
-                      className="text-foreground no-underline hover:text-primary-500 transition-colors"
-                      onClick={() => selectBranch(branch.id)}
-                    >
-                      {branch.name}
-                    </Link>
-                  </td>
-                  <td className="py-3 px-3.5 text-xs text-text-secondary">
-                    {getBranchOrderUrl(brandSlug, branch.slug, branch.id)}
-                  </td>
-                  <td className="py-3 px-3.5 text-[13px] text-text-secondary">{formatDate(branch.createdAt)}</td>
-                  <td className="py-3 px-3.5 text-[13px] text-center">
-                    <Link href={`/admin/stores/${branch.id}`} onClick={() => selectBranch(branch.id)}>
-                      <button className="py-1 px-2.5 rounded-md border border-border bg-transparent text-foreground font-medium cursor-pointer text-xs hover:bg-bg-tertiary transition-colors">
-                        수정
-                      </button>
-                    </Link>
-                    <button
-                      className="py-1 px-2.5 rounded-md border border-border bg-transparent text-danger-500 font-medium cursor-pointer text-xs ml-1.5 hover:bg-bg-tertiary transition-colors"
-                      onClick={() => handleDelete(branch.id, branch.name)}
-                    >
-                      삭제
-                    </button>
+            </thead>
+            <tbody>
+              {loadingBranches && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-3.5 py-3 text-center text-[13px] text-text-tertiary"
+                  >
+                    불러오는 중...
                   </td>
                 </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+              )}
+
+              {!loadingBranches && filteredBranches.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-3.5 py-3 text-center text-[13px] text-text-tertiary"
+                  >
+                    {searchInput.trim() ? "검색 결과가 없습니다." : "매장이 없습니다."}
+                  </td>
+                </tr>
+              )}
+
+              {!loadingBranches &&
+                filteredBranches.map((branch) => (
+                  <tr key={branch.id} className="border-t border-border">
+                    <td className="px-3.5 py-3 text-[13px] text-foreground">
+                      <Link
+                        href={`/admin/stores/${branch.id}`}
+                        className="text-foreground no-underline transition-colors hover:text-primary-500"
+                        onClick={() => selectBranch(branch.id)}
+                      >
+                        {branch.name}
+                      </Link>
+                    </td>
+                    <td className="px-3.5 py-3 text-xs text-text-secondary">
+                      {getBranchOrderUrl(selectedBrand?.slug ?? null, branch.slug, branch.id)}
+                    </td>
+                    <td className="px-3.5 py-3 text-[13px] text-text-secondary">
+                      {formatDate(branch.createdAt)}
+                    </td>
+                    <td className="px-3.5 py-3 text-center text-[13px]">
+                      <Link
+                        href={`/admin/stores/${branch.id}`}
+                        onClick={() => selectBranch(branch.id)}
+                      >
+                        <button className="rounded-md border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-bg-tertiary">
+                          수정
+                        </button>
+                      </Link>
+                      <button
+                        className="ml-1.5 rounded-md border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-danger-500 transition-colors hover:bg-bg-tertiary"
+                        onClick={() => handleDelete(branch.id, branch.name)}
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -452,7 +452,7 @@ export default function BrandAnalyticsPage() {
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <div ref={brandDropdownRef} className="relative max-w-[240px] w-full">
+        <div ref={brandDropdownRef} className="relative w-full sm:max-w-[240px]">
           <button
             type="button"
             onClick={() => setIsBrandOpen((v) => !v)}
@@ -544,21 +544,23 @@ export default function BrandAnalyticsPage() {
           )}
         </div>
 
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="input-field w-[140px]"
-        />
-        <span className="self-center text-text-tertiary">~</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="input-field w-[140px]"
-        />
+        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 sm:flex sm:w-auto">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="input-field w-full min-w-0 sm:w-[140px]"
+          />
+          <span className="self-center text-center text-text-tertiary">~</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="input-field w-full min-w-0 sm:w-[140px]"
+          />
+        </div>
 
-        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer self-center">
+        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer w-full sm:w-auto sm:self-center">
           <input
             type="checkbox"
             checked={compare}

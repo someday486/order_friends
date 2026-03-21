@@ -163,12 +163,13 @@ export class CustomerBrandsService {
     createData: CreateCustomerBrandRequest,
     userId: string,
     brandMemberships: BrandMembership[],
+    canCreateBrand?: boolean,
   ) {
     const hasManagePermission = brandMemberships.some(
       (m) => m.role === 'OWNER' || m.role === 'ADMIN',
     );
 
-    if (!hasManagePermission) {
+    if (!hasManagePermission && canCreateBrand !== true) {
       this.logger.warn(
         `User ${userId} has no owner/admin membership and attempted to create brand`,
       );

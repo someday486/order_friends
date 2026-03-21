@@ -20,7 +20,11 @@ describe('AuthGuard', () => {
   };
 
   const makeUserClient = (options: {
-    user: { id: string; email: string | null };
+    user: {
+      id: string;
+      email: string | null;
+      user_metadata?: Record<string, unknown>;
+    };
     profile?: { is_system_admin: boolean } | null;
     profileError?: { message: string } | null;
   }) => ({
@@ -84,7 +88,11 @@ describe('AuthGuard', () => {
     const result = await guard.canActivate(makeContext(req));
 
     expect(result).toBe(true);
-    expect(req.user).toEqual({ id: 'user-1', email: 'admin@example.com' });
+    expect(req.user).toEqual({
+      id: 'user-1',
+      email: 'admin@example.com',
+      canCreateBrand: false,
+    });
     expect(req.accessToken).toBe('token');
     expect(req.isAdmin).toBe(true);
     expect(supabase.userClient).toHaveBeenCalledWith('token');
@@ -142,8 +150,77 @@ describe('AuthGuard', () => {
     const result = await guard.canActivate(makeContext(req));
 
     expect(result).toBe(true);
-    expect(req.user).toEqual({ id: 'user-11', email: undefined });
+    expect(req.user).toEqual({
+      id: 'user-11',
+      email: undefined,
+      canCreateBrand: false,
+    });
     expect(req.isAdmin).toBe(false);
+  });
+
+  it('should expose brand creation approval from auth metadata', async () => {
+    const { guard, supabase } = makeGuard({});
+    supabase.userClient.mockReturnValue(
+      makeUserClient({
+        user: {
+          id: 'user-13',
+          email: 'creator@test.com',
+          user_metadata: { customer_brand_creator_approved: true },
+        },
+        profile: { is_system_admin: false },
+      }),
+    );
+
+    const req: any = { headers: { authorization: 'Bearer token6' } };
+    const result = await guard.canActivate(makeContext(req));
+
+    expect(result).toBe(true);
+    expect(req.user).toEqual({
+      id: 'user-13',
+      email: 'creator@test.com',
+      canCreateBrand: true,
+    });
+  });
+
+  it('should bypass cached auth for me route to refresh onboarding approval', async () => {
+    const { guard, supabase } = makeGuard({});
+    supabase.userClient
+      .mockReturnValueOnce(
+        makeUserClient({
+          user: {
+            id: 'user-14',
+            email: 'creator@test.com',
+            user_metadata: {},
+          },
+          profile: { is_system_admin: false },
+        }),
+      )
+      .mockReturnValueOnce(
+        makeUserClient({
+          user: {
+            id: 'user-14',
+            email: 'creator@test.com',
+            user_metadata: { customer_brand_creator_approved: true },
+          },
+          profile: { is_system_admin: false },
+        }),
+      );
+
+    const firstReq: any = {
+      headers: { authorization: 'Bearer token7' },
+      path: '/orders',
+    };
+    const secondReq: any = {
+      headers: { authorization: 'Bearer token7' },
+      path: '/me',
+    };
+
+    await expect(guard.canActivate(makeContext(firstReq))).resolves.toBe(true);
+    await expect(guard.canActivate(makeContext(secondReq))).resolves.toBe(true);
+
+    expect(firstReq.user.canCreateBrand).toBe(false);
+    expect(secondReq.user.canCreateBrand).toBe(true);
+    expect(supabase.userClient).toHaveBeenCalledTimes(2);
   });
 
   it('should reject requests when profile admin lookup fails', async () => {

@@ -22,6 +22,31 @@ type CachedAuth = {
   expiresAt: number;
 };
 
+function readCanCreateBrandFromMetadata(
+  metadata: Record<string, unknown> | undefined,
+): boolean {
+  return metadata?.customer_brand_creator_approved === true;
+}
+
+function shouldBypassAuthCache(req: {
+  path?: string;
+  originalUrl?: string;
+  route?: { path?: string };
+}): boolean {
+  const candidates = [req.path, req.originalUrl, req.route?.path].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+
+  return candidates.some(
+    (path) =>
+      path === '/me' ||
+      path === '/me/profile' ||
+      path.startsWith('/customer/brands') ||
+      path === 'customer/brands' ||
+      path.startsWith('customer/brands'),
+  );
+}
+
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly systemAdminConfig: SystemAdminConfig;
@@ -48,7 +73,8 @@ export class AuthGuard implements CanActivate {
 
     // Check auth cache first
     const now = Date.now();
-    const cached = this.authCache.get(token);
+    const useCache = !shouldBypassAuthCache(req);
+    const cached = useCache ? this.authCache.get(token) : undefined;
     if (cached && now < cached.expiresAt) {
       req.user = cached.user;
       req.accessToken = token;
@@ -68,6 +94,10 @@ export class AuthGuard implements CanActivate {
     const user: RequestUser = {
       id: data.user.id,
       email: data.user.email ?? undefined,
+      canCreateBrand: readCanCreateBrandFromMetadata(
+        (data.user.user_metadata as Record<string, unknown> | undefined) ??
+          undefined,
+      ),
     };
 
     const { data: profile, error: profileError } = await sb
@@ -90,12 +120,16 @@ export class AuthGuard implements CanActivate {
       );
 
     // Store in cache
-    this.evictExpiredEntries(now);
-    this.authCache.set(token, {
-      user,
-      isAdmin,
-      expiresAt: now + AUTH_CACHE_TTL_MS,
-    });
+    if (useCache) {
+      this.evictExpiredEntries(now);
+      this.authCache.set(token, {
+        user,
+        isAdmin,
+        expiresAt: now + AUTH_CACHE_TTL_MS,
+      });
+    } else {
+      this.authCache.delete(token);
+    }
 
     req.user = user;
     req.accessToken = token;

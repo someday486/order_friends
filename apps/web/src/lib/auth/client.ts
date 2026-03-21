@@ -19,6 +19,12 @@ export function invalidateSessionCache() {
   inFlightSessionPromise = null;
 }
 
+export function seedSessionCache(session: Session | null) {
+  cachedSession = session;
+  cachedSessionFetchedAt = Date.now();
+  inFlightSessionPromise = null;
+}
+
 export async function getInitialSession(): Promise<Session | null> {
   if (hasFreshSessionCache()) {
     return cachedSession;

@@ -58,6 +58,15 @@ export class MembersController {
   }
 
   /**
+   * 신규 브랜드 생성 권한 승인
+   * POST /admin/members/approve-brand-creator/:userId
+   */
+  @Post('approve-brand-creator/:userId')
+  async approveBrandCreator(@Param('userId') userId: string) {
+    return this.membersService.approveBrandCreator(userId);
+  }
+
+  /**
    * 멤버 권한 범위 전환
    * POST /admin/members/transfer
    */

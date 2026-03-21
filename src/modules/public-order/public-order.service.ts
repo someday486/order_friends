@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   PublicBranchResponse,
   PublicBrandBranchesResponse,
@@ -40,6 +41,7 @@ export class PublicOrderService {
     private readonly supabase: SupabaseService,
     private readonly inventoryService: InventoryService,
     private readonly stampsService: StampsService,
+    private readonly notificationsService: NotificationsService,
   ) {
     const windowMs = Number(process.env.PUBLIC_ORDER_DUPLICATE_WINDOW_MS);
     this.duplicateWindowMs =
@@ -1342,6 +1344,7 @@ export class PublicOrderService {
       orderNotice: config.orderNotice ?? null,
       transferAccount: config.transferAccount ?? null,
       pickupTimeConfig: config.pickupTimeConfig ?? null,
+      businessHours: config.businessHours ?? null,
       channelByType: config.channelByType,
     };
   }
@@ -1390,6 +1393,11 @@ export class PublicOrderService {
     return (
       error?.code === '42501' || /row-level security policy/i.test(message)
     );
+  }
+
+  private isInvalidChannelIdError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    return error?.code === 'P0001' && /invalid channel_id/i.test(message);
   }
 
   private isInvalidFulfillmentTypeEnumError(error: any): boolean {
@@ -1464,6 +1472,7 @@ export class PublicOrderService {
       orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
     };
   }
 
@@ -1517,6 +1526,7 @@ export class PublicOrderService {
       orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
     };
   }
 
@@ -1576,6 +1586,7 @@ export class PublicOrderService {
       orderNotice: orderConfig.orderNotice,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
+      businessHours: orderConfig.businessHours,
     };
   }
 
@@ -2042,6 +2053,91 @@ export class PublicOrderService {
     this.logger.log(`[METRIC] ${event} ${JSON.stringify(payload)}`);
   }
 
+  private async getBranchNameForNotification(
+    adminClient: any,
+    branchId: string,
+  ): Promise<string> {
+    try {
+      const { data, error } = await adminClient
+        .from('branches')
+        .select('name')
+        .eq('id', branchId)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      return data?.name ?? '매장';
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve branch name for notification: ${branchId}`,
+        error,
+      );
+      return '매장';
+    }
+  }
+
+  private sendOrderCompletionNotification(
+    order: {
+      id: string;
+      order_no?: string | null;
+      total_amount: number;
+    },
+    params: {
+      customerPhone?: string | null;
+      customerName?: string | null;
+      customerAddress1?: string | null;
+      customerAddress2?: string | null;
+      paymentMethod?: string | null;
+      transferAccount?: {
+        bankName?: string | null;
+        accountNumber?: string | null;
+        accountHolder?: string | null;
+      } | null;
+      fulfillmentType: FulfillmentType;
+      items: Array<{
+        productName: string;
+        qty: number;
+      }>;
+      branchName: string;
+    },
+  ) {
+    if (!params.customerPhone) {
+      return;
+    }
+
+    const deliveryAddress = [params.customerAddress1, params.customerAddress2]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    this.notificationsService
+      .sendOrderCompletionKakao(
+        order.id,
+        {
+          orderNo: order.order_no ?? order.id,
+          customerName: params.customerName ?? '고객',
+          items: params.items.map((item) => ({
+            name: item.productName,
+            qty: item.qty,
+          })),
+          totalAmount: order.total_amount,
+          paymentMethod: params.paymentMethod ?? null,
+          transferAccount: params.transferAccount ?? null,
+          fulfillmentType: params.fulfillmentType,
+          deliveryAddress: deliveryAddress || null,
+          branchName: params.branchName,
+        },
+        params.customerPhone,
+      )
+      .catch((error) =>
+        this.logger.warn(
+          `Failed to send order completion KakaoTalk for order ${order.id}: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+  }
+
   private async findRecentDuplicateOrder(
     adminClient: any,
     dto: CreatePublicOrderRequest,
@@ -2470,7 +2566,12 @@ export class PublicOrderService {
       await executeOrderInsert(orderClient);
     orderError = await retryMissingColumns(orderClient, orderError);
 
-    if (orderError && this.isRowLevelSecurityError(orderError)) {
+    if (
+      orderError &&
+      orderClient !== adminClient &&
+      (this.isRowLevelSecurityError(orderError) ||
+        this.isInvalidChannelIdError(orderError))
+    ) {
       orderClient = adminClient;
       ({ data: order, error: orderError } =
         await executeOrderInsert(orderClient));
@@ -2768,6 +2869,10 @@ export class PublicOrderService {
       idempotencyKey,
     });
 
+    const branchName = customerPhone
+      ? await this.getBranchNameForNotification(adminClient, dto.branchId)
+      : '매장';
+
     // Non-blocking: earn stamps after successful order
     if (customerPhone) {
       this.stampsService
@@ -2778,6 +2883,21 @@ export class PublicOrderService {
         })
         .catch((err) => this.logger.warn('earnStamps error', err));
     }
+
+    this.sendOrderCompletionNotification(createdOrder, {
+      customerPhone,
+      customerName,
+      customerAddress1,
+      customerAddress2,
+      paymentMethod,
+      transferAccount: branchOrderConfig.transferAccount ?? null,
+      fulfillmentType,
+      items: orderItemResults.map((item) => ({
+        productName: item.productName,
+        qty: item.qty,
+      })),
+      branchName,
+    });
 
     return {
       id: createdOrder.id,
@@ -2885,7 +3005,7 @@ export class PublicOrderService {
     };
 
     let { data, error } = await queryOrder(sb);
-    if (!data && this.isUuid(orderIdOrNo)) {
+    if (!data) {
       for (let attempt = 0; attempt < adminRetryCount; attempt += 1) {
         const adminResult = await queryOrder(adminSb);
         if (adminResult.data || adminResult.error) {

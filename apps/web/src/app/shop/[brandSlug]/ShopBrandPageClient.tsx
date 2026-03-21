@@ -429,7 +429,7 @@ export default function ShopBrandPageClient({
     };
 
     void loadShop();
-  }, [brandSlug]);
+  }, [brandSlug, initialData]);
 
   useEffect(() => {
     if (!data) return;
@@ -752,7 +752,7 @@ export default function ShopBrandPageClient({
                                   {discountRate}% 할인
                                 </div>
                                 <div className="text-base md:text-lg font-extrabold text-danger-500">
-                                  {formatWon(product.discountPrice)}
+                                  {formatWon(product.discountPrice ?? product.price)}
                                 </div>
                               </>
                             ) : (

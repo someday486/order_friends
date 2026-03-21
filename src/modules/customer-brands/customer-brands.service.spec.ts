@@ -137,6 +137,7 @@ describe('CustomerBrandsService', () => {
       } as any,
       'user-1',
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      false,
     );
 
     expect(mockSb.insert).toHaveBeenCalledWith(
@@ -155,6 +156,33 @@ describe('CustomerBrandsService', () => {
         { brand_id: 'brand-1', role: 'STAFF' } as any,
       ]),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('createMyBrand should allow approved onboarding users without memberships', async () => {
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'new-brand-id',
+        name: 'New Brand',
+        slug: 'new-brand',
+        owner_user_id: 'user-1',
+        biz_name: null,
+        biz_reg_no: null,
+        logo_url: null,
+        cover_image_url: null,
+        created_at: '2026-01-01',
+      },
+      error: null,
+    });
+
+    const result = await service.createMyBrand(
+      { name: 'New Brand', slug: 'new-brand' } as any,
+      'user-1',
+      [],
+      true,
+    );
+
+    expect(result.id).toBe('new-brand-id');
+    expect(result.myRole).toBe('OWNER');
   });
 
   it('createMyBrand should throw when brand insert fails', async () => {

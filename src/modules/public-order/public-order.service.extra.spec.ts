@@ -346,6 +346,42 @@ describe('PublicOrderService - Public Queries', () => {
     expect(result.id).toBe('e693332e-bedd-458b-bc4e-ac9ee1475ea1');
   });
 
+  it('getOrder should retry with unit_price_snapshot when nested unit_price column is missing', async () => {
+    anonChains.orders.maybeSingle
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column order_items_1.unit_price does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o-unit-fallback',
+          order_no: 'ORD-UNIT-FALLBACK',
+          status: 'CREATED',
+          total_amount: 1200,
+          created_at: 't',
+          order_items: [
+            {
+              product_name_snapshot: 'Americano',
+              qty: 1,
+              unit_price_snapshot: 1200,
+              order_item_options: [],
+            },
+          ],
+        },
+        error: null,
+      });
+
+    const result = await service.getOrder(
+      '43a3aa26-85a6-439b-b27b-51e1221bab73',
+    );
+
+    expect(result.id).toBe('o-unit-fallback');
+    expect(result.items[0].unitPrice).toBe(1200);
+  });
+
   it('getOrder should fallback to admin query when order number is not visible to anon', async () => {
     anonChains.orders.maybeSingle
       .mockResolvedValueOnce({ data: null, error: null })

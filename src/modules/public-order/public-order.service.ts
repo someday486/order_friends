@@ -1409,10 +1409,10 @@ export class PublicOrderService {
   private getMissingColumnName(error: any): string | null {
     const message = String(error?.message ?? '');
     const pgMatch = message.match(
-      /column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i,
+      /column\s+"?([a-zA-Z0-9_.]+)"?\s+does not exist/i,
     );
     if (pgMatch?.[1]) {
-      return pgMatch[1];
+      return pgMatch[1].split('.').pop() ?? pgMatch[1];
     }
 
     const pgrstMatch = message.match(
@@ -1961,6 +1961,110 @@ export class PublicOrderService {
     }
 
     return primary;
+  }
+
+  private buildPublicOrderSelect(
+    unitPriceColumn: 'unit_price' | 'unit_price_snapshot',
+    omittedColumns: Set<string> = new Set(),
+  ): string {
+    const orderColumns = [
+      'id',
+      'branch_id',
+      'order_no',
+      'status',
+      'total_amount',
+      'created_at',
+      'payment_method',
+      'fulfillment_type',
+      'customer_name',
+      'customer_phone',
+      'customer_address1',
+      'customer_address2',
+      'customer_memo',
+    ].filter((column) => !omittedColumns.has(column));
+
+    return `
+      ${orderColumns.join(',\n      ')},
+      order_items (
+        product_name_snapshot,
+        qty,
+        ${unitPriceColumn},
+        order_item_options (
+          option_name_snapshot
+        )
+      )
+    `;
+  }
+
+  private async runPublicOrderSelectWithFallbacks(
+    queryFactory: (
+      unitPriceColumn: 'unit_price' | 'unit_price_snapshot',
+      omittedColumns: Set<string>,
+    ) => any,
+  ): Promise<{ data: any; error: any }> {
+    const omittedColumns = new Set<string>();
+    let unitPriceColumn: 'unit_price' | 'unit_price_snapshot' = 'unit_price';
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const result = await queryFactory(unitPriceColumn, omittedColumns);
+      if (!result.error) {
+        return result;
+      }
+
+      if (!this.isMissingColumnError(result.error)) {
+        return result;
+      }
+
+      const missingColumn = this.getMissingColumnName(result.error);
+      if (!missingColumn) {
+        return result;
+      }
+
+      if (missingColumn === 'unit_price' && unitPriceColumn === 'unit_price') {
+        unitPriceColumn = 'unit_price_snapshot';
+        continue;
+      }
+
+      if (omittedColumns.has(missingColumn)) {
+        return result;
+      }
+
+      omittedColumns.add(missingColumn);
+    }
+
+    return queryFactory(unitPriceColumn, omittedColumns);
+  }
+
+  private async queryPublicOrderByReference(
+    client: any,
+    orderIdOrNo: string,
+  ): Promise<{ data: any; error: any }> {
+    let { data, error } = await this.runPublicOrderSelectWithFallbacks(
+      (unitPriceColumn, omittedColumns) =>
+        client
+          .from('orders')
+          .select(this.buildPublicOrderSelect(unitPriceColumn, omittedColumns))
+          .eq('id', orderIdOrNo)
+          .maybeSingle(),
+    );
+
+    if (!data) {
+      const result = await this.runPublicOrderSelectWithFallbacks(
+        (unitPriceColumn, omittedColumns) =>
+          client
+            .from('orders')
+            .select(
+              this.buildPublicOrderSelect(unitPriceColumn, omittedColumns),
+            )
+            .eq('order_no', orderIdOrNo)
+            .maybeSingle(),
+      );
+
+      data = result.data;
+      error = result.error;
+    }
+
+    return { data, error };
   }
 
   private buildOrderResponse(order: any): PublicOrderResponse {
@@ -3005,85 +3109,16 @@ export class PublicOrderService {
     const adminRetryCount = this.isUuid(orderIdOrNo) ? 3 : 1;
     const adminRetryDelayMs = process.env.NODE_ENV === 'test' ? 0 : 200;
 
-    const queryOrder = async (client: any) => {
-      let { data, error } = await this.runOrderSelectWithUnitPriceFallback(
-        (unitPriceColumn) =>
-          client
-            .from('orders')
-            .select(
-              `
-        id,
-        branch_id,
-        order_no,
-        status,
-        total_amount,
-        created_at,
-        payment_method,
-        fulfillment_type,
-        customer_name,
-        customer_phone,
-        customer_address1,
-        customer_address2,
-        customer_memo,
-        order_items (
-          product_name_snapshot,
-          qty,
-          ${unitPriceColumn},
-          order_item_options (
-            option_name_snapshot
-          )
-        )
-      `,
-            )
-            .eq('id', orderIdOrNo)
-            .maybeSingle(),
-      );
-
-      if (!data) {
-        const result = await this.runOrderSelectWithUnitPriceFallback(
-          (unitPriceColumn) =>
-            client
-              .from('orders')
-              .select(
-                `
-          id,
-          branch_id,
-          order_no,
-          status,
-          total_amount,
-          created_at,
-          payment_method,
-          fulfillment_type,
-          customer_name,
-          customer_phone,
-          customer_address1,
-          customer_address2,
-          customer_memo,
-          order_items (
-            product_name_snapshot,
-            qty,
-            ${unitPriceColumn},
-            order_item_options (
-            option_name_snapshot
-          )
-        )
-      `,
-              )
-              .eq('order_no', orderIdOrNo)
-              .maybeSingle(),
-        );
-
-        data = result.data;
-        error = result.error;
-      }
-
-      return { data, error };
-    };
-
-    let { data, error } = await queryOrder(sb);
+    let { data, error } = await this.queryPublicOrderByReference(
+      sb,
+      orderIdOrNo,
+    );
     if (!data) {
       for (let attempt = 0; attempt < adminRetryCount; attempt += 1) {
-        const adminResult = await queryOrder(adminSb);
+        const adminResult = await this.queryPublicOrderByReference(
+          adminSb,
+          orderIdOrNo,
+        );
         if (adminResult.data || adminResult.error) {
           data = adminResult.data;
           error = adminResult.error;
@@ -3098,6 +3133,31 @@ export class PublicOrderService {
     }
 
     if (error || !data) {
+      this.logger.warn(
+        `Public order lookup failed for ${orderIdOrNo}: ${error?.message ?? 'not found'}`,
+      );
+      throw new NotFoundException('주문을 찾을 수 없습니다.');
+    }
+
+    return this.attachPublicOrderSupportInfo(
+      this.buildOrderResponse(data),
+      data.branch_id,
+    );
+  }
+
+  async getOrderForAuthenticatedUser(
+    orderIdOrNo: string,
+  ): Promise<PublicOrderResponse> {
+    const adminSb = this.supabase.adminClient();
+    const { data, error } = await this.queryPublicOrderByReference(
+      adminSb,
+      orderIdOrNo,
+    );
+
+    if (error || !data) {
+      this.logger.warn(
+        `Authenticated order lookup failed for ${orderIdOrNo}: ${error?.message ?? 'not found'}`,
+      );
       throw new NotFoundException('주문을 찾을 수 없습니다.');
     }
 

@@ -1010,6 +1010,16 @@ describe('PublicOrderService - Inventory Integration', () => {
     );
   });
 
+  it('should parse qualified missing column names from postgres errors', () => {
+    const error = {
+      code: '42703',
+      message: 'column order_items_1.unit_price does not exist',
+    };
+
+    expect((service as any).isMissingColumnError(error)).toBe(true);
+    expect((service as any).getMissingColumnName(error)).toBe('unit_price');
+  });
+
   it('should retry order insert across multiple schema-cache missing columns', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',

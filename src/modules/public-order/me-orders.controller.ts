@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -26,6 +26,16 @@ export class MeOrdersController {
     @Body() dto: CreatePublicOrderRequest,
   ) {
     return this.meOrdersService.createMyOrder(user.id, dto);
+  }
+
+  @Get(':orderId')
+  @ApiOperation({ summary: '로그인한 구매자가 자신의 주문 조회' })
+  @ApiResponse({ status: 200, description: '주문 조회 성공' })
+  async getOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.meOrdersService.getMyOrder(user.id, orderId);
   }
 
   @Post(':orderId/cancel')

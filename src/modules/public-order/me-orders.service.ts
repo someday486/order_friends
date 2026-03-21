@@ -26,6 +26,29 @@ export class MeOrdersService {
     return this.publicOrderService.createOrder(dto, userId);
   }
 
+  async getMyOrder(
+    userId: string,
+    orderId: string,
+  ): Promise<PublicOrderResponse> {
+    const sb = this.supabase.adminClient();
+
+    const { data: order, error } = await sb
+      .from('orders')
+      .select('id, user_id')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (error) {
+      throw new BadRequestException(`주문 조회 실패: ${error.message}`);
+    }
+
+    if (!order || !order.user_id || order.user_id !== userId) {
+      throw new NotFoundException('주문을 찾을 수 없습니다.');
+    }
+
+    return this.publicOrderService.getOrderForAuthenticatedUser(order.id);
+  }
+
   async cancelMyOrder(
     userId: string,
     orderId: string,
@@ -84,7 +107,7 @@ export class MeOrdersService {
       order.order_no ?? null,
     );
 
-    return this.publicOrderService.getOrder(order.id);
+    return this.publicOrderService.getOrderForAuthenticatedUser(order.id);
   }
 
   private async releaseInventoryForCancelledOrder(

@@ -8,6 +8,7 @@ describe('MeOrdersController', () => {
 
   const mockService = {
     createMyOrder: jest.fn(),
+    getMyOrder: jest.fn(),
     cancelMyOrder: jest.fn(),
   };
 
@@ -44,5 +45,14 @@ describe('MeOrdersController', () => {
 
     expect(result).toEqual({ id: 'order-1' });
     expect(mockService.cancelMyOrder).toHaveBeenCalledWith('user-1', 'order-1');
+  });
+
+  it('getOrder should delegate to service with current user id', async () => {
+    mockService.getMyOrder.mockResolvedValue({ id: 'order-1' });
+
+    const result = await controller.getOrder({ id: 'user-1' }, 'order-1');
+
+    expect(result).toEqual({ id: 'order-1' });
+    expect(mockService.getMyOrder).toHaveBeenCalledWith('user-1', 'order-1');
   });
 });

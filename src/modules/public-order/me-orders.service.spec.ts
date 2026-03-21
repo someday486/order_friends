@@ -14,6 +14,7 @@ describe('MeOrdersService', () => {
   const publicOrderService = {
     createOrder: jest.fn(),
     getOrder: jest.fn(),
+    getOrderForAuthenticatedUser: jest.fn(),
   };
 
   const paymentsService = {
@@ -129,7 +130,7 @@ describe('MeOrdersService', () => {
       },
       error: null,
     };
-    publicOrderService.getOrder.mockResolvedValue({
+    publicOrderService.getOrderForAuthenticatedUser.mockResolvedValue({
       id: 'order-1',
       status: 'CANCELLED',
     });
@@ -182,5 +183,39 @@ describe('MeOrdersService', () => {
     await expect(service.cancelMyOrder('user-1', 'order-1')).rejects.toThrow(
       '로그인 연동 이전 주문은 직접 취소할 수 없습니다. 매장에 문의해주세요.',
     );
+  });
+  it('getMyOrder should return an owned order', async () => {
+    orderLookupResult = {
+      data: {
+        id: 'order-1',
+        user_id: 'user-1',
+      },
+      error: null,
+    };
+    publicOrderService.getOrderForAuthenticatedUser.mockResolvedValue({
+      id: 'order-1',
+      status: 'CREATED',
+    });
+
+    const result = await service.getMyOrder('user-1', 'order-1');
+
+    expect(result).toEqual({ id: 'order-1', status: 'CREATED' });
+    expect(
+      publicOrderService.getOrderForAuthenticatedUser,
+    ).toHaveBeenCalledWith('order-1');
+  });
+
+  it('getMyOrder should reject a different user order', async () => {
+    orderLookupResult = {
+      data: {
+        id: 'order-1',
+        user_id: 'user-2',
+      },
+      error: null,
+    };
+
+    await expect(
+      service.getMyOrder('user-1', 'order-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

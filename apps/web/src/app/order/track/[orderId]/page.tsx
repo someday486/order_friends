@@ -275,6 +275,54 @@ function matchesOrderReference(order: OrderInfo | null, reference: string) {
   return order.id === reference || order.orderNo === reference;
 }
 
+function parseApiErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const raw = error.message ?? '';
+
+  const jsonStart = raw.indexOf('{');
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(raw.slice(jsonStart)) as {
+        message?: string | string[];
+      };
+      if (Array.isArray(parsed.message) && parsed.message.length > 0) {
+        return String(parsed.message[0]);
+      }
+      if (typeof parsed.message === 'string' && parsed.message.trim()) {
+        return parsed.message;
+      }
+    } catch {
+      // Ignore parse errors and fall back to the raw message.
+    }
+  }
+
+  return raw || fallback;
+}
+
+function parseCancelErrorMessage(error: unknown): string {
+  const message = parseApiErrorMessage(
+    error,
+    '주문 취소 처리 중 오류가 발생했어요.',
+  );
+
+  if (
+    message.includes('주문을 찾을 수 없습니다') ||
+    message.includes('404')
+  ) {
+    return '이 주문은 현재 로그인한 계정으로 취소할 수 없어요. 주문한 계정으로 다시 로그인해 주세요.';
+  }
+
+  if (message.includes('로그인 연동 이전 주문')) {
+    return '이 주문은 직접 취소를 지원하기 전 주문이에요. 매장에 문의해 주세요.';
+  }
+
+  if (message.includes('현재 상태에서는 구매자가 직접 주문을 취소할 수 없습니다')) {
+    return '현재 상태에서는 구매자가 직접 주문을 취소할 수 없어요. 매장 문의로 도와드릴게요.';
+  }
+
+  return message;
+}
+
 function paymentMethodLabel(method: PaymentMethod | null): string {
   if (method === 'CARD') return '카드';
   if (method === 'TRANSFER') return '계좌이체';
@@ -468,6 +516,8 @@ export default function TrackOrderPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [usingCachedOrderFallback, setUsingCachedOrderFallback] =
+    useState(false);
   const [cancelSuccessNotice, setCancelSuccessNotice] = useState<string | null>(
     null,
   );
@@ -484,9 +534,24 @@ export default function TrackOrderPage() {
         }
         setError(null);
 
-        const data = await apiClient.get<unknown>(`/public/orders/${orderId}`, {
-          auth: false,
-        });
+        const data =
+          status === 'authenticated'
+            ? await apiClient
+                .get<unknown>(`/me/orders/${encodeURIComponent(orderId)}`)
+                .catch(() =>
+                  apiClient.get<unknown>(
+                    `/public/orders/${encodeURIComponent(orderId)}`,
+                    {
+                      auth: false,
+                    },
+                  ),
+                )
+            : await apiClient.get<unknown>(
+                `/public/orders/${encodeURIComponent(orderId)}`,
+                {
+                  auth: false,
+                },
+              );
         const normalized = normalizeOrder(data);
         if (!normalized) {
           throw new Error('주문 정보를 확인할 수 없습니다.');
@@ -501,14 +566,17 @@ export default function TrackOrderPage() {
         prevStatusRef.current = merged.status;
 
         setOrder(merged);
+        setUsingCachedOrderFallback(false);
         setLastUpdatedAt(new Date());
       } catch (e: unknown) {
         const message = (e as Error)?.message ?? '조회 중 오류가 발생했습니다.';
         if (matchesOrderReference(cachedOrder, orderId)) {
           setOrder(cachedOrder);
+          setUsingCachedOrderFallback(true);
           setError(null);
           return;
         }
+        setUsingCachedOrderFallback(false);
         setError(
           message.includes('404') ? '주문을 찾을 수 없습니다.' : message,
         );
@@ -517,14 +585,13 @@ export default function TrackOrderPage() {
         setIsRefreshing(false);
       }
     },
-    [cachedOrder, orderId],
+    [cachedOrder, orderId, status],
   );
 
   useEffect(() => {
-    if (orderId) {
-      void fetchOrder(false);
-    }
-  }, [fetchOrder, orderId]);
+    if (!orderId || status === 'loading') return;
+    void fetchOrder(false);
+  }, [fetchOrder, orderId, status]);
 
   useEffect(() => {
     if (!order?.branchId) return;
@@ -569,7 +636,7 @@ export default function TrackOrderPage() {
 
   // 10초 polling (완료/취소 상태면 중단)
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || status === 'loading') return;
     const terminal =
       order?.status === 'COMPLETED' ||
       order?.status === 'CANCELLED' ||
@@ -580,7 +647,7 @@ export default function TrackOrderPage() {
       void fetchOrder(true);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchOrder, orderId, order?.status]);
+  }, [fetchOrder, orderId, order?.status, status]);
 
   // ── 로딩 ──
   if (loading && !order) {
@@ -650,7 +717,8 @@ export default function TrackOrderPage() {
   const currentStepIndex = STATUS_STEPS.indexOf(order.status);
   const guide = paymentGuide(order.paymentMethod);
   const refundNotice = refundGuide(order);
-  const showCancelAction = !isCancelled && !isCompleted;
+  const showCancelAction =
+    !usingCachedOrderFallback && !isCancelled && !isCompleted;
   const cancelActionLabel =
     order.status === 'CREATED' ? '주문 취소' : '주문 취소 문의';
   const topStatusNotice = cancelSuccessNotice
@@ -703,11 +771,7 @@ export default function TrackOrderPage() {
         toast.success('주문이 취소되었어요.');
         void fetchOrder(true);
       } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : '주문 취소 처리 중 오류가 발생했어요.',
-        );
+        toast.error(parseCancelErrorMessage(error));
       }
       return;
     }
@@ -846,6 +910,17 @@ export default function TrackOrderPage() {
                   닫기
                 </button>
               )}
+            </div>
+          </section>
+        )}
+        {usingCachedOrderFallback && (
+          <section className="rounded-2xl border border-warning-500/30 bg-warning-500/10 p-4">
+            <div className="text-sm font-semibold text-foreground">
+              최신 주문 상태를 다시 확인하는 중이에요.
+            </div>
+            <div className="mt-1 text-xs leading-5 text-text-secondary">
+              현재 화면은 브라우저에 저장된 최근 주문 정보를 바탕으로 보이고
+              있어요. 최신 상태 확인이 끝날 때까지 취소 버튼은 숨겨집니다.
             </div>
           </section>
         )}

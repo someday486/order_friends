@@ -45,6 +45,7 @@ describe('PublicOrderService - Branch Coverage', () => {
       orders: makeChain(),
     };
     adminChains = {
+      branches: makeChain(),
       orders: makeChain(),
       order_dedup_logs: makeChain(),
       product_categories: makeChain(),
@@ -156,6 +157,8 @@ describe('PublicOrderService - Branch Coverage', () => {
       data: {
         id: 'b1',
         name: 'Branch',
+        contact_phone: '02-1234-5678',
+        kakao_channel_url: 'https://pf.kakao.com/_branch/chat',
         logo_url: 'logo',
         cover_image_url: null,
         brands: {
@@ -171,6 +174,8 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect(result.brandName).toBe('Brand');
     expect(result.logoUrl).toBe('logo');
     expect(result.coverImageUrl).toBe('brand-cover');
+    expect(result.contactPhone).toBe('02-1234-5678');
+    expect(result.kakaoChannelUrl).toBe('https://pf.kakao.com/_branch/chat');
   });
 
   it('getBranch should fallback to brand assets', async () => {
@@ -847,6 +852,7 @@ describe('PublicOrderService - Branch Coverage', () => {
       .mockResolvedValueOnce({
         data: {
           id: 'o1',
+          branch_id: 'b1',
           order_no: 'O-1',
           status: 'CREATED',
           total_amount: 1000,
@@ -875,6 +881,18 @@ describe('PublicOrderService - Branch Coverage', () => {
         },
         error: null,
       });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {},
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          contact_phone: '02-1234-5678',
+          kakao_channel_url: 'https://pf.kakao.com/_branch/chat',
+        },
+        error: null,
+      });
 
     const result = await service.getOrder('O-1');
     expect(result.orderNo).toBe('O-1');
@@ -882,6 +900,10 @@ describe('PublicOrderService - Branch Coverage', () => {
     expect(result.fulfillmentType).toBe('DELIVERY');
     expect(result.customer?.name).toBe('Kim');
     expect(result.items[0].options).toEqual(['Opt']);
+    expect(result.branchContactPhone).toBe('02-1234-5678');
+    expect(result.branchKakaoChannelUrl).toBe(
+      'https://pf.kakao.com/_branch/chat',
+    );
   });
 
   it('getOrder should handle missing order items', async () => {

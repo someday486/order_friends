@@ -21,6 +21,8 @@ export class PublicBranchResponse {
   brandName?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
   orderNotice?: string | null;
@@ -136,6 +138,8 @@ export class PublicOrderResponse {
     address2?: string | null;
     memo?: string | null;
   };
+  branchContactPhone?: string | null;
+  branchKakaoChannelUrl?: string | null;
   items: {
     productName: string;
     qty: number;

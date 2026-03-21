@@ -591,6 +591,8 @@ function AddBranchModal({
     transferBankName: string;
     transferAccountNumber: string;
     transferAccountHolder: string;
+    contactPhone: string;
+    kakaoChannelUrl: string;
     pickupStartTime: string;
     pickupEndTime: string;
     businessHours: BusinessHoursFormState;
@@ -602,6 +604,8 @@ function AddBranchModal({
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",
+    contactPhone: "",
+    kakaoChannelUrl: "",
     pickupStartTime: "",
     pickupEndTime: "",
     businessHours: createBusinessHoursFormState(),
@@ -725,6 +729,8 @@ function AddBranchModal({
           accountNumber: formData.transferAccountNumber.trim(),
           accountHolder: formData.transferAccountHolder.trim(),
         },
+        contactPhone: formData.contactPhone.trim() || null,
+        kakaoChannelUrl: formData.kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
           formData.pickupStartTime.trim() && formData.pickupEndTime.trim()
             ? {
@@ -940,6 +946,26 @@ function AddBranchModal({
                 onChange={(e) => setFormData({ ...formData, transferAccountHolder: e.target.value })}
                 className="input-field"
                 placeholder="예금주"
+              />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">고객 문의 정보</label>
+            <div className="grid gap-2">
+              <input
+                type="text"
+                value={formData.contactPhone}
+                onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                className="input-field"
+                placeholder="문의 전화번호"
+              />
+              <input
+                type="url"
+                value={formData.kakaoChannelUrl}
+                onChange={(e) => setFormData({ ...formData, kakaoChannelUrl: e.target.value })}
+                className="input-field"
+                placeholder="https://pf.kakao.com/_example/chat"
               />
             </div>
           </div>

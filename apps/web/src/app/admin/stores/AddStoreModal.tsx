@@ -29,6 +29,8 @@ type Props = {
     allowedPaymentMethods: PaymentMethod[];
     transferAccount: TransferAccountInput;
     pickupTimeConfig: PickupTimeConfigInput;
+    contactPhone: string;
+    kakaoChannelUrl: string;
   }) => Promise<void>;
   adding: boolean;
 };
@@ -77,6 +79,8 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [accountHolder, setAccountHolder] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
   const isTransferEnabled = allowedPaymentMethods.includes("TRANSFER");
 
@@ -167,6 +171,8 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
                         endTime: pickupEndTime.trim(),
                       }
                     : null,
+                contactPhone: contactPhone.trim(),
+                kakaoChannelUrl: kakaoChannelUrl.trim(),
               })
             }
             disabled={disabled}
@@ -293,6 +299,19 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
             placeholder="예금주"
             value={accountHolder}
             onChange={(e) => setAccountHolder(e.target.value)}
+          />
+          <label className="block text-xs text-text-secondary mb-0">고객 문의 정보</label>
+          <input
+            className="input-field w-full"
+            placeholder="문의 전화번호"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+          />
+          <input
+            className="input-field w-full"
+            placeholder="https://pf.kakao.com/_example/chat"
+            value={kakaoChannelUrl}
+            onChange={(e) => setKakaoChannelUrl(e.target.value)}
           />
         </div>
 

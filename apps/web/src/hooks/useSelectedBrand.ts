@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getSelectedBrandId,
   setSelectedBrandId,
@@ -19,16 +19,20 @@ export function useSelectedBrand() {
     return subscribeSelectedBrandIdChanged(setBrandIdState);
   }, []);
 
+  const selectBrand = useCallback((id: string) => {
+    setSelectedBrandId(id);
+    setBrandIdState(id);
+  }, []);
+
+  const clearBrand = useCallback(() => {
+    clearSelectedBrandId();
+    setBrandIdState(null);
+  }, []);
+
   return {
     brandId,
     ready,
-    selectBrand: (id: string) => {
-      setSelectedBrandId(id);
-      setBrandIdState(id);
-    },
-    clearBrand: () => {
-      clearSelectedBrandId();
-      setBrandIdState(null);
-    },
+    selectBrand,
+    clearBrand,
   };
 }

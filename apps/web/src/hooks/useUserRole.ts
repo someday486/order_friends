@@ -74,8 +74,8 @@ async function fetchUserRoleData(userId: string): Promise<UserData | null> {
 }
 
 export function useUserRole() {
-  const { session, status } = useAuth();
-  const userId = session?.user?.id ?? null;
+  const { user, status } = useAuth();
+  const userId = user?.id ?? null;
   const [userData, setUserData] = useState<UserData | null>(() =>
     getCachedUserRole(userId),
   );

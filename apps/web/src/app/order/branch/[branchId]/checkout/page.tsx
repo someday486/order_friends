@@ -74,6 +74,8 @@ type CreateOrderResult = {
 type PublicBranchConfigResponse = {
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   pickupTimeConfig?: PickupTimeConfig;
   businessHours?: WeeklyBusinessHours;
   transferAccount?: {
@@ -171,6 +173,12 @@ export default function CheckoutPage() {
     accountNumber?: string | null;
     accountHolder?: string | null;
   } | null>(null);
+  const [branchContactPhone, setBranchContactPhone] = useState<string | null>(
+    null,
+  );
+  const [branchKakaoChannelUrl, setBranchKakaoChannelUrl] = useState<
+    string | null
+  >(null);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -428,10 +436,14 @@ export default function CheckoutPage() {
         if (latestPaymentMethods.length > 0) {
           normalizedPaymentMethods = latestPaymentMethods;
         }
+        setBranchContactPhone(latestConfig?.contactPhone?.trim() || null);
+        setBranchKakaoChannelUrl(latestConfig?.kakaoChannelUrl?.trim() || null);
         setTransferAccount(latestConfig?.transferAccount ?? null);
         setPickupTimeConfig(latestConfig?.pickupTimeConfig ?? null);
         setBusinessHours(latestConfig?.businessHours ?? null);
       } catch {
+        setBranchContactPhone(null);
+        setBranchKakaoChannelUrl(null);
         setTransferAccount(null);
         setPickupTimeConfig(null);
       }
@@ -475,6 +487,13 @@ export default function CheckoutPage() {
   );
 
   const handleSubmit = async () => {
+    if (status !== 'authenticated') {
+      toast('간편로그인 후 주문할 수 있어요.');
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+
     if (!customerName.trim()) {
       toast.error('이름을 입력해 주세요.');
       return;
@@ -561,11 +580,8 @@ export default function CheckoutPage() {
       };
 
       const result = await apiClient.post<CreateOrderResult>(
-        '/public/orders',
+        '/me/orders',
         payload,
-        {
-          auth: false,
-        },
       );
 
       clearCheckoutDraft();
@@ -581,6 +597,8 @@ export default function CheckoutPage() {
           paymentMethod,
           fulfillmentType,
           branchId,
+          branchContactPhone,
+          branchKakaoChannelUrl,
           transferAccount: result.transferAccount ?? transferAccount ?? null,
           cartSnapshot: cart,
         },

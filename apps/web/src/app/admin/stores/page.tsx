@@ -253,6 +253,8 @@ export default function StoresPage() {
             allowedPaymentMethods,
             transferAccount,
             pickupTimeConfig,
+            contactPhone,
+            kakaoChannelUrl,
           }) => {
             if (!name.trim() || !slug.trim()) return;
             if (enabledFulfillmentTypes.length === 0) return;
@@ -269,6 +271,8 @@ export default function StoresPage() {
                 allowedPaymentMethods,
                 transferAccount,
                 pickupTimeConfig,
+                contactPhone: contactPhone || null,
+                kakaoChannelUrl: kakaoChannelUrl || null,
               });
 
               invalidateAdminBranches(brandId);

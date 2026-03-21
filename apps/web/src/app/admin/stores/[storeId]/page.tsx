@@ -30,6 +30,8 @@ type Branch = {
     endTime?: string | null;
   } | null;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
 };
 
 type Brand = {
@@ -121,6 +123,8 @@ export default function StoreDetailPage() {
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
   const [orderNotice, setOrderNotice] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
   const [members, setMembers] = useState<BranchMember[]>([]);
 
@@ -152,6 +156,9 @@ export default function StoreDetailPage() {
       pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
       pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
     const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
+    const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
+    const sameKakaoChannelUrl =
+      kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -160,7 +167,9 @@ export default function StoreDetailPage() {
       !samePayments ||
       !sameTransferInfo ||
       !samePickupTimeConfig ||
-      !sameOrderNotice
+      !sameOrderNotice ||
+      !sameContactPhone ||
+      !sameKakaoChannelUrl
     );
   }, [
     allowedPaymentMethods,
@@ -174,6 +183,8 @@ export default function StoreDetailPage() {
     pickupEndTime,
     pickupStartTime,
     orderNotice,
+    contactPhone,
+    kakaoChannelUrl,
   ]);
 
   useEffect(() => {
@@ -208,6 +219,8 @@ export default function StoreDetailPage() {
         setPickupStartTime(data.pickupTimeConfig?.startTime ?? "");
         setPickupEndTime(data.pickupTimeConfig?.endTime ?? "");
         setOrderNotice(data.orderNotice ?? "");
+        setContactPhone(data.contactPhone ?? "");
+        setKakaoChannelUrl(data.kakaoChannelUrl ?? "");
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
@@ -276,6 +289,8 @@ export default function StoreDetailPage() {
     setPickupStartTime(branch.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(branch.pickupTimeConfig?.endTime ?? "");
     setOrderNotice(branch.orderNotice ?? "");
+    setContactPhone(branch.contactPhone ?? "");
+    setKakaoChannelUrl(branch.kakaoChannelUrl ?? "");
   };
 
   const handleSave = async () => {
@@ -347,6 +362,8 @@ export default function StoreDetailPage() {
           accountHolder: transferAccountHolder.trim(),
         },
         orderNotice: orderNotice.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        kakaoChannelUrl: kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
           pickupStartTime.trim() && pickupEndTime.trim()
             ? {
@@ -375,6 +392,8 @@ export default function StoreDetailPage() {
       setPickupStartTime(updated.pickupTimeConfig?.startTime ?? "");
       setPickupEndTime(updated.pickupTimeConfig?.endTime ?? "");
       setOrderNotice(updated.orderNotice ?? "");
+      setContactPhone(updated.contactPhone ?? "");
+      setKakaoChannelUrl(updated.kakaoChannelUrl ?? "");
 
       toast.success("매장을 수정했습니다.");
     } catch (e: unknown) {
@@ -549,6 +568,27 @@ export default function StoreDetailPage() {
               />
               <div className="mt-1.5 text-xs text-text-tertiary">
                 주문 메뉴 상단에 고객에게 노출되는 안내 문구입니다.
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객 문의 정보</div>
+              <div className="grid gap-2">
+                <input
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="문의 전화번호"
+                />
+                <input
+                  value={kakaoChannelUrl}
+                  onChange={(e) => setKakaoChannelUrl(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="https://pf.kakao.com/_example/chat"
+                />
+              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 정보입니다.
               </div>
             </div>
 

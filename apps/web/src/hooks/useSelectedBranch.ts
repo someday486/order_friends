@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getSelectedBranchId,
   setSelectedBranchId,
@@ -19,16 +19,20 @@ export function useSelectedBranch() {
     return subscribeSelectedBranchIdChanged(setBranchIdState);
   }, []);
 
+  const selectBranch = useCallback((id: string) => {
+    setSelectedBranchId(id);
+    setBranchIdState(id);
+  }, []);
+
+  const clearBranch = useCallback(() => {
+    clearSelectedBranchId();
+    setBranchIdState(null);
+  }, []);
+
   return {
     branchId,
     ready,
-    selectBranch: (id: string) => {
-      setSelectedBranchId(id);
-      setBranchIdState(id);
-    },
-    clearBranch: () => {
-      clearSelectedBranchId();
-      setBranchIdState(null);
-    },
+    selectBranch,
+    clearBranch,
   };
 }

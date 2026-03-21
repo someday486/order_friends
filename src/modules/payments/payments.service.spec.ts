@@ -2259,7 +2259,7 @@ describe('PaymentsService', () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
-        data: { id: 'o1', branch_id: 'b1', payment_status: 'PAID' },
+        data: { id: 'o1', branch_id: 'b1' },
         error: null,
       });
     paymentsChain.maybeSingle
@@ -2303,13 +2303,17 @@ describe('PaymentsService', () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
-        data: { id: 'o1', branch_id: 'b1', payment_status: 'PENDING' },
+        data: { id: 'o1', branch_id: 'b1' },
         error: null,
       });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     await service.refundOrderPaymentForCancellation('o1', 'b1');
 
-    expect(paymentsChain.maybeSingle).not.toHaveBeenCalled();
+    expect(paymentsChain.maybeSingle).toHaveBeenCalled();
   });
 
   it('verifyTossWebhookSignature should validate signature', () => {

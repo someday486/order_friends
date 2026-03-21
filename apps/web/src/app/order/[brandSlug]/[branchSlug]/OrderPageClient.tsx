@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { formatWon } from '@/lib/format';
+import { formatPhone, formatWon } from '@/lib/format';
 import { saveCheckoutDraft, loadLastOrderRecord } from '@/lib/order-session';
 import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
 import {
@@ -23,10 +23,17 @@ type Branch = {
   brandName?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
   orderNotice?: string | null;
 };
+
+function toTelHref(phone: string) {
+  const normalized = phone.replace(/[^\d+]/g, '');
+  return normalized ? `tel:${normalized}` : null;
+}
 
 type Category = {
   id: string;
@@ -423,6 +430,34 @@ export default function OrderPageClient({
                   {branch.orderNotice.trim()}
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {(branch.contactPhone?.trim() || branch.kakaoChannelUrl?.trim()) && (
+          <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary px-4 py-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-text-tertiary">
+              문의 안내
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {branch.contactPhone?.trim() && (
+                <a
+                  href={toTelHref(branch.contactPhone.trim()) ?? undefined}
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  전화 문의 {formatPhone(branch.contactPhone.trim())}
+                </a>
+              )}
+              {branch.kakaoChannelUrl?.trim() && (
+                <a
+                  href={branch.kakaoChannelUrl.trim()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  카카오톡 상담
+                </a>
+              )}
             </div>
           </div>
         )}

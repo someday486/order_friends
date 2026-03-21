@@ -1349,6 +1349,39 @@ export class PublicOrderService {
     };
   }
 
+  private async getPublicBranchContactInfo(branchId: string) {
+    const adminSb = this.supabase.adminClient();
+
+    try {
+      const { data, error } = await adminSb
+        .from('branches')
+        .select('contact_phone, kakao_channel_url')
+        .eq('id', branchId)
+        .maybeSingle();
+
+      if (error || !data) {
+        return {
+          contactPhone: null,
+          kakaoChannelUrl: null,
+        };
+      }
+
+      return {
+        contactPhone:
+          typeof data.contact_phone === 'string' ? data.contact_phone : null,
+        kakaoChannelUrl:
+          typeof data.kakao_channel_url === 'string'
+            ? data.kakao_channel_url
+            : null,
+      };
+    } catch {
+      return {
+        contactPhone: null,
+        kakaoChannelUrl: null,
+      };
+    }
+  }
+
   private async rollbackOrder(adminClient: any, orderId: string) {
     try {
       await adminClient.from('order_items').delete().eq('order_id', orderId);
@@ -1443,6 +1476,8 @@ export class PublicOrderService {
         `
         id,
         name,
+        contact_phone,
+        kakao_channel_url,
         logo_url,
         cover_image_url,
         brands (
@@ -1467,6 +1502,8 @@ export class PublicOrderService {
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      contactPhone: row.contact_phone ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
@@ -1489,6 +1526,8 @@ export class PublicOrderService {
         id,
         name,
         slug,
+        contact_phone,
+        kakao_channel_url,
         logo_url,
         cover_image_url,
         brands (
@@ -1521,6 +1560,8 @@ export class PublicOrderService {
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      contactPhone: row.contact_phone ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
@@ -1546,6 +1587,8 @@ export class PublicOrderService {
         id,
         name,
         slug,
+        contact_phone,
+        kakao_channel_url,
         logo_url,
         cover_image_url,
         brands!inner (
@@ -1581,6 +1624,8 @@ export class PublicOrderService {
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      contactPhone: row.contact_phone ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
@@ -1945,32 +1990,41 @@ export class PublicOrderService {
         address2: order.customer_address2 ?? null,
         memo: order.customer_memo ?? null,
       },
+      branchContactPhone: null,
+      branchKakaoChannelUrl: null,
       items,
     };
   }
 
-  private async attachTransferAccount(
+  private async attachPublicOrderSupportInfo(
     order: PublicOrderResponse,
     branchId?: string | null,
   ): Promise<PublicOrderResponse> {
     if (!branchId) return order;
-    if (order.transferAccount) return order;
+
+    const nextOrder = { ...order };
 
     try {
-      const branchConfig = await this.getPublicBranchOrderConfig(branchId);
-      return {
-        ...order,
-        transferAccount: branchConfig.transferAccount ?? null,
-      };
+      if (!nextOrder.transferAccount) {
+        const branchConfig = await this.getPublicBranchOrderConfig(branchId);
+        nextOrder.transferAccount = branchConfig.transferAccount ?? null;
+      }
     } catch {
-      return order;
+      // Ignore branch config lookup failures on public tracking page.
     }
+
+    const supportInfo = await this.getPublicBranchContactInfo(branchId);
+    nextOrder.branchContactPhone = supportInfo.contactPhone;
+    nextOrder.branchKakaoChannelUrl = supportInfo.kakaoChannelUrl;
+
+    return nextOrder;
   }
 
   private async fetchOrderByIdempotencyKey(
     adminClient: any,
     branchId: string,
     idempotencyKey?: string,
+    userId?: string,
   ): Promise<any> {
     if (!idempotencyKey) return null;
 
@@ -1981,6 +2035,7 @@ export class PublicOrderService {
           .select(
             `
         id,
+        user_id,
         branch_id,
         order_no,
         status,
@@ -2007,7 +2062,10 @@ export class PublicOrderService {
       return null;
     }
 
-    return data[0];
+    const matched = data.find(
+      (row: any) => !userId || !row.user_id || row.user_id === userId,
+    );
+    return matched ?? null;
   }
 
   private async logDedupEvent(
@@ -2143,6 +2201,7 @@ export class PublicOrderService {
     dto: CreatePublicOrderRequest,
     totalAmount: number,
     signature: string,
+    userId?: string,
   ): Promise<{
     order: PublicOrderResponse;
     strategy: string;
@@ -2158,6 +2217,7 @@ export class PublicOrderService {
           .select(
             `
         id,
+        user_id,
         branch_id,
         order_no,
         status,
@@ -2210,6 +2270,10 @@ export class PublicOrderService {
     }
 
     for (const order of data as any[]) {
+      if (userId && order.user_id && order.user_id !== userId) {
+        continue;
+      }
+
       const candidateSignature = this.buildSignatureFromOrder(order);
 
       if (candidateSignature !== signature) {
@@ -2219,7 +2283,7 @@ export class PublicOrderService {
       this.logger.warn(
         `Duplicate order detected for ${dto.branchId} within window: ${order.id}`,
       );
-      const orderResponse = await this.attachTransferAccount(
+      const orderResponse = await this.attachPublicOrderSupportInfo(
         this.buildOrderResponse(order),
         order.branch_id ?? dto.branchId,
       );
@@ -2247,6 +2311,7 @@ export class PublicOrderService {
    */
   async createOrder(
     dto: CreatePublicOrderRequest,
+    userId?: string,
   ): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
     const adminClient = this.supabase.adminClient();
@@ -2394,6 +2459,7 @@ export class PublicOrderService {
         adminClient,
         dto.branchId,
         idempotencyKey,
+        userId,
       );
 
       if (existingOrder) {
@@ -2476,7 +2542,7 @@ export class PublicOrderService {
           orderId: existingOrder.id,
           idempotencyKey,
         });
-        return this.attachTransferAccount(
+        return this.attachPublicOrderSupportInfo(
           this.buildOrderResponse(existingOrder),
           existingOrder.branch_id ?? dto.branchId,
         );
@@ -2494,6 +2560,7 @@ export class PublicOrderService {
       dedupDto,
       totalAmount,
       signature,
+      userId,
     );
 
     if (duplicateOrder) {
@@ -2524,6 +2591,7 @@ export class PublicOrderService {
 
     const insertPayload: Record<string, any> = {
       branch_id: dto.branchId,
+      user_id: userId ?? null,
       customer_name: dto.customerName,
       customer_phone: dto.customerPhone ?? null,
       customer_address1: dto.customerAddress1 ?? null,
@@ -2632,6 +2700,7 @@ export class PublicOrderService {
           adminClient,
           dto.branchId,
           idempotencyKey,
+          userId,
         );
 
         if (existingOrder) {
@@ -2660,7 +2729,7 @@ export class PublicOrderService {
             orderId: existingOrder.id,
             idempotencyKey,
           });
-          return this.attachTransferAccount(
+          return this.attachPublicOrderSupportInfo(
             this.buildOrderResponse(existingOrder),
             existingOrder.branch_id ?? dto.branchId,
           );
@@ -3032,7 +3101,7 @@ export class PublicOrderService {
       throw new NotFoundException('주문을 찾을 수 없습니다.');
     }
 
-    return this.attachTransferAccount(
+    return this.attachPublicOrderSupportInfo(
       this.buildOrderResponse(data),
       data.branch_id,
     );

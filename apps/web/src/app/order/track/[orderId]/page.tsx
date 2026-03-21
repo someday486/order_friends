@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { formatDateTimeFull, formatWon } from '@/lib/format';
+import toast from 'react-hot-toast';
+import { formatDateTimeFull, formatPhone, formatWon } from '@/lib/format';
+import { useAuth } from '@/hooks/useAuth';
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from '@/types/common';
 import { apiClient } from '@/lib/api-client';
-import { loadLastOrderRecord } from '@/lib/order-session';
+import { loadLastOrderRecord, saveLastOrderRecord } from '@/lib/order-session';
 
 type PaymentMethod = 'CARD' | 'TRANSFER' | 'CASH';
 type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
@@ -40,8 +42,20 @@ type OrderInfo = {
   customerAddress2: string | null;
   customerMemo: string | null;
   branchId?: string | null;
+  branchContactPhone?: string | null;
+  branchKakaoChannelUrl?: string | null;
   items: OrderItemInfo[];
 };
+
+type PublicBranchSupportInfo = {
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
+};
+
+function toTelHref(phone: string) {
+  const normalized = phone.replace(/[^\d+]/g, '');
+  return normalized ? `tel:${normalized}` : null;
+}
 
 const STATUS_STEPS: OrderStatus[] = [
   'CREATED',
@@ -202,6 +216,12 @@ function normalizeOrder(raw: unknown): OrderInfo | null {
       'customer_memo',
       'memo',
     ]),
+    branchContactPhone: toText(
+      source.branchContactPhone ?? source.branch_contact_phone,
+    ),
+    branchKakaoChannelUrl: toText(
+      source.branchKakaoChannelUrl ?? source.branch_kakao_channel_url,
+    ),
     items: items.map((item) => {
       const row = (item ?? {}) as Record<string, unknown>;
       const name =
@@ -242,6 +262,10 @@ function mergeOrder(primary: OrderInfo, fallback: OrderInfo | null): OrderInfo {
     customerAddress2: primary.customerAddress2 ?? fallback.customerAddress2,
     customerMemo: primary.customerMemo ?? fallback.customerMemo,
     branchId: primary.branchId ?? fallback.branchId,
+    branchContactPhone:
+      primary.branchContactPhone ?? fallback.branchContactPhone,
+    branchKakaoChannelUrl:
+      primary.branchKakaoChannelUrl ?? fallback.branchKakaoChannelUrl,
     items: primary.items.length > 0 ? primary.items : fallback.items,
   };
 }
@@ -314,6 +338,95 @@ function paymentGuide(method: PaymentMethod | null): {
   };
 }
 
+function refundGuide(order: OrderInfo): {
+  title: string;
+  summary: string;
+  items: string[];
+} {
+  const settlementHint =
+    order.paymentMethod === 'CARD'
+      ? '카드 결제 취소 후 실제 환불 반영까지는 카드사 사정에 따라 3~5영업일 정도 걸릴 수 있습니다.'
+      : order.paymentMethod === 'TRANSFER'
+        ? '계좌이체 주문의 환불은 계좌 확인이 필요할 수 있어 매장 안내에 따라 처리됩니다.'
+        : order.paymentMethod === 'CASH'
+          ? '현장결제 주문의 환불 방식은 매장 정책에 따라 달라질 수 있습니다.'
+          : '환불 반영 시점은 결제 수단과 매장 확인 결과에 따라 달라질 수 있습니다.';
+
+  if (order.status === 'CREATED') {
+    return {
+      title: '취소 및 환불 안내',
+      summary:
+        '현재는 주문 접수 단계입니다. 매장 준비가 시작되기 전이면 취소와 환불이 비교적 빠르게 처리될 수 있습니다.',
+      items: [
+        '준비 시작 전 주문은 자동 취소 또는 빠른 환불 대상이 될 수 있습니다.',
+        settlementHint,
+        '환불이 지연되거나 확인이 필요하면 아래 문의 연락처로 바로 연락해 주세요.',
+      ],
+    };
+  }
+
+  if (order.status === 'CONFIRMED' || order.status === 'PREPARING') {
+    return {
+      title: '환불 가능 여부 확인 중',
+      summary:
+        '현재 매장에서 주문을 확인했거나 준비 중일 수 있어 자동 취소가 제한될 수 있습니다.',
+      items: [
+        '준비가 시작된 주문은 매장 확인 후 취소 또는 환불 가능 여부가 결정될 수 있습니다.',
+        settlementHint,
+        '빠른 확인이 필요하면 아래 문의 연락처로 요청해 주세요.',
+      ],
+    };
+  }
+
+  if (order.status === 'READY') {
+    return {
+      title: '수령 직전 주문 안내',
+      summary:
+        '준비 완료된 주문은 구매자 화면에서 바로 취소되지 않을 수 있으며 매장 확인이 우선됩니다.',
+      items: [
+        '준비 완료 이후에는 환불 가능 여부가 매장 정책과 진행 상황에 따라 달라집니다.',
+        settlementHint,
+        '취소 또는 환불이 필요하면 바로 매장에 연락해 주세요.',
+      ],
+    };
+  }
+
+  if (order.status === 'COMPLETED') {
+    return {
+      title: '완료 주문 환불 안내',
+      summary:
+        '완료된 주문은 단순 취소가 아니라 환불 검토가 필요한 상태입니다.',
+      items: [
+        '상품 누락, 오배송, 결제 오류 등의 사유가 있으면 매장 확인 후 환불이 진행됩니다.',
+        settlementHint,
+        '처리 기준은 매장 정책에 따라 달라질 수 있으니 문의 연락처를 이용해 주세요.',
+      ],
+    };
+  }
+
+  if (order.status === 'REFUNDED') {
+    return {
+      title: '환불 완료 안내',
+      summary: '이 주문의 환불 처리는 완료되었습니다.',
+      items: [
+        settlementHint,
+        '카드사 또는 금융기관 반영 시점은 실제 입금 시점과 차이가 있을 수 있습니다.',
+        '반영 내역이 보이지 않으면 매장 또는 결제 수단 고객센터에 문의해 주세요.',
+      ],
+    };
+  }
+
+  return {
+    title: '취소 완료 안내',
+    summary: '이 주문은 취소 처리되었습니다.',
+    items: [
+      settlementHint,
+      '실제 환불 반영 시점은 결제 수단에 따라 차이가 있을 수 있습니다.',
+      '반영이 지연되면 매장으로 문의해 주세요.',
+    ],
+  };
+}
+
 function playReadySound() {
   try {
     const ctx = new (
@@ -341,6 +454,7 @@ function playReadySound() {
 export default function TrackOrderPage() {
   const params = useParams();
   const orderId = params?.orderId as string;
+  const { status } = useAuth();
   const cachedOrder = useMemo(
     () => normalizeOrder(loadLastOrderRecord({})),
     [],
@@ -354,6 +468,9 @@ export default function TrackOrderPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [cancelSuccessNotice, setCancelSuccessNotice] = useState<string | null>(
+    null,
+  );
 
   const prevStatusRef = useRef<OrderStatus | null>(null);
 
@@ -408,6 +525,47 @@ export default function TrackOrderPage() {
       void fetchOrder(false);
     }
   }, [fetchOrder, orderId]);
+
+  useEffect(() => {
+    if (!order?.branchId) return;
+    if (order.branchContactPhone?.trim() || order.branchKakaoChannelUrl?.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    apiClient
+      .get<PublicBranchSupportInfo>(
+        `/public/branches/${encodeURIComponent(order.branchId)}`,
+        {
+          auth: false,
+        },
+      )
+      .then((branch) => {
+        if (cancelled) return;
+        const contactPhone = toText(branch?.contactPhone);
+        const kakaoChannelUrl = toText(branch?.kakaoChannelUrl);
+        if (!contactPhone && !kakaoChannelUrl) return;
+
+        setOrder((current) =>
+          current
+            ? {
+                ...current,
+                branchContactPhone: current.branchContactPhone ?? contactPhone,
+                branchKakaoChannelUrl:
+                  current.branchKakaoChannelUrl ?? kakaoChannelUrl,
+              }
+            : current,
+        );
+      })
+      .catch(() => {
+        // non-fatal
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.branchContactPhone, order?.branchId, order?.branchKakaoChannelUrl]);
 
   // 10초 polling (완료/취소 상태면 중단)
   useEffect(() => {
@@ -486,10 +644,101 @@ export default function TrackOrderPage() {
 
   const isCancelled =
     order.status === 'CANCELLED' || order.status === 'REFUNDED';
+  const isRefunded = order.status === 'REFUNDED';
   const isCompleted = order.status === 'COMPLETED';
   const isReady = order.status === 'READY';
   const currentStepIndex = STATUS_STEPS.indexOf(order.status);
   const guide = paymentGuide(order.paymentMethod);
+  const refundNotice = refundGuide(order);
+  const showCancelAction = !isCancelled && !isCompleted;
+  const cancelActionLabel =
+    order.status === 'CREATED' ? '주문 취소' : '주문 취소 문의';
+  const topStatusNotice = cancelSuccessNotice
+    ? {
+        tone: 'danger' as const,
+        title: '주문 취소가 완료되었어요.',
+        description: '주문 상태와 진행 상황이 바로 취소됨으로 업데이트됐어요.',
+      }
+    : isRefunded
+      ? {
+          tone: 'refund' as const,
+          title: '환불이 완료되었어요.',
+          description:
+            '이 주문은 환불 완료 상태로 반영되었어요. 카드사나 금융기관 반영까지는 조금 더 걸릴 수 있어요.',
+        }
+      : isCancelled
+        ? {
+            tone: 'danger' as const,
+            title: '주문이 취소되었어요.',
+            description:
+              '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 매장에 연락해 주세요.',
+          }
+        : null;
+
+  const handleCancelAction = useCallback(async () => {
+    if (order.status === 'CREATED') {
+      if (status !== 'authenticated') {
+        toast('로그인 후 주문을 취소할 수 있어요.');
+        const next = `${window.location.pathname}${window.location.search}`;
+        window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
+
+      try {
+        await apiClient.post(
+          `/me/orders/${encodeURIComponent(order.id)}/cancel`,
+          {},
+        );
+        const cancelledOrder: OrderInfo = {
+          ...order,
+          status: 'CANCELLED',
+        };
+        setOrder(cancelledOrder);
+        setLastUpdatedAt(new Date());
+        setCancelSuccessNotice('주문이 취소되었어요.');
+        saveLastOrderRecord({
+          order: cancelledOrder,
+          branchId: cancelledOrder.branchId ?? null,
+        });
+        toast.success('주문이 취소되었어요.');
+        void fetchOrder(true);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : '주문 취소 처리 중 오류가 발생했어요.',
+        );
+      }
+      return;
+    }
+
+    if (order.branchKakaoChannelUrl?.trim()) {
+      window.open(
+        order.branchKakaoChannelUrl.trim(),
+        '_blank',
+        'noopener,noreferrer',
+      );
+      return;
+    }
+
+    const telHref = order.branchContactPhone?.trim()
+      ? toTelHref(order.branchContactPhone.trim())
+      : null;
+
+    if (telHref) {
+      window.location.href = telHref;
+      return;
+    }
+
+    toast('주문 취소는 매장 문의로 도와드리고 있어요.');
+  }, [
+    fetchOrder,
+    order.branchContactPhone,
+    order.branchKakaoChannelUrl,
+    order.id,
+    order.status,
+    status,
+  ]);
 
   const timeline = isCancelled
     ? [
@@ -571,7 +820,65 @@ export default function TrackOrderPage() {
       </header>
 
       <div className="max-w-xl mx-auto p-4 space-y-4">
+        {topStatusNotice && (
+          <section
+            className={`rounded-2xl border p-4 ${
+              topStatusNotice.tone === 'refund'
+                ? 'border-pink-500/30 bg-pink-500/10'
+                : 'border-danger-500/30 bg-danger-500/10'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {topStatusNotice.title}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-text-secondary">
+                  {topStatusNotice.description}
+                </div>
+              </div>
+              {cancelSuccessNotice && (
+                <button
+                  type="button"
+                  onClick={() => setCancelSuccessNotice(null)}
+                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground"
+                >
+                  닫기
+                </button>
+              )}
+            </div>
+          </section>
+        )}
         {/* ── 주문번호 카드 ── */}
+        {(order.branchContactPhone?.trim() ||
+          order.branchKakaoChannelUrl?.trim()) && (
+          <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+            <h2 className="text-sm font-semibold text-foreground mb-2">
+              문의 안내
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {order.branchContactPhone?.trim() && (
+                <a
+                  href={toTelHref(order.branchContactPhone.trim()) ?? undefined}
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  전화 문의 {formatPhone(order.branchContactPhone.trim())}
+                </a>
+              )}
+              {order.branchKakaoChannelUrl?.trim() && (
+                <a
+                  href={order.branchKakaoChannelUrl.trim()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  카카오톡 상담
+                </a>
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="rounded-2xl border border-border bg-bg-secondary p-4">
           <div className="text-xs text-text-tertiary">주문번호</div>
           <div className="text-2xl font-extrabold font-mono text-foreground mt-1">
@@ -621,15 +928,39 @@ export default function TrackOrderPage() {
           <h2 className="text-sm font-semibold text-foreground mb-3">
             진행 상황
           </h2>
+          {isCancelled && (
+            <div
+              className={`mb-3 rounded-xl border px-3 py-3 text-sm ${
+                isRefunded
+                  ? 'border-pink-500/30 bg-pink-500/10 text-pink-100'
+                  : 'border-danger-500/30 bg-danger-500/10 text-danger-100'
+              }`}
+            >
+              <div className="font-semibold text-foreground">
+                {isRefunded ? '환불이 완료되었어요.' : '주문이 취소되었어요.'}
+              </div>
+              <div className="mt-1 text-xs leading-5 text-text-secondary">
+                {isRefunded
+                  ? '결제 수단에 따라 환불 반영까지 영업일 기준 며칠 더 걸릴 수 있어요.'
+                  : '해당 주문은 더 이상 진행되지 않으며, 필요하면 아래 문의 정보로 매장에 연락하실 수 있어요.'}
+              </div>
+            </div>
+          )}
           <div className="relative pl-6">
             <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
             {timeline.map((step, idx) => {
               const isCurrent = step.state === 'current';
               const isDone = step.state === 'done';
+              const isCancelledStep = step.id === 'CANCELLED';
+              const isRefundedStep = step.id === 'REFUNDED';
               const dotClass = isDone
                 ? 'bg-success-500 border-success-500'
                 : isCurrent
-                  ? 'bg-primary-500 border-primary-500'
+                  ? isCancelledStep
+                    ? 'bg-danger-500 border-danger-500'
+                    : isRefundedStep
+                      ? 'bg-pink-500 border-pink-500'
+                      : 'bg-primary-500 border-primary-500'
                   : 'bg-bg-tertiary border-border';
 
               return (
@@ -647,9 +978,13 @@ export default function TrackOrderPage() {
                   <div
                     className={`rounded-xl border p-3 ${
                       isCurrent
-                        ? step.id === 'READY'
-                          ? 'border-success-500/50 bg-success-500/10'
-                          : 'border-primary-500/50 bg-primary-500/10'
+                        ? isCancelledStep
+                          ? 'border-danger-500/40 bg-danger-500/10'
+                          : isRefundedStep
+                            ? 'border-pink-500/40 bg-pink-500/10'
+                            : step.id === 'READY'
+                           ? 'border-success-500/50 bg-success-500/10'
+                           : 'border-primary-500/50 bg-primary-500/10'
                         : isDone
                           ? 'border-success-500/30 bg-success-500/5'
                           : 'border-border bg-background'
@@ -692,6 +1027,24 @@ export default function TrackOrderPage() {
           </h2>
           <div className="text-xs text-text-secondary leading-5">
             {guide.description}
+          </div>
+          <div className="mt-3 rounded-lg border border-border bg-background px-3 py-3">
+            <div className="text-xs font-semibold text-foreground">
+              {refundNotice.title}
+            </div>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              {refundNotice.summary}
+            </p>
+            <div className="mt-2 space-y-2">
+              {refundNotice.items.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-lg bg-bg-tertiary px-3 py-2 text-xs leading-5 text-text-secondary"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
           {order.paymentMethod === 'TRANSFER' && order.transferAccount ? (
             <div className="mt-3 rounded-lg bg-bg-tertiary px-3 py-2.5 text-xs text-text-secondary leading-6">
@@ -799,6 +1152,23 @@ export default function TrackOrderPage() {
             </span>
           </div>
         </section>
+        {showCancelAction && (
+          <section className="rounded-2xl border border-danger-500/30 bg-danger-500/5 p-4">
+            <div className="text-sm font-semibold text-foreground">
+              주문 취소가 필요하신가요?
+            </div>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 매장 문의로 빠르게 도와드리고 있습니다.
+            </p>
+            <button
+              type="button"
+              onClick={handleCancelAction}
+              className="mt-3 w-full rounded-xl border-none bg-danger-500 px-4 py-3 text-sm font-bold text-white cursor-pointer hover:opacity-90 transition-opacity"
+            >
+              {cancelActionLabel}
+            </button>
+          </section>
+        )}
       </div>
     </div>
   );

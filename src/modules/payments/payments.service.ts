@@ -1075,7 +1075,7 @@ export class PaymentsService {
 
     const { data: order, error: orderError } = await sb
       .from('orders')
-      .select('id, branch_id, payment_status')
+      .select('id, branch_id')
       .eq('id', resolvedId)
       .eq('branch_id', branchId)
       .maybeSingle();
@@ -1095,14 +1095,6 @@ export class PaymentsService {
 
     if (!order) {
       throw new OrderNotFoundException(orderIdOrNo);
-    }
-
-    if (
-      !order.payment_status ||
-      order.payment_status === 'PENDING' ||
-      order.payment_status === 'FAILED'
-    ) {
-      return;
     }
 
     const { data: payment, error: paymentError } = await sb
@@ -1125,12 +1117,7 @@ export class PaymentsService {
     }
 
     if (!payment) {
-      throw new BusinessException(
-        'Paid order is missing payment record',
-        'PAYMENT_RECORD_MISSING',
-        500,
-        { orderId: resolvedId, branchId, paymentStatus: order.payment_status },
-      );
+      return;
     }
 
     const paymentRecord = payment as CancellationPaymentRecord;

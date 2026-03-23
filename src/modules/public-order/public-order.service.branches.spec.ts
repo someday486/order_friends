@@ -572,9 +572,58 @@ describe('PublicOrderService - Branch Coverage', () => {
       signature,
     );
 
+    expect(adminChains.orders.eq).toHaveBeenCalledWith(
+      'payment_method',
+      'CARD',
+    );
     expect(result.strategy).toBe('NAME_PHONE');
     expect(result.order.id).toBe('o2');
     expect(result.metadata.windowMs).toBe((service as any).duplicateWindowMs);
+  });
+
+  it('findRecentDuplicateOrder should respect payment method even with customer identifiers', async () => {
+    const dto = {
+      branchId: 'b1',
+      customerName: 'Name',
+      customerPhone: '010',
+      paymentMethod: 'TRANSFER',
+      items: [{ productId: 'p1', qty: 1 }],
+    } as any;
+    const signature = (service as any).buildOrderSignature(dto.items);
+
+    adminChains.orders.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o1',
+          order_no: 'O-1',
+          status: 'CREATED',
+          total_amount: 1000,
+          created_at: 't',
+          order_items: [
+            {
+              product_id: 'p1',
+              product_name_snapshot: 'P1',
+              qty: 1,
+              unit_price: 1000,
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const result = await (service as any).findRecentDuplicateOrder(
+      adminClient,
+      dto,
+      1000,
+      signature,
+    );
+
+    expect(adminChains.orders.eq).toHaveBeenCalledWith(
+      'payment_method',
+      'TRANSFER',
+    );
+    expect(result?.metadata.paymentMethod).toBe('TRANSFER');
   });
 
   it('findRecentDuplicateOrder should handle different strategies with no matches', async () => {

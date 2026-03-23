@@ -160,6 +160,17 @@ export class CreateBranchRequest {
   @IsOptional()
   contactPhone?: string;
 
+  @IsString()
+  @IsOptional()
+  depositSheetName?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'depositSheetUrl must be a valid URL' },
+  )
+  @IsOptional()
+  depositSheetUrl?: string;
+
   @IsUrl(
     { protocols: ['http', 'https'], require_protocol: true },
     { message: 'kakaoChannelUrl must be a valid URL' },
@@ -224,6 +235,17 @@ export class UpdateBranchRequest {
   @IsString()
   @IsOptional()
   contactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  depositSheetName?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'depositSheetUrl must be a valid URL' },
+  )
+  @IsOptional()
+  depositSheetUrl?: string;
 
   @IsUrl(
     { protocols: ['http', 'https'], require_protocol: true },

@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal';
 import {
   FULFILLMENT_TYPE_LABEL,
   getOrderStatusDisplay,
+  type DepositMatchStatus,
   type Branch,
   type FulfillmentType,
   type OrderStatus,
@@ -31,6 +32,7 @@ type Order = {
   customerName: string;
   totalAmount: number;
   status: OrderStatus;
+  depositMatchStatus?: DepositMatchStatus | null;
   fulfillmentType?: FulfillmentType | null;
   fulfillment_type?: FulfillmentType | null;
   orderedAt: string;
@@ -95,6 +97,18 @@ const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   COMPLETED: 'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
   CANCELLED: 'bg-red-500/10 text-red-500',
   REFUNDED:  'bg-red-500/10 text-red-500',
+};
+
+const DEPOSIT_MATCH_LABEL: Record<DepositMatchStatus, string> = {
+  PENDING: '입금대기',
+  AUTO_MATCHED: '자동입금확인',
+};
+
+const DEPOSIT_MATCH_BADGE_CLASS: Record<DepositMatchStatus, string> = {
+  PENDING:
+    'bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/40',
+  AUTO_MATCHED:
+    'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
 };
 
 const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
@@ -276,9 +290,13 @@ function TableRowSkeleton({ cols }: { cols: number }) {
 }
 
 function getTodayYmd(): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const now = new Date();
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
 }
 
 // ── ExportDialog ─────────────────────────────────────────────
@@ -1412,11 +1430,20 @@ export default function CustomerOrdersPage() {
 
                     {/* 상태 */}
                     <td className="py-3 px-3.5 text-[13px]">
-                      <span
-                        className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
-                      >
-                        {ORDER_STATUS_LABEL[order.status]}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
+                        >
+                          {ORDER_STATUS_LABEL[order.status]}
+                        </span>
+                        {order.depositMatchStatus && (
+                          <span
+                            className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${DEPOSIT_MATCH_BADGE_CLASS[order.depositMatchStatus]}`}
+                          >
+                            {DEPOSIT_MATCH_LABEL[order.depositMatchStatus]}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* 금액 */}

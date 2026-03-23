@@ -129,18 +129,11 @@ export default function OrderPageClient({
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
-  const [nowTs, setNowTs] = useState(() => Date.now());
+  const [nowTs, setNowTs] = useState(0);
   const productDialogTitleId = 'order-product-dialog-title';
 
   // 재주문 배너
-  const lastOrderCart = useMemo<CartItem[] | null>(() => {
-    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
-    if (!lastRecord || typeof lastRecord !== 'object') return null;
-    const rec = lastRecord as Record<string, unknown>;
-    return Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
-      ? (rec.cartSnapshot as CartItem[])
-      : null;
-  }, [brandSlug, branchSlug]);
+  const [lastOrderCart, setLastOrderCart] = useState<CartItem[] | null>(null);
   const [reorderDismissed, setReorderDismissed] = useState(false);
 
   const handleReorder = () => {
@@ -175,6 +168,8 @@ export default function OrderPageClient({
   }, [selectedProduct]);
 
   useEffect(() => {
+    setNowTs(Date.now());
+
     const timerId = window.setInterval(() => {
       setNowTs(Date.now());
     }, 1000);
@@ -183,6 +178,21 @@ export default function OrderPageClient({
       window.clearInterval(timerId);
     };
   }, []);
+
+  useEffect(() => {
+    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
+    if (!lastRecord || typeof lastRecord !== 'object') {
+      setLastOrderCart(null);
+      return;
+    }
+
+    const rec = lastRecord as Record<string, unknown>;
+    setLastOrderCart(
+      Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
+        ? (rec.cartSnapshot as CartItem[])
+        : null,
+    );
+  }, [brandSlug, branchSlug]);
 
   const filteredProducts = useMemo(() => {
     const base = !selectedCategory

@@ -39,6 +39,7 @@ describe('PublicOrderService - Inventory Integration', () => {
     adminChains = {
       branches: makeChain(),
       orders: makeChain(),
+      payments: makeChain(),
       order_items: makeChain(),
       product_inventory: makeChain(),
     };
@@ -173,6 +174,78 @@ describe('PublicOrderService - Inventory Integration', () => {
         branchName: '테스트매장',
       }),
       '010-1234-5678',
+    );
+    expect(adminChains.payments.insert).not.toHaveBeenCalled();
+  });
+
+  it('should create pending manual payment record for transfer orders', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      paymentMethod: 'TRANSFER',
+      items: [{ productId: 'product-1', qty: 1, unitPrice: 32000 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 32000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-124',
+        order_no: 'ORD-002',
+        total_amount: 32000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          transfer_account: {
+            bank_name: 'NH',
+            account_number: '302-2022-0855-71',
+            account_holder: '미남과일',
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { name: '테스트매장' },
+        error: null,
+      });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.paymentMethod).toBe('TRANSFER');
+    expect(adminChains.payments.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        order_id: 'order-124',
+        amount: 32000,
+        currency: 'KRW',
+        provider: 'MANUAL',
+        status: 'PENDING',
+        payment_method: 'TRANSFER',
+      }),
     );
   });
 

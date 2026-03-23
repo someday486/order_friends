@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
 import {
+  type DepositMatchStatus,
   FULFILLMENT_TYPE_LABEL,
   ORDER_STATUS_DISPLAY_LABEL,
   getOrderStatusDisplay,
@@ -27,6 +28,7 @@ type OrderDetail = {
   orderNo?: string | null;
   orderedAt: string;
   status: OrderStatus;
+  depositMatchStatus?: DepositMatchStatus | null;
   fulfillmentType?: FulfillmentType | null;
   customer: {
     name: string;
@@ -36,7 +38,7 @@ type OrderDetail = {
     memo?: string;
   };
   payment: {
-    method: "CARD" | "TRANSFER" | "CASH";
+    method: "CARD" | "TRANSFER" | "CASH" | null;
     subtotal: number;
     shippingFee: number;
     discount: number;
@@ -67,6 +69,16 @@ const paymentMethodLabel: Record<string, string> = {
   CARD: "카드",
   TRANSFER: "계좌이체",
   CASH: "현금",
+};
+
+const depositMatchLabel: Record<DepositMatchStatus, string> = {
+  PENDING: "입금대기",
+  AUTO_MATCHED: "자동입금확인",
+};
+
+const depositMatchClass: Record<DepositMatchStatus, string> = {
+  PENDING: "border-warning-200 bg-warning-50 text-warning-700",
+  AUTO_MATCHED: "border-success/30 bg-success/10 text-success",
 };
 
 function formatWon(amount: number) {
@@ -246,6 +258,13 @@ function OrderDetailPageContent() {
             <span className="inline-flex h-[26px] items-center rounded-full border border-border bg-bg-tertiary px-2.5 text-xs text-foreground">
               {ORDER_STATUS_DISPLAY_LABEL[displayStatus]}
             </span>
+            {order.depositMatchStatus && (
+              <span
+                className={`inline-flex h-[26px] items-center rounded-full border px-2.5 text-xs ${depositMatchClass[order.depositMatchStatus]}`}
+              >
+                {depositMatchLabel[order.depositMatchStatus]}
+              </span>
+            )}
             {order.fulfillmentType && (
               <span className="inline-flex h-[26px] items-center rounded-full border border-border bg-bg-secondary px-2.5 text-xs text-foreground">
                 {FULFILLMENT_TYPE_LABEL[order.fulfillmentType]}

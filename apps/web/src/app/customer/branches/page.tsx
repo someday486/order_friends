@@ -30,6 +30,8 @@ type Branch = {
   brandSlug?: string | null;
   myRole: string | null;
   createdAt: string;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
 };
 
 type Brand = {
@@ -591,6 +593,8 @@ function AddBranchModal({
     transferBankName: string;
     transferAccountNumber: string;
     transferAccountHolder: string;
+    depositSheetName: string;
+    depositSheetUrl: string;
     contactPhone: string;
     kakaoChannelUrl: string;
     pickupStartTime: string;
@@ -604,6 +608,8 @@ function AddBranchModal({
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",
+    depositSheetName: "",
+    depositSheetUrl: "",
     contactPhone: "",
     kakaoChannelUrl: "",
     pickupStartTime: "",
@@ -729,6 +735,8 @@ function AddBranchModal({
           accountNumber: formData.transferAccountNumber.trim(),
           accountHolder: formData.transferAccountHolder.trim(),
         },
+        depositSheetName: formData.depositSheetName.trim() || null,
+        depositSheetUrl: formData.depositSheetUrl.trim() || null,
         contactPhone: formData.contactPhone.trim() || null,
         kakaoChannelUrl: formData.kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
@@ -946,6 +954,20 @@ function AddBranchModal({
                 onChange={(e) => setFormData({ ...formData, transferAccountHolder: e.target.value })}
                 className="input-field"
                 placeholder="예금주"
+              />
+              <input
+                type="text"
+                value={formData.depositSheetName}
+                onChange={(e) => setFormData({ ...formData, depositSheetName: e.target.value })}
+                className="input-field"
+                placeholder="입금기록 시트명 (예: 시트1)"
+              />
+              <input
+                type="url"
+                value={formData.depositSheetUrl}
+                onChange={(e) => setFormData({ ...formData, depositSheetUrl: e.target.value })}
+                className="input-field"
+                placeholder="입금기록 링크 (Google Sheets URL)"
               />
             </div>
           </div>

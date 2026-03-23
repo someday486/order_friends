@@ -12,6 +12,7 @@ import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 import { PaymentsService } from '../payments/payments.service';
+import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
 
 @Injectable()
 export class OrdersService {
@@ -105,6 +106,154 @@ export class OrdersService {
     );
   }
 
+  private async getDepositMatchStatusMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, DepositMatchStatus>> {
+    const map = new Map<string, DepositMatchStatus>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('deposit_match_rows')
+      .select('matched_order_id')
+      .in('matched_order_id', orderIds)
+      .eq('match_status', 'MATCHED');
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load deposit match rows for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.matched_order_id ?? '');
+      if (orderId) {
+        map.set(orderId, 'AUTO_MATCHED');
+      }
+    }
+
+    return map;
+  }
+
+  private async getPaymentMethodMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>> {
+    const map = new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('payments')
+      .select('order_id, payment_method')
+      .in('order_id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load payment methods for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.order_id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(
+        orderId,
+        this.normalizeOrderPaymentMethod(row?.payment_method ?? null),
+      );
+    }
+
+    return map;
+  }
+
+  private async getOrderPaymentMethodMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>> {
+    const map = new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('orders')
+      .select('id, payment_method')
+      .in('id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load order payment methods for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(
+        orderId,
+        this.normalizeOrderPaymentMethod(row?.payment_method ?? null),
+      );
+    }
+
+    return map;
+  }
+
+  private async getPaymentStatusMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, string | null>> {
+    const map = new Map<string, string | null>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('payments')
+      .select('order_id, status')
+      .in('order_id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load payment statuses for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.order_id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(orderId, (row?.status as string | null | undefined) ?? null);
+    }
+
+    return map;
+  }
+
+  private normalizeOrderPaymentMethod(
+    paymentMethod: string | null | undefined,
+  ): 'CARD' | 'TRANSFER' | 'CASH' | null {
+    if (
+      paymentMethod === 'CARD' ||
+      paymentMethod === 'TRANSFER' ||
+      paymentMethod === 'CASH'
+    ) {
+      return paymentMethod;
+    }
+
+    return null;
+  }
+
   /**
    * orderId가 uuid(id)일 수도, order_no일 수도 있음
    * 실제 orders.id(uuid)로 resolve
@@ -179,21 +328,51 @@ export class OrdersService {
       );
     }
 
-    const orders = (data ?? []).map((row: any) => ({
-      id: row.id,
-      orderNo: row.order_no ?? null,
-      orderedAt: row.created_at ?? '',
-      customerName: row.customer_name ?? '',
-      totalAmount: row.total_amount ?? 0,
-      status: row.status as OrderStatus,
-      fulfillmentType: row.fulfillment_type ?? null,
+    const paymentMethodMap = await this.getPaymentMethodMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
+    const orderPaymentMethodMap = await this.getOrderPaymentMethodMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
+    const paymentStatusMap = await this.getPaymentStatusMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
+    const depositMatchStatusMap = await this.getDepositMatchStatusMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
 
-      // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
-      branchId: row.branch_id ?? branchId ?? null,
-      branchName: row.branches?.name ?? row.branch_name ?? null,
-      itemCount: row.itemCount ?? row.item_count ?? 0,
-      firstItemName: row.firstItemName ?? row.first_item_name ?? null,
-    }));
+    const orders = (data ?? []).map((row: any) => {
+      const paymentMethod =
+        orderPaymentMethodMap.get(String(row.id)) ??
+        paymentMethodMap.get(String(row.id)) ??
+        null;
+
+      return {
+        id: row.id,
+        orderNo: row.order_no ?? null,
+        orderedAt: row.created_at ?? '',
+        customerName: row.customer_name ?? '',
+        totalAmount: row.total_amount ?? 0,
+        status: row.status as OrderStatus,
+        paymentMethod,
+        paymentStatus: paymentStatusMap.get(String(row.id)) ?? null,
+        depositMatchStatus:
+          paymentMethod === 'TRANSFER'
+            ? (depositMatchStatusMap.get(String(row.id)) ?? 'PENDING')
+            : null,
+        fulfillmentType: row.fulfillment_type ?? null,
+
+        // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
+        branchId: row.branch_id ?? branchId ?? null,
+        branchName: row.branches?.name ?? row.branch_name ?? null,
+        itemCount: row.itemCount ?? row.item_count ?? 0,
+        firstItemName: row.firstItemName ?? row.first_item_name ?? null,
+      };
+    });
 
     this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);
 
@@ -266,11 +445,33 @@ export class OrdersService {
       };
     });
 
+    const paymentMethodMap = await this.getPaymentMethodMap(sb, [
+      String(data.id),
+    ]);
+    const orderPaymentMethodMap = await this.getOrderPaymentMethodMap(sb, [
+      String(data.id),
+    ]);
+    const paymentStatusMap = await this.getPaymentStatusMap(sb, [
+      String(data.id),
+    ]);
+    const paymentMethod =
+      orderPaymentMethodMap.get(String(data.id)) ??
+      paymentMethodMap.get(String(data.id)) ??
+      null;
+    const depositMatchStatusMap = await this.getDepositMatchStatusMap(sb, [
+      String(data.id),
+    ]);
+
     return {
       id: data.id,
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      paymentStatus: paymentStatusMap.get(String(data.id)) ?? null,
+      depositMatchStatus:
+        paymentMethod === 'TRANSFER'
+          ? (depositMatchStatusMap.get(String(data.id)) ?? 'PENDING')
+          : null,
       fulfillmentType: data.fulfillment_type ?? null,
       customer: {
         name: data.customer_name ?? '',
@@ -280,7 +481,7 @@ export class OrdersService {
         memo: data.delivery_memo ?? undefined,
       },
       payment: {
-        method: 'CARD' as any,
+        method: paymentMethod,
         subtotal: data.subtotal ?? 0,
         shippingFee: data.delivery_fee ?? 0,
         discount: data.discount_total ?? 0,

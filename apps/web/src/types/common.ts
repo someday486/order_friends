@@ -7,6 +7,8 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
+export type DepositMatchStatus = 'PENDING' | 'AUTO_MATCHED';
+
 export type OrderStatusDisplay =
   | 'RECEIVED'
   | 'PREPARING'

@@ -9,6 +9,8 @@ describe('CustomerOrdersService', () => {
   let ordersChain: any;
   let branchesChain: any;
   let orderItemsChain: any;
+  let paymentsChain: any;
+  let depositMatchesChain: any;
   let inventoryChain: any;
   let inventoryLogsChain: any;
   let mockSb: any;
@@ -31,11 +33,16 @@ describe('CustomerOrdersService', () => {
     ordersChain = makeChain();
     branchesChain = makeChain();
     orderItemsChain = makeChain();
+    paymentsChain = makeChain();
+    depositMatchesChain = makeChain();
     inventoryChain = makeChain();
     inventoryLogsChain = {
       insert: jest.fn().mockResolvedValue({ data: [], error: null }),
     };
     orderItemsChain.in.mockResolvedValue({ data: [], error: null });
+    paymentsChain.in.mockResolvedValue({ data: [], error: null });
+    depositMatchesChain.in.mockReturnValue(depositMatchesChain);
+    depositMatchesChain.eq.mockResolvedValue({ data: [], error: null });
     mockPaymentsService = {
       refundOrderPaymentForCancellation: jest.fn().mockResolvedValue(undefined),
     };
@@ -44,6 +51,8 @@ describe('CustomerOrdersService', () => {
         if (table === 'orders') return ordersChain;
         if (table === 'branches') return branchesChain;
         if (table === 'order_items') return orderItemsChain;
+        if (table === 'payments') return paymentsChain;
+        if (table === 'deposit_match_rows') return depositMatchesChain;
         if (table === 'product_inventory') return inventoryChain;
         if (table === 'inventory_logs') return inventoryLogsChain;
         return ordersChain;
@@ -66,6 +75,15 @@ describe('CustomerOrdersService', () => {
     expect(
       (service as any).isUuid('123e4567-e89b-12d3-a456-426614174000'),
     ).toBe(true);
+  });
+
+  it('should convert KST day boundaries to UTC timestamps', () => {
+    expect((service as any).getKstDayStartUtc('2026-03-24')).toBe(
+      '2026-03-23T15:00:00.000Z',
+    );
+    expect((service as any).getNextKstDayStartUtc('2026-03-24')).toBe(
+      '2026-03-24T15:00:00.000Z',
+    );
   });
 
   it('resolveOrderId should resolve by uuid and order_no', async () => {
@@ -303,6 +321,55 @@ describe('CustomerOrdersService', () => {
     expect(result.pagination.total).toBe(0);
   });
 
+  it('getMyOrders should apply KST date range filters', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockReturnValueOnce(ordersChain)
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockReturnValueOnce(ordersChain);
+    ordersChain.gte.mockReturnValue(ordersChain);
+    ordersChain.lt
+      .mockResolvedValueOnce({ count: 1, error: null })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'o1',
+            status: OrderStatus.CREATED,
+            created_at: '2026-03-23T15:14:00.000Z',
+            total_amount: 60000,
+            branch_id: 'b1',
+          },
+        ],
+        error: null,
+      });
+
+    await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
+      { page: 1, limit: 10 },
+      undefined,
+      undefined,
+      '2026-03-24',
+      '2026-03-24',
+    );
+
+    expect(ordersChain.gte).toHaveBeenCalledWith(
+      'created_at',
+      '2026-03-23T15:00:00.000Z',
+    );
+    expect(ordersChain.lt).toHaveBeenCalledWith(
+      'created_at',
+      '2026-03-24T15:00:00.000Z',
+    );
+  });
+
   it('getMyOrders should map defaults when nullable fields are missing', async () => {
     branchesChain.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },
@@ -344,6 +411,9 @@ describe('CustomerOrdersService', () => {
       customerName: '',
       totalAmount: 0,
       fulfillmentType: null,
+      paymentMethod: null,
+      paymentStatus: null,
+      depositMatchStatus: null,
       branchId: 'b1',
       branchName: 'Gangnam',
       itemCount: 0,
@@ -658,6 +728,86 @@ describe('CustomerOrdersService', () => {
     expect(result.data[0].fulfillmentType).toBe('DELIVERY');
     expect(ordersChain.eq).toHaveBeenCalledWith('fulfillment_type', 'DELIVERY');
   });
+
+  it('getMyOrders should expose deposit match status only for transfer payments', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.in
+      .mockResolvedValueOnce({ count: 2, error: null })
+      .mockReturnValueOnce(ordersChain);
+    ordersChain.order.mockReturnValueOnce(ordersChain);
+    ordersChain.range.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o-transfer',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T10:00:00.000Z',
+          total_amount: 10,
+          customer_name: 'Transfer User',
+          branch_id: 'b1',
+        },
+        {
+          id: 'o-cash',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T10:05:00.000Z',
+          total_amount: 20,
+          customer_name: 'Cash User',
+          branch_id: 'b1',
+        },
+      ],
+      error: null,
+    });
+    paymentsChain.in
+      .mockResolvedValueOnce({
+        data: [
+          { order_id: 'o-transfer', payment_method: 'TRANSFER' },
+          { order_id: 'o-cash', payment_method: 'CASH' },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          { order_id: 'o-transfer', status: 'PENDING' },
+          { order_id: 'o-cash', status: 'PENDING' },
+        ],
+        error: null,
+      });
+    depositMatchesChain.in.mockReturnValueOnce(depositMatchesChain);
+    depositMatchesChain.eq.mockResolvedValueOnce({
+      data: [
+        { matched_order_id: 'o-transfer' },
+        { matched_order_id: 'o-cash' },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'o-transfer',
+          paymentMethod: 'TRANSFER',
+          depositMatchStatus: 'AUTO_MATCHED',
+        }),
+        expect.objectContaining({
+          id: 'o-cash',
+          paymentMethod: 'CASH',
+          depositMatchStatus: null,
+        }),
+      ]),
+    );
+  });
+
   it('checkOrderAccess should throw when order not found', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
@@ -760,6 +910,133 @@ describe('CustomerOrdersService', () => {
     expect(result.id).toBe('o1');
     expect(result.items).toHaveLength(1);
     expect(result.myRole).toBe('OWNER');
+  });
+
+  it('getMyOrder should fall back to order payment method when payment row is missing', async () => {
+    jest
+      .spyOn(service as any, 'getOrderPaymentMethodMap')
+      .mockResolvedValueOnce(new Map([['o1', 'TRANSFER']]));
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          payment_method: 'TRANSFER',
+          customer_name: 'Kim',
+          customer_phone: '010',
+          delivery_address: 'addr',
+          delivery_memo: null,
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          items: [],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.payment.method).toBe('TRANSFER');
+    expect(result.paymentStatus).toBeNull();
+    expect(result.depositMatchStatus).toBe('PENDING');
+  });
+
+  it('getMyOrder should prefer order payment method over payment row method', async () => {
+    jest
+      .spyOn(service as any, 'getOrderPaymentMethodMap')
+      .mockResolvedValueOnce(new Map([['o1', 'TRANSFER']]));
+    jest
+      .spyOn(service as any, 'getPaymentMethodMap')
+      .mockResolvedValueOnce(new Map([['o1', 'CARD']]));
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          customer_name: 'Kim',
+          customer_phone: '010',
+          delivery_address: 'addr',
+          delivery_memo: null,
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          items: [],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.payment.method).toBe('TRANSFER');
+  });
+
+  it('getMyOrder should keep payment method null when no stored payment method exists', async () => {
+    jest
+      .spyOn(service as any, 'getOrderPaymentMethodMap')
+      .mockResolvedValueOnce(new Map());
+    jest
+      .spyOn(service as any, 'getPaymentMethodMap')
+      .mockResolvedValueOnce(new Map());
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          customer_name: 'Kim',
+          customer_phone: '010',
+          delivery_address: 'addr',
+          delivery_memo: null,
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          items: [],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.payment.method).toBeNull();
+    expect(result.depositMatchStatus).toBeNull();
   });
 
   it('getMyOrder should map defaults and option names', async () => {

@@ -55,6 +55,8 @@ export class BranchListItemResponse {
   } | null;
   orderNotice?: string | null;
   contactPhone?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
   kakaoChannelUrl?: string | null;
   createdAt: string;
 }
@@ -117,6 +119,8 @@ export class BranchDetailResponse {
   } | null;
   orderNotice?: string | null;
   contactPhone?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
   kakaoChannelUrl?: string | null;
   createdAt: string;
 }

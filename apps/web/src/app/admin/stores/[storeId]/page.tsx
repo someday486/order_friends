@@ -32,6 +32,8 @@ type Branch = {
   orderNotice?: string | null;
   contactPhone?: string | null;
   kakaoChannelUrl?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
 };
 
 type Brand = {
@@ -120,6 +122,8 @@ export default function StoreDetailPage() {
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [depositSheetName, setDepositSheetName] = useState("");
+  const [depositSheetUrl, setDepositSheetUrl] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
   const [orderNotice, setOrderNotice] = useState("");
@@ -159,6 +163,10 @@ export default function StoreDetailPage() {
     const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
     const sameKakaoChannelUrl =
       kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
+    const sameDepositSheetName =
+      depositSheetName.trim() === (branch.depositSheetName ?? "");
+    const sameDepositSheetUrl =
+      depositSheetUrl.trim() === (branch.depositSheetUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -169,7 +177,9 @@ export default function StoreDetailPage() {
       !samePickupTimeConfig ||
       !sameOrderNotice ||
       !sameContactPhone ||
-      !sameKakaoChannelUrl
+      !sameKakaoChannelUrl ||
+      !sameDepositSheetName ||
+      !sameDepositSheetUrl
     );
   }, [
     allowedPaymentMethods,
@@ -185,6 +195,8 @@ export default function StoreDetailPage() {
     orderNotice,
     contactPhone,
     kakaoChannelUrl,
+    depositSheetName,
+    depositSheetUrl,
   ]);
 
   useEffect(() => {
@@ -216,6 +228,8 @@ export default function StoreDetailPage() {
         setTransferBankName(data.transferAccount?.bankName ?? "");
         setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
         setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
+        setDepositSheetName(data.depositSheetName ?? "");
+        setDepositSheetUrl(data.depositSheetUrl ?? "");
         setPickupStartTime(data.pickupTimeConfig?.startTime ?? "");
         setPickupEndTime(data.pickupTimeConfig?.endTime ?? "");
         setOrderNotice(data.orderNotice ?? "");
@@ -286,6 +300,8 @@ export default function StoreDetailPage() {
     setTransferBankName(branch.transferAccount?.bankName ?? "");
     setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
     setTransferAccountHolder(branch.transferAccount?.accountHolder ?? "");
+    setDepositSheetName(branch.depositSheetName ?? "");
+    setDepositSheetUrl(branch.depositSheetUrl ?? "");
     setPickupStartTime(branch.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(branch.pickupTimeConfig?.endTime ?? "");
     setOrderNotice(branch.orderNotice ?? "");
@@ -361,6 +377,8 @@ export default function StoreDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        depositSheetName: depositSheetName.trim() || null,
+        depositSheetUrl: depositSheetUrl.trim() || null,
         orderNotice: orderNotice.trim() || null,
         contactPhone: contactPhone.trim() || null,
         kakaoChannelUrl: kakaoChannelUrl.trim() || null,
@@ -389,6 +407,8 @@ export default function StoreDetailPage() {
       setTransferBankName(updated.transferAccount?.bankName ?? "");
       setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");
       setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
+      setDepositSheetName(updated.depositSheetName ?? "");
+      setDepositSheetUrl(updated.depositSheetUrl ?? "");
       setPickupStartTime(updated.pickupTimeConfig?.startTime ?? "");
       setPickupEndTime(updated.pickupTimeConfig?.endTime ?? "");
       setOrderNotice(updated.orderNotice ?? "");
@@ -474,6 +494,27 @@ export default function StoreDetailPage() {
               <div>
                 <label className="block mb-1.5 text-xs text-text-secondary">생성일</label>
                 <div className="text-[13px] text-foreground">{formatDateTime(branch.createdAt)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <div className="text-xs text-text-secondary">입금기록 시트 설정</div>
+            <div className="mt-2.5 grid gap-2">
+              <input
+                value={depositSheetName}
+                onChange={(e) => setDepositSheetName(e.target.value)}
+                className="input-field w-full"
+                placeholder="입금기록 시트명 (예: 시트1)"
+              />
+              <input
+                value={depositSheetUrl}
+                onChange={(e) => setDepositSheetUrl(e.target.value)}
+                className="input-field w-full"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+              />
+              <div className="text-xs text-text-tertiary">
+                이 매장의 자동 입금매칭에 사용할 구글시트 탭 이름입니다.
               </div>
             </div>
           </div>

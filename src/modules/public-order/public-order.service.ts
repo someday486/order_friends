@@ -23,6 +23,7 @@ import {
   CreatePublicShopOrderRequest,
   PublicShopBrandResponse,
 } from './dto/public-shop.dto';
+import { PaymentProvider, PaymentStatus } from '../payments/dto/payment.dto';
 import {
   getBranchOrderConfig,
   normalizeFulfillmentTypes,
@@ -1384,6 +1385,12 @@ export class PublicOrderService {
 
   private async rollbackOrder(adminClient: any, orderId: string) {
     try {
+      await adminClient.from('payments').delete().eq('order_id', orderId);
+    } catch (error) {
+      this.logger.error(`Failed to rollback payments for ${orderId}`, error);
+    }
+
+    try {
       await adminClient.from('order_items').delete().eq('order_id', orderId);
     } catch (error) {
       this.logger.error(`Failed to rollback order items for ${orderId}`, error);
@@ -2307,6 +2314,37 @@ export class PublicOrderService {
       );
   }
 
+  private async createPendingOfflinePayment(
+    adminClient: any,
+    params: {
+      orderId: string;
+      amount: number;
+      paymentMethod: string;
+    },
+  ): Promise<void> {
+    if (
+      params.paymentMethod !== PaymentMethod.TRANSFER &&
+      params.paymentMethod !== PaymentMethod.CASH
+    ) {
+      return;
+    }
+
+    const { error } = await adminClient.from('payments').insert({
+      order_id: params.orderId,
+      amount: params.amount,
+      currency: 'KRW',
+      provider: PaymentProvider.MANUAL,
+      status: PaymentStatus.PENDING,
+      payment_method: params.paymentMethod,
+    });
+
+    if (error) {
+      throw new BadRequestException(
+        `주문 결제정보 생성 실패: ${error.message}`,
+      );
+    }
+  }
+
   private async findRecentDuplicateOrder(
     adminClient: any,
     dto: CreatePublicOrderRequest,
@@ -2364,13 +2402,7 @@ export class PublicOrderService {
           query = query.eq('customer_address1', policy.filters.address1);
         }
 
-        if (
-          !policy.filters.name &&
-          !policy.filters.phone &&
-          !policy.filters.address1
-        ) {
-          query = query.eq('payment_method', policy.paymentMethod ?? 'CARD');
-        }
+        query = query.eq('payment_method', policy.paymentMethod ?? 'CARD');
 
         return query.limit(policy.lookbackLimit);
       },
@@ -2863,6 +2895,12 @@ export class PublicOrderService {
     }[] = [];
 
     try {
+      await this.createPendingOfflinePayment(adminClient, {
+        orderId: createdOrder.id,
+        amount: createdOrder.total_amount ?? totalAmount,
+        paymentMethod,
+      });
+
       for (const itemData of orderItemsData) {
         const orderItemPayload: Record<string, any> = {
           order_id: createdOrder.id,

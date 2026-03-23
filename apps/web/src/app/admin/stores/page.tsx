@@ -253,6 +253,8 @@ export default function StoresPage() {
             allowedPaymentMethods,
             transferAccount,
             pickupTimeConfig,
+            depositSheetName,
+            depositSheetUrl,
             contactPhone,
             kakaoChannelUrl,
           }) => {
@@ -271,6 +273,8 @@ export default function StoresPage() {
                 allowedPaymentMethods,
                 transferAccount,
                 pickupTimeConfig,
+                depositSheetName: depositSheetName || null,
+                depositSheetUrl: depositSheetUrl || null,
                 contactPhone: contactPhone || null,
                 kakaoChannelUrl: kakaoChannelUrl || null,
               });

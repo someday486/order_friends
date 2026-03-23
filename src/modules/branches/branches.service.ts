@@ -18,6 +18,16 @@ import {
 export class BranchesService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private normalizeDepositSheetName(value: string | null | undefined) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private normalizeDepositSheetUrl(value: string | null | undefined) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
   private getClient(accessToken: string, isAdmin?: boolean) {
     return isAdmin
       ? this.supabase.adminClient()
@@ -37,7 +47,7 @@ export class BranchesService {
     const { data, error } = await sb
       .from('branches')
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
@@ -54,6 +64,8 @@ export class BranchesService {
       logoUrl: row.logo_url ?? null,
       thumbnailUrl: row.thumbnail_url ?? null,
       contactPhone: row.contact_phone ?? null,
+      depositSheetName: row.deposit_sheet_name ?? null,
+      depositSheetUrl: row.deposit_sheet_url ?? null,
       kakaoChannelUrl: row.kakao_channel_url ?? null,
       createdAt: row.created_at ?? '',
     }));
@@ -73,7 +85,7 @@ export class BranchesService {
     const { data, error } = await sb
       .from('branches')
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .eq('id', branchId)
       .single();
@@ -103,6 +115,8 @@ export class BranchesService {
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
       contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
       kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at ?? '',
     };
@@ -126,6 +140,16 @@ export class BranchesService {
     if (dto.thumbnailUrl) insertPayload.thumbnail_url = dto.thumbnailUrl;
     if (dto.contactPhone !== undefined)
       insertPayload.contact_phone = dto.contactPhone;
+    if (dto.depositSheetName !== undefined) {
+      insertPayload.deposit_sheet_name = this.normalizeDepositSheetName(
+        dto.depositSheetName,
+      );
+    }
+    if (dto.depositSheetUrl !== undefined) {
+      insertPayload.deposit_sheet_url = this.normalizeDepositSheetUrl(
+        dto.depositSheetUrl,
+      );
+    }
     if (dto.kakaoChannelUrl !== undefined)
       insertPayload.kakao_channel_url = dto.kakaoChannelUrl;
 
@@ -135,7 +159,7 @@ export class BranchesService {
         .from('branches')
         .insert(insertPayload)
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
         .single();
 
@@ -174,6 +198,8 @@ export class BranchesService {
         businessHours: orderConfig.businessHours,
         orderNotice: orderConfig.orderNotice,
         contactPhone: data.contact_phone ?? null,
+        depositSheetName: data.deposit_sheet_name ?? null,
+        depositSheetUrl: data.deposit_sheet_url ?? null,
         kakaoChannelUrl: data.kakao_channel_url ?? null,
         createdAt: data.created_at ?? '',
       };
@@ -185,7 +211,7 @@ export class BranchesService {
         .from('branches')
         .insert(insertPayload)
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
         .single();
     };
@@ -196,7 +222,7 @@ export class BranchesService {
         .from('branches')
         .insert(insertPayload)
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
         .single();
     };
@@ -246,6 +272,8 @@ export class BranchesService {
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
       contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
       kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at ?? '',
     };
@@ -273,6 +301,16 @@ export class BranchesService {
       updateData.thumbnail_url = dto.thumbnailUrl;
     if (dto.contactPhone !== undefined)
       updateData.contact_phone = dto.contactPhone;
+    if (dto.depositSheetName !== undefined) {
+      updateData.deposit_sheet_name = this.normalizeDepositSheetName(
+        dto.depositSheetName,
+      );
+    }
+    if (dto.depositSheetUrl !== undefined) {
+      updateData.deposit_sheet_url = this.normalizeDepositSheetUrl(
+        dto.depositSheetUrl,
+      );
+    }
     if (dto.kakaoChannelUrl !== undefined)
       updateData.kakao_channel_url = dto.kakaoChannelUrl;
     const hasOrderConfigUpdate =
@@ -302,7 +340,7 @@ export class BranchesService {
       .update(updateData)
       .eq('id', branchId)
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .maybeSingle();
 
@@ -342,6 +380,8 @@ export class BranchesService {
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
       contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
       kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at ?? '',
     };

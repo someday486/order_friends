@@ -18,6 +18,7 @@ import {
   FULFILLMENT_TYPE_LABEL,
   ORDER_STATUS_DISPLAY_LABEL,
   getOrderStatusDisplay,
+  type DepositMatchStatus,
   type FulfillmentType,
   type OrderStatus,
   type OrderStatusDisplay,
@@ -30,6 +31,7 @@ type Order = {
   customerName: string;
   totalAmount: number;
   status: OrderStatus;
+  depositMatchStatus?: DepositMatchStatus | null;
   fulfillmentType?: FulfillmentType | null;
   branchId?: string | null;
   branchName?: string | null;
@@ -74,6 +76,19 @@ const FULFILLMENT_VARIANT: Record<
   DELIVERY: "warning",
   DINE_IN: "default",
   SHIPPING: "success",
+};
+
+const DEPOSIT_MATCH_LABEL: Record<DepositMatchStatus, string> = {
+  PENDING: "입금대기",
+  AUTO_MATCHED: "자동입금확인",
+};
+
+const DEPOSIT_MATCH_VARIANT: Record<
+  DepositMatchStatus,
+  "info" | "success" | "warning" | "danger" | "default"
+> = {
+  PENDING: "warning",
+  AUTO_MATCHED: "success",
 };
 
 function formatWon(amount: number) {
@@ -539,9 +554,20 @@ function OrdersPageContent() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <Badge variant={STATUS_VARIANT[displayStatus]}>
-                        {ORDER_STATUS_DISPLAY_LABEL[displayStatus]}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={STATUS_VARIANT[displayStatus]}>
+                          {ORDER_STATUS_DISPLAY_LABEL[displayStatus]}
+                        </Badge>
+                        {order.depositMatchStatus && (
+                          <Badge
+                            variant={
+                              DEPOSIT_MATCH_VARIANT[order.depositMatchStatus]
+                            }
+                          >
+                            {DEPOSIT_MATCH_LABEL[order.depositMatchStatus]}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right text-sm">
                       <Link

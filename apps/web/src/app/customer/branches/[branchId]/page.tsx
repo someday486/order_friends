@@ -44,6 +44,8 @@ type Branch = {
   orderNotice?: string | null;
   contactPhone?: string | null;
   kakaoChannelUrl?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
 };
 
 type Brand = {
@@ -130,6 +132,8 @@ export default function BranchDetailPage() {
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [depositSheetName, setDepositSheetName] = useState("");
+  const [depositSheetUrl, setDepositSheetUrl] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
   const [businessHours, setBusinessHours] = useState<BusinessHoursFormState>(
@@ -183,6 +187,10 @@ export default function BranchDetailPage() {
     const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
     const sameKakaoChannelUrl =
       kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
+    const sameDepositSheetName =
+      depositSheetName.trim() === (branch.depositSheetName ?? "");
+    const sameDepositSheetUrl =
+      depositSheetUrl.trim() === (branch.depositSheetUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -196,7 +204,9 @@ export default function BranchDetailPage() {
       !sameBusinessHours ||
       !sameOrderNotice ||
       !sameContactPhone ||
-      !sameKakaoChannelUrl
+      !sameKakaoChannelUrl ||
+      !sameDepositSheetName ||
+      !sameDepositSheetUrl
     );
   }, [
     allowedPaymentMethods,
@@ -215,6 +225,8 @@ export default function BranchDetailPage() {
     orderNotice,
     contactPhone,
     kakaoChannelUrl,
+    depositSheetName,
+    depositSheetUrl,
   ]);
 
   const resetForm = (source: Branch) => {
@@ -235,6 +247,8 @@ export default function BranchDetailPage() {
     setTransferBankName(source.transferAccount?.bankName ?? "");
     setTransferAccountNumber(source.transferAccount?.accountNumber ?? "");
     setTransferAccountHolder(source.transferAccount?.accountHolder ?? "");
+    setDepositSheetName(source.depositSheetName ?? "");
+    setDepositSheetUrl(source.depositSheetUrl ?? "");
     setPickupStartTime(source.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(source.pickupTimeConfig?.endTime ?? "");
     setBusinessHours(
@@ -417,6 +431,8 @@ export default function BranchDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        depositSheetName: depositSheetName.trim() || null,
+        depositSheetUrl: depositSheetUrl.trim() || null,
         orderNotice: orderNotice.trim() || null,
         contactPhone: contactPhone.trim() || null,
         kakaoChannelUrl: kakaoChannelUrl.trim() || null,
@@ -724,6 +740,18 @@ export default function BranchDetailPage() {
                   className="input-field w-full"
                   placeholder="https://pf.kakao.com/_example/chat"
                 />
+                <input
+                  value={depositSheetName}
+                  onChange={(e) => setDepositSheetName(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="입금기록 시트명 (예: 시트1)"
+                />
+                <input
+                  value={depositSheetUrl}
+                  onChange={(e) => setDepositSheetUrl(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                />
               </div>
               <p className="text-xs text-text-tertiary mt-1.5">
                 공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 수단입니다.
@@ -926,6 +954,14 @@ export default function BranchDetailPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-text-tertiary w-16 shrink-0">예금주</span>
                         <span className="text-foreground">{branch.transferAccount?.accountHolder?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">시트명</span>
+                        <span className="text-foreground">{branch.depositSheetName?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">?쒗듃留곹겕</span>
+                        <span className="text-foreground break-all">{branch.depositSheetUrl?.trim() || "-"}</span>
                       </div>
                     </div>
                   </div>

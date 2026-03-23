@@ -56,6 +56,7 @@ describe('BranchesService', () => {
           slug: null,
           logo_url: null,
           thumbnail_url: null,
+          deposit_sheet_name: null,
           created_at: null,
         },
       ],
@@ -218,6 +219,7 @@ describe('BranchesService', () => {
         logoUrl: 'logo.png',
         coverImageUrl: 'cover.png',
         thumbnailUrl: 'thumb.png',
+        depositSheetName: '시트1',
       } as any,
       true,
     );
@@ -229,6 +231,7 @@ describe('BranchesService', () => {
       logo_url: 'logo.png',
       cover_image_url: 'cover.png',
       thumbnail_url: 'thumb.png',
+      deposit_sheet_name: '시트1',
     });
   });
 
@@ -327,6 +330,7 @@ describe('BranchesService', () => {
         logo_url: null,
         cover_image_url: null,
         thumbnail_url: null,
+        deposit_sheet_name: null,
         created_at: null,
       },
       error: null,
@@ -406,6 +410,7 @@ describe('BranchesService', () => {
         logoUrl: 'logo.png',
         coverImageUrl: 'cover.png',
         thumbnailUrl: 'thumb.png',
+        depositSheetName: '시트1',
       } as any,
       true,
     );
@@ -416,6 +421,7 @@ describe('BranchesService', () => {
       logo_url: 'logo.png',
       cover_image_url: 'cover.png',
       thumbnail_url: 'thumb.png',
+      deposit_sheet_name: '시트1',
     });
     expect(result.slug).toBe('');
     expect(result.logoUrl).toBeNull();

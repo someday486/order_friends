@@ -2,13 +2,17 @@
 import { CustomerOrdersService } from './customer-orders.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from '../../modules/orders/order-status.enum';
+import { PaymentsService } from '../payments/payments.service';
 
 describe('CustomerOrdersService', () => {
   let service: CustomerOrdersService;
   let ordersChain: any;
   let branchesChain: any;
   let orderItemsChain: any;
+  let inventoryChain: any;
+  let inventoryLogsChain: any;
   let mockSb: any;
+  let mockPaymentsService: { refundOrderPaymentForCancellation: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -27,17 +31,29 @@ describe('CustomerOrdersService', () => {
     ordersChain = makeChain();
     branchesChain = makeChain();
     orderItemsChain = makeChain();
+    inventoryChain = makeChain();
+    inventoryLogsChain = {
+      insert: jest.fn().mockResolvedValue({ data: [], error: null }),
+    };
     orderItemsChain.in.mockResolvedValue({ data: [], error: null });
+    mockPaymentsService = {
+      refundOrderPaymentForCancellation: jest.fn().mockResolvedValue(undefined),
+    };
     mockSb = {
       from: jest.fn((table: string) => {
         if (table === 'orders') return ordersChain;
         if (table === 'branches') return branchesChain;
         if (table === 'order_items') return orderItemsChain;
+        if (table === 'product_inventory') return inventoryChain;
+        if (table === 'inventory_logs') return inventoryLogsChain;
         return ordersChain;
       }),
     };
     const supabase = { adminClient: jest.fn(() => mockSb) };
-    service = new CustomerOrdersService(supabase as SupabaseService);
+    service = new CustomerOrdersService(
+      supabase as SupabaseService,
+      mockPaymentsService as unknown as PaymentsService,
+    );
   };
 
   beforeEach(() => {
@@ -960,6 +976,77 @@ describe('CustomerOrdersService', () => {
     expect(result.status).toBe(OrderStatus.READY);
   });
 
+  it('updateMyOrderStatus should refund and release inventory on cancellation', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'ORD-1',
+          branch_id: 'b1',
+          branches: { brand_id: 'brand-1' },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'ORD-1',
+          status: OrderStatus.CANCELLED,
+          created_at: 't',
+          customer_name: 'A',
+          total_amount: 10,
+        },
+        error: null,
+      });
+
+    orderItemsChain.eq.mockResolvedValueOnce({
+      data: [{ product_id: 'product-1', qty: 2 }],
+      error: null,
+    });
+    inventoryChain.in.mockReturnValue(inventoryChain);
+    let inventoryEqCalls = 0;
+    inventoryChain.eq.mockImplementation(() => {
+      inventoryEqCalls += 1;
+      if (inventoryEqCalls === 1) {
+        return Promise.resolve({
+          data: [
+            {
+              product_id: 'product-1',
+              qty_available: 5,
+              qty_reserved: 2,
+            },
+          ],
+          error: null,
+        });
+      }
+      if (inventoryEqCalls === 2) {
+        return inventoryChain;
+      }
+      if (inventoryEqCalls === 3) {
+        return Promise.resolve({ data: {}, error: null });
+      }
+      return inventoryChain;
+    });
+
+    const result = await service.updateMyOrderStatus(
+      'user-1',
+      'o1',
+      OrderStatus.CANCELLED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.status).toBe(OrderStatus.CANCELLED);
+    expect(
+      mockPaymentsService.refundOrderPaymentForCancellation,
+    ).toHaveBeenCalledWith('o1', 'b1');
+    expect(inventoryLogsChain.insert).toHaveBeenCalled();
+  });
+
   it('updateMyOrderStatus should map nullable fields', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'o1' },
@@ -1079,6 +1166,39 @@ describe('CustomerOrdersService', () => {
     expect(ordersChain.in).toHaveBeenCalledWith('id', ['o1', 'o2']);
     expect(result.updatedCount).toBe(2);
     expect(result.status).toBe(OrderStatus.READY);
+    expect(result.orderIds).toEqual(['o1', 'o2']);
+  });
+
+  it('updateMyOrdersStatusBulk should route cancellations through single-order flow', async () => {
+    const spy = jest
+      .spyOn(service, 'updateMyOrderStatus')
+      .mockResolvedValueOnce({
+        id: 'o1',
+        orderNo: 'ORD-1',
+        orderedAt: 't',
+        customerName: 'A',
+        totalAmount: 10,
+        status: OrderStatus.CANCELLED,
+      })
+      .mockResolvedValueOnce({
+        id: 'o2',
+        orderNo: 'ORD-2',
+        orderedAt: 't',
+        customerName: 'B',
+        totalAmount: 20,
+        status: OrderStatus.CANCELLED,
+      });
+
+    const result = await service.updateMyOrdersStatusBulk(
+      'user-1',
+      ['o1', 'o2'],
+      OrderStatus.CANCELLED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(result.updatedCount).toBe(2);
     expect(result.orderIds).toEqual(['o1', 'o2']);
   });
 

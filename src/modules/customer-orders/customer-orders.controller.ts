@@ -37,12 +37,17 @@ export class CustomerOrdersController {
 
   @Get()
   @ApiOperation({
-    summary: '내 지점의 주문 목록 조회',
+    summary: '접근 가능한 지점의 주문 목록 조회',
     description:
-      '내가 멤버로 등록된 지점의 주문 목록을 조회합니다. (페이지네이션 지원)',
+      '내가 멤버로 등록된 지점의 주문 목록을 조회합니다. 페이지네이션과 상태/수령 방식/기간 필터를 지원합니다.',
   })
   @ApiQuery({ name: 'branchId', description: '지점 ID', required: false })
   @ApiQuery({ name: 'status', description: '주문 상태 필터', required: false })
+  @ApiQuery({
+    name: 'fulfillmentType',
+    description: '수령 방식 필터',
+    required: false,
+  })
   @ApiQuery({
     name: 'dateStart',
     description: '조회 시작일 (YYYY-MM-DD)',
@@ -93,8 +98,8 @@ export class CustomerOrdersController {
 
   @Get(':orderId')
   @ApiOperation({
-    summary: '내 주문 상세 조회',
-    description: '내가 멤버로 등록된 지점의 주문 상세 정보를 조회합니다.',
+    summary: '주문 상세 조회',
+    description: '내가 접근 가능한 지점의 특정 주문 상세 정보를 조회합니다.',
   })
   @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
   @ApiResponse({ status: 200, description: '주문 상세 조회 성공' })
@@ -116,7 +121,7 @@ export class CustomerOrdersController {
   @ApiOperation({
     summary: '주문 상태 변경',
     description:
-      '내가 OWNER 또는 ADMIN 권한을 가진 지점의 주문 상태를 변경합니다.',
+      '내가 권한을 가진 지점의 주문 상태를 변경합니다. OWNER, ADMIN, BRANCH_OWNER, BRANCH_ADMIN, STAFF 역할에서 사용할 수 있습니다.',
   })
   @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
   @ApiResponse({ status: 200, description: '주문 상태 변경 성공' })
@@ -145,7 +150,7 @@ export class CustomerOrdersController {
   @ApiOperation({
     summary: '주문 상태 일괄 변경',
     description:
-      '선택한 주문들의 상태를 한 번에 변경합니다. 권한이 없는 주문이 포함되면 변경되지 않습니다.',
+      '선택한 주문들의 상태를 한 번에 변경합니다. 권한이 없는 주문이 포함되면 요청이 실패할 수 있습니다.',
   })
   @ApiResponse({ status: 200, description: '주문 상태 일괄 변경 성공' })
   @ApiResponse({ status: 403, description: '권한 없음' })

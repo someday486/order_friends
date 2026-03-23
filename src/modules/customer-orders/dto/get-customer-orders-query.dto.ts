@@ -38,9 +38,9 @@ export class GetCustomerOrdersQueryDto extends PaginationDto {
 
   @ApiPropertyOptional({
     description: '주문 방식',
-    enum: ['PICKUP', 'DELIVERY', 'DINE_IN'],
+    enum: ['PICKUP', 'DELIVERY', 'DINE_IN', 'SHIPPING'],
   })
   @IsOptional()
-  @IsIn(['PICKUP', 'DELIVERY', 'DINE_IN'])
-  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+  @IsIn(['PICKUP', 'DELIVERY', 'DINE_IN', 'SHIPPING'])
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 }

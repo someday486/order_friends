@@ -6,6 +6,7 @@ import {
   IsEnum,
   ValidateNested,
   IsBoolean,
+  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -13,6 +14,7 @@ export enum BranchFulfillmentType {
   PICKUP = 'PICKUP',
   DELIVERY = 'DELIVERY',
   DINE_IN = 'DINE_IN',
+  SHIPPING = 'SHIPPING',
 }
 
 export enum BranchPaymentMethod {
@@ -153,6 +155,17 @@ export class CreateBranchRequest {
   @IsString()
   @IsOptional()
   orderNotice?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'kakaoChannelUrl must be a valid URL' },
+  )
+  @IsOptional()
+  kakaoChannelUrl?: string;
 }
 
 export class UpdateBranchRequest {
@@ -207,4 +220,15 @@ export class UpdateBranchRequest {
   @IsString()
   @IsOptional()
   orderNotice?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'kakaoChannelUrl must be a valid URL' },
+  )
+  @IsOptional()
+  kakaoChannelUrl?: string;
 }

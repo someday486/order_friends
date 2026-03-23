@@ -1349,6 +1349,39 @@ export class PublicOrderService {
     };
   }
 
+  private async getPublicBranchContactInfo(branchId: string) {
+    const adminSb = this.supabase.adminClient();
+
+    try {
+      const { data, error } = await adminSb
+        .from('branches')
+        .select('contact_phone, kakao_channel_url')
+        .eq('id', branchId)
+        .maybeSingle();
+
+      if (error || !data) {
+        return {
+          contactPhone: null,
+          kakaoChannelUrl: null,
+        };
+      }
+
+      return {
+        contactPhone:
+          typeof data.contact_phone === 'string' ? data.contact_phone : null,
+        kakaoChannelUrl:
+          typeof data.kakao_channel_url === 'string'
+            ? data.kakao_channel_url
+            : null,
+      };
+    } catch {
+      return {
+        contactPhone: null,
+        kakaoChannelUrl: null,
+      };
+    }
+  }
+
   private async rollbackOrder(adminClient: any, orderId: string) {
     try {
       await adminClient.from('order_items').delete().eq('order_id', orderId);
@@ -1376,10 +1409,10 @@ export class PublicOrderService {
   private getMissingColumnName(error: any): string | null {
     const message = String(error?.message ?? '');
     const pgMatch = message.match(
-      /column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i,
+      /column\s+"?([a-zA-Z0-9_.]+)"?\s+does not exist/i,
     );
     if (pgMatch?.[1]) {
-      return pgMatch[1];
+      return pgMatch[1].split('.').pop() ?? pgMatch[1];
     }
 
     const pgrstMatch = message.match(
@@ -1443,6 +1476,8 @@ export class PublicOrderService {
         `
         id,
         name,
+        contact_phone,
+        kakao_channel_url,
         logo_url,
         cover_image_url,
         brands (
@@ -1467,6 +1502,8 @@ export class PublicOrderService {
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      contactPhone: row.contact_phone ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
@@ -1489,6 +1526,8 @@ export class PublicOrderService {
         id,
         name,
         slug,
+        contact_phone,
+        kakao_channel_url,
         logo_url,
         cover_image_url,
         brands (
@@ -1521,6 +1560,8 @@ export class PublicOrderService {
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      contactPhone: row.contact_phone ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
@@ -1546,6 +1587,8 @@ export class PublicOrderService {
         id,
         name,
         slug,
+        contact_phone,
+        kakao_channel_url,
         logo_url,
         cover_image_url,
         brands!inner (
@@ -1581,6 +1624,8 @@ export class PublicOrderService {
       brandName: row.brands?.name ?? undefined,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
+      contactPhone: row.contact_phone ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
       allowedPaymentMethods: orderConfig.allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
@@ -1918,6 +1963,110 @@ export class PublicOrderService {
     return primary;
   }
 
+  private buildPublicOrderSelect(
+    unitPriceColumn: 'unit_price' | 'unit_price_snapshot',
+    omittedColumns: Set<string> = new Set(),
+  ): string {
+    const orderColumns = [
+      'id',
+      'branch_id',
+      'order_no',
+      'status',
+      'total_amount',
+      'created_at',
+      'payment_method',
+      'fulfillment_type',
+      'customer_name',
+      'customer_phone',
+      'customer_address1',
+      'customer_address2',
+      'customer_memo',
+    ].filter((column) => !omittedColumns.has(column));
+
+    return `
+      ${orderColumns.join(',\n      ')},
+      order_items (
+        product_name_snapshot,
+        qty,
+        ${unitPriceColumn},
+        order_item_options (
+          option_name_snapshot
+        )
+      )
+    `;
+  }
+
+  private async runPublicOrderSelectWithFallbacks(
+    queryFactory: (
+      unitPriceColumn: 'unit_price' | 'unit_price_snapshot',
+      omittedColumns: Set<string>,
+    ) => any,
+  ): Promise<{ data: any; error: any }> {
+    const omittedColumns = new Set<string>();
+    let unitPriceColumn: 'unit_price' | 'unit_price_snapshot' = 'unit_price';
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const result = await queryFactory(unitPriceColumn, omittedColumns);
+      if (!result.error) {
+        return result;
+      }
+
+      if (!this.isMissingColumnError(result.error)) {
+        return result;
+      }
+
+      const missingColumn = this.getMissingColumnName(result.error);
+      if (!missingColumn) {
+        return result;
+      }
+
+      if (missingColumn === 'unit_price' && unitPriceColumn === 'unit_price') {
+        unitPriceColumn = 'unit_price_snapshot';
+        continue;
+      }
+
+      if (omittedColumns.has(missingColumn)) {
+        return result;
+      }
+
+      omittedColumns.add(missingColumn);
+    }
+
+    return queryFactory(unitPriceColumn, omittedColumns);
+  }
+
+  private async queryPublicOrderByReference(
+    client: any,
+    orderIdOrNo: string,
+  ): Promise<{ data: any; error: any }> {
+    let { data, error } = await this.runPublicOrderSelectWithFallbacks(
+      (unitPriceColumn, omittedColumns) =>
+        client
+          .from('orders')
+          .select(this.buildPublicOrderSelect(unitPriceColumn, omittedColumns))
+          .eq('id', orderIdOrNo)
+          .maybeSingle(),
+    );
+
+    if (!data) {
+      const result = await this.runPublicOrderSelectWithFallbacks(
+        (unitPriceColumn, omittedColumns) =>
+          client
+            .from('orders')
+            .select(
+              this.buildPublicOrderSelect(unitPriceColumn, omittedColumns),
+            )
+            .eq('order_no', orderIdOrNo)
+            .maybeSingle(),
+      );
+
+      data = result.data;
+      error = result.error;
+    }
+
+    return { data, error };
+  }
+
   private buildOrderResponse(order: any): PublicOrderResponse {
     const items = (order?.order_items ?? []).map((item: any) => ({
       productName: item.product_name_snapshot,
@@ -1945,32 +2094,41 @@ export class PublicOrderService {
         address2: order.customer_address2 ?? null,
         memo: order.customer_memo ?? null,
       },
+      branchContactPhone: null,
+      branchKakaoChannelUrl: null,
       items,
     };
   }
 
-  private async attachTransferAccount(
+  private async attachPublicOrderSupportInfo(
     order: PublicOrderResponse,
     branchId?: string | null,
   ): Promise<PublicOrderResponse> {
     if (!branchId) return order;
-    if (order.transferAccount) return order;
+
+    const nextOrder = { ...order };
 
     try {
-      const branchConfig = await this.getPublicBranchOrderConfig(branchId);
-      return {
-        ...order,
-        transferAccount: branchConfig.transferAccount ?? null,
-      };
+      if (!nextOrder.transferAccount) {
+        const branchConfig = await this.getPublicBranchOrderConfig(branchId);
+        nextOrder.transferAccount = branchConfig.transferAccount ?? null;
+      }
     } catch {
-      return order;
+      // Ignore branch config lookup failures on public tracking page.
     }
+
+    const supportInfo = await this.getPublicBranchContactInfo(branchId);
+    nextOrder.branchContactPhone = supportInfo.contactPhone;
+    nextOrder.branchKakaoChannelUrl = supportInfo.kakaoChannelUrl;
+
+    return nextOrder;
   }
 
   private async fetchOrderByIdempotencyKey(
     adminClient: any,
     branchId: string,
     idempotencyKey?: string,
+    userId?: string,
   ): Promise<any> {
     if (!idempotencyKey) return null;
 
@@ -1981,6 +2139,7 @@ export class PublicOrderService {
           .select(
             `
         id,
+        user_id,
         branch_id,
         order_no,
         status,
@@ -2007,7 +2166,10 @@ export class PublicOrderService {
       return null;
     }
 
-    return data[0];
+    const matched = data.find(
+      (row: any) => !userId || !row.user_id || row.user_id === userId,
+    );
+    return matched ?? null;
   }
 
   private async logDedupEvent(
@@ -2150,6 +2312,7 @@ export class PublicOrderService {
     dto: CreatePublicOrderRequest,
     totalAmount: number,
     signature: string,
+    userId?: string,
   ): Promise<{
     order: PublicOrderResponse;
     strategy: string;
@@ -2165,6 +2328,7 @@ export class PublicOrderService {
           .select(
             `
         id,
+        user_id,
         branch_id,
         order_no,
         status,
@@ -2217,6 +2381,10 @@ export class PublicOrderService {
     }
 
     for (const order of data as any[]) {
+      if (userId && order.user_id && order.user_id !== userId) {
+        continue;
+      }
+
       const candidateSignature = this.buildSignatureFromOrder(order);
 
       if (candidateSignature !== signature) {
@@ -2226,7 +2394,7 @@ export class PublicOrderService {
       this.logger.warn(
         `Duplicate order detected for ${dto.branchId} within window: ${order.id}`,
       );
-      const orderResponse = await this.attachTransferAccount(
+      const orderResponse = await this.attachPublicOrderSupportInfo(
         this.buildOrderResponse(order),
         order.branch_id ?? dto.branchId,
       );
@@ -2254,6 +2422,7 @@ export class PublicOrderService {
    */
   async createOrder(
     dto: CreatePublicOrderRequest,
+    userId?: string,
   ): Promise<PublicOrderResponse> {
     const sb = this.supabase.anonClient();
     const adminClient = this.supabase.adminClient();
@@ -2370,6 +2539,13 @@ export class PublicOrderService {
     }
 
     const fulfillmentType = requestedFulfillmentType as FulfillmentType;
+    if (
+      (fulfillmentType === FulfillmentType.DELIVERY ||
+        fulfillmentType === FulfillmentType.SHIPPING) &&
+      !this.normalizeOptional(dto.customerAddress1)
+    ) {
+      throw new BadRequestException('배송 주문은 주소를 입력해야 합니다.');
+    }
     // TODO: persist requestedTime after the orders schema adds requested_time.
     const requestedTime =
       fulfillmentType === FulfillmentType.PICKUP
@@ -2394,6 +2570,7 @@ export class PublicOrderService {
         adminClient,
         dto.branchId,
         idempotencyKey,
+        userId,
       );
 
       if (existingOrder) {
@@ -2476,7 +2653,7 @@ export class PublicOrderService {
           orderId: existingOrder.id,
           idempotencyKey,
         });
-        return this.attachTransferAccount(
+        return this.attachPublicOrderSupportInfo(
           this.buildOrderResponse(existingOrder),
           existingOrder.branch_id ?? dto.branchId,
         );
@@ -2494,6 +2671,7 @@ export class PublicOrderService {
       dedupDto,
       totalAmount,
       signature,
+      userId,
     );
 
     if (duplicateOrder) {
@@ -2524,6 +2702,7 @@ export class PublicOrderService {
 
     const insertPayload: Record<string, any> = {
       branch_id: dto.branchId,
+      user_id: userId ?? null,
       customer_name: dto.customerName,
       customer_phone: dto.customerPhone ?? null,
       customer_address1: dto.customerAddress1 ?? null,
@@ -2632,6 +2811,7 @@ export class PublicOrderService {
           adminClient,
           dto.branchId,
           idempotencyKey,
+          userId,
         );
 
         if (existingOrder) {
@@ -2660,7 +2840,7 @@ export class PublicOrderService {
             orderId: existingOrder.id,
             idempotencyKey,
           });
-          return this.attachTransferAccount(
+          return this.attachPublicOrderSupportInfo(
             this.buildOrderResponse(existingOrder),
             existingOrder.branch_id ?? dto.branchId,
           );
@@ -2936,85 +3116,16 @@ export class PublicOrderService {
     const adminRetryCount = this.isUuid(orderIdOrNo) ? 3 : 1;
     const adminRetryDelayMs = process.env.NODE_ENV === 'test' ? 0 : 200;
 
-    const queryOrder = async (client: any) => {
-      let { data, error } = await this.runOrderSelectWithUnitPriceFallback(
-        (unitPriceColumn) =>
-          client
-            .from('orders')
-            .select(
-              `
-        id,
-        branch_id,
-        order_no,
-        status,
-        total_amount,
-        created_at,
-        payment_method,
-        fulfillment_type,
-        customer_name,
-        customer_phone,
-        customer_address1,
-        customer_address2,
-        customer_memo,
-        order_items (
-          product_name_snapshot,
-          qty,
-          ${unitPriceColumn},
-          order_item_options (
-            option_name_snapshot
-          )
-        )
-      `,
-            )
-            .eq('id', orderIdOrNo)
-            .maybeSingle(),
-      );
-
-      if (!data) {
-        const result = await this.runOrderSelectWithUnitPriceFallback(
-          (unitPriceColumn) =>
-            client
-              .from('orders')
-              .select(
-                `
-          id,
-          branch_id,
-          order_no,
-          status,
-          total_amount,
-          created_at,
-          payment_method,
-          fulfillment_type,
-          customer_name,
-          customer_phone,
-          customer_address1,
-          customer_address2,
-          customer_memo,
-          order_items (
-            product_name_snapshot,
-            qty,
-            ${unitPriceColumn},
-            order_item_options (
-            option_name_snapshot
-          )
-        )
-      `,
-              )
-              .eq('order_no', orderIdOrNo)
-              .maybeSingle(),
-        );
-
-        data = result.data;
-        error = result.error;
-      }
-
-      return { data, error };
-    };
-
-    let { data, error } = await queryOrder(sb);
-    if (!data && this.isUuid(orderIdOrNo)) {
+    let { data, error } = await this.queryPublicOrderByReference(
+      sb,
+      orderIdOrNo,
+    );
+    if (!data) {
       for (let attempt = 0; attempt < adminRetryCount; attempt += 1) {
-        const adminResult = await queryOrder(adminSb);
+        const adminResult = await this.queryPublicOrderByReference(
+          adminSb,
+          orderIdOrNo,
+        );
         if (adminResult.data || adminResult.error) {
           data = adminResult.data;
           error = adminResult.error;
@@ -3029,10 +3140,35 @@ export class PublicOrderService {
     }
 
     if (error || !data) {
+      this.logger.warn(
+        `Public order lookup failed for ${orderIdOrNo}: ${error?.message ?? 'not found'}`,
+      );
       throw new NotFoundException('주문을 찾을 수 없습니다.');
     }
 
-    return this.attachTransferAccount(
+    return this.attachPublicOrderSupportInfo(
+      this.buildOrderResponse(data),
+      data.branch_id,
+    );
+  }
+
+  async getOrderForAuthenticatedUser(
+    orderIdOrNo: string,
+  ): Promise<PublicOrderResponse> {
+    const adminSb = this.supabase.adminClient();
+    const { data, error } = await this.queryPublicOrderByReference(
+      adminSb,
+      orderIdOrNo,
+    );
+
+    if (error || !data) {
+      this.logger.warn(
+        `Authenticated order lookup failed for ${orderIdOrNo}: ${error?.message ?? 'not found'}`,
+      );
+      throw new NotFoundException('주문을 찾을 수 없습니다.');
+    }
+
+    return this.attachPublicOrderSupportInfo(
       this.buildOrderResponse(data),
       data.branch_id,
     );

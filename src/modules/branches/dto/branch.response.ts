@@ -54,6 +54,8 @@ export class BranchListItemResponse {
     } | null;
   } | null;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   createdAt: string;
 }
 
@@ -114,5 +116,7 @@ export class BranchDetailResponse {
     } | null;
   } | null;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   createdAt: string;
 }

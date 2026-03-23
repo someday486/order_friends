@@ -6,7 +6,7 @@ export class OrderListItemResponse {
   orderedAt: string;
   customerName: string;
   totalAmount: number;
-  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | null;
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING' | null;
   branchId: string;
   branchName: string;
   itemCount: number;

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -9,6 +10,7 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { formatWon } from '@/lib/format';
 import { ORDER_STATUS_LABEL, type OrderStatus } from '@/types/common';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import {
   BrandIcon,
   InventoryIcon,
@@ -73,13 +75,29 @@ function getStatusVariant(
 }
 
 export default function CustomerDashboardPage() {
+  const router = useRouter();
   const { user } = useAuth();
+  const { userData, loading: roleLoading } = useUserRole();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [alerts, setAlerts] = useState<LowStockAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isBrandCreatorOnboarding =
+    userData?.canCreateBrand === true &&
+    (userData.memberships?.length ?? 0) === 0 &&
+    (userData.ownedBrands?.length ?? 0) === 0;
+
   useEffect(() => {
+    if (roleLoading) {
+      return;
+    }
+
+    if (isBrandCreatorOnboarding) {
+      router.replace('/customer/brands');
+      return;
+    }
+
     const loadStats = async () => {
       try {
         setLoading(true);
@@ -97,14 +115,19 @@ export default function CustomerDashboardPage() {
         setLoading(false);
       }
     };
-    loadStats().catch((error) => {
-      console.warn('dashboard stats fetch unhandled', error);
+
+    loadStats().catch((fetchError) => {
+      console.warn('dashboard stats fetch unhandled', fetchError);
       setError('대시보드 데이터를 불러오지 못했습니다');
       setLoading(false);
     });
-  }, []);
+  }, [isBrandCreatorOnboarding, roleLoading, router]);
 
   useEffect(() => {
+    if (roleLoading || isBrandCreatorOnboarding) {
+      return;
+    }
+
     const loadAlerts = async () => {
       try {
         const data = await apiClient.get<LowStockAlert[]>(
@@ -118,8 +141,9 @@ export default function CustomerDashboardPage() {
         console.warn('low stock alerts fetch failed', e);
       }
     };
+
     void loadAlerts();
-  }, []);
+  }, [isBrandCreatorOnboarding, roleLoading]);
 
   const myBrands = stats?.myBrands ?? stats?.myBrandsCount ?? 0;
   const myBranches = stats?.myBranches ?? stats?.myBranchesCount ?? 0;
@@ -132,13 +156,13 @@ export default function CustomerDashboardPage() {
     [stats?.recentOrders],
   );
 
-  if (loading) {
+  if (roleLoading || isBrandCreatorOnboarding || loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">
+        <h1 className="mb-8 text-2xl font-extrabold text-foreground">
           대시보드
         </h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
             <CardSkeleton key={index} />
           ))}
@@ -150,7 +174,7 @@ export default function CustomerDashboardPage() {
   if (error) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">
+        <h1 className="mb-4 text-2xl font-extrabold text-foreground">
           대시보드
         </h1>
         <Card className="border-danger bg-danger/10">
@@ -170,14 +194,12 @@ export default function CustomerDashboardPage() {
             <h1 className="text-2xl font-extrabold text-foreground">
               운영 대시보드{user?.email ? ` · ${user.email.split('@')[0]}` : ''}
             </h1>
-            <p className="text-sm text-text-secondary mt-1">
+            <p className="mt-1 text-sm text-text-secondary">
               주문/재고 중심 핵심 지표를 한 화면에서 확인합니다.
             </p>
           </div>
           <div className="text-right">
-            <div className="text-xs text-text-tertiary">
-              최근 주문 매출 합계
-            </div>
+            <div className="text-xs text-text-tertiary">최근 주문 매출 합계</div>
             <div className="text-2xl font-extrabold text-foreground">
               {formatWon(recentRevenue)}
             </div>
@@ -185,7 +207,7 @@ export default function CustomerDashboardPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="내 브랜드"
           value={myBrands}
@@ -208,19 +230,19 @@ export default function CustomerDashboardPage() {
         />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="p-5 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-foreground">최근 주문</h2>
             <Link
               href="/customer/orders"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-secondary px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-secondary px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
             >
               전체 보기
             </Link>
           </div>
           {(stats?.recentOrders ?? []).length === 0 ? (
-            <div className="text-sm text-text-tertiary py-8 text-center">
+            <div className="py-8 text-center text-sm text-text-tertiary">
               최근 주문이 없습니다.
             </div>
           ) : (
@@ -229,11 +251,11 @@ export default function CustomerDashboardPage() {
                 <Link
                   key={order.id}
                   href={`/customer/orders/${order.id}`}
-                  className="block no-underline rounded-lg border border-border p-3 hover:bg-bg-tertiary transition-colors"
+                  className="block rounded-lg border border-border p-3 no-underline transition-colors hover:bg-bg-tertiary"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-foreground truncate">
+                      <div className="truncate text-sm font-semibold text-foreground">
                         주문 #{order.order_no || order.id.slice(0, 8)}
                       </div>
                       <div className="text-xs text-text-tertiary">
@@ -258,7 +280,7 @@ export default function CustomerDashboardPage() {
         </Card>
 
         <Card className="p-5">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="mb-3 flex items-center gap-2">
             <InventoryIcon size={18} />
             <h2 className="text-lg font-bold text-foreground">
               재고 부족 알림
@@ -270,7 +292,7 @@ export default function CustomerDashboardPage() {
             상품이 부족 상태입니다.
           </div>
           {alerts.length === 0 ? (
-            <div className="text-sm text-text-tertiary py-4">
+            <div className="py-4 text-sm text-text-tertiary">
               모든 상품의 재고가 정상입니다.
             </div>
           ) : (
@@ -279,12 +301,12 @@ export default function CustomerDashboardPage() {
                 <Link
                   key={`${alert.product_id}-${alert.branch_name || ''}`}
                   href={`/customer/inventory/${alert.product_id}`}
-                  className="block no-underline rounded-lg border border-danger-500/20 bg-danger-500/5 p-2.5 hover:bg-danger-500/10 transition-colors"
+                  className="block rounded-lg border border-danger-500/20 bg-danger-500/5 p-2.5 no-underline transition-colors hover:bg-danger-500/10"
                 >
-                  <div className="text-sm font-semibold text-foreground truncate">
+                  <div className="truncate text-sm font-semibold text-foreground">
                     {alert.product_name}
                   </div>
-                  <div className="text-xs text-text-secondary mt-0.5">
+                  <div className="mt-0.5 text-xs text-text-secondary">
                     {alert.branch_name || '-'} · {alert.qty_available}/
                     {alert.low_stock_threshold}
                   </div>
@@ -309,7 +331,7 @@ function MetricCard({
 }) {
   return (
     <Card className="p-4">
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <div className="text-sm text-text-secondary">{title}</div>
         <div className="text-text-tertiary">{icon}</div>
       </div>

@@ -4,6 +4,7 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from './order-status.enum';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { PaymentsService } from '../payments/payments.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -26,6 +27,9 @@ describe('OrdersService', () => {
     adminClient: jest.fn(() => mockSupabaseClient),
     userClient: jest.fn(() => mockSupabaseClient),
   };
+  const mockPaymentsService = {
+    refundOrderPaymentForCancellation: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -34,6 +38,10 @@ describe('OrdersService', () => {
         {
           provide: SupabaseService,
           useValue: mockSupabaseService,
+        },
+        {
+          provide: PaymentsService,
+          useValue: mockPaymentsService,
         },
       ],
     }).compile();
@@ -512,6 +520,37 @@ describe('OrdersService', () => {
       );
 
       expect(result.status).toBe(OrderStatus.CONFIRMED);
+      expect(
+        mockPaymentsService.refundOrderPaymentForCancellation,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should refund paid order before cancellation', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.CANCELLED,
+          },
+          error: null,
+        });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.CANCELLED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.CANCELLED);
+      expect(
+        mockPaymentsService.refundOrderPaymentForCancellation,
+      ).toHaveBeenCalledWith('123', 'branch-123');
     });
 
     it('should throw OrderNotFoundException when order not found', async () => {

@@ -300,10 +300,10 @@ describe('NotificationsService', () => {
       expect(requestInit.body).toContain('"Shinhan"');
       expect(requestInit.body).toContain('"110-285-321233"');
       expect(requestInit.body).toContain('"Kim Jihoon"');
-      expect(requestInit.body).toContain('"#{LINK}":"order/track/ORD-001"');
+      expect(requestInit.body).toContain('"#{LINK}":"order/track/order-1"');
       expect(requestInit.body).toContain('"#{주문번호}":"ORD-001"');
       expect(requestInit.body).toContain(
-        '"#{주문확인링크}":"https://orderfriends.example.com/order/track/ORD-001"',
+        '"#{주문확인링크}":"https://orderfriends.example.com/order/track/order-1"',
       );
       expect(requestInit.body).toContain('"#{이름}":"Kim"');
       expect(requestInit.body).toContain('"#{금액}":"13,500"');
@@ -357,10 +357,10 @@ describe('NotificationsService', () => {
       expect(requestInit.body).toContain(
         '"templateId":"KA01TP260306080352858w6K1BS9FU2r"',
       );
-      expect(requestInit.body).toContain('"#{LINK}":"order/track/ORD-002"');
+      expect(requestInit.body).toContain('"#{LINK}":"order/track/order-2"');
       expect(requestInit.body).toContain('"#{주문번호}":"ORD-002"');
       expect(requestInit.body).toContain(
-        '"#{주문확인링크}":"https://orderfriends.example.com/order/track/ORD-002"',
+        '"#{주문확인링크}":"https://orderfriends.example.com/order/track/order-2"',
       );
     } finally {
       (globalThis as any).fetch = originalFetch;

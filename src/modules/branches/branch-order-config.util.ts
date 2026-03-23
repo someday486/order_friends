@@ -4,6 +4,7 @@ export const ORDER_FULFILLMENT_TYPES = [
   'PICKUP',
   'DELIVERY',
   'DINE_IN',
+  'SHIPPING',
 ] as const;
 export const ORDER_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'CASH'] as const;
 

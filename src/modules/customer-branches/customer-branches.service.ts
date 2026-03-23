@@ -57,7 +57,7 @@ export class CustomerBranchesService {
     const { data: branch, error } = await sb
       .from('branches')
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
       )
       .eq('id', branchId)
       .single();
@@ -123,7 +123,7 @@ export class CustomerBranchesService {
       const { data, error } = await sb
         .from('branches')
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
         )
         .eq('brand_id', brandId)
         .order('created_at', { ascending: false });
@@ -156,7 +156,7 @@ export class CustomerBranchesService {
       const { data: brandBranches, error } = await sb
         .from('branches')
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
         )
         .in('brand_id', accessibleBrandIds)
         .order('created_at', { ascending: false });
@@ -177,7 +177,7 @@ export class CustomerBranchesService {
         const { data: branchData, error } = await sb
           .from('branches')
           .select(
-            'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+            'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
           )
           .in('id', missingIds)
           .order('created_at', { ascending: false });
@@ -227,6 +227,8 @@ export class CustomerBranchesService {
         slug: branch.slug,
         logoUrl: branch.logo_url ?? null,
         thumbnailUrl: branch.thumbnail_url ?? null,
+        contactPhone: branch.contact_phone ?? null,
+        kakaoChannelUrl: branch.kakao_channel_url ?? null,
         createdAt: branch.created_at,
         myRole: branchRole || brandRole || null,
       };
@@ -268,6 +270,8 @@ export class CustomerBranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: branch.contact_phone ?? null,
+      kakaoChannelUrl: branch.kakao_channel_url ?? null,
       createdAt: branch.created_at,
       myRole: branchMembership?.role || brandMembership?.role,
     };
@@ -303,12 +307,16 @@ export class CustomerBranchesService {
     if (dto.logoUrl) insertPayload.logo_url = dto.logoUrl;
     if (dto.coverImageUrl) insertPayload.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl) insertPayload.thumbnail_url = dto.thumbnailUrl;
+    if (dto.contactPhone !== undefined)
+      insertPayload.contact_phone = dto.contactPhone;
+    if (dto.kakaoChannelUrl !== undefined)
+      insertPayload.kakao_channel_url = dto.kakaoChannelUrl;
 
     const { data, error } = await sb
       .from('branches')
       .insert(insertPayload)
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
       )
       .single();
 
@@ -351,6 +359,8 @@ export class CustomerBranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at,
       myRole: membership.role,
     };
@@ -395,6 +405,10 @@ export class CustomerBranchesService {
       updateFields.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl !== undefined)
       updateFields.thumbnail_url = dto.thumbnailUrl;
+    if (dto.contactPhone !== undefined)
+      updateFields.contact_phone = dto.contactPhone;
+    if (dto.kakaoChannelUrl !== undefined)
+      updateFields.kakao_channel_url = dto.kakaoChannelUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
       dto.allowedPaymentMethods !== undefined ||
@@ -427,7 +441,7 @@ export class CustomerBranchesService {
       .update(updateFields)
       .eq('id', branchId)
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, contact_phone, kakao_channel_url, created_at',
       )
       .single();
 
@@ -467,6 +481,8 @@ export class CustomerBranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at,
       myRole: role,
     };

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { formatWon } from '@/lib/format';
+import { formatPhone, formatWon } from '@/lib/format';
 import { apiClient } from '@/lib/api-client';
 import { loadLastOrderRecord, saveCheckoutDraft } from '@/lib/order-session';
 import toast from 'react-hot-toast';
@@ -36,12 +36,18 @@ type Branch = {
   name: string;
   brandName?: string;
   address?: string | null;
-  phone?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   isActive?: boolean;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
   orderNotice?: string | null;
 };
+
+function toTelHref(phone: string) {
+  const normalized = phone.replace(/[^\d+]/g, '');
+  return normalized ? `tel:${normalized}` : null;
+}
 
 type CartItem = {
   product: Product;
@@ -68,6 +74,7 @@ function calculateItemPrice(
 function getFulfillmentLabel(type: string) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
+  if (type === 'SHIPPING') return '택배';
   if (type === 'DINE_IN') return '매장';
   return type;
 }
@@ -444,6 +451,34 @@ export default function OrderPage() {
       )}
 
       {/* ── Products ── */}
+      {(branch?.contactPhone?.trim() || branch?.kakaoChannelUrl?.trim()) && (
+        <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary px-4 py-3">
+          <div className="text-xs font-bold uppercase tracking-wide text-text-tertiary">
+            문의 안내
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {branch?.contactPhone?.trim() && (
+              <a
+                href={toTelHref(branch.contactPhone.trim()) ?? undefined}
+                className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+              >
+                전화 문의 {formatPhone(branch.contactPhone.trim())}
+              </a>
+            )}
+            {branch?.kakaoChannelUrl?.trim() && (
+              <a
+                href={branch.kakaoChannelUrl.trim()}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+              >
+                카카오톡 상담
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <main className="p-4 pb-[120px]">
         {/* 추천 메뉴 섹션 */}
         {featuredProducts.length > 0 && selectedCategory === '전체' && (
@@ -508,7 +543,7 @@ export default function OrderPage() {
       {/* ── Floating Cart Bar ── */}
       {cart.length > 0 && (
         <div
-          className={`fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${cartBounce ? 'animate-pop' : ''}`}
+          className={`fixed bottom-0 left-0 right-0 z-50 ${cartBounce ? 'animate-pop' : ''}`}
         >
           <div className="max-w-lg mx-auto">
             {/* Expandable Cart Items */}
@@ -570,7 +605,7 @@ export default function OrderPage() {
             )}
 
             {/* Bottom Bar */}
-            <div className="flex items-center gap-2 px-4 py-3 bg-foreground text-background shadow-2xl">
+            <div className="flex items-center gap-2 bg-foreground px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] text-background shadow-2xl">
               <button
                 onClick={() => setCartOpen((v) => !v)}
                 className="flex items-center gap-2 flex-1 min-w-0 text-background"

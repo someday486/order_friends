@@ -17,7 +17,7 @@ import {
   type WeeklyBusinessHours,
 } from "@/lib/business-hours";
 
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
 
 type Branch = {
@@ -42,6 +42,8 @@ type Branch = {
   } | null;
   businessHours?: WeeklyBusinessHours;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
 };
 
 type Brand = {
@@ -49,13 +51,14 @@ type Brand = {
   slug: string | null;
 };
 
-const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN"];
+const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
+  SHIPPING: "택배",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -133,6 +136,8 @@ export default function BranchDetailPage() {
     () => createBusinessHoursFormState(),
   );
   const [orderNotice, setOrderNotice] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
   const [stampActive, setStampActive] = useState(false);
   const [stampPerOrder, setStampPerOrder] = useState(1);
@@ -175,6 +180,9 @@ export default function BranchDetailPage() {
       JSON.stringify(serializeBusinessHoursForm(businessHours)) ===
       JSON.stringify(branch.businessHours ?? null);
     const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
+    const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
+    const sameKakaoChannelUrl =
+      kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -186,7 +194,9 @@ export default function BranchDetailPage() {
       !sameTransferInfo ||
       !samePickupTimeConfig ||
       !sameBusinessHours ||
-      !sameOrderNotice
+      !sameOrderNotice ||
+      !sameContactPhone ||
+      !sameKakaoChannelUrl
     );
   }, [
     allowedPaymentMethods,
@@ -203,6 +213,8 @@ export default function BranchDetailPage() {
     pickupEndTime,
     pickupStartTime,
     orderNotice,
+    contactPhone,
+    kakaoChannelUrl,
   ]);
 
   const resetForm = (source: Branch) => {
@@ -232,6 +244,8 @@ export default function BranchDetailPage() {
       ),
     );
     setOrderNotice(source.orderNotice ?? "");
+    setContactPhone(source.contactPhone ?? "");
+    setKakaoChannelUrl(source.kakaoChannelUrl ?? "");
   };
 
   useEffect(() => {
@@ -404,6 +418,8 @@ export default function BranchDetailPage() {
           accountHolder: transferAccountHolder.trim(),
         },
         orderNotice: orderNotice.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        kakaoChannelUrl: kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
           pickupStartTime.trim() && pickupEndTime.trim()
             ? {
@@ -693,6 +709,27 @@ export default function BranchDetailPage() {
               </p>
             </section>
 
+            <section>
+              <SectionHeading>고객 문의 정보</SectionHeading>
+              <div className="grid gap-2">
+                <input
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="문의 전화번호"
+                />
+                <input
+                  value={kakaoChannelUrl}
+                  onChange={(e) => setKakaoChannelUrl(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="https://pf.kakao.com/_example/chat"
+                />
+              </div>
+              <p className="text-xs text-text-tertiary mt-1.5">
+                공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 수단입니다.
+              </p>
+            </section>
+
             {allowedPaymentMethods.includes("TRANSFER") && (
               <section>
                 <SectionHeading>계좌이체 입금 정보</SectionHeading>
@@ -748,8 +785,7 @@ export default function BranchDetailPage() {
                   alt="커버 이미지"
                   width={1200}
                   height={675}
-                  className="w-full object-cover"
-                  style={{ aspectRatio: "16/9" }}
+                  className="h-44 w-full object-cover md:h-56"
                 />
               </div>
             )}
@@ -834,6 +870,20 @@ export default function BranchDetailPage() {
                   <div className="text-[13px] text-text-secondary mb-1.5">주문창 상단 공지사항</div>
                   <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground whitespace-pre-wrap">
                     {branch.orderNotice?.trim() || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">고객 문의 전화번호</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground">
+                    {branch.contactPhone?.trim() || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">카카오톡 상담 URL</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground break-all">
+                    {branch.kakaoChannelUrl?.trim() || "-"}
                   </div>
                 </div>
 

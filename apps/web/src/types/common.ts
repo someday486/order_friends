@@ -41,12 +41,13 @@ export const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   REFUNDED: 'bg-pink-500/20 text-pink-400',
 };
 
-export type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+export type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 
 export const FULFILLMENT_TYPE_LABEL: Record<FulfillmentType, string> = {
   PICKUP: '포장',
   DELIVERY: '배달',
   DINE_IN: '매장',
+  SHIPPING: '택배',
 };
 
 // 지점

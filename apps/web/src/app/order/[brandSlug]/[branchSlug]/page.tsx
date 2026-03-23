@@ -32,8 +32,11 @@ type PublicBranchResponse = {
   brandName?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
+  orderNotice?: string | null;
 };
 
 async function fetchBranch(

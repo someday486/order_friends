@@ -109,7 +109,7 @@ export default function BrandOrderPage() {
       <div className="max-w-lg mx-auto">
         <header className="sticky top-0 z-30 bg-background border-b border-border">
           {data.coverImageUrl && (
-            <div className="h-32 -mb-4 relative">
+            <div className="relative z-0 h-32 -mb-4 overflow-hidden">
               <Image
                 src={data.coverImageUrl}
                 alt=""
@@ -122,14 +122,14 @@ export default function BrandOrderPage() {
             </div>
           )}
 
-          <div className="px-4 py-4 flex items-center gap-3">
+          <div className="relative z-10 px-4 py-4 flex items-center gap-3">
             {data.logoUrl ? (
               <Image
                 src={data.logoUrl}
                 alt={brandName}
-                width={44}
-                height={44}
-                className="w-11 h-11 rounded-full object-cover border border-border"
+                width={48}
+                height={48}
+                className="w-12 h-12 rounded-full object-cover border border-border"
                 unoptimized
               />
             ) : (
@@ -181,9 +181,9 @@ export default function BrandOrderPage() {
                         <Image
                           src={branch.logoUrl}
                           alt={branch.name}
-                          width={40}
-                          height={40}
-                          className="w-10 h-10 rounded-full object-cover border border-border"
+                          width={48}
+                          height={48}
+                          className="w-12 h-12 rounded-full object-cover border border-border"
                           unoptimized
                         />
                       ) : (

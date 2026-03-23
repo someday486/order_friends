@@ -17,13 +17,93 @@ import {
   OrderItemResponse,
 } from '../../modules/orders/dto/order-detail.response';
 import { canModifyOrder } from '../../common/utils/role-permission.util';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class CustomerOrdersService {
   private readonly logger = new Logger(CustomerOrdersService.name);
   private static readonly ITEMS_SUMMARY_LIMIT = 6;
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
+
+  private async releaseInventoryForCancelledOrder(
+    sb: any,
+    orderId: string,
+    branchId: string,
+    orderNo: string | null,
+  ) {
+    try {
+      const { data: orderItems } = await sb
+        .from('order_items')
+        .select('product_id, qty')
+        .eq('order_id', orderId);
+
+      if (!orderItems || orderItems.length === 0) {
+        return;
+      }
+
+      const productIds = orderItems.map((item: any) => item.product_id);
+      const { data: inventories } = await sb
+        .from('product_inventory')
+        .select('product_id, qty_available, qty_reserved')
+        .in('product_id', productIds)
+        .eq('branch_id', branchId);
+
+      const inventoryMap = new Map<string, any>(
+        inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
+      );
+
+      const updatePromises: PromiseLike<any>[] = [];
+      const logRows: any[] = [];
+
+      for (const item of orderItems) {
+        const inventory = inventoryMap.get(item.product_id) as
+          | { qty_available: number; qty_reserved: number }
+          | undefined;
+        if (!inventory) continue;
+
+        updatePromises.push(
+          sb
+            .from('product_inventory')
+            .update({
+              qty_available: inventory.qty_available + item.qty,
+              qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+            })
+            .eq('product_id', item.product_id)
+            .eq('branch_id', branchId),
+        );
+
+        logRows.push({
+          product_id: item.product_id,
+          branch_id: branchId,
+          transaction_type: 'RELEASE',
+          qty_change: item.qty,
+          qty_before: inventory.qty_available,
+          qty_after: inventory.qty_available + item.qty,
+          reference_id: orderId,
+          reference_type: 'ORDER',
+          notes: `주문 취소로 인한 재고 복구 (주문번호: ${orderNo ?? '-'})`,
+        });
+      }
+
+      await Promise.all([
+        ...updatePromises,
+        logRows.length > 0
+          ? sb.from('inventory_logs').insert(logRows)
+          : Promise.resolve(),
+      ]);
+
+      this.logger.log(`Inventory released for cancelled order: ${orderNo}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to release inventory for cancelled order ${orderId}`,
+        error,
+      );
+    }
+  }
 
   /**
    * UUID 여부 확인
@@ -220,7 +300,7 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
-    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING',
     dateStart?: string,
     dateEnd?: string,
   ) {
@@ -499,6 +579,13 @@ export class CustomerOrdersService {
 
     const sb = this.supabase.adminClient();
 
+    if (status === OrderStatus.CANCELLED) {
+      await this.paymentsService.refundOrderPaymentForCancellation(
+        order.id,
+        order.branch_id,
+      );
+    }
+
     const { data, error } = await sb
       .from('orders')
       .update({ status })
@@ -514,6 +601,15 @@ export class CustomerOrdersService {
     this.logger.log(
       `Order ${orderId} status updated to ${status} successfully`,
     );
+
+    if (status === OrderStatus.CANCELLED) {
+      await this.releaseInventoryForCancelledOrder(
+        sb,
+        order.id,
+        order.branch_id,
+        data.order_no ?? order.order_no ?? null,
+      );
+    }
 
     return {
       id: data.id,
@@ -546,6 +642,27 @@ export class CustomerOrdersService {
     this.logger.log(
       `Bulk updating ${uniqueOrderIds.length} orders to ${status} by user ${userId}`,
     );
+
+    if (status === OrderStatus.CANCELLED) {
+      const results = [];
+      for (const currentOrderId of uniqueOrderIds) {
+        results.push(
+          await this.updateMyOrderStatus(
+            userId,
+            currentOrderId,
+            status,
+            brandMemberships,
+            branchMemberships,
+          ),
+        );
+      }
+
+      return {
+        updatedCount: results.length,
+        status,
+        orderIds: results.map((result) => result.id),
+      };
+    }
 
     const resolvedOrderIds: string[] = [];
     for (const orderId of uniqueOrderIds) {

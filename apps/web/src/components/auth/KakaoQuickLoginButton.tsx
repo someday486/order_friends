@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -8,28 +8,33 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 type KakaoQuickLoginButtonProps = {
   beforeLogin?: () => void;
   className?: string;
+  redirectPath?: string;
+  autoStart?: boolean;
 };
 
 export function KakaoQuickLoginButton({
   beforeLogin,
   className,
+  redirectPath,
+  autoStart = false,
 }: KakaoQuickLoginButtonProps) {
   const { status } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const autoStartedRef = useRef(false);
 
-  if (status === "authenticated") return null;
-
-  const onKakaoLogin = async () => {
+  const onKakaoLogin = useCallback(async () => {
     try {
       beforeLogin?.();
       setSubmitting(true);
       setErrorMsg(null);
 
       const queryString = searchParams?.toString();
-      const nextPath = `${pathname}${queryString ? `?${queryString}` : ""}`;
+      const nextPath =
+        redirectPath ??
+        `${pathname}${queryString ? `?${queryString}` : ""}`;
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
       const provider = "kakao" as Parameters<
         typeof supabaseBrowser.auth.signInWithOAuth
@@ -50,13 +55,30 @@ export function KakaoQuickLoginButton({
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [beforeLogin, pathname, redirectPath, searchParams]);
+
+  useEffect(() => {
+    if (
+      status === "authenticated" ||
+      !autoStart ||
+      autoStartedRef.current
+    ) {
+      return;
+    }
+
+    autoStartedRef.current = true;
+    void onKakaoLogin();
+  }, [autoStart, onKakaoLogin, status]);
+
+  if (status === "authenticated") return null;
 
   return (
     <div className={className}>
       <button
         type="button"
-        onClick={onKakaoLogin}
+        onClick={() => {
+          void onKakaoLogin();
+        }}
         disabled={submitting}
         className="w-full h-11 rounded-lg bg-[#FEE500] text-[#191919] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
       >

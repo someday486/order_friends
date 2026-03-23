@@ -1,4 +1,3 @@
-// 주문 상태
 export type OrderStatus =
   | 'CREATED'
   | 'CONFIRMED'
@@ -8,37 +7,83 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'REFUNDED';
 
-// 주문 상태 라벨 (관리자용)
+export type OrderStatusDisplay =
+  | 'RECEIVED'
+  | 'PREPARING'
+  | 'READY'
+  | 'CANCELLED';
+
+export function getOrderStatusDisplay(status: OrderStatus): OrderStatusDisplay {
+  switch (status) {
+    case 'CREATED':
+    case 'CONFIRMED':
+      return 'RECEIVED';
+    case 'PREPARING':
+      return 'PREPARING';
+    case 'READY':
+    case 'COMPLETED':
+      return 'READY';
+    case 'CANCELLED':
+    case 'REFUNDED':
+      return 'CANCELLED';
+  }
+}
+
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
-  CONFIRMED: '확인',
+  CONFIRMED: '주문접수',
   PREPARING: '준비중',
   READY: '준비완료',
-  COMPLETED: '완료',
+  COMPLETED: '준비완료',
   CANCELLED: '취소',
-  REFUNDED: '환불',
+  REFUNDED: '취소',
 };
 
-// 주문 상태 라벨 (고객용)
 export const ORDER_STATUS_LABEL_LONG: Record<OrderStatus, string> = {
   CREATED: '주문 접수',
-  CONFIRMED: '주문 확인',
+  CONFIRMED: '주문 접수',
   PREPARING: '준비 중',
   READY: '준비 완료',
-  COMPLETED: '완료',
-  CANCELLED: '취소됨',
-  REFUNDED: '환불됨',
+  COMPLETED: '준비 완료',
+  CANCELLED: '주문 취소',
+  REFUNDED: '주문 취소',
 };
 
-// 상태 배지 스타일
 export const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   CREATED: 'bg-warning-500/20 text-warning-500',
-  CONFIRMED: 'bg-primary-500/20 text-primary-500',
+  CONFIRMED: 'bg-warning-500/20 text-warning-500',
   PREPARING: 'bg-primary-500/20 text-primary-500',
   READY: 'bg-success/20 text-success',
-  COMPLETED: 'bg-neutral-500/20 text-text-secondary',
+  COMPLETED: 'bg-success/20 text-success',
   CANCELLED: 'bg-danger-500/20 text-danger-500',
-  REFUNDED: 'bg-pink-500/20 text-pink-400',
+  REFUNDED: 'bg-danger-500/20 text-danger-500',
+};
+
+export const ORDER_STATUS_DISPLAY_LABEL: Record<OrderStatusDisplay, string> = {
+  RECEIVED: '주문접수',
+  PREPARING: '준비중',
+  READY: '준비완료',
+  CANCELLED: '취소',
+};
+
+export const ORDER_STATUS_DISPLAY_LABEL_LONG: Record<
+  OrderStatusDisplay,
+  string
+> = {
+  RECEIVED: '주문 접수',
+  PREPARING: '준비 중',
+  READY: '준비 완료',
+  CANCELLED: '주문 취소',
+};
+
+export const ORDER_STATUS_DISPLAY_BADGE_CLASS: Record<
+  OrderStatusDisplay,
+  string
+> = {
+  RECEIVED: 'bg-warning-500/20 text-warning-500',
+  PREPARING: 'bg-primary-500/20 text-primary-500',
+  READY: 'bg-success/20 text-success',
+  CANCELLED: 'bg-danger-500/20 text-danger-500',
 };
 
 export type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
@@ -50,7 +95,6 @@ export const FULFILLMENT_TYPE_LABEL: Record<FulfillmentType, string> = {
   SHIPPING: '택배',
 };
 
-// 지점
 export type Branch = {
   id: string;
   name: string;
@@ -60,7 +104,6 @@ export type Branch = {
   createdAt?: string;
 };
 
-// 브랜드
 export type Brand = {
   id: string;
   name: string;
@@ -70,7 +113,6 @@ export type Brand = {
   created_at?: string;
 };
 
-// 결제 수단 라벨
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CARD: '카드결제',
   CASH: '현금',

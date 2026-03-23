@@ -6,7 +6,12 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { formatDateTimeFull, formatPhone, formatWon } from '@/lib/format';
 import { useAuth } from '@/hooks/useAuth';
-import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from '@/types/common';
+import {
+  ORDER_STATUS_LABEL_LONG,
+  getOrderStatusDisplay,
+  type OrderStatus,
+  type OrderStatusDisplay,
+} from '@/types/common';
 import { apiClient } from '@/lib/api-client';
 import { loadLastOrderRecord, saveLastOrderRecord } from '@/lib/order-session';
 
@@ -57,12 +62,10 @@ function toTelHref(phone: string) {
   return normalized ? `tel:${normalized}` : null;
 }
 
-const STATUS_STEPS: OrderStatus[] = [
-  'CREATED',
-  'CONFIRMED',
+const STATUS_STEPS: OrderStatusDisplay[] = [
+  'RECEIVED',
   'PREPARING',
   'READY',
-  'COMPLETED',
 ];
 
 const POLL_INTERVAL_MS = 10000; // 10초 (30초에서 단축)
@@ -339,19 +342,16 @@ function fulfillmentTypeLabel(type: FulfillmentType | null): string {
 }
 
 function statusHint(status: OrderStatus): string {
-  if (status === 'CREATED')
+  const displayStatus = getOrderStatusDisplay(status);
+
+  if (displayStatus === 'RECEIVED')
     return '주문이 접수됐어요. 매장에서 확인 중입니다 🕐';
-  if (status === 'CONFIRMED')
-    return '주문이 확인됐어요! 곧 준비를 시작합니다 👍';
-  if (status === 'PREPARING')
+  if (displayStatus === 'PREPARING')
     return '열심히 준비하고 있어요! 잠시만 기다려주세요 ☕';
-  if (status === 'READY')
+  if (displayStatus === 'READY')
     return '준비가 완료됐어요! 지금 바로 수령하러 오세요 🎉';
-  if (status === 'COMPLETED')
-    return '주문이 완료됐습니다. 즐거운 시간 되세요 😊';
-  if (status === 'CANCELLED')
-    return '주문이 취소됐습니다. 궁금하신 점은 매장으로 문의해 주세요.';
-  return '환불이 완료됐습니다.';
+
+  return '주문이 취소됐습니다. 궁금하신 점은 매장으로 문의해 주세요.';
 }
 
 function paymentGuide(method: PaymentMethod | null): {
@@ -709,12 +709,12 @@ export default function TrackOrderPage() {
     );
   }
 
-  const isCancelled =
-    order.status === 'CANCELLED' || order.status === 'REFUNDED';
+  const displayStatus = getOrderStatusDisplay(order.status);
+  const isCancelled = displayStatus === 'CANCELLED';
   const isRefunded = order.status === 'REFUNDED';
   const isCompleted = order.status === 'COMPLETED';
   const isReady = order.status === 'READY';
-  const currentStepIndex = STATUS_STEPS.indexOf(order.status);
+  const currentStepIndex = STATUS_STEPS.indexOf(displayStatus);
   const guide = paymentGuide(order.paymentMethod);
   const refundNotice = refundGuide(order);
   const showCancelAction =
@@ -807,13 +807,13 @@ export default function TrackOrderPage() {
   const timeline = isCancelled
     ? [
         {
-          id: 'CREATED',
+          id: 'RECEIVED',
           title: ORDER_STATUS_LABEL_LONG.CREATED,
           description: statusHint('CREATED'),
           state: 'done' as const,
         },
         {
-          id: order.status,
+          id: 'CANCELLED',
           title: ORDER_STATUS_LABEL_LONG[order.status] ?? order.status,
           description: statusHint(order.status),
           state: 'current' as const,
@@ -821,8 +821,18 @@ export default function TrackOrderPage() {
       ]
     : STATUS_STEPS.map((step, idx) => ({
         id: step,
-        title: ORDER_STATUS_LABEL_LONG[step] ?? step,
-        description: statusHint(step),
+        title:
+          step === 'RECEIVED'
+            ? ORDER_STATUS_LABEL_LONG.CREATED
+            : step === 'PREPARING'
+              ? ORDER_STATUS_LABEL_LONG.PREPARING
+              : ORDER_STATUS_LABEL_LONG.READY,
+        description:
+          step === 'RECEIVED'
+            ? statusHint(order.status === 'CONFIRMED' ? 'CONFIRMED' : 'CREATED')
+            : step === 'PREPARING'
+              ? statusHint('PREPARING')
+              : statusHint('READY'),
         state: (idx < currentStepIndex
           ? 'done'
           : idx === currentStepIndex

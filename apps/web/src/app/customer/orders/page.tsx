@@ -8,9 +8,11 @@ import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import {
   FULFILLMENT_TYPE_LABEL,
+  getOrderStatusDisplay,
   type Branch,
   type FulfillmentType,
   type OrderStatus,
+  type OrderStatusDisplay,
 } from '@/types/common';
 import { createOrderExportJob } from '@/lib/exports';
 
@@ -68,33 +70,31 @@ type BulkUpdateStatusResponse = {
 
 const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'CREATED', label: '주문접수' },
-  { value: 'CONFIRMED', label: '확인' },
   { value: 'PREPARING', label: '준비중' },
   { value: 'READY', label: '준비완료' },
-  { value: 'COMPLETED', label: '완료' },
   { value: 'CANCELLED', label: '취소' },
 ];
 
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
-  CONFIRMED: '확인',
+  CONFIRMED: '주문접수',
   PREPARING: '준비중',
   READY: '준비완료',
-  COMPLETED: '완료',
+  COMPLETED: '준비완료',
   CANCELLED: '취소',
-  REFUNDED: '환불',
+  REFUNDED: '취소',
 };
 
 // Active statuses: filled + ring (high visual weight)
 // Terminal statuses: muted (low visual weight)
 const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   CREATED:   'bg-blue-500/15 text-blue-600 ring-1 ring-inset ring-blue-500/40',
-  CONFIRMED: 'bg-indigo-500/15 text-indigo-600 ring-1 ring-inset ring-indigo-500/40',
+  CONFIRMED: 'bg-blue-500/15 text-blue-600 ring-1 ring-inset ring-blue-500/40',
   PREPARING: 'bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/40',
   READY:     'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
-  COMPLETED: 'bg-gray-500/10 text-gray-500',
+  COMPLETED: 'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
   CANCELLED: 'bg-red-500/10 text-red-500',
-  REFUNDED:  'bg-purple-500/10 text-purple-500',
+  REFUNDED:  'bg-red-500/10 text-red-500',
 };
 
 const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
@@ -112,6 +112,13 @@ const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
   DELIVERY: 'border border-orange-400/70 text-orange-600',
   DINE_IN:  'border border-neutral-400/70 text-neutral-500',
   SHIPPING: 'border border-violet-400/70 text-violet-600',
+};
+
+const DISPLAY_STATUS_GROUPS: Record<OrderStatusDisplay, OrderStatus[]> = {
+  RECEIVED: ['CREATED', 'CONFIRMED'],
+  PREPARING: ['PREPARING'],
+  READY: ['READY', 'COMPLETED'],
+  CANCELLED: ['CANCELLED', 'REFUNDED'],
 };
 
 type AutoRefreshMode = 'FAST' | 'DEFAULT' | 'SAVE';
@@ -382,7 +389,7 @@ export default function CustomerOrdersPage() {
 
   // Filters
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<OrderStatusDisplay | 'ALL'>('ALL');
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
     FulfillmentType | 'ALL'
   >('ALL');
@@ -406,7 +413,7 @@ export default function CustomerOrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
-  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CREATED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -441,7 +448,7 @@ export default function CustomerOrdersPage() {
     if (!bulkAllowedSet.has(bulkStatus)) {
       const firstAllowed =
         BULK_STATUS_OPTIONS.find((o) => bulkAllowedSet.has(o.value))?.value ??
-        "CONFIRMED";
+        "CREATED";
       setBulkStatus(firstAllowed);
     }
   }, [selectedOrders.length, bulkAllowedSet, bulkStatus]);
@@ -545,7 +552,7 @@ export default function CustomerOrdersPage() {
           "READY",
           "COMPLETED",
           "CANCELLED",
-          // 필요하면 "REFUNDED"도 카드로 넣을 때만 포함
+          "REFUNDED",
         ];
 
         const results = await Promise.all(
@@ -625,9 +632,6 @@ export default function CustomerOrdersPage() {
         if (branchFilter !== 'ALL' && isUuidFormat(branchFilter)) {
           params.append('branchId', branchFilter);
         }
-        if (statusFilter !== 'ALL') {
-          params.append('status', statusFilter);
-        }
         if (fulfillmentFilter !== 'ALL') {
           params.append('fulfillmentType', fulfillmentFilter);
         }
@@ -638,12 +642,59 @@ export default function CustomerOrdersPage() {
           params.append('dateEnd', appliedDateEnd);
         }
 
-        const data = await apiClient.get<OrderListResponse | Order[]>(
-          `/customer/orders?${params.toString()}`,
-        );
-        const orderItems = Array.isArray(data)
-          ? data
-          : data.data || data.items || [];
+        let orderItems: Order[] = [];
+        let nextTotal = 0;
+
+        if (statusFilter === 'ALL') {
+          const data = await apiClient.get<OrderListResponse | Order[]>(
+            `/customer/orders?${params.toString()}`,
+          );
+          orderItems = Array.isArray(data)
+            ? data
+            : data.data || data.items || [];
+          nextTotal = Array.isArray(data)
+            ? data.length
+            : data.pagination?.total || data.total || orderItems.length || 0;
+        } else {
+          const groupedStatuses = DISPLAY_STATUS_GROUPS[statusFilter];
+          const groupedLimit = Math.max(limit * page, limit);
+
+          const groupedResponses = await Promise.all(
+            groupedStatuses.map(async (status) => {
+              const groupedParams = new URLSearchParams(params);
+              groupedParams.set('page', '1');
+              groupedParams.set('limit', groupedLimit.toString());
+              groupedParams.append('status', status);
+
+              const response = await apiClient.get<OrderListResponse | Order[]>(
+                `/customer/orders?${groupedParams.toString()}`,
+              );
+
+              const items = Array.isArray(response)
+                ? response
+                : response.data || response.items || [];
+              const totalCount = Array.isArray(response)
+                ? response.length
+                : response.pagination?.total || response.total || items.length || 0;
+
+              return { items, totalCount };
+            }),
+          );
+
+          orderItems = groupedResponses
+            .flatMap((result) => result.items)
+            .sort(
+              (a, b) =>
+                new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
+            )
+            .slice((page - 1) * limit, page * limit);
+
+          nextTotal = groupedResponses.reduce(
+            (sum, result) => sum + result.totalCount,
+            0,
+          );
+        }
+
         setOrders(orderItems);
         setSelectedOrderIds((prev) => {
           if (prev.size === 0) return prev;
@@ -652,11 +703,7 @@ export default function CustomerOrdersPage() {
             Array.from(prev).filter((orderId) => visibleIds.has(orderId)),
           );
         });
-        setTotal(
-          Array.isArray(data)
-            ? data.length
-            : data.pagination?.total || data.total || orderItems.length || 0,
-        );
+        setTotal(nextTotal);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : '주문을 불러올 수 없습니다');
@@ -679,14 +726,16 @@ export default function CustomerOrdersPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  const activeCount =
-    (summaryCounts.CREATED ?? 0) +
-    (summaryCounts.CONFIRMED ?? 0) +
-    (summaryCounts.PREPARING ?? 0) +
-    (summaryCounts.READY ?? 0);
-  const newOrderCount = summaryCounts.CREATED ?? 0;
-  const unhandledCount =
+  const receivedCount =
     (summaryCounts.CREATED ?? 0) + (summaryCounts.CONFIRMED ?? 0);
+  const readyCount =
+    (summaryCounts.READY ?? 0) + (summaryCounts.COMPLETED ?? 0);
+  const cancelledCount =
+    (summaryCounts.CANCELLED ?? 0) + (summaryCounts.REFUNDED ?? 0);
+  const activeCount =
+    receivedCount + (summaryCounts.PREPARING ?? 0) + readyCount;
+  const newOrderCount = receivedCount;
+  const unhandledCount = receivedCount;
   const delayedCount = useMemo(() => {
     const now = Date.now();
     return orders.filter((order) => {
@@ -803,7 +852,10 @@ export default function CustomerOrdersPage() {
           ...(branchFilter !== 'ALL' && isUuidFormat(branchFilter)
             ? { branchId: branchFilter }
             : {}),
-          ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+          ...(statusFilter !== 'ALL' &&
+          DISPLAY_STATUS_GROUPS[statusFilter].length === 1
+            ? { status: DISPLAY_STATUS_GROUPS[statusFilter][0] }
+            : {}),
           ...(fulfillmentFilter !== 'ALL'
             ? { fulfillmentType: fulfillmentFilter }
             : {}),
@@ -861,17 +913,13 @@ export default function CustomerOrdersPage() {
       </div>
 
       {/* ── Section 1.5: Today Status Summary Cards ── */}
-      <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" aria-busy={summaryLoading}>
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2" aria-busy={summaryLoading}>
         {([
-          { key: "CREATED", label: "주문접수" },
-          { key: "CONFIRMED", label: "확인" },
-          { key: "PREPARING", label: "준비중" },
-          { key: "READY", label: "준비완료" },
-          { key: "COMPLETED", label: "완료" },
-          { key: "CANCELLED", label: "취소" },
+          { key: "RECEIVED", label: "주문접수", count: receivedCount },
+          { key: "PREPARING", label: "준비중", count: summaryCounts.PREPARING ?? 0 },
+          { key: "READY", label: "준비완료", count: readyCount },
+          { key: "CANCELLED", label: "취소", count: cancelledCount },
         ] as const).map((c) => {
-          const k = c.key as OrderStatus;
-          const count = summaryCounts[k] ?? 0;
 
           return (
             <button
@@ -879,12 +927,12 @@ export default function CustomerOrdersPage() {
               type="button"
               disabled={summaryLoading}
               onClick={() => {
-                setStatusFilter(k);
+                setStatusFilter(c.key);
                 setPage(1);
               }}
               className={`
                 text-left rounded-xl border transition-colors py-7 px-8 disabled:opacity-70 disabled:cursor-not-allowed
-                ${statusFilter === k
+                ${statusFilter === c.key
                   ? "border-foreground bg-foreground/5"
                   : "border-border bg-bg-secondary hover:bg-bg-tertiary"
                 }
@@ -894,7 +942,7 @@ export default function CustomerOrdersPage() {
                 {c.label}
               </div>
               <div className="mt-1 text-2xl font-extrabold text-foreground">
-                {count}
+                {c.count}
               </div>
               <div className="mt-1 text-[11px] text-text-tertiary">
                 {cardBasisLabel}

@@ -14,16 +14,14 @@ import {
   type AdminBrandSummary,
   type AdminBranchSummary,
 } from "@/lib/adminDataCache";
-import type { FulfillmentType } from "@/types/common";
-
-type OrderStatus =
-  | "CREATED"
-  | "CONFIRMED"
-  | "PREPARING"
-  | "READY"
-  | "COMPLETED"
-  | "CANCELLED"
-  | "REFUNDED";
+import {
+  FULFILLMENT_TYPE_LABEL,
+  ORDER_STATUS_DISPLAY_LABEL,
+  getOrderStatusDisplay,
+  type FulfillmentType,
+  type OrderStatus,
+  type OrderStatusDisplay,
+} from "@/types/common";
 
 type Order = {
   id: string;
@@ -39,15 +37,12 @@ type Order = {
 
 const ALL_BRANCHES_VALUE = "__ALL_BRANCHES__";
 
-const STATUS_OPTIONS: { value: OrderStatus | "ALL"; label: string }[] = [
+const STATUS_OPTIONS: { value: OrderStatusDisplay | "ALL"; label: string }[] = [
   { value: "ALL", label: "전체" },
-  { value: "CREATED", label: "주문접수" },
-  { value: "CONFIRMED", label: "확인" },
+  { value: "RECEIVED", label: "주문접수" },
   { value: "PREPARING", label: "준비중" },
   { value: "READY", label: "준비완료" },
-  { value: "COMPLETED", label: "완료" },
   { value: "CANCELLED", label: "취소" },
-  { value: "REFUNDED", label: "환불" },
 ];
 
 const FULFILLMENT_OPTIONS: {
@@ -61,34 +56,14 @@ const FULFILLMENT_OPTIONS: {
   { value: "SHIPPING", label: "택배" },
 ];
 
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  CREATED: "주문접수",
-  CONFIRMED: "확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
-};
-
 const STATUS_VARIANT: Record<
-  OrderStatus,
+  OrderStatusDisplay,
   "info" | "success" | "warning" | "danger" | "default"
 > = {
-  CREATED: "info",
-  CONFIRMED: "info",
+  RECEIVED: "info",
   PREPARING: "warning",
   READY: "success",
-  COMPLETED: "default",
   CANCELLED: "danger",
-  REFUNDED: "danger",
-};
-
-const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
-  PICKUP: "포장",
-  DELIVERY: "배달",
-  DINE_IN: "매장",
-  SHIPPING: "택배",
 };
 
 const FULFILLMENT_VARIANT: Record<
@@ -147,7 +122,9 @@ function OrdersPageContent() {
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<OrderStatusDisplay | "ALL">(
+    "ALL",
+  );
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
     FulfillmentType | "ALL"
   >("ALL");
@@ -244,9 +221,6 @@ function OrdersPageContent() {
       setError(null);
 
       const appendFilters = (params: URLSearchParams) => {
-        if (statusFilter !== "ALL") {
-          params.append("status", statusFilter);
-        }
         if (fulfillmentFilter !== "ALL") {
           params.append("fulfillmentType", fulfillmentFilter);
         }
@@ -273,12 +247,12 @@ function OrdersPageContent() {
           }),
         );
 
-        nextOrders = perBranchRows
-          .flat()
-          .sort(
-            (left, right) =>
-              new Date(right.orderedAt).getTime() - new Date(left.orderedAt).getTime(),
+        nextOrders = perBranchRows.flat().sort((left, right) => {
+          return (
+            new Date(right.orderedAt).getTime() -
+            new Date(left.orderedAt).getTime()
           );
+        });
       } else {
         const params = new URLSearchParams({ branchId });
         appendFilters(params);
@@ -297,7 +271,7 @@ function OrdersPageContent() {
     } finally {
       setLoadingOrders(false);
     }
-  }, [branchId, branches, fulfillmentFilter, statusFilter]);
+  }, [branchId, branches, fulfillmentFilter]);
 
   useEffect(() => {
     if (!brandReady || !branchReady) return;
@@ -309,6 +283,14 @@ function OrdersPageContent() {
 
     void fetchOrders();
   }, [brandReady, branchReady, branchId, fetchOrders]);
+
+  const filteredOrders = useMemo(() => {
+    if (statusFilter === "ALL") return orders;
+
+    return orders.filter(
+      (order) => getOrderStatusDisplay(order.status) === statusFilter,
+    );
+  }, [orders, statusFilter]);
 
   const selectedBrand = useMemo(
     () => brands.find((brand) => brand.id === brandId) ?? null,
@@ -325,7 +307,7 @@ function OrdersPageContent() {
             주문관리
           </h1>
           <p className="mt-1 text-[13px] text-text-secondary">
-            표시 {orders.length}건
+            표시 {filteredOrders.length}건
             {selectedBrand ? ` · ${selectedBrand.name}` : ""}
           </p>
         </div>
@@ -393,7 +375,9 @@ function OrdersPageContent() {
               disabled={!brandId || loadingBranches}
             >
               <option value="">
-                {brandId ? "매장을 선택하세요" : "먼저 브랜드를 선택하세요"}
+                {brandId
+                  ? "매장을 선택하세요"
+                  : "먼저 브랜드를 선택하세요"}
               </option>
               <option value={ALL_BRANCHES_VALUE}>전체</option>
               {branches.map((branch) => (
@@ -411,7 +395,7 @@ function OrdersPageContent() {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(event.target.value as OrderStatus | "ALL")
+                setStatusFilter(event.target.value as OrderStatusDisplay | "ALL")
               }
               className="input-field h-9 w-full text-sm"
               disabled={!branchId}
@@ -456,7 +440,7 @@ function OrdersPageContent() {
 
       {!brandId && (
         <p className="mb-4 text-text-tertiary">
-          브랜드를 선택하면 해당 브랜드의 매장을 고를 수 있습니다.
+          브랜드를 선택하면 해당 브랜드의 매장과 주문을 볼 수 있습니다.
         </p>
       )}
 
@@ -508,7 +492,7 @@ function OrdersPageContent() {
               </tr>
             )}
 
-            {!loadingOrders && orders.length === 0 && branchId && (
+            {!loadingOrders && filteredOrders.length === 0 && branchId && (
               <tr>
                 <td
                   colSpan={6}
@@ -520,59 +504,61 @@ function OrdersPageContent() {
             )}
 
             {!loadingOrders &&
-              orders.map((order) => (
-                <tr
-                  key={order.id}
-                  className="border-t border-border transition-colors hover:bg-card-hover"
-                >
-                  <td className="px-4 py-3 text-sm">
-                    <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(order.branchId ?? branchId ?? "")}&brandId=${encodeURIComponent(brandId ?? "")}`}
-                      className="text-foreground hover:text-primary-500 hover:underline"
-                    >
-                      {order.orderNo ?? order.id.slice(0, 8)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(order.branchId ?? branchId ?? "")}&brandId=${encodeURIComponent(brandId ?? "")}`}
-                      className="text-foreground hover:text-primary-500 hover:underline"
-                    >
-                      {order.customerName || "-"}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {order.fulfillmentType ? (
-                      <Badge variant={FULFILLMENT_VARIANT[order.fulfillmentType]}>
-                        {FULFILLMENT_LABEL[order.fulfillmentType]}
+              filteredOrders.map((order) => {
+                const displayStatus = getOrderStatusDisplay(order.status);
+                const orderHref = `/admin/orders/${order.id}?branchId=${encodeURIComponent(order.branchId ?? branchId ?? "")}&brandId=${encodeURIComponent(brandId ?? "")}`;
+
+                return (
+                  <tr
+                    key={order.id}
+                    className="border-t border-border transition-colors hover:bg-card-hover"
+                  >
+                    <td className="px-4 py-3 text-sm">
+                      <Link
+                        href={orderHref}
+                        className="text-foreground hover:text-primary-500 hover:underline"
+                      >
+                        {order.orderNo ?? order.id.slice(0, 8)}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <Link
+                        href={orderHref}
+                        className="text-foreground hover:text-primary-500 hover:underline"
+                      >
+                        {order.customerName || "-"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {order.fulfillmentType ? (
+                        <Badge variant={FULFILLMENT_VARIANT[order.fulfillmentType]}>
+                          {FULFILLMENT_TYPE_LABEL[order.fulfillmentType]}
+                        </Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <Badge variant={STATUS_VARIANT[displayStatus]}>
+                        {ORDER_STATUS_DISPLAY_LABEL[displayStatus]}
                       </Badge>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <Badge variant={STATUS_VARIANT[order.status]}>
-                      {STATUS_LABEL[order.status]}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm">
-                    <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(order.branchId ?? branchId ?? "")}&brandId=${encodeURIComponent(brandId ?? "")}`}
-                      className="text-foreground hover:text-primary-500 hover:underline"
-                    >
-                      {formatWon(order.totalAmount)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    <Link
-                      href={`/admin/orders/${order.id}?branchId=${encodeURIComponent(order.branchId ?? branchId ?? "")}&brandId=${encodeURIComponent(brandId ?? "")}`}
-                      className="hover:underline"
-                    >
-                      {formatDateTime(order.orderedAt)}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      <Link
+                        href={orderHref}
+                        className="text-foreground hover:text-primary-500 hover:underline"
+                      >
+                        {formatWon(order.totalAmount)}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      <Link href={orderHref} className="hover:underline">
+                        {formatDateTime(order.orderedAt)}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>

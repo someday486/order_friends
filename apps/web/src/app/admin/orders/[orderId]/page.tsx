@@ -6,16 +6,13 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
-import type { FulfillmentType } from "@/types/common";
-
-type OrderStatus =
-  | "CREATED"
-  | "CONFIRMED"
-  | "PREPARING"
-  | "READY"
-  | "COMPLETED"
-  | "CANCELLED"
-  | "REFUNDED";
+import {
+  FULFILLMENT_TYPE_LABEL,
+  ORDER_STATUS_DISPLAY_LABEL,
+  getOrderStatusDisplay,
+  type FulfillmentType,
+  type OrderStatus,
+} from "@/types/common";
 
 type OrderItem = {
   id: string;
@@ -56,8 +53,8 @@ const STATUS_FLOW: OrderStatus[] = [
   "COMPLETED",
 ];
 
-const statusLabel: Record<OrderStatus, string> = {
-  CREATED: "접수",
+const RAW_STATUS_LABEL: Record<OrderStatus, string> = {
+  CREATED: "주문접수",
   CONFIRMED: "확인",
   PREPARING: "준비중",
   READY: "준비완료",
@@ -72,15 +69,8 @@ const paymentMethodLabel: Record<string, string> = {
   CASH: "현금",
 };
 
-const fulfillmentLabel: Record<FulfillmentType, string> = {
-  PICKUP: "포장",
-  DELIVERY: "배달",
-  DINE_IN: "매장",
-  SHIPPING: "택배",
-};
-
 function formatWon(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
+  return `${amount.toLocaleString("ko-KR")}원`;
 }
 
 function formatDateTime(iso: string) {
@@ -144,7 +134,7 @@ function OrderDetailPageContent() {
         setOrder(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "조회 실패");
+        setError(err?.message ?? "조회에 실패했습니다.");
       } finally {
         setLoading(false);
       }
@@ -167,7 +157,7 @@ function OrderDetailPageContent() {
       setOrder((prev) => (prev ? { ...prev, status: data.status } : null));
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "상태 변경 실패");
+      setError(err?.message ?? "상태 변경에 실패했습니다.");
     } finally {
       setStatusLoading(false);
     }
@@ -184,24 +174,20 @@ function OrderDetailPageContent() {
       <div>
         <Link
           href="/admin/orders"
-          className="text-foreground no-underline hover:text-primary-500 transition-colors"
+          className="text-foreground no-underline transition-colors hover:text-primary-500"
         >
           ← 주문 목록
         </Link>
         <div className="mt-3">
           <BranchSelector />
         </div>
-        <p className="text-text-secondary mt-3">지점을 선택해주세요.</p>
+        <p className="mt-3 text-text-secondary">지점을 선택해주세요.</p>
       </div>
     );
   }
 
   if (loading) {
-    return (
-      <div>
-        <p className="text-text-secondary">불러오는 중...</p>
-      </div>
-    );
+    return <p className="text-text-secondary">불러오는 중...</p>;
   }
 
   if (error && !order) {
@@ -209,11 +195,11 @@ function OrderDetailPageContent() {
       <div>
         <Link
           href="/admin/orders"
-          className="text-foreground no-underline hover:text-primary-500 transition-colors"
+          className="text-foreground no-underline transition-colors hover:text-primary-500"
         >
           ← 주문 목록
         </Link>
-        <p className="text-danger-500 mt-4">{error}</p>
+        <p className="mt-4 text-danger-500">{error}</p>
       </div>
     );
   }
@@ -223,43 +209,51 @@ function OrderDetailPageContent() {
       <div>
         <Link
           href="/admin/orders"
-          className="text-foreground no-underline hover:text-primary-500 transition-colors"
+          className="text-foreground no-underline transition-colors hover:text-primary-500"
         >
           ← 주문 목록
         </Link>
-        <p className="text-text-secondary mt-4">주문을 찾을 수 없습니다.</p>
+        <p className="mt-4 text-text-secondary">주문을 찾을 수 없습니다.</p>
       </div>
     );
   }
 
+  const displayStatus = getOrderStatusDisplay(order.status);
   const next = nextStatus(order.status);
+  const nextDisplay = next ? getOrderStatusDisplay(next) : null;
+  const nextButtonLabel =
+    next && nextDisplay === displayStatus
+      ? "다음 단계로 변경"
+      : nextDisplay
+        ? `${ORDER_STATUS_DISPLAY_LABEL[nextDisplay]}로 변경`
+        : null;
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
             href="/admin/orders"
-            className="text-foreground no-underline hover:text-primary-500 transition-colors"
+            className="text-foreground no-underline transition-colors hover:text-primary-500"
           >
             ← 주문 목록
           </Link>
 
-          <div className="flex items-center gap-2.5 mt-2.5">
+          <div className="mt-2.5 flex items-center gap-2.5">
             <h1 className="m-0 text-[22px] font-extrabold text-foreground">
               주문 상세
             </h1>
-            <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border border-border bg-bg-tertiary text-foreground text-xs">
-              {statusLabel[order.status]}
+            <span className="inline-flex h-[26px] items-center rounded-full border border-border bg-bg-tertiary px-2.5 text-xs text-foreground">
+              {ORDER_STATUS_DISPLAY_LABEL[displayStatus]}
             </span>
             {order.fulfillmentType && (
-              <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border border-border bg-bg-secondary text-foreground text-xs">
-                {fulfillmentLabel[order.fulfillmentType]}
+              <span className="inline-flex h-[26px] items-center rounded-full border border-border bg-bg-secondary px-2.5 text-xs text-foreground">
+                {FULFILLMENT_TYPE_LABEL[order.fulfillmentType]}
               </span>
             )}
           </div>
 
-          <div className="mt-1.5 text-text-secondary text-[13px]">
+          <div className="mt-1.5 text-[13px] text-text-secondary">
             주문번호{" "}
             <span className="font-mono text-foreground">
               {order.orderNo ?? order.id}
@@ -268,10 +262,10 @@ function OrderDetailPageContent() {
           </div>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-2">
           {isCancellable && (
             <button
-              className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer hover:bg-bg-tertiary transition-colors"
+              className="h-9 cursor-pointer rounded-lg border border-border bg-transparent px-4 font-bold text-foreground transition-colors hover:bg-bg-tertiary"
               onClick={handleCancel}
               disabled={statusLoading}
             >
@@ -279,62 +273,62 @@ function OrderDetailPageContent() {
             </button>
           )}
 
-          {next && (
+          {next && nextButtonLabel && (
             <button
               className="btn-primary h-9 px-4"
               onClick={() => handleStatusChange(next)}
               disabled={statusLoading}
             >
-              {statusLoading ? "변경 중..." : `${statusLabel[next]}로 변경`}
+              {statusLoading ? "변경 중..." : nextButtonLabel}
             </button>
           )}
 
-          {error && <span className="text-danger-500 text-xs">{error}</span>}
+          {error && <span className="text-xs text-danger-500">{error}</span>}
         </div>
       </div>
 
-      <div className="mt-[18px] grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-3.5">
+      <div className="mt-[18px] grid grid-cols-1 gap-3.5 md:grid-cols-[1.2fr_0.8fr]">
         <section className="card p-3.5">
-          <div className="font-extrabold text-sm text-foreground">주문 상품</div>
+          <div className="text-sm font-extrabold text-foreground">주문 상품</div>
 
-          <div className="mt-2.5 border border-border rounded-xl overflow-hidden">
+          <div className="mt-2.5 overflow-hidden rounded-xl border border-border">
             <table className="w-full border-collapse">
               <thead className="bg-bg-tertiary">
                 <tr>
-                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">
+                  <th className="px-3 py-2.5 text-left text-xs font-bold text-text-secondary">
                     상품
                   </th>
-                  <th className="text-left py-2.5 px-3 text-xs font-bold text-text-secondary">
+                  <th className="px-3 py-2.5 text-left text-xs font-bold text-text-secondary">
                     옵션
                   </th>
-                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">
+                  <th className="px-3 py-2.5 text-right text-xs font-bold text-text-secondary">
                     수량
                   </th>
-                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">
+                  <th className="px-3 py-2.5 text-right text-xs font-bold text-text-secondary">
                     단가
                   </th>
-                  <th className="text-right py-2.5 px-3 text-xs font-bold text-text-secondary">
+                  <th className="px-3 py-2.5 text-right text-xs font-bold text-text-secondary">
                     합계
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {order.items.map((it) => (
-                  <tr key={it.id} className="border-t border-border">
-                    <td className="py-2.5 px-3 text-[13px] text-foreground">
-                      {it.name}
+                {order.items.map((item) => (
+                  <tr key={item.id} className="border-t border-border">
+                    <td className="px-3 py-2.5 text-[13px] text-foreground">
+                      {item.name}
                     </td>
-                    <td className="py-2.5 px-3 text-[13px] text-text-secondary">
-                      {it.option ?? "-"}
+                    <td className="px-3 py-2.5 text-[13px] text-text-secondary">
+                      {item.option ?? "-"}
                     </td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">
-                      {it.qty}
+                    <td className="px-3 py-2.5 text-right text-[13px] text-foreground">
+                      {item.qty}
                     </td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">
-                      {formatWon(it.unitPrice)}
+                    <td className="px-3 py-2.5 text-right text-[13px] text-foreground">
+                      {formatWon(item.unitPrice)}
                     </td>
-                    <td className="py-2.5 px-3 text-[13px] text-foreground text-right">
-                      {formatWon(it.unitPrice * it.qty)}
+                    <td className="px-3 py-2.5 text-right text-[13px] text-foreground">
+                      {formatWon(item.unitPrice * item.qty)}
                     </td>
                   </tr>
                 ))}
@@ -342,9 +336,9 @@ function OrderDetailPageContent() {
                   <tr>
                     <td
                       colSpan={5}
-                      className="py-2.5 px-3 text-[13px] text-center text-text-tertiary"
+                      className="px-3 py-2.5 text-center text-[13px] text-text-tertiary"
                     >
-                      상품 없음
+                      상품 정보가 없습니다.
                     </td>
                   </tr>
                 )}
@@ -353,14 +347,14 @@ function OrderDetailPageContent() {
           </div>
 
           <div className="mt-3.5 grid grid-cols-2 gap-2.5">
-            <div className="border border-border rounded-xl p-3 bg-bg-secondary">
-              <div className="text-text-secondary text-xs">상품 합계</div>
+            <div className="rounded-xl border border-border bg-bg-secondary p-3">
+              <div className="text-xs text-text-secondary">상품 합계</div>
               <div className="mt-1.5 font-extrabold text-foreground">
                 {formatWon(order.payment.subtotal)}
               </div>
             </div>
-            <div className="border border-border rounded-xl p-3 bg-bg-secondary">
-              <div className="text-text-secondary text-xs">총 결제금액</div>
+            <div className="rounded-xl border border-border bg-bg-secondary p-3">
+              <div className="text-xs text-text-secondary">총 결제금액</div>
               <div className="mt-1.5 font-extrabold text-foreground">
                 {formatWon(order.payment.total)}
               </div>
@@ -370,72 +364,72 @@ function OrderDetailPageContent() {
 
         <div className="flex flex-col gap-3.5">
           <section className="card p-3.5">
-            <div className="font-extrabold text-sm text-foreground">고객 정보</div>
+            <div className="text-sm font-extrabold text-foreground">고객 정보</div>
 
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">이름</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">이름</div>
+              <div className="text-[13px] text-foreground">
                 {order.customer.name || "-"}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">연락처</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">연락처</div>
+              <div className="text-[13px] text-foreground">
                 {order.customer.phone || "-"}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">주소</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">주소</div>
+              <div className="text-[13px] text-foreground">
                 {order.customer.address1 || "-"}
                 {order.customer.address2 ? `, ${order.customer.address2}` : ""}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">메모</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">메모</div>
+              <div className="text-[13px] text-foreground">
                 {order.customer.memo ?? "-"}
               </div>
             </div>
           </section>
 
           <section className="card p-3.5">
-            <div className="font-extrabold text-sm text-foreground">결제 정보</div>
+            <div className="text-sm font-extrabold text-foreground">결제 정보</div>
 
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">주문 방식</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">주문 방식</div>
+              <div className="text-[13px] text-foreground">
                 {order.fulfillmentType
-                  ? fulfillmentLabel[order.fulfillmentType]
+                  ? FULFILLMENT_TYPE_LABEL[order.fulfillmentType]
                   : "-"}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">결제수단</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">결제수단</div>
+              <div className="text-[13px] text-foreground">
                 {paymentMethodLabel[order.payment.method] ?? order.payment.method}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">상품금액</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">상품금액</div>
+              <div className="text-[13px] text-foreground">
                 {formatWon(order.payment.subtotal)}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">배달비</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">배달비</div>
+              <div className="text-[13px] text-foreground">
                 {formatWon(order.payment.shippingFee)}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
-              <div className="text-text-secondary text-[13px]">할인</div>
-              <div className="text-foreground text-[13px]">
+              <div className="text-[13px] text-text-secondary">할인</div>
+              <div className="text-[13px] text-foreground">
                 {formatWon(order.payment.discount)}
               </div>
             </div>
 
-            <div className="border-t border-border mt-2.5 pt-2.5 flex justify-between">
+            <div className="mt-2.5 flex justify-between border-t border-border pt-2.5">
               <div className="text-text-secondary">총 결제금액</div>
               <div className="font-extrabold text-foreground">
                 {formatWon(order.payment.total)}

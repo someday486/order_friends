@@ -7,9 +7,12 @@ import { apiClient } from "@/lib/api-client";
 import { formatDateTime, formatPhone, formatWon } from "@/lib/format";
 import {
   FULFILLMENT_TYPE_LABEL,
+  ORDER_STATUS_DISPLAY_LABEL,
   PAYMENT_METHOD_LABEL,
+  getOrderStatusDisplay,
   type FulfillmentType,
   type OrderStatus,
+  type OrderStatusDisplay,
 } from "@/types/common";
 
 // ============================================================
@@ -52,31 +55,22 @@ type OrderDetail = {
 // Constants
 // ============================================================
 
-const STATUS_FLOW: OrderStatus[] = [
-  "CREATED",
-  "CONFIRMED",
+const DISPLAY_STATUS_FLOW: OrderStatusDisplay[] = [
+  "RECEIVED",
   "PREPARING",
   "READY",
-  "COMPLETED",
 ];
 
-const statusConfig: Record<
-  OrderStatus,
+const displayStatusConfig: Record<
+  OrderStatusDisplay,
   { label: string; bg: string; text: string; dot: string; icon: string }
 > = {
-  CREATED: {
+  RECEIVED: {
     label: "주문접수",
     bg: "bg-warning-500/15",
     text: "text-warning-600",
     dot: "bg-warning-500",
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-  },
-  CONFIRMED: {
-    label: "확인",
-    bg: "bg-primary-500/15",
-    text: "text-primary-600",
-    dot: "bg-primary-500",
-    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   PREPARING: {
     label: "준비중",
@@ -92,13 +86,6 @@ const statusConfig: Record<
     dot: "bg-success",
     icon: "M5 13l4 4L19 7",
   },
-  COMPLETED: {
-    label: "완료",
-    bg: "bg-neutral-200",
-    text: "text-neutral-600",
-    dot: "bg-neutral-500",
-    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
   CANCELLED: {
     label: "취소",
     bg: "bg-danger-500/15",
@@ -106,12 +93,53 @@ const statusConfig: Record<
     dot: "bg-danger-500",
     icon: "M6 18L18 6M6 6l12 12",
   },
+};
+
+const actionStatusConfig: Record<
+  OrderStatus,
+  { label: string; bg: string; text: string; dot: string }
+> = {
+  CREATED: {
+    label: "주문접수",
+    bg: "bg-warning-500/15",
+    text: "text-warning-600",
+    dot: "bg-warning-500",
+  },
+  CONFIRMED: {
+    label: "확인",
+    bg: "bg-primary-500/15",
+    text: "text-primary-600",
+    dot: "bg-primary-500",
+  },
+  PREPARING: {
+    label: "준비중",
+    bg: "bg-secondary-500/15",
+    text: "text-secondary-600",
+    dot: "bg-secondary-500",
+  },
+  READY: {
+    label: "준비완료",
+    bg: "bg-success/15",
+    text: "text-success-600",
+    dot: "bg-success",
+  },
+  COMPLETED: {
+    label: "완료",
+    bg: "bg-neutral-200",
+    text: "text-neutral-600",
+    dot: "bg-neutral-500",
+  },
+  CANCELLED: {
+    label: "취소",
+    bg: "bg-danger-500/15",
+    text: "text-danger-600",
+    dot: "bg-danger-500",
+  },
   REFUNDED: {
     label: "환불",
     bg: "bg-pink-500/15",
     text: "text-pink-500",
     dot: "bg-pink-500",
-    icon: "M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6",
   },
 };
 
@@ -125,8 +153,10 @@ const statusConfig: Record<
 
 /** Status progress stepper */
 function StatusStepper({ currentStatus }: { currentStatus: OrderStatus }) {
-  if (currentStatus === "CANCELLED" || currentStatus === "REFUNDED") {
-    const cfg = statusConfig[currentStatus];
+  const currentDisplay = getOrderStatusDisplay(currentStatus);
+
+  if (currentDisplay === "CANCELLED") {
+    const cfg = displayStatusConfig.CANCELLED;
     return (
       <div className={`flex items-center gap-2 px-4 py-3 rounded-md ${cfg.bg}`}>
         <svg
@@ -147,12 +177,12 @@ function StatusStepper({ currentStatus }: { currentStatus: OrderStatus }) {
     );
   }
 
-  const currentIdx = STATUS_FLOW.indexOf(currentStatus);
+  const currentIdx = DISPLAY_STATUS_FLOW.indexOf(currentDisplay);
 
   return (
     <div className="flex items-center gap-0 w-full">
-      {STATUS_FLOW.map((status, idx) => {
-        const cfg = statusConfig[status];
+      {DISPLAY_STATUS_FLOW.map((status, idx) => {
+        const cfg = displayStatusConfig[status];
         const isDone = idx < currentIdx;
         const isCurrent = idx === currentIdx;
         const isUpcoming = idx > currentIdx;
@@ -197,7 +227,7 @@ function StatusStepper({ currentStatus }: { currentStatus: OrderStatus }) {
             </div>
 
             {/* Connector line */}
-            {idx < STATUS_FLOW.length - 1 && (
+            {idx < DISPLAY_STATUS_FLOW.length - 1 && (
               <div className="flex-1 mx-1 mt-[-16px]">
                 <div
                   className={`h-0.5 w-full rounded-full transition-all duration-300 ${
@@ -291,7 +321,7 @@ function StatusActionButton({
   loading: boolean;
   onClick: () => void;
 }) {
-  const cfg = statusConfig[status];
+  const cfg = actionStatusConfig[status];
   const isCurrent = currentStatus === status;
 
   if (isCurrent) {
@@ -662,13 +692,14 @@ function BackButton() {
 }
 
 function StatusBadgeLarge({ status }: { status: OrderStatus }) {
-  const cfg = statusConfig[status];
+  const displayStatus = getOrderStatusDisplay(status);
+  const cfg = displayStatusConfig[displayStatus];
   return (
     <span
       className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-sm font-bold ${cfg.bg} ${cfg.text}`}
     >
       <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-      {cfg.label}
+      {ORDER_STATUS_DISPLAY_LABEL[displayStatus]}
     </span>
   );
 }

@@ -14,6 +14,7 @@ import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import Tooltip from "@/components/ui/Tooltip";
 import { CardSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/common";
 import {
   AbcAnalysis,
   CohortAnalysis,
@@ -572,15 +573,10 @@ function AnalyticsContent() {
     );
   }
 
-  const statusLabelMap: Record<string, string> = {
-    CREATED: "생성",
-    CONFIRMED: "확정",
-    PREPARING: "준비중",
-    READY: "준비완료",
-    COMPLETED: "완료",
-    CANCELLED: "취소",
-    REFUNDED: "환불",
-  };
+  const statusLabelMap: Record<string, string> = ORDER_STATUS_LABEL as Record<
+    OrderStatus,
+    string
+  >;
 
   const salesCurrent = salesData?.current;
   const productCurrent = productData?.current;

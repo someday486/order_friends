@@ -173,39 +173,15 @@ export class OrdersService {
     return map;
   }
 
-  private async getOrderPaymentMethodMap(
-    sb: any,
-    orderIds: string[],
-  ): Promise<Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>> {
-    const map = new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
-    if (orderIds.length === 0) {
-      return map;
-    }
-
-    const { data, error } = await sb
-      .from('orders')
-      .select('id, payment_method')
-      .in('id', orderIds);
-
-    if (error) {
-      this.logger.warn(
-        `Failed to load order payment methods for orders: ${error.message}`,
-      );
-      return map;
-    }
-
-    for (const row of data ?? []) {
-      const orderId = String(row?.id ?? '');
-      if (!orderId || map.has(orderId)) {
-        continue;
-      }
-      map.set(
-        orderId,
-        this.normalizeOrderPaymentMethod(row?.payment_method ?? null),
-      );
-    }
-
-    return map;
+  private getOrderPaymentMethodMap(
+    _sb: any,
+    _orderIds: string[],
+  ): Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null> {
+    // Some databases in this project do not have orders.payment_method,
+    // so we keep the fallback path as a no-op and rely on payments rows.
+    void _sb;
+    void _orderIds;
+    return new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
   }
 
   private async getPaymentStatusMap(
@@ -332,9 +308,11 @@ export class OrdersService {
       sb,
       (data ?? []).map((row: any) => String(row.id)),
     );
-    const orderPaymentMethodMap = await this.getOrderPaymentMethodMap(
-      sb,
-      (data ?? []).map((row: any) => String(row.id)),
+    const orderPaymentMethodMap = await Promise.resolve(
+      this.getOrderPaymentMethodMap(
+        sb,
+        (data ?? []).map((row: any) => String(row.id)),
+      ),
     );
     const paymentStatusMap = await this.getPaymentStatusMap(
       sb,
@@ -448,9 +426,9 @@ export class OrdersService {
     const paymentMethodMap = await this.getPaymentMethodMap(sb, [
       String(data.id),
     ]);
-    const orderPaymentMethodMap = await this.getOrderPaymentMethodMap(sb, [
-      String(data.id),
-    ]);
+    const orderPaymentMethodMap = await Promise.resolve(
+      this.getOrderPaymentMethodMap(sb, [String(data.id)]),
+    );
     const paymentStatusMap = await this.getPaymentStatusMap(sb, [
       String(data.id),
     ]);

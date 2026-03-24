@@ -61,6 +61,19 @@ const DISPLAY_STATUS_FLOW: OrderStatusDisplay[] = [
   "READY",
 ];
 
+const DISPLAY_STATUS_ACTIONS: OrderStatusDisplay[] = [
+  "RECEIVED",
+  "PREPARING",
+  "READY",
+];
+
+const DISPLAY_STATUS_TO_TARGET_STATUS: Record<OrderStatusDisplay, OrderStatus> = {
+  RECEIVED: "CREATED",
+  PREPARING: "PREPARING",
+  READY: "READY",
+  CANCELLED: "CANCELLED",
+};
+
 const displayStatusConfig: Record<
   OrderStatusDisplay,
   { label: string; bg: string; text: string; dot: string; icon: string }
@@ -311,18 +324,19 @@ function InfoRow({
 
 /** Status change button */
 function StatusActionButton({
-  status,
+  displayStatus,
   currentStatus,
   loading,
   onClick,
 }: {
-  status: OrderStatus;
+  displayStatus: OrderStatusDisplay;
   currentStatus: OrderStatus;
   loading: boolean;
   onClick: () => void;
 }) {
-  const cfg = actionStatusConfig[status];
-  const isCurrent = currentStatus === status;
+  const targetStatus = DISPLAY_STATUS_TO_TARGET_STATUS[displayStatus];
+  const cfg = actionStatusConfig[targetStatus];
+  const isCurrent = getOrderStatusDisplay(currentStatus) === displayStatus;
 
   if (isCurrent) {
     return (
@@ -365,6 +379,10 @@ export default function CustomerOrderDetailPage() {
     order?.myRole === "BRANCH_OWNER" ||
     order?.myRole === "BRANCH_ADMIN" ||
     order?.myRole === "STAFF";
+
+  const canCancelOrder =
+    !!order &&
+    !["COMPLETED", "CANCELLED", "REFUNDED"].includes(order.status);
 
   // Load order detail
   useEffect(() => {
@@ -607,24 +625,28 @@ export default function CustomerOrderDetailPage() {
           </p>
 
           <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                "CREATED",
-                "CONFIRMED",
-                "PREPARING",
-                "READY",
-                "COMPLETED",
-                "CANCELLED",
-              ] as OrderStatus[]
-            ).map((status) => (
+            {DISPLAY_STATUS_ACTIONS.map((displayStatus) => (
               <StatusActionButton
-                key={status}
-                status={status}
+                key={displayStatus}
+                displayStatus={displayStatus}
                 currentStatus={order.status}
                 loading={statusLoading}
-                onClick={() => handleStatusUpdate(status)}
+                onClick={() =>
+                  handleStatusUpdate(
+                    DISPLAY_STATUS_TO_TARGET_STATUS[displayStatus],
+                  )
+                }
               />
             ))}
+            {canCancelOrder && (
+              <button
+                onClick={() => handleStatusUpdate("CANCELLED")}
+                disabled={statusLoading}
+                className="h-10 w-full rounded-md border border-danger-200 bg-danger-50 text-danger-600 text-sm font-medium cursor-pointer hover:bg-danger-100 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                취소
+              </button>
+            )}
           </div>
 
           {statusLoading && (

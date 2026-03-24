@@ -101,7 +101,7 @@ const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
 
 const DEPOSIT_MATCH_LABEL: Record<DepositMatchStatus, string> = {
   PENDING: '입금대기',
-  AUTO_MATCHED: '자동입금확인',
+  AUTO_MATCHED: '입금확인',
 };
 
 const DEPOSIT_MATCH_BADGE_CLASS: Record<DepositMatchStatus, string> = {
@@ -1161,8 +1161,8 @@ export default function CustomerOrdersPage() {
       {/* ── Order Table ── */} 
       <div className={selectedCount > 0 ? "pb-24" : ""}>
       {loading && orders.length === 0 ? (
-        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+        <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-white">
               <tr>
                 <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
@@ -1200,8 +1200,8 @@ export default function CustomerOrdersPage() {
       ) : orders.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+        <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-white">
               <tr>
                 <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">

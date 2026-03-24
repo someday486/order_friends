@@ -426,7 +426,9 @@ function OrderDetailPageContent() {
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
               <div className="text-[13px] text-text-secondary">결제수단</div>
               <div className="text-[13px] text-foreground">
-                {paymentMethodLabel[order.payment.method] ?? order.payment.method}
+                {order.payment.method
+                  ? (paymentMethodLabel[order.payment.method] ?? order.payment.method)
+                  : "-"}
               </div>
             </div>
             <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">

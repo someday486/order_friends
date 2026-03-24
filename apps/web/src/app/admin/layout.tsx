@@ -105,17 +105,19 @@ export default function AdminLayout({
 
   const prefetchTargets = useMemo(() => {
     return Array.from(
-      new Set(menuSections.flatMap((section) => section.items.map((item) => item.href))),
+      new Set(
+        menuSections.flatMap((section) => section.items.map((item) => item.href)),
+      ),
     );
   }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      prefetchTargets.forEach((href) => warmMenuRoute(href));
+      prefetchTargets.forEach((href) => prefetchRoute(href));
     }, 150);
 
     return () => window.clearTimeout(timer);
-  }, [prefetchTargets, warmMenuRoute]);
+  }, [prefetchRoute, prefetchTargets]);
 
   return (
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">

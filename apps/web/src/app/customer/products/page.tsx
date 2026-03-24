@@ -2529,6 +2529,23 @@ export default function CustomerProductsPage() {
                               className="input-field min-h-[88px] resize-y"
                             />
                           </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-text-secondary mb-1">재고관리</label>
+                            <select
+                              value={editForm.inventoryMode}
+                              onChange={(event) =>
+                                setEditForm((prev) => ({
+                                  ...prev,
+                                  inventoryMode:
+                                    event.target.value === "NONE" ? "NONE" : "PRODUCT",
+                                }))
+                              }
+                              className="input-field w-full"
+                            >
+                              <option value="PRODUCT">사용</option>
+                              <option value="NONE">미사용</option>
+                            </select>
+                          </div>
                         </div>
 
                         <div className="mb-3">

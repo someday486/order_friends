@@ -22,6 +22,9 @@ import {
   PencilIcon,
 } from '@/components/ui/icons';
 import { ShieldCheck } from 'lucide-react';
+import { getSelectedBrandId } from '@/lib/brandSelection';
+import { getSelectedBranchId } from '@/lib/branchSelection';
+import { prefetchCustomerRouteData } from '@/lib/customerDataCache';
 
 type MenuItem = {
   href: string;
@@ -194,6 +197,20 @@ export default function CustomerLayout({
     [router],
   );
 
+  const warmMenuRoute = useCallback(
+    (href: string) => {
+      const selectedBrandId = getSelectedBrandId();
+      const selectedBranchId = getSelectedBranchId();
+
+      prefetchRoute(href);
+      prefetchCustomerRouteData(href, {
+        brandId: selectedBrandId,
+        branchId: selectedBranchId,
+      });
+    },
+    [prefetchRoute],
+  );
+
   const prefetchTargets = useMemo(() => {
     return Array.from(
       new Set([
@@ -211,7 +228,7 @@ export default function CustomerLayout({
     }, 150);
 
     return () => window.clearTimeout(timer);
-  }, [prefetchTargets, prefetchRoute]);
+  }, [prefetchRoute, prefetchTargets]);
 
   return (
     <NotificationProvider>
@@ -303,17 +320,22 @@ export default function CustomerLayout({
                     <Link
                       key={item.href}
                       href={item.href}
-                      onMouseEnter={() => {
-                        if (!isOnboardingItemDisabled(item.href)) {
-                          prefetchRoute(item.href);
-                        }
-                      }}
-                      onFocus={() => {
-                        if (!isOnboardingItemDisabled(item.href)) {
-                          prefetchRoute(item.href);
-                        }
-                      }}
-                      onClick={(event) => {
+                       onMouseEnter={() => {
+                         if (!isOnboardingItemDisabled(item.href)) {
+                           warmMenuRoute(item.href);
+                         }
+                       }}
+                       onFocus={() => {
+                         if (!isOnboardingItemDisabled(item.href)) {
+                           warmMenuRoute(item.href);
+                         }
+                       }}
+                       onPointerDown={() => {
+                         if (!isOnboardingItemDisabled(item.href)) {
+                           warmMenuRoute(item.href);
+                         }
+                       }}
+                       onClick={(event) => {
                         const disabledMessage = getOnboardingDisabledMessage(
                           item.href,
                         );
@@ -361,12 +383,13 @@ export default function CustomerLayout({
               </div>
             )}
 
-            <Link
-              href="/customer/mypage"
-              onMouseEnter={() => prefetchRoute('/customer/mypage')}
-              onFocus={() => prefetchRoute('/customer/mypage')}
-              onClick={() => setSidebarOpen(false)}
-              className={`
+             <Link
+               href="/customer/mypage"
+               onMouseEnter={() => warmMenuRoute('/customer/mypage')}
+               onFocus={() => warmMenuRoute('/customer/mypage')}
+               onPointerDown={() => warmMenuRoute('/customer/mypage')}
+               onClick={() => setSidebarOpen(false)}
+               className={`
                 flex items-center justify-center px-3 py-2.5 rounded-md text-sm no-underline
                 transition-all duration-150 touch-feedback mb-2
                 ${

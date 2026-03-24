@@ -359,7 +359,7 @@ function BranchChecklistTable({
           className="input-field w-full text-xs"
         />
       </div>
-      <table className="w-full border-collapse">
+      <table className="min-w-[520px] w-full border-collapse">
         <thead className="bg-white">
           <tr>
             <th className="w-12 py-2.5 px-3 text-center">
@@ -1749,8 +1749,8 @@ export default function CustomerProductsPage() {
   };
 
   return (
-    <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="min-w-0 overflow-x-hidden">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-extrabold text-foreground m-0">
@@ -1964,8 +1964,8 @@ export default function CustomerProductsPage() {
           ) : (
             <>
               <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
 
                     <div className="relative group cursor-pointer">
@@ -1995,7 +1995,7 @@ export default function CustomerProductsPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setIsBulkOpen((prev) => !prev)}
@@ -2131,8 +2131,8 @@ export default function CustomerProductsPage() {
               </div>
 
               <div className="pb-24">
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <table className="w-full border-collapse">
+                <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+                  <table className="min-w-[880px] w-full border-collapse">
                   <thead className="bg-white">
                     <tr>
                       <th className="w-12 py-3 px-3 text-left">

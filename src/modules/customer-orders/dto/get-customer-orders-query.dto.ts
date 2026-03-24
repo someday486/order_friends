@@ -43,4 +43,11 @@ export class GetCustomerOrdersQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(['PICKUP', 'DELIVERY', 'DINE_IN', 'SHIPPING'])
   fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
+  @ApiPropertyOptional({
+    description: '입금 상태 필터',
+    enum: ['PENDING', 'AUTO_MATCHED'],
+  })
+  @IsOptional()
+  @IsIn(['PENDING', 'AUTO_MATCHED'])
+  depositStatus?: 'PENDING' | 'AUTO_MATCHED';
 }

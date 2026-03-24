@@ -120,6 +120,15 @@ const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
     { value: 'SHIPPING', label: '택배' },
   ];
 
+const DEPOSIT_STATUS_FILTERS: {
+  value: DepositMatchStatus | 'ALL';
+  label: string;
+}[] = [
+  { value: 'ALL', label: '입금여부' },
+  { value: 'AUTO_MATCHED', label: '입금확인' },
+  { value: 'PENDING', label: '미확인' },
+];
+
 // Outlined style: subordinate visual weight compared to status badges
 const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
   PICKUP:   'border border-sky-400/70 text-sky-600',
@@ -412,6 +421,9 @@ export default function CustomerOrdersPage() {
     FulfillmentType | 'ALL'
   >('ALL');
   const [brandFilter, setBrandFilter] = useState<string>('ALL');
+  const [depositStatusFilter, setDepositStatusFilter] = useState<
+    DepositMatchStatus | 'ALL'
+  >('ALL');
 
   // Date range: input (staged) vs applied (active)
   const [dateStartInput, setDateStartInput] = useState(() => getTodayYmd());
@@ -488,6 +500,9 @@ export default function CustomerOrdersPage() {
 
   const [summaryBranch, setSummaryBranch] = useState<string>("ALL");
   const [summaryFulfillment, setSummaryFulfillment] = useState<FulfillmentType | "ALL">("ALL");
+  const [summaryDepositStatus, setSummaryDepositStatus] = useState<
+    DepositMatchStatus | 'ALL'
+  >('ALL');
 
   //카드 기준 레이블: "오늘 기준" vs "조회 기준"
   const isTodayRange = useMemo(() => {
@@ -551,6 +566,9 @@ export default function CustomerOrdersPage() {
         if (summaryFulfillment !== "ALL") {
           baseParams.append("fulfillmentType", summaryFulfillment);
         }
+        if (summaryDepositStatus !== 'ALL') {
+          baseParams.append('depositStatus', summaryDepositStatus);
+        }
         if (appliedDateStart) baseParams.append("dateStart", appliedDateStart);
         if (appliedDateEnd) baseParams.append("dateEnd", appliedDateEnd);
 
@@ -608,6 +626,7 @@ export default function CustomerOrdersPage() {
   }, [
     summaryBranch,
     summaryFulfillment,
+    summaryDepositStatus,
     appliedDateStart,
     appliedDateEnd,
     reloadToken,
@@ -652,6 +671,9 @@ export default function CustomerOrdersPage() {
         }
         if (fulfillmentFilter !== 'ALL') {
           params.append('fulfillmentType', fulfillmentFilter);
+        }
+        if (depositStatusFilter !== 'ALL') {
+          params.append('depositStatus', depositStatusFilter);
         }
         if (appliedDateStart) {
           params.append('dateStart', appliedDateStart);
@@ -737,6 +759,7 @@ export default function CustomerOrdersPage() {
     branchFilter,
     statusFilter,
     fulfillmentFilter,
+    depositStatusFilter,
     appliedDateStart,
     appliedDateEnd,
     reloadToken,
@@ -792,6 +815,7 @@ export default function CustomerOrdersPage() {
     // ✅ 요약은 조회 버튼 눌렀을 때만 고정 업데이트
     setSummaryBranch(branchFilter);
     setSummaryFulfillment(fulfillmentFilter);
+    setSummaryDepositStatus(depositStatusFilter);
 
     setPage(1);
   };
@@ -1025,6 +1049,22 @@ export default function CustomerOrdersPage() {
             placeholder="종료일"
           />
         </div>
+
+        <select
+          value={depositStatusFilter}
+          onChange={(e) => {
+            setDepositStatusFilter(e.target.value as DepositMatchStatus | 'ALL');
+            setPage(1);
+          }}
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[160px]"
+          aria-label="입금상태 필터"
+        >
+          {DEPOSIT_STATUS_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
         <button
           type="button"

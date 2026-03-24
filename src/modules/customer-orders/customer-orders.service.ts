@@ -456,6 +456,7 @@ export class CustomerOrdersService {
     fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING',
     dateStart?: string,
     dateEnd?: string,
+    depositStatus?: DepositMatchStatus,
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -483,6 +484,187 @@ export class CustomerOrdersService {
     const { page = 1, limit = 20 } = paginationDto;
     const sb = this.supabase.adminClient();
     const { from, to } = PaginationUtil.getRange(page, limit);
+
+    if (depositStatus) {
+      let filteredQuery = sb
+        .from('orders')
+        .select(
+          'id, order_no, status, created_at, total_amount, customer_name, branch_id, fulfillment_type',
+        )
+        .in('branch_id', targetBranchIds);
+
+      if (status) {
+        filteredQuery = filteredQuery.eq('status', status);
+      }
+      if (fulfillmentType) {
+        filteredQuery = filteredQuery.eq('fulfillment_type', fulfillmentType);
+      }
+      if (dateStart) {
+        filteredQuery = filteredQuery.gte(
+          'created_at',
+          this.getKstDayStartUtc(dateStart),
+        );
+      }
+      if (dateEnd) {
+        filteredQuery = filteredQuery.lt(
+          'created_at',
+          this.getNextKstDayStartUtc(dateEnd),
+        );
+      }
+
+      const { data: candidateRows, error: filteredError } =
+        await filteredQuery.order('created_at', { ascending: false });
+
+      if (filteredError) {
+        this.logger.error('Failed to fetch orders', filteredError);
+        throw new Error('Failed to fetch orders');
+      }
+
+      const candidateOrderIds = (candidateRows ?? []).map((row: any) =>
+        String(row.id),
+      );
+      const paymentMethodMap = await this.getPaymentMethodMap(
+        sb,
+        candidateOrderIds,
+      );
+      const orderPaymentMethodMap = this.getOrderPaymentMethodMap(
+        sb,
+        candidateOrderIds,
+      );
+      const depositMatchStatusMap = await this.getDepositMatchStatusMap(
+        sb,
+        candidateOrderIds,
+      );
+
+      const filteredRows = (candidateRows ?? []).filter((row: any) => {
+        const orderId = String(row.id);
+        const paymentMethod =
+          orderPaymentMethodMap.get(orderId) ??
+          paymentMethodMap.get(orderId) ??
+          null;
+
+        if (paymentMethod !== 'TRANSFER') {
+          return false;
+        }
+
+        const resolvedDepositStatus =
+          depositMatchStatusMap.get(orderId) ?? 'PENDING';
+        return resolvedDepositStatus === depositStatus;
+      });
+
+      const pagedRows = filteredRows.slice(from, to + 1);
+      const orderIds = pagedRows.map((row: any) => row.id);
+      const branchNameMap = await this.getBranchNameMap(
+        sb,
+        Array.from(
+          new Set(
+            pagedRows
+              .map((row: any) => String(row?.branch_id ?? ''))
+              .filter(Boolean),
+          ),
+        ),
+      );
+      const paymentStatusMap = await this.getPaymentStatusMap(sb, orderIds);
+      const itemSummaryMap = new Map<
+        string,
+        {
+          itemCount: number;
+          firstItemName: string | null;
+          firstItemQty: number | null;
+          itemsSummary: string;
+        }
+      >();
+
+      if (orderIds.length > 0) {
+        const { data: orderItems, error: orderItemsError } = await sb
+          .from('order_items')
+          .select('order_id, product_name_snapshot, qty')
+          .in('order_id', orderIds);
+
+        if (orderItemsError) {
+          this.logger.error(
+            'Failed to fetch order item summaries',
+            orderItemsError,
+          );
+          throw new Error('Failed to fetch order item summaries');
+        }
+
+        const groupedItems = new Map<
+          string,
+          { product_name_snapshot?: string | null; qty?: number | null }[]
+        >();
+
+        for (const item of orderItems ?? []) {
+          const current = groupedItems.get(item.order_id);
+          if (current) {
+            current.push(item);
+            continue;
+          }
+          groupedItems.set(item.order_id, [item]);
+        }
+
+        for (const [orderId, items] of groupedItems.entries()) {
+          const firstItem = items[0];
+          const summaryParts = items
+            .slice(0, CustomerOrdersService.ITEMS_SUMMARY_LIMIT)
+            .map((item) =>
+              `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim(),
+            )
+            .filter(Boolean);
+          const remainingCount =
+            items.length - CustomerOrdersService.ITEMS_SUMMARY_LIMIT;
+          const itemsSummary =
+            remainingCount > 0
+              ? `${summaryParts.join(', ')}, +${remainingCount}`
+              : summaryParts.join(', ');
+
+          itemSummaryMap.set(orderId, {
+            itemCount: items.length,
+            firstItemName: firstItem?.product_name_snapshot ?? null,
+            firstItemQty: firstItem?.qty ?? null,
+            itemsSummary,
+          });
+        }
+      }
+
+      const orders = pagedRows.map((row: any) => {
+        const orderId = String(row.id);
+        const paymentMethod =
+          orderPaymentMethodMap.get(orderId) ??
+          paymentMethodMap.get(orderId) ??
+          null;
+
+        return {
+          id: row.id,
+          orderNo: row.order_no ?? null,
+          orderedAt: row.created_at ?? '',
+          customerName: row.customer_name ?? '',
+          totalAmount: row.total_amount ?? 0,
+          branchId: row.branch_id,
+          branchName:
+            branchNameMap.get(String(row.branch_id ?? '')) ??
+            row.branches?.name ??
+            '',
+          fulfillmentType: row.fulfillment_type ?? null,
+          itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
+          firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
+          firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
+          itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
+          status: row.status as OrderStatus,
+          paymentMethod,
+          paymentStatus: paymentStatusMap.get(orderId) ?? null,
+          depositMatchStatus: depositMatchStatusMap.get(orderId) ?? 'PENDING',
+        };
+      });
+
+      this.logger.log(`Fetched ${orders.length} orders`);
+
+      return PaginationUtil.createResponse(
+        orders,
+        filteredRows.length,
+        paginationDto,
+      );
+    }
 
     // 총 개수 조회
     let countQuery = sb

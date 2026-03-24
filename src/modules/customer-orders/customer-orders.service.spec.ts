@@ -808,6 +808,83 @@ describe('CustomerOrdersService', () => {
     );
   });
 
+  it('getMyOrders should filter only auto-matched transfer orders when depositStatus is AUTO_MATCHED', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o-auto',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T10:00:00.000Z',
+          total_amount: 10,
+          customer_name: 'Auto User',
+          branch_id: 'b1',
+        },
+        {
+          id: 'o-pending',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T09:00:00.000Z',
+          total_amount: 20,
+          customer_name: 'Pending User',
+          branch_id: 'b1',
+        },
+        {
+          id: 'o-card',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T08:00:00.000Z',
+          total_amount: 30,
+          customer_name: 'Card User',
+          branch_id: 'b1',
+        },
+      ],
+      error: null,
+    });
+    paymentsChain.in
+      .mockResolvedValueOnce({
+        data: [
+          { order_id: 'o-auto', payment_method: 'TRANSFER' },
+          { order_id: 'o-pending', payment_method: 'TRANSFER' },
+          { order_id: 'o-card', payment_method: 'CARD' },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ order_id: 'o-auto', status: 'PENDING' }],
+        error: null,
+      });
+    depositMatchesChain.in.mockReturnValueOnce(depositMatchesChain);
+    depositMatchesChain.eq.mockResolvedValueOnce({
+      data: [{ matched_order_id: 'o-auto' }],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
+      { page: 1, limit: 10 },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'AUTO_MATCHED',
+    );
+
+    expect(result.pagination?.total).toBe(1);
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        id: 'o-auto',
+        paymentMethod: 'TRANSFER',
+        depositMatchStatus: 'AUTO_MATCHED',
+      }),
+    ]);
+  });
+
   it('checkOrderAccess should throw when order not found', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 

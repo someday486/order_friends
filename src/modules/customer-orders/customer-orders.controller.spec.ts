@@ -66,6 +66,7 @@ describe('CustomerOrdersController', () => {
       'DELIVERY',
       '2026-03-01',
       '2026-03-21',
+      undefined,
     );
   });
 
@@ -92,6 +93,7 @@ describe('CustomerOrdersController', () => {
       [],
       [],
       { page: 1, limit: 10 },
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -208,6 +210,7 @@ describe('CustomerOrdersController', () => {
           [],
           { page: 1, limit: 10 },
           'COMPLETED',
+          undefined,
           undefined,
           undefined,
           undefined,

@@ -58,6 +58,11 @@ export class CustomerOrdersController {
     description: '조회 종료일 (YYYY-MM-DD, inclusive)',
     required: false,
   })
+  @ApiQuery({
+    name: 'depositStatus',
+    description: '입금 상태 필터',
+    required: false,
+  })
   @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
   @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
   @ApiResponse({ status: 200, description: '주문 목록 조회 성공' })
@@ -75,6 +80,7 @@ export class CustomerOrdersController {
       fulfillmentType,
       dateStart,
       dateEnd,
+      depositStatus,
       page,
       limit,
     } = query ?? {};
@@ -93,6 +99,7 @@ export class CustomerOrdersController {
       fulfillmentType,
       dateStart,
       dateEnd,
+      depositStatus,
     );
   }
 

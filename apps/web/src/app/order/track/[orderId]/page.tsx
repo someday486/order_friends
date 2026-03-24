@@ -743,7 +743,7 @@ export default function TrackOrderPage() {
           }
         : null;
 
-  const handleCancelAction = useCallback(async () => {
+  const handleCancelAction = async () => {
     if (order.status === 'CREATED') {
       if (status !== 'authenticated') {
         toast('로그인 후 주문을 취소할 수 있어요.');
@@ -795,14 +795,7 @@ export default function TrackOrderPage() {
     }
 
     toast('주문 취소는 매장 문의로 도와드리고 있어요.');
-  }, [
-    fetchOrder,
-    order.branchContactPhone,
-    order.branchKakaoChannelUrl,
-    order.id,
-    order.status,
-    status,
-  ]);
+  };
 
   const timeline = isCancelled
     ? [

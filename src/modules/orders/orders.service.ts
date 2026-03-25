@@ -13,6 +13,7 @@ import { PaginationUtil } from '../../common/utils/pagination.util';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 import { PaymentsService } from '../payments/payments.service';
 import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
+import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 
 @Injectable()
 export class OrdersService {
@@ -21,7 +22,32 @@ export class OrdersService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly paymentsService: PaymentsService,
+    private readonly cashReceiptsService: CashReceiptsService,
   ) {}
+
+  private async syncCashReceiptForStatusChange(
+    orderId: string,
+    status: OrderStatus,
+  ): Promise<void> {
+    try {
+      if (status === OrderStatus.COMPLETED) {
+        await this.cashReceiptsService.issueForCompletedOrder(orderId);
+        return;
+      }
+
+      if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+        await this.cashReceiptsService.cancelForOrder(
+          orderId,
+          `Order status changed to ${status}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Cash receipt sync failed for order ${orderId} (${status})`,
+        error,
+      );
+    }
+  }
 
   private async releaseInventoryForCancelledOrder(
     sb: any,
@@ -529,6 +555,8 @@ export class OrdersService {
         data.order_no ?? null,
       );
     }
+
+    await this.syncCashReceiptForStatusChange(resolvedId, status);
 
     this.logger.log(
       `Order status updated successfully: ${orderId} -> ${status}`,

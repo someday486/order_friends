@@ -77,6 +77,10 @@ const PAYMENT_LABEL: Record<string, string> = {
   TRANSFER: '🏦 계좌이체',
 };
 
+function normalizeBusinessNumber(value: string) {
+  return value.replace(/[^\d]/g, '');
+}
+
 function parseApiErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
   const raw = error.message ?? '';
@@ -263,6 +267,8 @@ export default function ShopBrandPageClient({
   const [customerAddress1, setCustomerAddress1] = useState('');
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxInvoiceBusinessNumber, setTaxInvoiceBusinessNumber] = useState('');
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const [authInfoLoaded, setAuthInfoLoaded] = useState(false);
   const authInfoRequestedRef = useRef(false);
@@ -274,6 +280,18 @@ export default function ShopBrandPageClient({
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const normalizedTaxInvoiceBusinessNumber = useMemo(
+    () => normalizeBusinessNumber(taxInvoiceBusinessNumber),
+    [taxInvoiceBusinessNumber],
+  );
+  const supportsReceiptRequest =
+    paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
+
+  useEffect(() => {
+    if (supportsReceiptRequest) return;
+    setTaxInvoiceRequested(false);
+    setTaxInvoiceBusinessNumber('');
+  }, [supportsReceiptRequest]);
 
   useEffect(() => {
     const saved = loadCustomerInfoDraft();
@@ -520,6 +538,11 @@ export default function ShopBrandPageClient({
       return;
     }
 
+    if (taxInvoiceRequested && normalizedTaxInvoiceBusinessNumber.length !== 10) {
+      setSubmitError('지출증빙 요청을 위해 10자리 사업자등록번호를 입력해주세요.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setSubmitError(null);
@@ -540,6 +563,14 @@ export default function ShopBrandPageClient({
           customerAddress2: customerAddress2 || undefined,
           customerMemo: customerMemo || undefined,
           paymentMethod,
+          cashReceipt: taxInvoiceRequested
+            ? {
+                requested: true,
+                type: 'EXPENSE_PROOF',
+                identityType: 'BUSINESS_NUMBER',
+                identityValue: normalizedTaxInvoiceBusinessNumber,
+              }
+            : undefined,
           items: cartItems.map((item) => ({
             productId: item.id,
             qty: item.qty,
@@ -996,6 +1027,36 @@ export default function ShopBrandPageClient({
                     <p className="mt-2 text-xs text-warning-600">
                       입금 확인 후 주문이 처리됩니다.
                     </p>
+                  </div>
+                ) : null}
+
+                {supportsReceiptRequest ? (
+                  <div className="mt-3 rounded-xl border border-border bg-bg-secondary p-3">
+                    <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={taxInvoiceRequested}
+                        onChange={(e) =>
+                          setTaxInvoiceRequested(e.target.checked)
+                        }
+                      />
+                      세금계산서 발행 요청
+                    </label>
+                    <p className="mt-2 text-xs text-text-secondary">
+                      사업자 증빙이 필요하면 사업자등록번호를 입력해주세요.
+                    </p>
+                    {taxInvoiceRequested ? (
+                      <input
+                        type="text"
+                        value={taxInvoiceBusinessNumber}
+                        onChange={(e) =>
+                          setTaxInvoiceBusinessNumber(e.target.value)
+                        }
+                        className="input-field mt-3 h-11 w-full"
+                        placeholder="세금계산서 발행 전용 번호"
+                        inputMode="numeric"
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </div>

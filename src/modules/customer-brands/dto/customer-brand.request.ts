@@ -1,5 +1,6 @@
 import {
   ArrayMinSize,
+  IsBoolean,
   IsArray,
   IsEnum,
   IsOptional,
@@ -7,6 +8,7 @@ import {
   Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
 
 export enum ShopPaymentMethod {
   CARD = 'CARD',
@@ -87,6 +89,48 @@ export class CreateCustomerBrandRequest {
   @IsEnum(ShopPaymentMethod, { each: true })
   @IsOptional()
   shop_payment_methods?: ShopPaymentMethod[];
+
+  @ApiProperty({
+    description: 'Enable cash receipt automation',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  cash_receipt_enabled?: boolean;
+
+  @ApiProperty({ description: 'Cash receipt provider', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_provider?: string | null;
+
+  @ApiProperty({ description: 'Cash receipt merchant id', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_merchant_id?: string | null;
+
+  @ApiProperty({
+    description: 'Cash receipt issue timing',
+    required: false,
+    enum: CashReceiptIssueTiming,
+  })
+  @IsEnum(CashReceiptIssueTiming)
+  @IsOptional()
+  cash_receipt_issue_timing?: CashReceiptIssueTiming;
+
+  @ApiProperty({ description: 'Enable self-issue fallback', required: false })
+  @IsBoolean()
+  @IsOptional()
+  cash_receipt_self_issue_enabled?: boolean;
+
+  @ApiProperty({ description: 'Cash receipt contact name', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_contact_name?: string | null;
+
+  @ApiProperty({ description: 'Cash receipt contact phone', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_contact_phone?: string | null;
 }
 
 export class UpdateCustomerBrandRequest {
@@ -163,4 +207,46 @@ export class UpdateCustomerBrandRequest {
   @IsEnum(ShopPaymentMethod, { each: true })
   @IsOptional()
   shop_payment_methods?: ShopPaymentMethod[];
+
+  @ApiProperty({
+    description: 'Enable cash receipt automation',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  cash_receipt_enabled?: boolean;
+
+  @ApiProperty({ description: 'Cash receipt provider', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_provider?: string | null;
+
+  @ApiProperty({ description: 'Cash receipt merchant id', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_merchant_id?: string | null;
+
+  @ApiProperty({
+    description: 'Cash receipt issue timing',
+    required: false,
+    enum: CashReceiptIssueTiming,
+  })
+  @IsEnum(CashReceiptIssueTiming)
+  @IsOptional()
+  cash_receipt_issue_timing?: CashReceiptIssueTiming;
+
+  @ApiProperty({ description: 'Enable self-issue fallback', required: false })
+  @IsBoolean()
+  @IsOptional()
+  cash_receipt_self_issue_enabled?: boolean;
+
+  @ApiProperty({ description: 'Cash receipt contact name', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_contact_name?: string | null;
+
+  @ApiProperty({ description: 'Cash receipt contact phone', required: false })
+  @IsString()
+  @IsOptional()
+  cash_receipt_contact_phone?: string | null;
 }

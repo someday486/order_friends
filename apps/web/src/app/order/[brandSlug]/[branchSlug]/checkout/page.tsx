@@ -127,6 +127,10 @@ function getPaymentIcon(method: PaymentMethod) {
   return '💵';
 }
 
+function normalizeBusinessNumber(value: string) {
+  return value.replace(/[^\d]/g, '');
+}
+
 function Spinner() {
   return (
     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -186,6 +190,8 @@ export default function CheckoutPage() {
   const [customerAddress1, setCustomerAddress1] = useState('');
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxInvoiceBusinessNumber, setTaxInvoiceBusinessNumber] = useState('');
   const [selectedPickupDate, setSelectedPickupDate] = useState('');
   const [requestedPickupTime, setRequestedPickupTime] = useState('');
   const [pickupTimeConfig, setPickupTimeConfig] =
@@ -215,6 +221,12 @@ export default function CheckoutPage() {
     () => appendEuroRo(customerName, '주문자명'),
     [customerName],
   );
+  const normalizedTaxInvoiceBusinessNumber = useMemo(
+    () => normalizeBusinessNumber(taxInvoiceBusinessNumber),
+    [taxInvoiceBusinessNumber],
+  );
+  const supportsReceiptRequest =
+    paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
 
   useEffect(() => {
     if (!hasScheduledPickupConfig) {
@@ -246,14 +258,20 @@ export default function CheckoutPage() {
       return;
     }
 
-    setRequestedPickupTime((current) =>
-      pickupTimeOptionsForSelectedDate.some(
-        (option) => option.value === current,
-      )
-        ? current
-        : pickupTimeOptionsForSelectedDate[0].value,
-    );
+      setRequestedPickupTime((current) =>
+        pickupTimeOptionsForSelectedDate.some(
+          (option) => option.value === current,
+        )
+          ? current
+          : pickupTimeOptionsForSelectedDate[0].value,
+      );
   }, [hasScheduledPickupConfig, pickupTimeOptionsForSelectedDate]);
+
+  useEffect(() => {
+    if (supportsReceiptRequest) return;
+    setTaxInvoiceRequested(false);
+    setTaxInvoiceBusinessNumber('');
+  }, [supportsReceiptRequest]);
 
   useEffect(() => {
     const saved = loadCustomerInfoDraft();
@@ -504,6 +522,13 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (taxInvoiceRequested && normalizedTaxInvoiceBusinessNumber.length !== 10) {
+      toast.error(
+        '지출증빙 요청을 위해 10자리 사업자등록번호를 입력해 주세요.',
+      );
+      return;
+    }
+
     if (!branchId) {
       setError('매장 정보가 올바르지 않습니다.');
       return;
@@ -582,6 +607,14 @@ export default function CheckoutPage() {
           qty: item.qty,
           options: item.selectedOptions.map((opt) => ({ optionId: opt.id })),
         })),
+        cashReceipt: taxInvoiceRequested
+          ? {
+              requested: true,
+              type: 'EXPENSE_PROOF',
+              identityType: 'BUSINESS_NUMBER',
+              identityValue: normalizedTaxInvoiceBusinessNumber,
+            }
+          : undefined,
       };
 
       const result = await apiClient.post<CreateOrderResult>(
@@ -1016,6 +1049,39 @@ export default function CheckoutPage() {
                   입금자명을 <strong>{depositAccountGuide}</strong> 입력해
                   주세요.
                 </p>
+              </div>
+            )}
+
+            {supportsReceiptRequest && (
+              <div className="mt-3 rounded-xl border border-border bg-bg-secondary p-4 animate-fade-in">
+                <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={taxInvoiceRequested}
+                    onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
+                  />
+                  세금계산서 발행 요청
+                </label>
+                <p className="mt-2 text-xs text-text-secondary">
+                  사업자 증빙이 필요하면 사업자등록번호를 입력해 주세요.
+                </p>
+                {taxInvoiceRequested && (
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
+                      세금계산서 발행 전용 번호
+                    </label>
+                    <input
+                      type="text"
+                      value={taxInvoiceBusinessNumber}
+                      onChange={(e) =>
+                        setTaxInvoiceBusinessNumber(e.target.value)
+                      }
+                      inputMode="numeric"
+                      placeholder="123-45-67890"
+                      className="input-field h-12 w-full"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </section>

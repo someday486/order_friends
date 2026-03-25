@@ -5,6 +5,7 @@ import { OrderStatus } from './order-status.enum';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { PaymentsService } from '../payments/payments.service';
+import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -30,6 +31,10 @@ describe('OrdersService', () => {
   const mockPaymentsService = {
     refundOrderPaymentForCancellation: jest.fn(),
   };
+  const mockCashReceiptsService = {
+    issueForCompletedOrder: jest.fn(),
+    cancelForOrder: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,6 +47,10 @@ describe('OrdersService', () => {
         {
           provide: PaymentsService,
           useValue: mockPaymentsService,
+        },
+        {
+          provide: CashReceiptsService,
+          useValue: mockCashReceiptsService,
         },
       ],
     }).compile();
@@ -706,6 +715,9 @@ describe('OrdersService', () => {
       expect(
         mockPaymentsService.refundOrderPaymentForCancellation,
       ).not.toHaveBeenCalled();
+      expect(
+        mockCashReceiptsService.issueForCompletedOrder,
+      ).not.toHaveBeenCalled();
     });
 
     it('should refund paid order before cancellation', async () => {
@@ -734,6 +746,38 @@ describe('OrdersService', () => {
       expect(
         mockPaymentsService.refundOrderPaymentForCancellation,
       ).toHaveBeenCalledWith('123', 'branch-123');
+      expect(mockCashReceiptsService.cancelForOrder).toHaveBeenCalledWith(
+        '123',
+        'Order status changed to CANCELLED',
+      );
+    });
+
+    it('should request cash receipt issuance when order is completed', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.COMPLETED,
+          },
+          error: null,
+        });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.COMPLETED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.COMPLETED);
+      expect(
+        mockCashReceiptsService.issueForCompletedOrder,
+      ).toHaveBeenCalledWith('123');
     });
 
     it('should throw OrderNotFoundException when order not found', async () => {

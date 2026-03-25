@@ -2757,6 +2757,19 @@ export class PublicOrderService {
       total_amount: totalAmount,
       status: 'CREATED',
       payment_status: 'PENDING',
+      cash_receipt_requested: dto.cashReceipt?.requested === true,
+      cash_receipt_type:
+        dto.cashReceipt?.requested === true
+          ? (dto.cashReceipt.type ?? null)
+          : null,
+      cash_receipt_identity_type:
+        dto.cashReceipt?.requested === true
+          ? (dto.cashReceipt.identityType ?? null)
+          : null,
+      cash_receipt_identity_value:
+        dto.cashReceipt?.requested === true
+          ? (dto.cashReceipt.identityValue ?? null)
+          : null,
       idempotency_key: idempotencyKey ?? null,
       fulfillment_type: fulfillmentType,
     };

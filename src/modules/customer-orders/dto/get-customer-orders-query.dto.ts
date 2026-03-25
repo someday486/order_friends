@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, Matches, IsIn } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  Matches,
+  IsIn,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { OrderStatus } from '../../orders/order-status.enum';
 
@@ -38,9 +45,24 @@ export class GetCustomerOrdersQueryDto extends PaginationDto {
 
   @ApiPropertyOptional({
     description: '주문 방식',
-    enum: ['PICKUP', 'DELIVERY', 'DINE_IN'],
+    enum: ['PICKUP', 'DELIVERY', 'DINE_IN', 'SHIPPING'],
   })
   @IsOptional()
-  @IsIn(['PICKUP', 'DELIVERY', 'DINE_IN'])
-  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+  @IsIn(['PICKUP', 'DELIVERY', 'DINE_IN', 'SHIPPING'])
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
+  @ApiPropertyOptional({
+    description: '입금 상태 필터',
+    enum: ['PENDING', 'AUTO_MATCHED'],
+  })
+  @IsOptional()
+  @IsIn(['PENDING', 'AUTO_MATCHED'])
+  depositStatus?: 'PENDING' | 'AUTO_MATCHED';
+  @ApiPropertyOptional({
+    description: '주문번호, 고객명, 상품명 검색어',
+    example: '김한나',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 }

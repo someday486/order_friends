@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { formatWon } from '@/lib/format';
+import { formatPhone, formatWon } from '@/lib/format';
 import { saveCheckoutDraft, loadLastOrderRecord } from '@/lib/order-session';
 import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
 import {
@@ -23,10 +23,17 @@ type Branch = {
   brandName?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
   orderNotice?: string | null;
 };
+
+function toTelHref(phone: string) {
+  const normalized = phone.replace(/[^\d+]/g, '');
+  return normalized ? `tel:${normalized}` : null;
+}
 
 type Category = {
   id: string;
@@ -122,18 +129,11 @@ export default function OrderPageClient({
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
-  const [nowTs, setNowTs] = useState(() => Date.now());
+  const [nowTs, setNowTs] = useState(0);
   const productDialogTitleId = 'order-product-dialog-title';
 
   // 재주문 배너
-  const lastOrderCart = useMemo<CartItem[] | null>(() => {
-    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
-    if (!lastRecord || typeof lastRecord !== 'object') return null;
-    const rec = lastRecord as Record<string, unknown>;
-    return Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
-      ? (rec.cartSnapshot as CartItem[])
-      : null;
-  }, [brandSlug, branchSlug]);
+  const [lastOrderCart, setLastOrderCart] = useState<CartItem[] | null>(null);
   const [reorderDismissed, setReorderDismissed] = useState(false);
 
   const handleReorder = () => {
@@ -168,6 +168,8 @@ export default function OrderPageClient({
   }, [selectedProduct]);
 
   useEffect(() => {
+    setNowTs(Date.now());
+
     const timerId = window.setInterval(() => {
       setNowTs(Date.now());
     }, 1000);
@@ -176,6 +178,21 @@ export default function OrderPageClient({
       window.clearInterval(timerId);
     };
   }, []);
+
+  useEffect(() => {
+    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
+    if (!lastRecord || typeof lastRecord !== 'object') {
+      setLastOrderCart(null);
+      return;
+    }
+
+    const rec = lastRecord as Record<string, unknown>;
+    setLastOrderCart(
+      Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
+        ? (rec.cartSnapshot as CartItem[])
+        : null,
+    );
+  }, [brandSlug, branchSlug]);
 
   const filteredProducts = useMemo(() => {
     const base = !selectedCategory
@@ -331,7 +348,7 @@ export default function OrderPageClient({
         {/* Header */}
         <header className="sticky top-0 z-30 bg-background border-b border-border">
           {branch?.coverImageUrl && (
-            <div className="h-32 -mb-4 relative">
+            <div className="relative z-0 h-32 -mb-4 overflow-hidden">
               <Image
                 src={branch.coverImageUrl}
                 alt=""
@@ -344,14 +361,14 @@ export default function OrderPageClient({
             </div>
           )}
 
-          <div className="px-4 py-3 flex items-center gap-3">
+          <div className="relative z-10 px-4 py-3 flex items-center gap-3">
             {branch?.logoUrl ? (
               <Image
                 src={branch.logoUrl}
                 alt={branch?.name || ''}
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded-full object-cover border border-border"
+                width={48}
+                height={48}
+                className="w-12 h-12 rounded-full object-cover border border-border"
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-bg-tertiary flex items-center justify-center text-lg">
@@ -427,6 +444,34 @@ export default function OrderPageClient({
           </div>
         )}
 
+        {(branch.contactPhone?.trim() || branch.kakaoChannelUrl?.trim()) && (
+          <div className="mx-4 mt-4 rounded-xl border border-border bg-bg-secondary px-4 py-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-text-tertiary">
+              문의 안내
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {branch.contactPhone?.trim() && (
+                <a
+                  href={toTelHref(branch.contactPhone.trim()) ?? undefined}
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  전화 문의 {formatPhone(branch.contactPhone.trim())}
+                </a>
+              )}
+              {branch.kakaoChannelUrl?.trim() && (
+                <a
+                  href={branch.kakaoChannelUrl.trim()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  카카오톡 상담
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Category Tabs */}
         {categories.length > 0 && (
           <div className="category-tabs sticky top-[56px] z-20 bg-background border-b border-border-light">
@@ -490,7 +535,7 @@ export default function OrderPageClient({
 
         {/* Floating Cart Bar with expandable cart */}
         {cart.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)]">
+          <div className="fixed bottom-0 left-0 right-0 z-50">
             <div className="max-w-lg mx-auto">
               {/* Expandable Cart Items */}
               {cartOpen && (
@@ -551,7 +596,7 @@ export default function OrderPageClient({
               )}
 
               {/* Bottom Bar */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-foreground text-background shadow-2xl">
+              <div className="flex items-center gap-2 bg-foreground px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] text-background shadow-2xl">
                 <button
                   onClick={() => setCartOpen((v) => !v)}
                   className="flex items-center gap-2 flex-1 min-w-0"
@@ -633,7 +678,10 @@ export default function OrderPageClient({
                 const imageUrls = getProductImageUrls(selectedProduct);
                 const currentImage =
                   imageUrls[
-                    Math.min(selectedImageIndex, Math.max(0, imageUrls.length - 1))
+                    Math.min(
+                      selectedImageIndex,
+                      Math.max(0, imageUrls.length - 1),
+                    )
                   ] ?? null;
                 if (!currentImage) return null;
                 return (
@@ -776,4 +824,3 @@ export default function OrderPageClient({
     </div>
   );
 }
-

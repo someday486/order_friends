@@ -1,15 +1,27 @@
-import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PublicOrderService } from './public-order.service';
 import { CreatePublicOrderRequest } from './dto/public-order.dto';
 import { CreatePublicShopOrderRequest } from './dto/public-shop.dto';
 import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
 import { UserRateLimitGuard } from '../../common/guards/user-rate-limit.guard';
+import { StampsService } from '../stamps/stamps.service';
 
 @ApiTags('public-order')
 @Controller('public')
 export class PublicOrderController {
-  constructor(private readonly publicOrderService: PublicOrderService) {}
+  constructor(
+    private readonly publicOrderService: PublicOrderService,
+    private readonly stampsService: StampsService,
+  ) {}
   /**
    * Public brand list
    * GET /public/brands
@@ -142,6 +154,17 @@ export class PublicOrderController {
    * POST /public/orders
    * Rate limit: 10 orders per minute (to prevent order spam)
    */
+  @Get('branch/:branchId/stamp-info')
+  @UserRateLimit({ points: 30, duration: 60 })
+  @ApiOperation({ summary: '공개 스탬프 적립 정보 조회' })
+  @ApiResponse({ status: 200, description: '스탬프 정보 조회 성공' })
+  async getStampInfo(
+    @Param('branchId') branchId: string,
+    @Query('phone') phone: string,
+  ) {
+    return this.stampsService.getPublicStampInfo(branchId, phone ?? '');
+  }
+
   @Post('orders')
   @UseGuards(UserRateLimitGuard)
   @UserRateLimit({ points: 10, duration: 60, blockDuration: 300 })

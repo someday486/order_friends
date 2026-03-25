@@ -18,6 +18,16 @@ import {
 export class BranchesService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  private normalizeDepositSheetName(value: string | null | undefined) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private normalizeDepositSheetUrl(value: string | null | undefined) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
   private getClient(accessToken: string, isAdmin?: boolean) {
     return isAdmin
       ? this.supabase.adminClient()
@@ -30,17 +40,25 @@ export class BranchesService {
   async getBranches(
     accessToken: string,
     brandId: string,
+    includeInactive = false,
     isAdmin?: boolean,
   ): Promise<BranchListItemResponse[]> {
     const sb = this.getClient(accessToken, isAdmin);
 
-    const { data, error } = await sb
+    let query = sb
       .from('branches')
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
-      .eq('brand_id', brandId)
-      .order('created_at', { ascending: false });
+      .eq('brand_id', brandId);
+
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query.order('created_at', {
+      ascending: false,
+    });
 
     if (error) {
       throw new Error(`[branches.getBranches] ${error.message}`);
@@ -50,9 +68,14 @@ export class BranchesService {
       id: row.id,
       brandId: row.brand_id,
       name: row.name,
+      isActive: row.is_active ?? true,
       slug: row.slug ?? '',
       logoUrl: row.logo_url ?? null,
       thumbnailUrl: row.thumbnail_url ?? null,
+      contactPhone: row.contact_phone ?? null,
+      depositSheetName: row.deposit_sheet_name ?? null,
+      depositSheetUrl: row.deposit_sheet_url ?? null,
+      kakaoChannelUrl: row.kakao_channel_url ?? null,
       createdAt: row.created_at ?? '',
     }));
   }
@@ -71,7 +94,7 @@ export class BranchesService {
     const { data, error } = await sb
       .from('branches')
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .eq('id', branchId)
       .single();
@@ -90,6 +113,7 @@ export class BranchesService {
       id: data.id,
       brandId: data.brand_id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug ?? '',
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
@@ -100,6 +124,10 @@ export class BranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }
@@ -120,6 +148,20 @@ export class BranchesService {
     if (dto.logoUrl) insertPayload.logo_url = dto.logoUrl;
     if (dto.coverImageUrl) insertPayload.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl) insertPayload.thumbnail_url = dto.thumbnailUrl;
+    if (dto.contactPhone !== undefined)
+      insertPayload.contact_phone = dto.contactPhone;
+    if (dto.depositSheetName !== undefined) {
+      insertPayload.deposit_sheet_name = this.normalizeDepositSheetName(
+        dto.depositSheetName,
+      );
+    }
+    if (dto.depositSheetUrl !== undefined) {
+      insertPayload.deposit_sheet_url = this.normalizeDepositSheetUrl(
+        dto.depositSheetUrl,
+      );
+    }
+    if (dto.kakaoChannelUrl !== undefined)
+      insertPayload.kakao_channel_url = dto.kakaoChannelUrl;
 
     if (isAdmin) {
       const sb = this.supabase.adminClient();
@@ -127,7 +169,7 @@ export class BranchesService {
         .from('branches')
         .insert(insertPayload)
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
         .single();
 
@@ -155,6 +197,7 @@ export class BranchesService {
         id: data.id,
         brandId: data.brand_id,
         name: data.name,
+        isActive: data.is_active ?? true,
         slug: data.slug ?? '',
         logoUrl: data.logo_url ?? null,
         coverImageUrl: data.cover_image_url ?? null,
@@ -165,6 +208,10 @@ export class BranchesService {
         pickupTimeConfig: orderConfig.pickupTimeConfig,
         businessHours: orderConfig.businessHours,
         orderNotice: orderConfig.orderNotice,
+        contactPhone: data.contact_phone ?? null,
+        depositSheetName: data.deposit_sheet_name ?? null,
+        depositSheetUrl: data.deposit_sheet_url ?? null,
+        kakaoChannelUrl: data.kakao_channel_url ?? null,
         createdAt: data.created_at ?? '',
       };
     }
@@ -175,7 +222,7 @@ export class BranchesService {
         .from('branches')
         .insert(insertPayload)
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
         .single();
     };
@@ -186,7 +233,7 @@ export class BranchesService {
         .from('branches')
         .insert(insertPayload)
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
         .single();
     };
@@ -225,6 +272,7 @@ export class BranchesService {
       id: data.id,
       brandId: data.brand_id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug ?? '',
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
@@ -235,6 +283,10 @@ export class BranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }
@@ -252,6 +304,7 @@ export class BranchesService {
     const adminSb = this.supabase.adminClient();
 
     const updateData: any = {};
+    if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.slug !== undefined) updateData.slug = dto.slug;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
@@ -259,6 +312,20 @@ export class BranchesService {
       updateData.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl !== undefined)
       updateData.thumbnail_url = dto.thumbnailUrl;
+    if (dto.contactPhone !== undefined)
+      updateData.contact_phone = dto.contactPhone;
+    if (dto.depositSheetName !== undefined) {
+      updateData.deposit_sheet_name = this.normalizeDepositSheetName(
+        dto.depositSheetName,
+      );
+    }
+    if (dto.depositSheetUrl !== undefined) {
+      updateData.deposit_sheet_url = this.normalizeDepositSheetUrl(
+        dto.depositSheetUrl,
+      );
+    }
+    if (dto.kakaoChannelUrl !== undefined)
+      updateData.kakao_channel_url = dto.kakaoChannelUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
       dto.allowedPaymentMethods !== undefined ||
@@ -286,7 +353,7 @@ export class BranchesService {
       .update(updateData)
       .eq('id', branchId)
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .maybeSingle();
 
@@ -315,6 +382,7 @@ export class BranchesService {
       id: data.id,
       brandId: data.brand_id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug ?? '',
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
@@ -325,6 +393,10 @@ export class BranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at ?? '',
     };
   }
@@ -339,7 +411,10 @@ export class BranchesService {
   ): Promise<{ deleted: boolean }> {
     const sb = this.getClient(accessToken, isAdmin);
 
-    const { error } = await sb.from('branches').delete().eq('id', branchId);
+    const { error } = await sb
+      .from('branches')
+      .update({ is_active: false })
+      .eq('id', branchId);
 
     if (error) {
       throw new Error(`[branches.deleteBranch] ${error.message}`);

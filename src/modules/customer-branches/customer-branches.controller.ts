@@ -50,6 +50,7 @@ export class CustomerBranchesController {
   async getBranches(
     @Req() req: AuthRequest,
     @Query('brandId') brandId?: string,
+    @Query('includeInactive') includeInactive?: string,
   ) {
     if (!req.user) throw new Error('Missing user');
 
@@ -59,6 +60,7 @@ export class CustomerBranchesController {
     return this.branchesService.getMyBranches(
       req.user.id,
       brandId,
+      includeInactive === 'true',
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

@@ -75,6 +75,8 @@ export class ProductsService {
     return (data ?? []).map((row: any) => ({
       id: row.id,
       name: row.name,
+      description: row.description ?? null,
+      categoryId: row.category_id ?? null,
       price: this.getPriceFromRow(row),
       isActive: !(row.is_hidden ?? false),
       sortOrder: 0,
@@ -112,6 +114,8 @@ export class ProductsService {
     const items = (data ?? []).map((row: any) => ({
       id: row.id,
       name: row.name,
+      description: row.description ?? null,
+      categoryId: row.category_id ?? null,
       price: this.getPriceFromRow(row),
       isActive: !(row.is_hidden ?? false),
       sortOrder: 0,

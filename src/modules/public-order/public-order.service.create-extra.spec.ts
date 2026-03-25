@@ -37,6 +37,7 @@ describe('PublicOrderService - Create Order Branches', () => {
     };
     adminChains = {
       orders: makeChain(),
+      payments: makeChain(),
       order_items: makeChain(),
       order_dedup_logs: makeChain(),
       product_inventory: makeChain(),

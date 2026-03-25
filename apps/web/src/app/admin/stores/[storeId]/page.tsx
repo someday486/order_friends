@@ -9,7 +9,7 @@ import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
 
 type Branch = {
@@ -30,6 +30,10 @@ type Branch = {
     endTime?: string | null;
   } | null;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
 };
 
 type Brand = {
@@ -46,13 +50,14 @@ type BranchMember = {
   status: string;
 };
 
-const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN"];
+const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
+  SHIPPING: "택배",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -117,9 +122,13 @@ export default function StoreDetailPage() {
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [depositSheetName, setDepositSheetName] = useState("");
+  const [depositSheetUrl, setDepositSheetUrl] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
   const [orderNotice, setOrderNotice] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
   const [members, setMembers] = useState<BranchMember[]>([]);
 
@@ -151,6 +160,13 @@ export default function StoreDetailPage() {
       pickupStartTime.trim() === (branch.pickupTimeConfig?.startTime ?? "") &&
       pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
     const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
+    const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
+    const sameKakaoChannelUrl =
+      kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
+    const sameDepositSheetName =
+      depositSheetName.trim() === (branch.depositSheetName ?? "");
+    const sameDepositSheetUrl =
+      depositSheetUrl.trim() === (branch.depositSheetUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -159,7 +175,11 @@ export default function StoreDetailPage() {
       !samePayments ||
       !sameTransferInfo ||
       !samePickupTimeConfig ||
-      !sameOrderNotice
+      !sameOrderNotice ||
+      !sameContactPhone ||
+      !sameKakaoChannelUrl ||
+      !sameDepositSheetName ||
+      !sameDepositSheetUrl
     );
   }, [
     allowedPaymentMethods,
@@ -173,6 +193,10 @@ export default function StoreDetailPage() {
     pickupEndTime,
     pickupStartTime,
     orderNotice,
+    contactPhone,
+    kakaoChannelUrl,
+    depositSheetName,
+    depositSheetUrl,
   ]);
 
   useEffect(() => {
@@ -204,9 +228,13 @@ export default function StoreDetailPage() {
         setTransferBankName(data.transferAccount?.bankName ?? "");
         setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
         setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
+        setDepositSheetName(data.depositSheetName ?? "");
+        setDepositSheetUrl(data.depositSheetUrl ?? "");
         setPickupStartTime(data.pickupTimeConfig?.startTime ?? "");
         setPickupEndTime(data.pickupTimeConfig?.endTime ?? "");
         setOrderNotice(data.orderNotice ?? "");
+        setContactPhone(data.contactPhone ?? "");
+        setKakaoChannelUrl(data.kakaoChannelUrl ?? "");
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
@@ -272,9 +300,13 @@ export default function StoreDetailPage() {
     setTransferBankName(branch.transferAccount?.bankName ?? "");
     setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
     setTransferAccountHolder(branch.transferAccount?.accountHolder ?? "");
+    setDepositSheetName(branch.depositSheetName ?? "");
+    setDepositSheetUrl(branch.depositSheetUrl ?? "");
     setPickupStartTime(branch.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(branch.pickupTimeConfig?.endTime ?? "");
     setOrderNotice(branch.orderNotice ?? "");
+    setContactPhone(branch.contactPhone ?? "");
+    setKakaoChannelUrl(branch.kakaoChannelUrl ?? "");
   };
 
   const handleSave = async () => {
@@ -345,7 +377,11 @@ export default function StoreDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        depositSheetName: depositSheetName.trim() || null,
+        depositSheetUrl: depositSheetUrl.trim() || null,
         orderNotice: orderNotice.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        kakaoChannelUrl: kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
           pickupStartTime.trim() && pickupEndTime.trim()
             ? {
@@ -371,9 +407,13 @@ export default function StoreDetailPage() {
       setTransferBankName(updated.transferAccount?.bankName ?? "");
       setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");
       setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
+      setDepositSheetName(updated.depositSheetName ?? "");
+      setDepositSheetUrl(updated.depositSheetUrl ?? "");
       setPickupStartTime(updated.pickupTimeConfig?.startTime ?? "");
       setPickupEndTime(updated.pickupTimeConfig?.endTime ?? "");
       setOrderNotice(updated.orderNotice ?? "");
+      setContactPhone(updated.contactPhone ?? "");
+      setKakaoChannelUrl(updated.kakaoChannelUrl ?? "");
 
       toast.success("매장을 수정했습니다.");
     } catch (e: unknown) {
@@ -454,6 +494,27 @@ export default function StoreDetailPage() {
               <div>
                 <label className="block mb-1.5 text-xs text-text-secondary">생성일</label>
                 <div className="text-[13px] text-foreground">{formatDateTime(branch.createdAt)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <div className="text-xs text-text-secondary">입금기록 시트 설정</div>
+            <div className="mt-2.5 grid gap-2">
+              <input
+                value={depositSheetName}
+                onChange={(e) => setDepositSheetName(e.target.value)}
+                className="input-field w-full"
+                placeholder="입금기록 시트명 (예: 시트1)"
+              />
+              <input
+                value={depositSheetUrl}
+                onChange={(e) => setDepositSheetUrl(e.target.value)}
+                className="input-field w-full"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+              />
+              <div className="text-xs text-text-tertiary">
+                이 매장의 자동 입금매칭에 사용할 구글시트 탭 이름입니다.
               </div>
             </div>
           </div>
@@ -548,6 +609,27 @@ export default function StoreDetailPage() {
               />
               <div className="mt-1.5 text-xs text-text-tertiary">
                 주문 메뉴 상단에 고객에게 노출되는 안내 문구입니다.
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객 문의 정보</div>
+              <div className="grid gap-2">
+                <input
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="문의 전화번호"
+                />
+                <input
+                  value={kakaoChannelUrl}
+                  onChange={(e) => setKakaoChannelUrl(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="https://pf.kakao.com/_example/chat"
+                />
+              </div>
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 정보입니다.
               </div>
             </div>
 

@@ -2254,6 +2254,68 @@ describe('PaymentsService', () => {
     expect(result.refundAmount).toBe(10);
   });
 
+  it('refundOrderPaymentForCancellation should refund remaining paid amount', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1' },
+        error: null,
+      });
+    paymentsChain.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 'p1',
+          status: PaymentStatus.SUCCESS,
+          amount: 10,
+          refund_amount: 3,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'p1',
+          amount: 10,
+          refund_amount: 3,
+          status: PaymentStatus.SUCCESS,
+          orders: { branch_id: 'b1' },
+          order_id: 'o1',
+        },
+        error: null,
+      });
+    paymentsChain.single.mockResolvedValueOnce({
+      data: { id: 'p1', status: PaymentStatus.REFUNDED },
+      error: null,
+    });
+
+    await service.refundOrderPaymentForCancellation('o1', 'b1');
+
+    expect(paymentsChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: PaymentStatus.REFUNDED,
+        refund_amount: 10,
+      }),
+    );
+  });
+
+  it('refundOrderPaymentForCancellation should skip unpaid orders', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1' },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    await service.refundOrderPaymentForCancellation('o1', 'b1');
+
+    expect(paymentsChain.maybeSingle).toHaveBeenCalled();
+  });
+
   it('verifyTossWebhookSignature should validate signature', () => {
     const service = setupService({
       TOSS_WEBHOOK_SECRET: 'secret',

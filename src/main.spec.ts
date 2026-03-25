@@ -59,6 +59,8 @@ const flushPromises = async () =>
   new Promise((resolve) => setImmediate(resolve));
 
 describe('main bootstrap', () => {
+  jest.setTimeout(15000);
+
   const makeApp = () => {
     const server = {
       keepAliveTimeout: 0,

@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsString,
   IsNumber,
   IsArray,
@@ -10,6 +11,10 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  CashReceiptIdentityType,
+  CashReceiptType,
+} from '../../cash-receipts/cash-receipt.types';
 
 // ============================================================
 // Response DTOs
@@ -21,6 +26,8 @@ export class PublicBranchResponse {
   brandName?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
   orderNotice?: string | null;
@@ -136,6 +143,8 @@ export class PublicOrderResponse {
     address2?: string | null;
     memo?: string | null;
   };
+  branchContactPhone?: string | null;
+  branchKakaoChannelUrl?: string | null;
   items: {
     productName: string;
     qty: number;
@@ -191,6 +200,41 @@ export enum FulfillmentType {
   PICKUP = 'PICKUP',
   DELIVERY = 'DELIVERY',
   DINE_IN = 'DINE_IN',
+  SHIPPING = 'SHIPPING',
+}
+
+export class CashReceiptRequestDto {
+  @ApiPropertyOptional({
+    description: '현금영수증 발급 요청 여부',
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  requested?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: '현금영수증 발급 타입',
+    enum: CashReceiptType,
+  })
+  @IsEnum(CashReceiptType)
+  @IsOptional()
+  type?: CashReceiptType;
+
+  @ApiPropertyOptional({
+    description: '현금영수증 식별 수단',
+    enum: CashReceiptIdentityType,
+  })
+  @IsEnum(CashReceiptIdentityType)
+  @IsOptional()
+  identityType?: CashReceiptIdentityType;
+
+  @ApiPropertyOptional({
+    description: '현금영수증 식별값',
+    example: '01012345678',
+  })
+  @IsString()
+  @IsOptional()
+  identityValue?: string;
 }
 
 export class CreatePublicOrderRequest {
@@ -279,4 +323,13 @@ export class CreatePublicOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
+
+  @ApiPropertyOptional({
+    description: '현금영수증 요청 정보',
+    type: CashReceiptRequestDto,
+  })
+  @ValidateNested()
+  @Type(() => CashReceiptRequestDto)
+  @IsOptional()
+  cashReceipt?: CashReceiptRequestDto;
 }

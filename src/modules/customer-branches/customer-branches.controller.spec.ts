@@ -55,6 +55,7 @@ describe('CustomerBranchesController', () => {
     expect(mockService.getMyBranches).toHaveBeenCalledWith(
       'user-1',
       'brand-1',
+      false,
       [],
       [],
     );
@@ -165,6 +166,7 @@ describe('CustomerBranchesController', () => {
         expect(mockService.getMyBranches).toHaveBeenCalledWith(
           'user-1',
           'brand-1',
+          false,
           [],
           [],
         ),

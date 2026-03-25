@@ -27,6 +27,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { StampsModule } from './modules/stamps/stamps.module';
+import { DepositSyncModule } from './modules/deposit-sync/deposit-sync.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -72,6 +73,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     UploadModule,
     ExportsModule,
     StampsModule,
+    DepositSyncModule,
   ],
   providers: [
     AuthGuard,

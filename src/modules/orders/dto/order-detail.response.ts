@@ -13,7 +13,9 @@ export class OrderDetailResponse {
   orderedAt: string;
   orderNo?: string | null; // ✅ 추가
   status: OrderStatus;
-  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | null;
+  paymentStatus?: string | null;
+  depositMatchStatus?: 'PENDING' | 'AUTO_MATCHED' | null;
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING' | null;
   myRole?: string;
 
   customer: {
@@ -25,7 +27,7 @@ export class OrderDetailResponse {
   };
 
   payment: {
-    method: 'CARD' | 'TRANSFER' | 'CASH';
+    method: 'CARD' | 'TRANSFER' | 'CASH' | null;
     subtotal: number;
     shippingFee: number;
     discount: number;

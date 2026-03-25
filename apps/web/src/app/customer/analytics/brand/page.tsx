@@ -12,6 +12,7 @@ import PieChart from "@/components/analytics/PieChart";
 import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import Tooltip from "@/components/ui/Tooltip";
+import { ORDER_STATUS_LABEL } from "@/types/common";
 import type { AbcAnalysis, CohortAnalysis, RfmAnalysis } from "@/types/analytics";
 
 
@@ -119,15 +120,7 @@ const HelpLabel = ({ label, description }: { label: string; description: string 
   </span>
 );
 
-const STATUS_LABELS: Record<string, string> = {
-  CREATED: "접수",
-  CONFIRMED: "확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
-};
+const STATUS_LABELS: Record<string, string> = ORDER_STATUS_LABEL;
 
 // ============================================================
 // Components

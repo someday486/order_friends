@@ -32,7 +32,7 @@ import {
 } from '@/lib/pickup-time';
 import { appendEuroRo } from '@/lib/korean-particles';
 
-type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN';
+type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 type PaymentMethod = 'CARD' | 'TRANSFER' | 'CASH';
 
 type ProductOption = {
@@ -74,6 +74,8 @@ type CreateOrderResult = {
 type PublicBranchConfigResponse = {
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   pickupTimeConfig?: PickupTimeConfig;
   businessHours?: WeeklyBusinessHours;
   transferAccount?: {
@@ -87,7 +89,12 @@ const DEFAULT_FULFILLMENT_TYPES: FulfillmentType[] = ['PICKUP'];
 const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['CARD', 'TRANSFER', 'CASH'];
 
 function isFulfillmentType(value: unknown): value is FulfillmentType {
-  return value === 'PICKUP' || value === 'DELIVERY' || value === 'DINE_IN';
+  return (
+    value === 'PICKUP' ||
+    value === 'DELIVERY' ||
+    value === 'DINE_IN' ||
+    value === 'SHIPPING'
+  );
 }
 
 function isPaymentMethod(value: unknown): value is PaymentMethod {
@@ -97,12 +104,14 @@ function isPaymentMethod(value: unknown): value is PaymentMethod {
 function getFulfillmentLabel(type: FulfillmentType) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
+  if (type === 'SHIPPING') return '택배';
   return '매장';
 }
 
 function getFulfillmentIcon(type: FulfillmentType) {
   if (type === 'PICKUP') return '🛍️';
   if (type === 'DELIVERY') return '🛵';
+  if (type === 'SHIPPING') return '📦';
   return '🪑';
 }
 
@@ -116,6 +125,10 @@ function getPaymentIcon(method: PaymentMethod) {
   if (method === 'CARD') return '💳';
   if (method === 'TRANSFER') return '🏦';
   return '💵';
+}
+
+function normalizeBusinessNumber(value: string) {
+  return value.replace(/[^\d]/g, '');
 }
 
 // ── Spinner SVG ──
@@ -164,12 +177,20 @@ export default function CheckoutPage() {
     accountNumber?: string | null;
     accountHolder?: string | null;
   } | null>(null);
+  const [branchContactPhone, setBranchContactPhone] = useState<string | null>(
+    null,
+  );
+  const [branchKakaoChannelUrl, setBranchKakaoChannelUrl] = useState<
+    string | null
+  >(null);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress1, setCustomerAddress1] = useState('');
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxInvoiceBusinessNumber, setTaxInvoiceBusinessNumber] = useState('');
   const [selectedPickupDate, setSelectedPickupDate] = useState('');
   const [requestedPickupTime, setRequestedPickupTime] = useState('');
   const [pickupTimeConfig, setPickupTimeConfig] =
@@ -199,6 +220,12 @@ export default function CheckoutPage() {
     () => appendEuroRo(customerName, '주문자명'),
     [customerName],
   );
+  const normalizedTaxInvoiceBusinessNumber = useMemo(
+    () => normalizeBusinessNumber(taxInvoiceBusinessNumber),
+    [taxInvoiceBusinessNumber],
+  );
+  const supportsReceiptRequest =
+    paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
 
   useEffect(() => {
     if (!hasScheduledPickupConfig) {
@@ -230,14 +257,20 @@ export default function CheckoutPage() {
       return;
     }
 
-    setRequestedPickupTime((current) =>
-      pickupTimeOptionsForSelectedDate.some(
-        (option) => option.value === current,
-      )
-        ? current
-        : pickupTimeOptionsForSelectedDate[0].value,
-    );
+      setRequestedPickupTime((current) =>
+        pickupTimeOptionsForSelectedDate.some(
+          (option) => option.value === current,
+        )
+          ? current
+          : pickupTimeOptionsForSelectedDate[0].value,
+      );
   }, [hasScheduledPickupConfig, pickupTimeOptionsForSelectedDate]);
+
+  useEffect(() => {
+    if (supportsReceiptRequest) return;
+    setTaxInvoiceRequested(false);
+    setTaxInvoiceBusinessNumber('');
+  }, [supportsReceiptRequest]);
 
   // 저장된 고객 정보 로드
   useEffect(() => {
@@ -421,10 +454,14 @@ export default function CheckoutPage() {
         if (latestPaymentMethods.length > 0) {
           normalizedPaymentMethods = latestPaymentMethods;
         }
+        setBranchContactPhone(latestConfig?.contactPhone?.trim() || null);
+        setBranchKakaoChannelUrl(latestConfig?.kakaoChannelUrl?.trim() || null);
         setTransferAccount(latestConfig?.transferAccount ?? null);
         setPickupTimeConfig(latestConfig?.pickupTimeConfig ?? null);
         setBusinessHours(latestConfig?.businessHours ?? null);
       } catch {
+        setBranchContactPhone(null);
+        setBranchKakaoChannelUrl(null);
         setTransferAccount(null);
         setPickupTimeConfig(null);
       }
@@ -468,6 +505,13 @@ export default function CheckoutPage() {
   );
 
   const handleSubmit = async () => {
+    if (status !== 'authenticated') {
+      toast('간편로그인 후 주문할 수 있어요.');
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+
     if (!customerName.trim()) {
       toast.error('이름을 입력해 주세요.');
       return;
@@ -478,8 +522,18 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (fulfillmentType === 'DELIVERY' && !customerAddress1.trim()) {
-      toast.error('배달 주문은 주소가 필요합니다.');
+    if (taxInvoiceRequested && normalizedTaxInvoiceBusinessNumber.length !== 10) {
+      toast.error(
+        '지출증빙 요청을 위해 10자리 사업자등록번호를 입력해 주세요.',
+      );
+      return;
+    }
+
+    if (
+      (fulfillmentType === 'DELIVERY' || fulfillmentType === 'SHIPPING') &&
+      !customerAddress1.trim()
+    ) {
+      toast.error('배송 주문은 주소가 필요합니다.');
       return;
     }
 
@@ -548,14 +602,19 @@ export default function CheckoutPage() {
           qty: item.qty,
           options: item.selectedOptions.map((opt) => ({ optionId: opt.id })),
         })),
+        cashReceipt: taxInvoiceRequested
+          ? {
+              requested: true,
+              type: 'EXPENSE_PROOF',
+              identityType: 'BUSINESS_NUMBER',
+              identityValue: normalizedTaxInvoiceBusinessNumber,
+            }
+          : undefined,
       };
 
       const result = await apiClient.post<CreateOrderResult>(
-        '/public/orders',
+        '/me/orders',
         payload,
-        {
-          auth: false,
-        },
       );
 
       clearCheckoutDraft();
@@ -571,6 +630,8 @@ export default function CheckoutPage() {
           paymentMethod,
           fulfillmentType,
           branchId,
+          branchContactPhone,
+          branchKakaoChannelUrl,
           transferAccount: result.transferAccount ?? transferAccount ?? null,
           cartSnapshot: cart,
         },
@@ -880,10 +941,12 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {fulfillmentType === 'DELIVERY' && (
+            {(fulfillmentType === 'DELIVERY' ||
+              fulfillmentType === 'SHIPPING') && (
               <div className="animate-fade-in">
                 <label className="block text-xs font-semibold text-text-secondary mb-1.5">
-                  배달 주소 <span className="text-danger-500">*</span>
+                  {fulfillmentType === 'SHIPPING' ? '배송 주소' : '배달 주소'}{' '}
+                  <span className="text-danger-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -976,6 +1039,38 @@ export default function CheckoutPage() {
               <p className="mt-2 text-xs text-text-secondary">
                 입금자명을 <strong>{depositAccountGuide}</strong> 입력해 주세요.
               </p>
+            </div>
+          )}
+          {supportsReceiptRequest && (
+            <div className="mt-3 rounded-xl border border-border bg-bg-secondary p-4 animate-fade-in">
+              <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={taxInvoiceRequested}
+                  onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
+                />
+                세금계산서 발행 요청
+              </label>
+              <p className="mt-2 text-xs text-text-secondary">
+                사업자 증빙이 필요하면 사업자등록번호를 입력해 주세요.
+              </p>
+              {taxInvoiceRequested && (
+                <div className="mt-3">
+                  <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
+                    세금계산서 발행 전용 번호
+                  </label>
+                  <input
+                    type="text"
+                    value={taxInvoiceBusinessNumber}
+                    onChange={(e) =>
+                      setTaxInvoiceBusinessNumber(e.target.value)
+                    }
+                    inputMode="numeric"
+                    placeholder="123-45-67890"
+                    className="input-field h-12 w-full"
+                  />
+                </div>
+              )}
             </div>
           )}
         </section>

@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 
 type TransferAccountInput = {
   bankName: string;
@@ -24,9 +25,14 @@ type Props = {
   onSubmit: (payload: {
     name: string;
     slug: string;
+    enabledFulfillmentTypes: FulfillmentType[];
     allowedPaymentMethods: PaymentMethod[];
     transferAccount: TransferAccountInput;
     pickupTimeConfig: PickupTimeConfigInput;
+    depositSheetName: string;
+    depositSheetUrl: string;
+    contactPhone: string;
+    kakaoChannelUrl: string;
   }) => Promise<void>;
   adding: boolean;
 };
@@ -37,8 +43,15 @@ const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
   { value: "CASH", label: "현금" },
 ];
 
-function normalizeSlug(v: string) {
-  return v
+const FULFILLMENT_OPTIONS: Array<{ value: FulfillmentType; label: string }> = [
+  { value: "PICKUP", label: "포장" },
+  { value: "DELIVERY", label: "배달" },
+  { value: "DINE_IN", label: "매장" },
+  { value: "SHIPPING", label: "택배" },
+];
+
+function normalizeSlug(value: string) {
+  return value
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")
@@ -55,6 +68,9 @@ function timeToMinutes(value: string) {
 export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding }: Props) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>([
+    "PICKUP",
+  ]);
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>([
     "CARD",
     "TRANSFER",
@@ -63,18 +79,25 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
+  const [depositSheetName, setDepositSheetName] = useState("");
+  const [depositSheetUrl, setDepositSheetUrl] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
   const isTransferEnabled = allowedPaymentMethods.includes("TRANSFER");
 
+  const toggleFulfillmentType = (type: FulfillmentType) => {
+    setEnabledFulfillmentTypes((prev) =>
+      prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type],
+    );
+  };
+
   const togglePaymentMethod = (method: PaymentMethod) => {
-    setAllowedPaymentMethods((prev) => {
-      if (prev.includes(method)) {
-        return prev.filter((item) => item !== method);
-      }
-      return [...prev, method];
-    });
+    setAllowedPaymentMethods((prev) =>
+      prev.includes(method) ? prev.filter((item) => item !== method) : [...prev, method],
+    );
   };
 
   const disabled = useMemo(
@@ -84,11 +107,10 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
           !brandId ||
           !name.trim() ||
           !slug.trim() ||
+          enabledFulfillmentTypes.length === 0 ||
           allowedPaymentMethods.length === 0 ||
           (isTransferEnabled &&
-            (!bankName.trim() ||
-              !accountNumber.trim() ||
-              !accountHolder.trim())) ||
+            (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())) ||
           ((pickupStartTime.trim() && !pickupEndTime.trim()) ||
             (!pickupStartTime.trim() && pickupEndTime.trim())) ||
           (pickupStartTime.trim() &&
@@ -102,6 +124,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       allowedPaymentMethods.length,
       bankName,
       brandId,
+      enabledFulfillmentTypes.length,
       isTransferEnabled,
       name,
       pickupEndTime,
@@ -118,7 +141,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       footer={
         <>
           <button
-            className="h-9 px-4 rounded-lg border border-border bg-transparent text-foreground font-bold cursor-pointer text-[13px] hover:bg-bg-tertiary transition-colors"
+            className="h-9 rounded-lg border border-border bg-transparent px-4 text-[13px] font-bold text-foreground transition-colors hover:bg-bg-tertiary"
             onClick={onClose}
             disabled={adding}
           >
@@ -130,6 +153,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
               onSubmit({
                 name,
                 slug,
+                enabledFulfillmentTypes,
                 allowedPaymentMethods,
                 transferAccount: {
                   bankName: bankName.trim(),
@@ -143,34 +167,38 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
                         endTime: pickupEndTime.trim(),
                       }
                     : null,
+                depositSheetName: depositSheetName.trim(),
+                depositSheetUrl: depositSheetUrl.trim(),
+                contactPhone: contactPhone.trim(),
+                kakaoChannelUrl: kakaoChannelUrl.trim(),
               })
             }
             disabled={disabled}
           >
-            {adding ? "저장 중..." : "등록하기"}
+            {adding ? "등록 중..." : "등록하기"}
           </button>
         </>
       }
     >
       <div className="card p-3.5">
-        <div className="text-[13px] font-extrabold mb-3 text-foreground">기본 정보</div>
+        <div className="mb-3 text-[13px] font-extrabold text-foreground">기본 정보</div>
 
-        <label className="block text-xs text-text-secondary mb-1.5">매장명</label>
+        <label className="mb-1.5 block text-xs text-text-secondary">매장명</label>
         <input
           className="input-field w-full"
-          placeholder="예: 동탄 본점"
+          placeholder="예: 강남 본점"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoFocus
         />
 
-        <label className="block text-xs text-text-secondary mb-1.5 mt-3">매장 고유 주소(URL)</label>
-        <div className="flex items-center border border-border rounded-lg overflow-hidden bg-bg-secondary">
-          <div className="px-2.5 h-[38px] flex items-center text-xs text-text-tertiary border-r border-border whitespace-nowrap">
+        <label className="mb-1.5 mt-3 block text-xs text-text-secondary">매장 고유 주소(URL)</label>
+        <div className="flex items-center overflow-hidden rounded-lg border border-border bg-bg-secondary">
+          <div className="flex h-[38px] items-center whitespace-nowrap border-r border-border px-2.5 text-xs text-text-tertiary">
             openoda.com/store/
           </div>
           <input
-            className="h-[38px] px-3 border-none outline-none bg-transparent text-foreground text-[13px] flex-1"
+            className="h-[38px] flex-1 border-none bg-transparent px-3 text-[13px] text-foreground outline-none"
             placeholder="예: dongtan-main"
             value={slug}
             onChange={(e) => setSlug(normalizeSlug(e.target.value))}
@@ -178,7 +206,30 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         </div>
 
         <div className="mt-3">
-          <label className="block text-xs text-text-secondary mb-1.5">결제수단 노출</label>
+          <label className="mb-1.5 block text-xs text-text-secondary">주문방식 노출</label>
+          <div className="flex flex-wrap gap-2">
+            {FULFILLMENT_OPTIONS.map((option) => {
+              const checked = enabledFulfillmentTypes.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggleFulfillmentType(option.value)}
+                  className={`h-9 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                    checked
+                      ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                      : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <label className="mb-1.5 block text-xs text-text-secondary">결제수단 노출</label>
           <div className="flex flex-wrap gap-2">
             {PAYMENT_METHOD_OPTIONS.map((option) => {
               const checked = allowedPaymentMethods.includes(option.value);
@@ -187,7 +238,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
                   key={option.value}
                   type="button"
                   onClick={() => togglePaymentMethod(option.value)}
-                  className={`h-9 px-3 rounded-lg border text-xs font-semibold transition-colors ${
+                  className={`h-9 rounded-lg border px-3 text-xs font-semibold transition-colors ${
                     checked
                       ? "border-primary-500 bg-primary-500/10 text-primary-500"
                       : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
@@ -201,7 +252,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         </div>
 
         <div className="mt-3 grid gap-2">
-          <label className="block text-xs text-text-secondary mb-0">픽업 가능 시간</label>
+          <label className="mb-0 block text-xs text-text-secondary">기본 픽업 시간</label>
           <div className="grid gap-2 sm:grid-cols-2">
             <select
               className="input-field w-full"
@@ -228,7 +279,8 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
               ))}
             </select>
           </div>
-          <label className="block text-xs text-text-secondary mb-0">계좌이체 입금 정보</label>
+
+          <label className="mb-0 block text-xs text-text-secondary">계좌이체 입금 정보</label>
           <input
             className="input-field w-full"
             placeholder="은행명"
@@ -247,10 +299,36 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
             value={accountHolder}
             onChange={(e) => setAccountHolder(e.target.value)}
           />
+          <input
+            className="input-field w-full"
+            placeholder="입금기록 시트명 (예: 시트1)"
+            value={depositSheetName}
+            onChange={(e) => setDepositSheetName(e.target.value)}
+          />
+          <input
+            className="input-field w-full"
+            placeholder="입금기록 링크 (Google Sheets URL)"
+            value={depositSheetUrl}
+            onChange={(e) => setDepositSheetUrl(e.target.value)}
+          />
+
+          <label className="mb-0 block text-xs text-text-secondary">고객 문의 정보</label>
+          <input
+            className="input-field w-full"
+            placeholder="문의 전화번호"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+          />
+          <input
+            className="input-field w-full"
+            placeholder="https://pf.kakao.com/_example/chat"
+            value={kakaoChannelUrl}
+            onChange={(e) => setKakaoChannelUrl(e.target.value)}
+          />
         </div>
 
-        <div className="mt-2.5 text-xs text-text-tertiary leading-relaxed">
-          계좌이체를 노출할 경우 은행명, 계좌번호, 예금주를 입력해 주세요.
+        <div className="mt-2.5 text-xs leading-relaxed text-text-tertiary">
+          계좌이체를 노출할 경우 은행명, 계좌번호, 예금주를 입력해주세요.
           <br />
           URL은 <b>영문/숫자/하이픈(-)</b>만 가능합니다.
         </div>

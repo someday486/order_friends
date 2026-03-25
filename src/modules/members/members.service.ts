@@ -145,6 +145,11 @@ export class MembersService {
     return candidate && candidate.trim().length > 0 ? candidate.trim() : null;
   }
 
+  private isBrandCreatorApproved(user: User | null | undefined): boolean {
+    const metadata = (user?.user_metadata ?? {}) as Record<string, unknown>;
+    return metadata.customer_brand_creator_approved === true;
+  }
+
   private getAuthEmailConfirmedAt(
     user: User | null | undefined,
   ): string | null {
@@ -255,7 +260,10 @@ export class MembersService {
     }
 
     return authUsers
-      .filter((user) => !excludedUserIds.has(user.id))
+      .filter(
+        (user) =>
+          !excludedUserIds.has(user.id) && !this.isBrandCreatorApproved(user),
+      )
       .map((user) => {
         const profile = profileMap.get(user.id);
         const emailConfirmedAt =
@@ -279,6 +287,42 @@ export class MembersService {
           new Date(right.createdAt).getTime() -
           new Date(left.createdAt).getTime(),
       );
+  }
+
+  async approveBrandCreator(userId: string): Promise<{ approved: true }> {
+    const admin = this.supabase.adminClient();
+    const { data: userResult, error } =
+      await admin.auth.admin.getUserById(userId);
+
+    if (error || !userResult.user) {
+      throw new BadRequestException('사용자를 찾을 수 없습니다.');
+    }
+
+    if (!this.getAuthEmailConfirmedAt(userResult.user)) {
+      throw new BadRequestException(
+        '이메일 인증을 완료한 사용자만 승인할 수 있습니다.',
+      );
+    }
+
+    const currentMetadata =
+      (userResult.user.user_metadata as Record<string, unknown> | undefined) ??
+      {};
+
+    const { error: updateError } = await admin.auth.admin.updateUserById(
+      userId,
+      {
+        user_metadata: {
+          ...currentMetadata,
+          customer_brand_creator_approved: true,
+        },
+      },
+    );
+
+    if (updateError) {
+      throw new Error(`[members.approveBrandCreator] ${updateError.message}`);
+    }
+
+    return { approved: true };
   }
 
   async updateMemberProfile(

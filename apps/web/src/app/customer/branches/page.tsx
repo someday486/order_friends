@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -26,10 +26,13 @@ type Branch = {
   brandId: string;
   name: string;
   slug: string | null;
+  isActive?: boolean;
   logoUrl?: string | null;
   brandSlug?: string | null;
   myRole: string | null;
   createdAt: string;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
 };
 
 type Brand = {
@@ -41,6 +44,7 @@ type Brand = {
 };
 
 type BranchPaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type BranchFulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 
 // ============================================================
 // Constants
@@ -56,6 +60,16 @@ const BRANCH_PAYMENT_METHOD_OPTIONS: Array<{ value: BranchPaymentMethod; label: 
   { value: "CARD", label: "카드" },
   { value: "TRANSFER", label: "계좌이체" },
   { value: "CASH", label: "현금" },
+];
+
+const BRANCH_FULFILLMENT_OPTIONS: Array<{
+  value: BranchFulfillmentType;
+  label: string;
+}> = [
+  { value: "PICKUP", label: "포장" },
+  { value: "DELIVERY", label: "배달" },
+  { value: "DINE_IN", label: "매장" },
+  { value: "SHIPPING", label: "택배" },
 ];
 
 // ============================================================
@@ -173,7 +187,9 @@ export default function CustomerBranchesPage() {
         setLoading(true);
         setError(null);
 
-        const data = await apiClient.get<Branch[]>(`/customer/branches?brandId=${selectedBrandId}`);
+        const data = await apiClient.get<Branch[]>(
+          `/customer/branches?brandId=${selectedBrandId}&includeInactive=true`,
+        );
         const selectedBrand = brands.find((brand) => brand.id === selectedBrandId);
         setBranches(
           data.map((branch) => ({
@@ -276,10 +292,17 @@ export default function CustomerBranchesPage() {
       {/* ── 3. 온라인샵 설정: BrandShopCard + 결제수단을 하나의 섹션으로 묶음 ── */}
       {selectedBrand && (
         <div className="mb-8">
+          <div className="mb-3 rounded-xl border border-border bg-bg-secondary px-4 py-3">
+            <div className="text-sm font-semibold text-foreground">온라인 판매 채널</div>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              온라인샵은 개별 지점과 분리된 브랜드 단위 주문 채널입니다.
+              아래에서 온라인샵 주소와 결제수단을 함께 관리할 수 있습니다.
+            </p>
+          </div>
           <div className="text-sm font-semibold text-foreground mb-3">온라인샵 설정</div>
           {/* divide-y로 두 카드를 divider 하나로 자연스럽게 연결 */}
           <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
-            <BrandShopCard brand={selectedBrand} grouped />
+            <ManagedBrandShopCard brand={selectedBrand} grouped />
             {canManageBrandSettings && (
               <div className="p-4 bg-bg-secondary text-foreground">
                 <div className="flex items-center justify-between gap-3 mb-2">
@@ -325,7 +348,7 @@ export default function CustomerBranchesPage() {
       {/* ── 2. 지점 목록 섹션 헤더: 제목 + 건수 + 추가 버튼 ── */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="text-sm font-semibold text-foreground">지점 목록</div>
+          <div className="text-sm font-semibold text-foreground">오프라인 지점 목록</div>
           {!loading && (
             <div className="text-xs text-text-tertiary mt-0.5">
               총 {visibleBranches.length}개 지점
@@ -337,7 +360,7 @@ export default function CustomerBranchesPage() {
             onClick={() => setShowAddModal(true)}
             className="btn-primary px-4 py-2 text-sm"
           >
-            + 지점 추가
+            + 매장추가
           </button>
         )}
       </div>
@@ -404,7 +427,19 @@ function BranchCard({ branch }: { branch: Branch }) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-base mb-1 truncate">{branch.name}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="font-bold text-base truncate">{branch.name}</div>
+                <span
+                  className={`inline-flex items-center justify-center whitespace-nowrap rounded-full min-w-[56px] px-3 py-0.5 text-[11px] font-semibold ${
+                    branch.isActive === false
+                      ? "bg-neutral-500/15 text-text-secondary"
+                      : "bg-success/15 text-success"
+                  }`}
+                >
+                  {branch.isActive === false ? "비활성" : "운영중"}
+                </span>
+
+            </div>
             {branch.myRole && (
               <div className="text-xs text-text-secondary">역할: {branch.myRole}</div>
             )}
@@ -492,6 +527,70 @@ function BrandShopCard({ brand, grouped = false }: { brand: Brand; grouped?: boo
   );
 }
 
+function ManagedBrandShopCard({ brand, grouped = false }: { brand: Brand; grouped?: boolean }) {
+  const shopUrl = getBrandShopUrl(brand.slug);
+  const manageUrl = `/customer/brands/${brand.id}`;
+  const containerClass = grouped
+    ? "p-4 bg-bg-secondary text-foreground"
+    : "p-5 rounded-xl border border-border bg-bg-secondary text-foreground";
+
+  if (!shopUrl) {
+    return (
+      <div className={containerClass}>
+        <div className="font-bold text-base mb-1">온라인샵</div>
+        <div className="text-sm text-text-secondary">
+          브랜드 URL이 없어 온라인샵 주소를 만들 수 없습니다.
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Link
+            href={manageUrl}
+            className="inline-flex items-center h-8 px-3 rounded-lg border border-border bg-bg-tertiary text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
+          >
+            관리하기
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={containerClass}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-2xl">
+            🛒
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-base mb-1">온라인샵</div>
+            <div className="text-xs text-text-secondary">브랜드 단위 온라인 주문 채널</div>
+          </div>
+        </div>
+
+        <Link
+          href={shopUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="온라인샵 페이지 열기"
+          aria-label="온라인샵 페이지 열기"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </Link>
+      </div>
+
+      <div className="text-sm text-text-secondary">브랜드 온라인샵 주소와 노출 설정을 관리합니다.</div>
+      <div className="mt-4 flex justify-end">
+        <Link
+          href={manageUrl}
+          className="inline-flex items-center h-8 px-3 rounded-lg border border-border bg-bg-tertiary text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
+        >
+          관리하기
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function AddBranchModal({
   brandId,
   onClose,
@@ -504,20 +603,30 @@ function AddBranchModal({
   const [formData, setFormData] = useState<{
     name: string;
     slug: string;
+    enabledFulfillmentTypes: BranchFulfillmentType[];
     allowedPaymentMethods: BranchPaymentMethod[];
     transferBankName: string;
     transferAccountNumber: string;
     transferAccountHolder: string;
+    depositSheetName: string;
+    depositSheetUrl: string;
+    contactPhone: string;
+    kakaoChannelUrl: string;
     pickupStartTime: string;
     pickupEndTime: string;
     businessHours: BusinessHoursFormState;
   }>(() => ({
     name: "",
     slug: "",
+    enabledFulfillmentTypes: ["PICKUP"],
     allowedPaymentMethods: ["CARD", "TRANSFER", "CASH"],
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",
+    depositSheetName: "",
+    depositSheetUrl: "",
+    contactPhone: "",
+    kakaoChannelUrl: "",
     pickupStartTime: "",
     pickupEndTime: "",
     businessHours: createBusinessHoursFormState(),
@@ -525,6 +634,21 @@ function AddBranchModal({
   const [saving, setSaving] = useState(false);
 
   const isTransferEnabled = formData.allowedPaymentMethods.includes("TRANSFER");
+
+  const toggleFulfillmentType = (type: BranchFulfillmentType) => {
+    setFormData((prev) => {
+      const next = new Set(prev.enabledFulfillmentTypes);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return {
+        ...prev,
+        enabledFulfillmentTypes: Array.from(next) as BranchFulfillmentType[],
+      };
+    });
+  };
 
   const togglePaymentMethod = (method: BranchPaymentMethod) => {
     setFormData((prev) => {
@@ -562,6 +686,10 @@ function AddBranchModal({
 
     if (!formData.name || !formData.slug) {
       toast.error("모든 필드를 입력해주세요");
+      return;
+    }
+    if (formData.enabledFulfillmentTypes.length === 0) {
+      toast.error("주문방식을 1개 이상 선택해야 합니다.");
       return;
     }
     if (formData.allowedPaymentMethods.length === 0) {
@@ -615,12 +743,17 @@ function AddBranchModal({
         brandId,
         name: formData.name,
         slug: formData.slug,
+        enabledFulfillmentTypes: formData.enabledFulfillmentTypes,
         allowedPaymentMethods: formData.allowedPaymentMethods,
         transferAccount: {
           bankName: formData.transferBankName.trim(),
           accountNumber: formData.transferAccountNumber.trim(),
           accountHolder: formData.transferAccountHolder.trim(),
         },
+        depositSheetName: formData.depositSheetName.trim() || null,
+        depositSheetUrl: formData.depositSheetUrl.trim() || null,
+        contactPhone: formData.contactPhone.trim() || null,
+        kakaoChannelUrl: formData.kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
           formData.pickupStartTime.trim() && formData.pickupEndTime.trim()
             ? {
@@ -642,8 +775,14 @@ function AddBranchModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]" onClick={onClose}>
-      <div className="bg-bg-secondary border border-border rounded-md p-8 max-w-[500px] w-[90%] text-foreground" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/80 p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[500px] overflow-y-auto rounded-md border border-border bg-bg-secondary p-8 text-foreground shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-xl font-bold mb-6">지점 추가</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-5">
@@ -671,6 +810,29 @@ function AddBranchModal({
             />
             <div className="text-xs text-text-tertiary mt-1">
               소문자 영문, 숫자, 하이픈(-)만 사용 가능
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">주문방식 노출</label>
+            <div className="flex flex-wrap gap-2">
+              {BRANCH_FULFILLMENT_OPTIONS.map((option) => {
+                const checked = formData.enabledFulfillmentTypes.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleFulfillmentType(option.value)}
+                    className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-colors ${
+                      checked
+                        ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                        : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -807,6 +969,40 @@ function AddBranchModal({
                 onChange={(e) => setFormData({ ...formData, transferAccountHolder: e.target.value })}
                 className="input-field"
                 placeholder="예금주"
+              />
+              <input
+                type="text"
+                value={formData.depositSheetName}
+                onChange={(e) => setFormData({ ...formData, depositSheetName: e.target.value })}
+                className="input-field"
+                placeholder="입금기록 시트명 (예: 시트1)"
+              />
+              <input
+                type="url"
+                value={formData.depositSheetUrl}
+                onChange={(e) => setFormData({ ...formData, depositSheetUrl: e.target.value })}
+                className="input-field"
+                placeholder="입금기록 링크 (Google Sheets URL)"
+              />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">고객 문의 정보</label>
+            <div className="grid gap-2">
+              <input
+                type="text"
+                value={formData.contactPhone}
+                onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                className="input-field"
+                placeholder="문의 전화번호"
+              />
+              <input
+                type="url"
+                value={formData.kakaoChannelUrl}
+                onChange={(e) => setFormData({ ...formData, kakaoChannelUrl: e.target.value })}
+                className="input-field"
+                placeholder="https://pf.kakao.com/_example/chat"
               />
             </div>
           </div>

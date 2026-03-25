@@ -95,7 +95,9 @@ async function bootstrap() {
   });
 
   // Request body size limit (10mb for file uploads, 1mb for general API)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   app.use(require('express').json({ limit: '1mb' }));
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
 
   // HTTP Keep-Alive 타임아웃 설정 (기본 5초 → 65초: 로드밸런서 타임아웃 대응)

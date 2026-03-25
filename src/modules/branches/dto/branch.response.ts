@@ -2,6 +2,7 @@ export class BranchListItemResponse {
   id: string;
   brandId: string;
   name: string;
+  isActive: boolean;
   slug?: string;
   logoUrl?: string | null;
   thumbnailUrl?: string | null;
@@ -54,6 +55,10 @@ export class BranchListItemResponse {
     } | null;
   } | null;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
+  kakaoChannelUrl?: string | null;
   createdAt: string;
 }
 
@@ -61,6 +66,7 @@ export class BranchDetailResponse {
   id: string;
   brandId: string;
   name: string;
+  isActive: boolean;
   slug?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
@@ -114,5 +120,9 @@ export class BranchDetailResponse {
     } | null;
   } | null;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
+  kakaoChannelUrl?: string | null;
   createdAt: string;
 }

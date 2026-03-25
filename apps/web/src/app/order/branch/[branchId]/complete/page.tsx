@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { formatDateTimeFull, formatWon } from "@/lib/format";
+import { formatDateTimeFull, formatPhone, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 import { apiClient } from "@/lib/api-client";
 import { loadLastOrderRecord } from "@/lib/order-session";
@@ -26,6 +26,8 @@ type OrderResult = {
   createdAt: string;
   requestedTime?: string | null;
   paymentMethod?: string | null;
+  branchContactPhone?: string | null;
+  branchKakaoChannelUrl?: string | null;
   customer?: {
     phone?: string | null;
   } | null;
@@ -40,6 +42,22 @@ type OrderResult = {
     unitPrice: number;
   }>;
 };
+
+type PublicBranchSupportInfo = {
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
+};
+
+function toText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function toTelHref(phone: string): string | null {
+  const cleaned = phone.replace(/\D/g, "");
+  return cleaned ? `tel:${cleaned}` : null;
+}
 
 function normalizeOrder(raw: unknown): OrderResult | null {
   if (!raw || typeof raw !== "object") return null;
@@ -75,6 +93,12 @@ function normalizeOrder(raw: unknown): OrderResult | null {
     createdAt,
     requestedTime: typeof requestedTime === "string" ? requestedTime : null,
     paymentMethod: typeof source.paymentMethod === "string" ? source.paymentMethod : null,
+    branchContactPhone: toText(
+      source.branchContactPhone ?? source.branch_contact_phone,
+    ),
+    branchKakaoChannelUrl: toText(
+      source.branchKakaoChannelUrl ?? source.branch_kakao_channel_url,
+    ),
     customer: customerRaw
       ? {
           phone: typeof customerRaw.phone === "string" ? customerRaw.phone : null,
@@ -264,6 +288,45 @@ export default function CompletePage() {
       });
   }, [order, branchId]);
 
+  useEffect(() => {
+    if (!order || !branchId) return;
+    if (order.branchContactPhone?.trim() || order.branchKakaoChannelUrl?.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    apiClient
+      .get<PublicBranchSupportInfo>(
+        `/public/branches/${encodeURIComponent(branchId)}`,
+        { auth: false },
+      )
+      .then((branch) => {
+        if (cancelled) return;
+        const contactPhone = toText(branch?.contactPhone);
+        const kakaoChannelUrl = toText(branch?.kakaoChannelUrl);
+        if (!contactPhone && !kakaoChannelUrl) return;
+
+        setOrder((current) =>
+          current
+            ? {
+                ...current,
+                branchContactPhone: current.branchContactPhone ?? contactPhone,
+                branchKakaoChannelUrl:
+                  current.branchKakaoChannelUrl ?? kakaoChannelUrl,
+              }
+            : current,
+        );
+      })
+      .catch(() => {
+        // non-fatal
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, order, order?.branchContactPhone, order?.branchKakaoChannelUrl]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
@@ -397,6 +460,33 @@ export default function CompletePage() {
             <p className="mt-2 text-xs text-warning-600">
               입금 확인 후 주문 상태가 변경됩니다. 입금자명을 정확히 입력해 주세요.
             </p>
+          </div>
+        )}
+
+        {(order.branchContactPhone?.trim() ||
+          order.branchKakaoChannelUrl?.trim()) && (
+          <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary p-4">
+            <div className="text-sm font-bold text-foreground mb-2">문의 안내</div>
+            <div className="flex flex-wrap gap-2">
+              {order.branchContactPhone?.trim() && (
+                <a
+                  href={toTelHref(order.branchContactPhone.trim()) ?? undefined}
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  전화 문의 {formatPhone(order.branchContactPhone.trim())}
+                </a>
+              )}
+              {order.branchKakaoChannelUrl?.trim() && (
+                <a
+                  href={order.branchKakaoChannelUrl.trim()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  카카오톡 상담
+                </a>
+              )}
+            </div>
           </div>
         )}
 

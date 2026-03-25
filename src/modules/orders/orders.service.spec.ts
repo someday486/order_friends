@@ -4,6 +4,8 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from './order-status.enum';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { PaymentsService } from '../payments/payments.service';
+import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -26,6 +28,13 @@ describe('OrdersService', () => {
     adminClient: jest.fn(() => mockSupabaseClient),
     userClient: jest.fn(() => mockSupabaseClient),
   };
+  const mockPaymentsService = {
+    refundOrderPaymentForCancellation: jest.fn(),
+  };
+  const mockCashReceiptsService = {
+    issueForCompletedOrder: jest.fn(),
+    cancelForOrder: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -34,6 +43,14 @@ describe('OrdersService', () => {
         {
           provide: SupabaseService,
           useValue: mockSupabaseService,
+        },
+        {
+          provide: PaymentsService,
+          useValue: mockPaymentsService,
+        },
+        {
+          provide: CashReceiptsService,
+          useValue: mockCashReceiptsService,
         },
       ],
     }).compile();
@@ -77,6 +94,9 @@ describe('OrdersService', () => {
         totalAmount: 10000,
         status: OrderStatus.PENDING,
         fulfillmentType: null,
+        paymentMethod: null,
+        paymentStatus: null,
+        depositMatchStatus: null,
         branchId: 'branch-123',
         branchName: null,
         itemCount: 0,
@@ -114,6 +134,9 @@ describe('OrdersService', () => {
         totalAmount: 0,
         status: OrderStatus.PENDING,
         fulfillmentType: null,
+        paymentMethod: null,
+        paymentStatus: null,
+        depositMatchStatus: null,
         branchId: 'branch-123',
         branchName: null,
         itemCount: 0,
@@ -156,6 +179,68 @@ describe('OrdersService', () => {
       await expect(service.getOrders('token', 'branch-123')).rejects.toThrow(
         BusinessException,
       );
+    });
+
+    it('should expose deposit match status only for transfer payments', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: [
+          {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.CREATED,
+            created_at: '2024-01-01',
+            total_amount: 10000,
+            customer_name: 'Transfer User',
+          },
+        ],
+        count: 1,
+        error: null,
+      });
+      jest
+        .spyOn(service as any, 'getPaymentMethodMap')
+        .mockResolvedValueOnce(new Map([['123', 'TRANSFER']]));
+      jest
+        .spyOn(service as any, 'getPaymentStatusMap')
+        .mockResolvedValueOnce(new Map([['123', 'PENDING']]));
+      jest
+        .spyOn(service as any, 'getDepositMatchStatusMap')
+        .mockResolvedValueOnce(new Map());
+
+      const result = await service.getOrders('token', 'branch-123');
+
+      expect(result.data[0].paymentMethod).toBe('TRANSFER');
+      expect(result.data[0].depositMatchStatus).toBe('PENDING');
+    });
+
+    it('should hide deposit match status for cash payments', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: [
+          {
+            id: '124',
+            order_no: 'ORD-002',
+            status: OrderStatus.CREATED,
+            created_at: '2024-01-01',
+            total_amount: 5000,
+            customer_name: 'Cash User',
+          },
+        ],
+        count: 1,
+        error: null,
+      });
+      jest
+        .spyOn(service as any, 'getPaymentMethodMap')
+        .mockResolvedValueOnce(new Map([['124', 'CASH']]));
+      jest
+        .spyOn(service as any, 'getPaymentStatusMap')
+        .mockResolvedValueOnce(new Map([['124', 'PENDING']]));
+      jest
+        .spyOn(service as any, 'getDepositMatchStatusMap')
+        .mockResolvedValueOnce(new Map([['124', 'AUTO_MATCHED']]));
+
+      const result = await service.getOrders('token', 'branch-123');
+
+      expect(result.data[0].paymentMethod).toBe('CASH');
+      expect(result.data[0].depositMatchStatus).toBeNull();
     });
   });
 
@@ -200,6 +285,121 @@ describe('OrdersService', () => {
       expect(result.id).toBe('123');
       expect(result.orderNo).toBe('ORD-001');
       expect(result.items).toHaveLength(1);
+    });
+
+    it('should fall back to order payment method when payment row is missing', async () => {
+      jest
+        .spyOn(service as any, 'getOrderPaymentMethodMap')
+        .mockResolvedValueOnce(new Map([['123', 'TRANSFER']]));
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.CREATED,
+        created_at: '2024-01-01',
+        payment_method: 'TRANSFER',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: null,
+        subtotal: 10000,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 10000,
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.payment.method).toBe('TRANSFER');
+      expect(result.paymentStatus).toBeNull();
+      expect(result.depositMatchStatus).toBe('PENDING');
+    });
+
+    it('should prefer order payment method over payment row method', async () => {
+      jest
+        .spyOn(service as any, 'getOrderPaymentMethodMap')
+        .mockResolvedValueOnce(new Map([['123', 'TRANSFER']]));
+      jest
+        .spyOn(service as any, 'getPaymentMethodMap')
+        .mockResolvedValueOnce(new Map([['123', 'CARD']]));
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.CREATED,
+        created_at: '2024-01-01',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: null,
+        subtotal: 10000,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 10000,
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.payment.method).toBe('TRANSFER');
+    });
+
+    it('should keep payment method null when no stored payment method exists', async () => {
+      jest
+        .spyOn(service as any, 'getOrderPaymentMethodMap')
+        .mockResolvedValueOnce(new Map());
+      jest
+        .spyOn(service as any, 'getPaymentMethodMap')
+        .mockResolvedValueOnce(new Map());
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.CREATED,
+        created_at: '2024-01-01',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: null,
+        subtotal: 10000,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 10000,
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.payment.method).toBeNull();
+      expect(result.depositMatchStatus).toBeNull();
     });
 
     it('should return empty items when order items are missing', async () => {
@@ -512,6 +712,72 @@ describe('OrdersService', () => {
       );
 
       expect(result.status).toBe(OrderStatus.CONFIRMED);
+      expect(
+        mockPaymentsService.refundOrderPaymentForCancellation,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockCashReceiptsService.issueForCompletedOrder,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should refund paid order before cancellation', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.CANCELLED,
+          },
+          error: null,
+        });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.CANCELLED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.CANCELLED);
+      expect(
+        mockPaymentsService.refundOrderPaymentForCancellation,
+      ).toHaveBeenCalledWith('123', 'branch-123');
+      expect(mockCashReceiptsService.cancelForOrder).toHaveBeenCalledWith(
+        '123',
+        'Order status changed to CANCELLED',
+      );
+    });
+
+    it('should request cash receipt issuance when order is completed', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.COMPLETED,
+          },
+          error: null,
+        });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.COMPLETED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.COMPLETED);
+      expect(
+        mockCashReceiptsService.issueForCompletedOrder,
+      ).toHaveBeenCalledWith('123');
     });
 
     it('should throw OrderNotFoundException when order not found', async () => {

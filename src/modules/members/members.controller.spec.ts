@@ -10,6 +10,7 @@ describe('MembersController', () => {
   const mockService = {
     getPendingApprovalUsers: jest.fn(),
     updateMemberProfile: jest.fn(),
+    approveBrandCreator: jest.fn(),
     transferMember: jest.fn(),
     getBrandMembers: jest.fn(),
     addBrandMember: jest.fn(),
@@ -68,6 +69,12 @@ describe('MembersController', () => {
       call: () => controller.getBrandMembers(makeReq(), 'brand-1'),
       mockFn: mockService.getBrandMembers,
       args: ['token', 'brand-1', false],
+    },
+    {
+      name: 'approveBrandCreator',
+      call: () => controller.approveBrandCreator('user-1'),
+      mockFn: mockService.approveBrandCreator,
+      args: ['user-1'],
     },
     {
       name: 'transferMember',

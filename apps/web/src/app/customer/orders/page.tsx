@@ -8,9 +8,12 @@ import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import {
   FULFILLMENT_TYPE_LABEL,
+  getOrderStatusDisplay,
+  type DepositMatchStatus,
   type Branch,
   type FulfillmentType,
   type OrderStatus,
+  type OrderStatusDisplay,
 } from '@/types/common';
 import { createOrderExportJob } from '@/lib/exports';
 
@@ -29,6 +32,7 @@ type Order = {
   customerName: string;
   totalAmount: number;
   status: OrderStatus;
+  depositMatchStatus?: DepositMatchStatus | null;
   fulfillmentType?: FulfillmentType | null;
   fulfillment_type?: FulfillmentType | null;
   orderedAt: string;
@@ -68,33 +72,43 @@ type BulkUpdateStatusResponse = {
 
 const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'CREATED', label: '주문접수' },
-  { value: 'CONFIRMED', label: '확인' },
   { value: 'PREPARING', label: '준비중' },
   { value: 'READY', label: '준비완료' },
-  { value: 'COMPLETED', label: '완료' },
   { value: 'CANCELLED', label: '취소' },
 ];
 
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
-  CONFIRMED: '확인',
+  CONFIRMED: '주문접수',
   PREPARING: '준비중',
   READY: '준비완료',
-  COMPLETED: '완료',
+  COMPLETED: '준비완료',
   CANCELLED: '취소',
-  REFUNDED: '환불',
+  REFUNDED: '취소',
 };
 
 // Active statuses: filled + ring (high visual weight)
 // Terminal statuses: muted (low visual weight)
 const ORDER_STATUS_BADGE_CLASS: Record<OrderStatus, string> = {
   CREATED:   'bg-blue-500/15 text-blue-600 ring-1 ring-inset ring-blue-500/40',
-  CONFIRMED: 'bg-indigo-500/15 text-indigo-600 ring-1 ring-inset ring-indigo-500/40',
+  CONFIRMED: 'bg-blue-500/15 text-blue-600 ring-1 ring-inset ring-blue-500/40',
   PREPARING: 'bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/40',
   READY:     'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
-  COMPLETED: 'bg-gray-500/10 text-gray-500',
+  COMPLETED: 'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
   CANCELLED: 'bg-red-500/10 text-red-500',
-  REFUNDED:  'bg-purple-500/10 text-purple-500',
+  REFUNDED:  'bg-red-500/10 text-red-500',
+};
+
+const DEPOSIT_MATCH_LABEL: Record<DepositMatchStatus, string> = {
+  PENDING: '입금대기',
+  AUTO_MATCHED: '입금확인',
+};
+
+const DEPOSIT_MATCH_BADGE_CLASS: Record<DepositMatchStatus, string> = {
+  PENDING:
+    'bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/40',
+  AUTO_MATCHED:
+    'bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/40',
 };
 
 const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
@@ -103,13 +117,31 @@ const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
     { value: 'PICKUP', label: '포장' },
     { value: 'DELIVERY', label: '배달' },
     { value: 'DINE_IN', label: '매장' },
+    { value: 'SHIPPING', label: '택배' },
   ];
+
+const DEPOSIT_STATUS_FILTERS: {
+  value: DepositMatchStatus | 'ALL';
+  label: string;
+}[] = [
+  { value: 'ALL', label: '입금여부' },
+  { value: 'AUTO_MATCHED', label: '입금확인' },
+  { value: 'PENDING', label: '미확인' },
+];
 
 // Outlined style: subordinate visual weight compared to status badges
 const FULFILLMENT_BADGE_CLASS: Record<FulfillmentType, string> = {
   PICKUP:   'border border-sky-400/70 text-sky-600',
   DELIVERY: 'border border-orange-400/70 text-orange-600',
   DINE_IN:  'border border-neutral-400/70 text-neutral-500',
+  SHIPPING: 'border border-violet-400/70 text-violet-600',
+};
+
+const DISPLAY_STATUS_GROUPS: Record<OrderStatusDisplay, OrderStatus[]> = {
+  RECEIVED: ['CREATED', 'CONFIRMED'],
+  PREPARING: ['PREPARING'],
+  READY: ['READY', 'COMPLETED'],
+  CANCELLED: ['CANCELLED', 'REFUNDED'],
 };
 
 type AutoRefreshMode = 'FAST' | 'DEFAULT' | 'SAVE';
@@ -267,9 +299,13 @@ function TableRowSkeleton({ cols }: { cols: number }) {
 }
 
 function getTodayYmd(): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const now = new Date();
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
 }
 
 // ── ExportDialog ─────────────────────────────────────────────
@@ -380,17 +416,22 @@ export default function CustomerOrdersPage() {
 
   // Filters
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<OrderStatusDisplay | 'ALL'>('ALL');
   const [fulfillmentFilter, setFulfillmentFilter] = useState<
     FulfillmentType | 'ALL'
   >('ALL');
   const [brandFilter, setBrandFilter] = useState<string>('ALL');
+  const [depositStatusFilter, setDepositStatusFilter] = useState<
+    DepositMatchStatus | 'ALL'
+  >('ALL');
 
   // Date range: input (staged) vs applied (active)
   const [dateStartInput, setDateStartInput] = useState(() => getTodayYmd());
   const [dateEndInput, setDateEndInput] = useState(() => getTodayYmd());
   const [appliedDateStart, setAppliedDateStart] = useState(() => getTodayYmd());
   const [appliedDateEnd, setAppliedDateEnd] = useState(() => getTodayYmd());
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -404,7 +445,7 @@ export default function CustomerOrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
-  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CREATED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -439,7 +480,7 @@ export default function CustomerOrdersPage() {
     if (!bulkAllowedSet.has(bulkStatus)) {
       const firstAllowed =
         BULK_STATUS_OPTIONS.find((o) => bulkAllowedSet.has(o.value))?.value ??
-        "CONFIRMED";
+        "CREATED";
       setBulkStatus(firstAllowed);
     }
   }, [selectedOrders.length, bulkAllowedSet, bulkStatus]);
@@ -461,6 +502,9 @@ export default function CustomerOrdersPage() {
 
   const [summaryBranch, setSummaryBranch] = useState<string>("ALL");
   const [summaryFulfillment, setSummaryFulfillment] = useState<FulfillmentType | "ALL">("ALL");
+  const [summaryDepositStatus, setSummaryDepositStatus] = useState<
+    DepositMatchStatus | 'ALL'
+  >('ALL');
 
   //카드 기준 레이블: "오늘 기준" vs "조회 기준"
   const isTodayRange = useMemo(() => {
@@ -524,6 +568,9 @@ export default function CustomerOrdersPage() {
         if (summaryFulfillment !== "ALL") {
           baseParams.append("fulfillmentType", summaryFulfillment);
         }
+        if (summaryDepositStatus !== 'ALL') {
+          baseParams.append('depositStatus', summaryDepositStatus);
+        }
         if (appliedDateStart) baseParams.append("dateStart", appliedDateStart);
         if (appliedDateEnd) baseParams.append("dateEnd", appliedDateEnd);
 
@@ -543,7 +590,7 @@ export default function CustomerOrdersPage() {
           "READY",
           "COMPLETED",
           "CANCELLED",
-          // 필요하면 "REFUNDED"도 카드로 넣을 때만 포함
+          "REFUNDED",
         ];
 
         const results = await Promise.all(
@@ -581,6 +628,7 @@ export default function CustomerOrdersPage() {
   }, [
     summaryBranch,
     summaryFulfillment,
+    summaryDepositStatus,
     appliedDateStart,
     appliedDateEnd,
     reloadToken,
@@ -623,11 +671,11 @@ export default function CustomerOrdersPage() {
         if (branchFilter !== 'ALL' && isUuidFormat(branchFilter)) {
           params.append('branchId', branchFilter);
         }
-        if (statusFilter !== 'ALL') {
-          params.append('status', statusFilter);
-        }
         if (fulfillmentFilter !== 'ALL') {
           params.append('fulfillmentType', fulfillmentFilter);
+        }
+        if (depositStatusFilter !== 'ALL') {
+          params.append('depositStatus', depositStatusFilter);
         }
         if (appliedDateStart) {
           params.append('dateStart', appliedDateStart);
@@ -635,13 +683,63 @@ export default function CustomerOrdersPage() {
         if (appliedDateEnd) {
           params.append('dateEnd', appliedDateEnd);
         }
+        if (appliedSearch) {
+          params.append('search', appliedSearch);
+        }
 
-        const data = await apiClient.get<OrderListResponse | Order[]>(
-          `/customer/orders?${params.toString()}`,
-        );
-        const orderItems = Array.isArray(data)
-          ? data
-          : data.data || data.items || [];
+        let orderItems: Order[] = [];
+        let nextTotal = 0;
+
+        if (statusFilter === 'ALL') {
+          const data = await apiClient.get<OrderListResponse | Order[]>(
+            `/customer/orders?${params.toString()}`,
+          );
+          orderItems = Array.isArray(data)
+            ? data
+            : data.data || data.items || [];
+          nextTotal = Array.isArray(data)
+            ? data.length
+            : data.pagination?.total || data.total || orderItems.length || 0;
+        } else {
+          const groupedStatuses = DISPLAY_STATUS_GROUPS[statusFilter];
+          const groupedLimit = Math.max(limit * page, limit);
+
+          const groupedResponses = await Promise.all(
+            groupedStatuses.map(async (status) => {
+              const groupedParams = new URLSearchParams(params);
+              groupedParams.set('page', '1');
+              groupedParams.set('limit', groupedLimit.toString());
+              groupedParams.append('status', status);
+
+              const response = await apiClient.get<OrderListResponse | Order[]>(
+                `/customer/orders?${groupedParams.toString()}`,
+              );
+
+              const items = Array.isArray(response)
+                ? response
+                : response.data || response.items || [];
+              const totalCount = Array.isArray(response)
+                ? response.length
+                : response.pagination?.total || response.total || items.length || 0;
+
+              return { items, totalCount };
+            }),
+          );
+
+          orderItems = groupedResponses
+            .flatMap((result) => result.items)
+            .sort(
+              (a, b) =>
+                new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
+            )
+            .slice((page - 1) * limit, page * limit);
+
+          nextTotal = groupedResponses.reduce(
+            (sum, result) => sum + result.totalCount,
+            0,
+          );
+        }
+
         setOrders(orderItems);
         setSelectedOrderIds((prev) => {
           if (prev.size === 0) return prev;
@@ -650,11 +748,7 @@ export default function CustomerOrdersPage() {
             Array.from(prev).filter((orderId) => visibleIds.has(orderId)),
           );
         });
-        setTotal(
-          Array.isArray(data)
-            ? data.length
-            : data.pagination?.total || data.total || orderItems.length || 0,
-        );
+        setTotal(nextTotal);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : '주문을 불러올 수 없습니다');
@@ -670,21 +764,25 @@ export default function CustomerOrdersPage() {
     branchFilter,
     statusFilter,
     fulfillmentFilter,
+    depositStatusFilter,
     appliedDateStart,
     appliedDateEnd,
+    appliedSearch,
     reloadToken,
   ]);
 
   const totalPages = Math.ceil(total / limit);
 
-  const activeCount =
-    (summaryCounts.CREATED ?? 0) +
-    (summaryCounts.CONFIRMED ?? 0) +
-    (summaryCounts.PREPARING ?? 0) +
-    (summaryCounts.READY ?? 0);
-  const newOrderCount = summaryCounts.CREATED ?? 0;
-  const unhandledCount =
+  const receivedCount =
     (summaryCounts.CREATED ?? 0) + (summaryCounts.CONFIRMED ?? 0);
+  const readyCount =
+    (summaryCounts.READY ?? 0) + (summaryCounts.COMPLETED ?? 0);
+  const cancelledCount =
+    (summaryCounts.CANCELLED ?? 0) + (summaryCounts.REFUNDED ?? 0);
+  const activeCount =
+    receivedCount + (summaryCounts.PREPARING ?? 0) + readyCount;
+  const newOrderCount = receivedCount;
+  const unhandledCount = receivedCount;
   const delayedCount = useMemo(() => {
     const now = Date.now();
     return orders.filter((order) => {
@@ -716,6 +814,7 @@ export default function CustomerOrdersPage() {
   const handleApplyFilter = () => {
     setAppliedDateStart(dateStartInput);
     setAppliedDateEnd(dateEndInput);
+    setAppliedSearch(searchInput.trim());
 
     // ✅ 조회 버튼 누르면 상태는 전체로 초기화
     setStatusFilter("ALL");
@@ -723,6 +822,7 @@ export default function CustomerOrdersPage() {
     // ✅ 요약은 조회 버튼 눌렀을 때만 고정 업데이트
     setSummaryBranch(branchFilter);
     setSummaryFulfillment(fulfillmentFilter);
+    setSummaryDepositStatus(depositStatusFilter);
 
     setPage(1);
   };
@@ -801,7 +901,10 @@ export default function CustomerOrdersPage() {
           ...(branchFilter !== 'ALL' && isUuidFormat(branchFilter)
             ? { branchId: branchFilter }
             : {}),
-          ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+          ...(statusFilter !== 'ALL' &&
+          DISPLAY_STATUS_GROUPS[statusFilter].length === 1
+            ? { status: DISPLAY_STATUS_GROUPS[statusFilter][0] }
+            : {}),
           ...(fulfillmentFilter !== 'ALL'
             ? { fulfillmentType: fulfillmentFilter }
             : {}),
@@ -859,17 +962,13 @@ export default function CustomerOrdersPage() {
       </div>
 
       {/* ── Section 1.5: Today Status Summary Cards ── */}
-      <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" aria-busy={summaryLoading}>
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2" aria-busy={summaryLoading}>
         {([
-          { key: "CREATED", label: "주문접수" },
-          { key: "CONFIRMED", label: "확인" },
-          { key: "PREPARING", label: "준비중" },
-          { key: "READY", label: "준비완료" },
-          { key: "COMPLETED", label: "완료" },
-          { key: "CANCELLED", label: "취소" },
+          { key: "RECEIVED", label: "주문접수", count: receivedCount },
+          { key: "PREPARING", label: "준비중", count: summaryCounts.PREPARING ?? 0 },
+          { key: "READY", label: "준비완료", count: readyCount },
+          { key: "CANCELLED", label: "취소", count: cancelledCount },
         ] as const).map((c) => {
-          const k = c.key as OrderStatus;
-          const count = summaryCounts[k] ?? 0;
 
           return (
             <button
@@ -877,12 +976,12 @@ export default function CustomerOrdersPage() {
               type="button"
               disabled={summaryLoading}
               onClick={() => {
-                setStatusFilter(k);
+                setStatusFilter(c.key);
                 setPage(1);
               }}
               className={`
                 text-left rounded-xl border transition-colors py-7 px-8 disabled:opacity-70 disabled:cursor-not-allowed
-                ${statusFilter === k
+                ${statusFilter === c.key
                   ? "border-foreground bg-foreground/5"
                   : "border-border bg-bg-secondary hover:bg-bg-tertiary"
                 }
@@ -892,7 +991,7 @@ export default function CustomerOrdersPage() {
                 {c.label}
               </div>
               <div className="mt-1 text-2xl font-extrabold text-foreground">
-                {count}
+                {c.count}
               </div>
               <div className="mt-1 text-[11px] text-text-tertiary">
                 {cardBasisLabel}
@@ -939,6 +1038,22 @@ export default function CustomerOrdersPage() {
           </select>
         )}
 
+        <select
+          value={depositStatusFilter}
+          onChange={(e) => {
+            setDepositStatusFilter(e.target.value as DepositMatchStatus | 'ALL');
+            setPage(1);
+          }}
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[160px]"
+          aria-label="입금상태 필터"
+        >
+          {DEPOSIT_STATUS_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
         <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:flex sm:w-auto">
           <input
             type="date"
@@ -958,6 +1073,20 @@ export default function CustomerOrdersPage() {
           />
         </div>
 
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !isInvalidDateRange) {
+              handleApplyFilter();
+            }
+          }}
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[220px] sm:max-w-[280px]"
+          placeholder="상품명/주문번호/고객명 검색"
+          aria-label="\uC8FC\uBB38 \uAC80\uC0C9"
+        />
+
         <button
           type="button"
           onClick={handleApplyFilter}
@@ -967,57 +1096,59 @@ export default function CustomerOrdersPage() {
           조회
         </button>
 
-        <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
-          <input
-            type="checkbox"
-            checked={autoRefreshEnabled}
-            onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
-            className="w-4 h-4 rounded accent-primary cursor-pointer"
-            aria-label="자동 새로고침"
-          />
-          자동갱신
-        </label>
-        <select
-          value={autoRefreshMode}
-          onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
-          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
-          aria-label="자동갱신 속도"
-          disabled={!autoRefreshEnabled}
-        >
-          <option value="FAST">빠름(5초)</option>
-          <option value="DEFAULT">기본(10초)</option>
-          <option value="SAVE">절전(30초)</option>
-        </select>
-
-        {lastAutoRefreshAt && (
-          <span className="inline-flex self-center text-xs text-text-tertiary whitespace-nowrap">
-            최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </span>
-        )}
-
-        <div className="hidden sm:block w-px h-7 bg-border mx-1" />
-
-        <button
-          type="button"
-          onClick={() => setShowExportDialog(true)}
-          className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+          <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
+            <input
+              type="checkbox"
+              checked={autoRefreshEnabled}
+              onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+              className="w-4 h-4 rounded accent-primary cursor-pointer"
+              aria-label="자동 새로고침"
+            />
+            자동갱신
+          </label>
+          <select
+            value={autoRefreshMode}
+            onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
+            className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
+            aria-label="자동갱신 속도"
+            disabled={!autoRefreshEnabled}
           >
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-            <polyline points="7,10 12,15 17,10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          내보내기
-        </button>
+            <option value="FAST">빠름(5초)</option>
+            <option value="DEFAULT">기본(10초)</option>
+            <option value="SAVE">절전(30초)</option>
+          </select>
+
+          {lastAutoRefreshAt && (
+            <span className="inline-flex h-9 items-center text-xs text-text-tertiary whitespace-nowrap">
+              최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+
+          <div className="hidden sm:block w-px h-7 bg-border mx-1" />
+
+          <button
+            type="button"
+            onClick={() => setShowExportDialog(true)}
+            className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7,10 12,15 17,10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            내보내기
+          </button>
+        </div>
 
         {isInvalidDateRange && (
           <p className="w-full mt-0.5 text-xs text-danger-500">
@@ -1093,8 +1224,8 @@ export default function CustomerOrdersPage() {
       {/* ── Order Table ── */} 
       <div className={selectedCount > 0 ? "pb-24" : ""}>
       {loading && orders.length === 0 ? (
-        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+        <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-white">
               <tr>
                 <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
@@ -1132,8 +1263,8 @@ export default function CustomerOrdersPage() {
       ) : orders.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
+        <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead className="bg-white">
               <tr>
                 <th className="text-center py-3 px-3.5 text-xs font-bold text-text-secondary w-10">
@@ -1362,11 +1493,20 @@ export default function CustomerOrdersPage() {
 
                     {/* 상태 */}
                     <td className="py-3 px-3.5 text-[13px]">
-                      <span
-                        className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
-                      >
-                        {ORDER_STATUS_LABEL[order.status]}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${ORDER_STATUS_BADGE_CLASS[order.status]}`}
+                        >
+                          {ORDER_STATUS_LABEL[order.status]}
+                        </span>
+                        {order.depositMatchStatus && (
+                          <span
+                            className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${DEPOSIT_MATCH_BADGE_CLASS[order.depositMatchStatus]}`}
+                          >
+                            {DEPOSIT_MATCH_LABEL[order.depositMatchStatus]}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* 금액 */}

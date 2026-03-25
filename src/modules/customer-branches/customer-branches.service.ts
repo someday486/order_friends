@@ -57,7 +57,7 @@ export class CustomerBranchesService {
     const { data: branch, error } = await sb
       .from('branches')
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .eq('id', branchId)
       .single();
@@ -108,6 +108,7 @@ export class CustomerBranchesService {
   async getMyBranches(
     userId: string,
     brandId: string | undefined,
+    includeInactive: boolean,
     brandMemberships: BrandMembership[],
     branchMemberships: BranchMembership[],
   ) {
@@ -120,13 +121,20 @@ export class CustomerBranchesService {
       );
       this.checkBrandAccess(brandId, brandMemberships);
 
-      const { data, error } = await sb
+      let query = sb
         .from('branches')
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
-        .eq('brand_id', brandId)
-        .order('created_at', { ascending: false });
+        .eq('brand_id', brandId);
+
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error } = await query.order('created_at', {
+        ascending: false,
+      });
 
       if (error) {
         this.logger.error(
@@ -153,13 +161,20 @@ export class CustomerBranchesService {
 
     // 브랜드 멤버십으로 접근 가능한 지점
     if (accessibleBrandIds.length > 0) {
-      const { data: brandBranches, error } = await sb
+      let query = sb
         .from('branches')
         .select(
-          'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
         )
-        .in('brand_id', accessibleBrandIds)
-        .order('created_at', { ascending: false });
+        .in('brand_id', accessibleBrandIds);
+
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data: brandBranches, error } = await query.order('created_at', {
+        ascending: false,
+      });
 
       if (!error && brandBranches) {
         data = brandBranches;
@@ -174,13 +189,20 @@ export class CustomerBranchesService {
       );
 
       if (missingIds.length > 0) {
-        const { data: branchData, error } = await sb
+        let query = sb
           .from('branches')
           .select(
-            'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+            'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
           )
-          .in('id', missingIds)
-          .order('created_at', { ascending: false });
+          .in('id', missingIds);
+
+        if (!includeInactive) {
+          query = query.eq('is_active', true);
+        }
+
+        const { data: branchData, error } = await query.order('created_at', {
+          ascending: false,
+        });
 
         if (!error && branchData) {
           data = [...data, ...branchData];
@@ -224,9 +246,14 @@ export class CustomerBranchesService {
         id: branch.id,
         brandId: branch.brand_id,
         name: branch.name,
+        isActive: branch.is_active ?? true,
         slug: branch.slug,
         logoUrl: branch.logo_url ?? null,
         thumbnailUrl: branch.thumbnail_url ?? null,
+        contactPhone: branch.contact_phone ?? null,
+        depositSheetName: branch.deposit_sheet_name ?? null,
+        depositSheetUrl: branch.deposit_sheet_url ?? null,
+        kakaoChannelUrl: branch.kakao_channel_url ?? null,
         createdAt: branch.created_at,
         myRole: branchRole || brandRole || null,
       };
@@ -258,6 +285,7 @@ export class CustomerBranchesService {
       id: branch.id,
       brandId: branch.brand_id,
       name: branch.name,
+      isActive: branch.is_active ?? true,
       slug: branch.slug,
       logoUrl: branch.logo_url ?? null,
       coverImageUrl: branch.cover_image_url ?? null,
@@ -268,6 +296,10 @@ export class CustomerBranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: branch.contact_phone ?? null,
+      depositSheetName: branch.deposit_sheet_name ?? null,
+      depositSheetUrl: branch.deposit_sheet_url ?? null,
+      kakaoChannelUrl: branch.kakao_channel_url ?? null,
       createdAt: branch.created_at,
       myRole: branchMembership?.role || brandMembership?.role,
     };
@@ -303,12 +335,20 @@ export class CustomerBranchesService {
     if (dto.logoUrl) insertPayload.logo_url = dto.logoUrl;
     if (dto.coverImageUrl) insertPayload.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl) insertPayload.thumbnail_url = dto.thumbnailUrl;
+    if (dto.contactPhone !== undefined)
+      insertPayload.contact_phone = dto.contactPhone;
+    if (dto.depositSheetName !== undefined)
+      insertPayload.deposit_sheet_name = dto.depositSheetName?.trim() || null;
+    if (dto.depositSheetUrl !== undefined)
+      insertPayload.deposit_sheet_url = dto.depositSheetUrl?.trim() || null;
+    if (dto.kakaoChannelUrl !== undefined)
+      insertPayload.kakao_channel_url = dto.kakaoChannelUrl;
 
     const { data, error } = await sb
       .from('branches')
       .insert(insertPayload)
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .single();
 
@@ -341,6 +381,7 @@ export class CustomerBranchesService {
       id: data.id,
       brandId: data.brand_id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
@@ -351,6 +392,10 @@ export class CustomerBranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at,
       myRole: membership.role,
     };
@@ -388,6 +433,7 @@ export class CustomerBranchesService {
 
     // 수정 가능한 필드만 허용
     const updateFields: any = {};
+    if (dto.isActive !== undefined) updateFields.is_active = dto.isActive;
     if (dto.name !== undefined) updateFields.name = dto.name;
     if (dto.slug !== undefined) updateFields.slug = dto.slug;
     if (dto.logoUrl !== undefined) updateFields.logo_url = dto.logoUrl;
@@ -395,6 +441,14 @@ export class CustomerBranchesService {
       updateFields.cover_image_url = dto.coverImageUrl;
     if (dto.thumbnailUrl !== undefined)
       updateFields.thumbnail_url = dto.thumbnailUrl;
+    if (dto.contactPhone !== undefined)
+      updateFields.contact_phone = dto.contactPhone;
+    if (dto.depositSheetName !== undefined)
+      updateFields.deposit_sheet_name = dto.depositSheetName?.trim() || null;
+    if (dto.depositSheetUrl !== undefined)
+      updateFields.deposit_sheet_url = dto.depositSheetUrl?.trim() || null;
+    if (dto.kakaoChannelUrl !== undefined)
+      updateFields.kakao_channel_url = dto.kakaoChannelUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
       dto.allowedPaymentMethods !== undefined ||
@@ -427,7 +481,7 @@ export class CustomerBranchesService {
       .update(updateFields)
       .eq('id', branchId)
       .select(
-        'id, brand_id, name, slug, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, brand_id, name, slug, is_active, logo_url, cover_image_url, thumbnail_url, contact_phone, deposit_sheet_name, deposit_sheet_url, kakao_channel_url, created_at',
       )
       .single();
 
@@ -457,6 +511,7 @@ export class CustomerBranchesService {
       id: data.id,
       brandId: data.brand_id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
@@ -467,6 +522,10 @@ export class CustomerBranchesService {
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
       orderNotice: orderConfig.orderNotice,
+      contactPhone: data.contact_phone ?? null,
+      depositSheetName: data.deposit_sheet_name ?? null,
+      depositSheetUrl: data.deposit_sheet_url ?? null,
+      kakaoChannelUrl: data.kakao_channel_url ?? null,
       createdAt: data.created_at,
       myRole: role,
     };
@@ -501,14 +560,25 @@ export class CustomerBranchesService {
 
     const sb = this.supabase.adminClient();
 
-    const { error } = await sb.from('branches').delete().eq('id', branchId);
+    const { error } = await sb
+      .from('branches')
+      .update({ is_active: false })
+      .eq('id', branchId);
 
     if (error) {
+      this.logger.error(`Failed to deactivate branch ${branchId}`, error);
+      throw new Error('Failed to delete branch');
+    }
+
+    if (error) {
+      if ((error as any).code === '23503') {
+        throw new Error('주문 이력이 있는 지점은 삭제할 수 없습니다.');
+      }
       this.logger.error(`Failed to delete branch ${branchId}`, error);
       throw new Error('Failed to delete branch');
     }
 
-    this.logger.log(`Branch ${branchId} deleted successfully`);
+    this.logger.log(`Branch ${branchId} deactivated successfully`);
 
     return { deleted: true };
   }

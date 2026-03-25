@@ -2,6 +2,7 @@
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import {
@@ -10,15 +11,65 @@ import {
   CreateBrandRequest,
   UpdateBrandRequest,
 } from './dto/brand.dto';
+import { CashReceiptOnboardingService } from '../cash-receipts/cash-receipt-onboarding.service';
 
 @Injectable()
 export class BrandsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    @Optional()
+    private readonly cashReceiptOnboardingService?: CashReceiptOnboardingService,
+  ) {}
 
   private getClient(accessToken: string, isAdmin?: boolean) {
     return isAdmin
       ? this.supabase.adminClient()
       : this.supabase.userClient(accessToken);
+  }
+
+  private shouldRevalidateCashReceipt(dto: UpdateBrandRequest): boolean {
+    return [
+      'bizName',
+      'bizRegNo',
+      'repName',
+      'address',
+      'cashReceiptEnabled',
+      'cashReceiptProvider',
+      'cashReceiptMerchantId',
+      'cashReceiptContactName',
+      'cashReceiptContactPhone',
+    ].some((key) => key in dto);
+  }
+
+  private async resolveCashReceiptConfig(
+    ownerUserId: string,
+    draft: {
+      biz_name?: string | null;
+      biz_reg_no?: string | null;
+      rep_name?: string | null;
+      address?: string | null;
+      cash_receipt_enabled?: boolean | null;
+      cash_receipt_provider?: string | null;
+      cash_receipt_merchant_id?: string | null;
+      cash_receipt_contact_name?: string | null;
+      cash_receipt_contact_phone?: string | null;
+    },
+  ): Promise<Record<string, unknown>> {
+    if (!this.cashReceiptOnboardingService) {
+      return {};
+    }
+
+    const resolved =
+      await this.cashReceiptOnboardingService.resolveBrandCashReceiptConfig(
+        ownerUserId,
+        draft,
+      );
+
+    return {
+      cash_receipt_enabled: resolved.cash_receipt_enabled ?? false,
+      cash_receipt_provider: resolved.cash_receipt_provider ?? null,
+      cash_receipt_merchant_id: resolved.cash_receipt_merchant_id ?? null,
+    };
   }
 
   /**
@@ -96,7 +147,7 @@ export class BrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, logo_url, cover_image_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -119,6 +170,14 @@ export class BrandsService {
       repName: data.rep_name ?? null,
       address: data.address ?? null,
       bizCertUrl: data.biz_cert_url ?? null,
+      cashReceiptEnabled: data.cash_receipt_enabled ?? false,
+      cashReceiptProvider: data.cash_receipt_provider ?? null,
+      cashReceiptMerchantId: data.cash_receipt_merchant_id ?? null,
+      cashReceiptIssueTiming: data.cash_receipt_issue_timing ?? null,
+      cashReceiptSelfIssueEnabled:
+        data.cash_receipt_self_issue_enabled ?? false,
+      cashReceiptContactName: data.cash_receipt_contact_name ?? null,
+      cashReceiptContactPhone: data.cash_receipt_contact_phone ?? null,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       createdAt: data.created_at ?? '',
@@ -158,23 +217,46 @@ export class BrandsService {
       );
     }
 
-    // 2) brands insert (RLS bypass)
-    const { data: brand, error: brandError } = await adminSb
-      .from('brands')
-      .insert({
-        name: dto.name,
-        slug: dto.slug ?? null,
-        owner_user_id: userId,
+    const insertPayload: Record<string, unknown> = {
+      name: dto.name,
+      slug: dto.slug ?? null,
+      owner_user_id: userId,
+      biz_name: dto.bizName ?? null,
+      biz_reg_no: dto.bizRegNo ?? null,
+      rep_name: dto.repName ?? null,
+      address: dto.address ?? null,
+      biz_cert_url: dto.bizCertUrl ?? null,
+      cash_receipt_enabled: dto.cashReceiptEnabled ?? false,
+      cash_receipt_provider: dto.cashReceiptProvider ?? null,
+      cash_receipt_merchant_id: dto.cashReceiptMerchantId ?? null,
+      cash_receipt_issue_timing: dto.cashReceiptIssueTiming ?? null,
+      cash_receipt_self_issue_enabled: dto.cashReceiptSelfIssueEnabled ?? false,
+      cash_receipt_contact_name: dto.cashReceiptContactName ?? null,
+      cash_receipt_contact_phone: dto.cashReceiptContactPhone ?? null,
+      logo_url: dto.logoUrl ?? null,
+      cover_image_url: dto.coverImageUrl ?? null,
+    };
+    Object.assign(
+      insertPayload,
+      await this.resolveCashReceiptConfig(userId, {
         biz_name: dto.bizName ?? null,
         biz_reg_no: dto.bizRegNo ?? null,
         rep_name: dto.repName ?? null,
         address: dto.address ?? null,
-        biz_cert_url: dto.bizCertUrl ?? null,
-        logo_url: dto.logoUrl ?? null,
-        cover_image_url: dto.coverImageUrl ?? null,
-      })
+        cash_receipt_enabled: dto.cashReceiptEnabled ?? false,
+        cash_receipt_provider: dto.cashReceiptProvider ?? null,
+        cash_receipt_merchant_id: dto.cashReceiptMerchantId ?? null,
+        cash_receipt_contact_name: dto.cashReceiptContactName ?? null,
+        cash_receipt_contact_phone: dto.cashReceiptContactPhone ?? null,
+      }),
+    );
+
+    // 2) brands insert (RLS bypass)
+    const { data: brand, error: brandError } = await adminSb
+      .from('brands')
+      .insert(insertPayload)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, logo_url, cover_image_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -209,6 +291,14 @@ export class BrandsService {
       repName: brand.rep_name ?? null,
       address: brand.address ?? null,
       bizCertUrl: brand.biz_cert_url ?? null,
+      cashReceiptEnabled: brand.cash_receipt_enabled ?? false,
+      cashReceiptProvider: brand.cash_receipt_provider ?? null,
+      cashReceiptMerchantId: brand.cash_receipt_merchant_id ?? null,
+      cashReceiptIssueTiming: brand.cash_receipt_issue_timing ?? null,
+      cashReceiptSelfIssueEnabled:
+        brand.cash_receipt_self_issue_enabled ?? false,
+      cashReceiptContactName: brand.cash_receipt_contact_name ?? null,
+      cashReceiptContactPhone: brand.cash_receipt_contact_phone ?? null,
       createdAt: brand.created_at ?? '',
     };
   }
@@ -231,14 +321,33 @@ export class BrandsService {
     if (dto.repName !== undefined) updateData.rep_name = dto.repName;
     if (dto.address !== undefined) updateData.address = dto.address;
     if (dto.bizCertUrl !== undefined) updateData.biz_cert_url = dto.bizCertUrl;
+    if (dto.cashReceiptEnabled !== undefined) {
+      updateData.cash_receipt_enabled = dto.cashReceiptEnabled;
+    }
+    if (dto.cashReceiptProvider !== undefined) {
+      updateData.cash_receipt_provider = dto.cashReceiptProvider;
+    }
+    if (dto.cashReceiptMerchantId !== undefined) {
+      updateData.cash_receipt_merchant_id = dto.cashReceiptMerchantId;
+    }
+    if (dto.cashReceiptIssueTiming !== undefined) {
+      updateData.cash_receipt_issue_timing = dto.cashReceiptIssueTiming;
+    }
+    if (dto.cashReceiptSelfIssueEnabled !== undefined) {
+      updateData.cash_receipt_self_issue_enabled =
+        dto.cashReceiptSelfIssueEnabled;
+    }
+    if (dto.cashReceiptContactName !== undefined) {
+      updateData.cash_receipt_contact_name = dto.cashReceiptContactName;
+    }
+    if (dto.cashReceiptContactPhone !== undefined) {
+      updateData.cash_receipt_contact_phone = dto.cashReceiptContactPhone;
+    }
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
     if (dto.coverImageUrl !== undefined)
       updateData.cover_image_url = dto.coverImageUrl;
-    if (Object.keys(updateData).length === 0) {
-      return this.getBrand(accessToken, brandId, isAdmin);
-    }
-
     const adminSb = this.supabase.adminClient();
+    let existingBrand: any = null;
 
     if (!isAdmin) {
       const userSb = this.supabase.userClient(accessToken);
@@ -264,12 +373,57 @@ export class BrandsService {
       }
     }
 
+    if (
+      this.cashReceiptOnboardingService &&
+      this.shouldRevalidateCashReceipt(dto)
+    ) {
+      const { data: existingBrandData, error: existingBrandError } =
+        await adminSb
+          .from('brands')
+          .select(
+            'id, owner_user_id, biz_name, biz_reg_no, rep_name, address, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_contact_name, cash_receipt_contact_phone',
+          )
+          .eq('id', brandId)
+          .single();
+
+      if (existingBrandError || !existingBrandData) {
+        throw new NotFoundException('브랜드를 찾을 수 없습니다.');
+      }
+
+      existingBrand = existingBrandData;
+      Object.assign(
+        updateData,
+        await this.resolveCashReceiptConfig(existingBrand.owner_user_id, {
+          biz_name: dto.bizName ?? existingBrand.biz_name,
+          biz_reg_no: dto.bizRegNo ?? existingBrand.biz_reg_no,
+          rep_name: dto.repName ?? existingBrand.rep_name,
+          address: dto.address ?? existingBrand.address,
+          cash_receipt_enabled:
+            dto.cashReceiptEnabled ?? existingBrand.cash_receipt_enabled,
+          cash_receipt_provider:
+            dto.cashReceiptProvider ?? existingBrand.cash_receipt_provider,
+          cash_receipt_merchant_id:
+            dto.cashReceiptMerchantId ?? existingBrand.cash_receipt_merchant_id,
+          cash_receipt_contact_name:
+            dto.cashReceiptContactName ??
+            existingBrand.cash_receipt_contact_name,
+          cash_receipt_contact_phone:
+            dto.cashReceiptContactPhone ??
+            existingBrand.cash_receipt_contact_phone,
+        }),
+      );
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getBrand(accessToken, brandId, isAdmin);
+    }
+
     const { data, error } = await adminSb
       .from('brands')
       .update(updateData)
       .eq('id', brandId)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, logo_url, cover_image_url, created_at',
+        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .maybeSingle();
 
@@ -291,6 +445,14 @@ export class BrandsService {
       repName: data.rep_name ?? null,
       address: data.address ?? null,
       bizCertUrl: data.biz_cert_url ?? null,
+      cashReceiptEnabled: data.cash_receipt_enabled ?? false,
+      cashReceiptProvider: data.cash_receipt_provider ?? null,
+      cashReceiptMerchantId: data.cash_receipt_merchant_id ?? null,
+      cashReceiptIssueTiming: data.cash_receipt_issue_timing ?? null,
+      cashReceiptSelfIssueEnabled:
+        data.cash_receipt_self_issue_enabled ?? false,
+      cashReceiptContactName: data.cash_receipt_contact_name ?? null,
+      cashReceiptContactPhone: data.cash_receipt_contact_phone ?? null,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
       createdAt: data.created_at ?? '',

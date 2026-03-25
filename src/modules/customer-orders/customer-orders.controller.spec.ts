@@ -48,6 +48,10 @@ describe('CustomerOrdersController', () => {
     const result = await controller.getOrders(makeReq(), {
       branchId: 'branch-1',
       status: 'COMPLETED',
+      fulfillmentType: 'DELIVERY',
+      dateStart: '2026-03-01',
+      dateEnd: '2026-03-21',
+      search: '김한나',
       page: 1,
       limit: 10,
     } as any);
@@ -60,9 +64,11 @@ describe('CustomerOrdersController', () => {
       [],
       { page: 1, limit: 10 },
       'COMPLETED',
+      'DELIVERY',
+      '2026-03-01',
+      '2026-03-21',
       undefined,
-      undefined,
-      undefined,
+      '김한나',
     );
   });
 
@@ -93,6 +99,8 @@ describe('CustomerOrdersController', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
     );
   });
 
@@ -119,18 +127,18 @@ describe('CustomerOrdersController', () => {
   it('updateOrderStatus should call service and return result', async () => {
     mockService.updateMyOrderStatus.mockResolvedValue({
       id: 'order-1',
-      status: 'DONE',
+      status: 'READY',
     });
 
     const result = await controller.updateOrderStatus(makeReq(), 'order-1', {
-      status: 'DONE',
+      status: 'READY',
     } as any);
 
-    expect(result).toEqual({ id: 'order-1', status: 'DONE' });
+    expect(result).toEqual({ id: 'order-1', status: 'READY' });
     expect(mockService.updateMyOrderStatus).toHaveBeenCalledWith(
       'user-1',
       'order-1',
-      'DONE',
+      'READY',
       [],
       [],
     );
@@ -139,7 +147,7 @@ describe('CustomerOrdersController', () => {
   it('updateOrderStatus should throw when user is missing', async () => {
     await expect(
       controller.updateOrderStatus(makeReq({ user: undefined }), 'order-1', {
-        status: 'DONE',
+        status: 'READY',
       } as any),
     ).rejects.toThrow('Missing user');
   });
@@ -208,6 +216,8 @@ describe('CustomerOrdersController', () => {
           undefined,
           undefined,
           undefined,
+          undefined,
+          undefined,
         ),
     },
     {
@@ -235,7 +245,7 @@ describe('CustomerOrdersController', () => {
       setup: () =>
         mockService.updateMyOrderStatus.mockResolvedValueOnce({
           id: 'order-1',
-          status: 'DONE',
+          status: 'READY',
         }),
       call: () =>
         controller.updateOrderStatus(
@@ -244,13 +254,13 @@ describe('CustomerOrdersController', () => {
             branchMemberships: undefined,
           }),
           'order-1',
-          { status: 'DONE' } as any,
+          { status: 'READY' } as any,
         ),
       expectCall: () =>
         expect(mockService.updateMyOrderStatus).toHaveBeenCalledWith(
           'user-1',
           'order-1',
-          'DONE',
+          'READY',
           [],
           [],
         ),

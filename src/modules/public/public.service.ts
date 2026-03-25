@@ -43,6 +43,7 @@ export class PublicService {
       `,
       )
       .eq('id', branchId)
+      .eq('is_active', true)
       .single();
 
     if (error || !data) {
@@ -205,6 +206,19 @@ export class PublicService {
         total_amount: totalAmount,
         status: 'CREATED',
         payment_status: 'PENDING',
+        cash_receipt_requested: dto.cashReceipt?.requested === true,
+        cash_receipt_type:
+          dto.cashReceipt?.requested === true
+            ? (dto.cashReceipt.type ?? null)
+            : null,
+        cash_receipt_identity_type:
+          dto.cashReceipt?.requested === true
+            ? (dto.cashReceipt.identityType ?? null)
+            : null,
+        cash_receipt_identity_value:
+          dto.cashReceipt?.requested === true
+            ? (dto.cashReceipt.identityValue ?? null)
+            : null,
       })
       .select('id, order_no, status, total_amount, created_at')
       .single();

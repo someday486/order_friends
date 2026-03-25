@@ -1,11 +1,16 @@
-﻿'use client';
+'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 import { AuthEntryFooter } from '@/components/auth/AuthEntryFooter';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+
+function isOrderLoginPath(value: string) {
+  return value.startsWith('/order/');
+}
 
 export default function LoginClient({
   next,
@@ -17,6 +22,7 @@ export default function LoginClient({
   const router = useRouter();
   const { status } = useAuth();
   const signupHref = `/signup?next=${encodeURIComponent(next)}`;
+  const isOrderLogin = isOrderLoginPath(next);
 
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -54,7 +60,9 @@ export default function LoginClient({
             OrderFriends
           </h1>
           <p className="text-sm text-text-secondary mt-2">
-            계정으로 로그인해 주세요
+            {isOrderLogin
+              ? '주문을 계속하려면 카카오 로그인이 필요해요'
+              : '계정으로 로그인해 주세요'}
           </p>
         </div>
 
@@ -64,7 +72,26 @@ export default function LoginClient({
               회원가입이 완료되었습니다. 이메일 확인 후 로그인해 주세요.
             </div>
           ) : null}
-          <LoginForm redirectTo={next} />
+          {isOrderLogin ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-bg-secondary px-4 py-4">
+                <div className="text-sm font-semibold text-foreground">
+                  카카오 로그인으로 주문을 이어갈 수 있어요
+                </div>
+                <p className="mt-1 text-xs leading-5 text-text-secondary">
+                  잠시 후 카카오 로그인 화면으로 이동하며, 원하지 않으면 아래
+                  버튼으로 직접 진행할 수 있어요.
+                </p>
+              </div>
+              <KakaoQuickLoginButton
+                redirectPath={next}
+                autoStart
+                className="w-full"
+              />
+            </div>
+          ) : (
+            <LoginForm redirectTo={next} />
+          )}
           <AuthEntryFooter mode="login" signupHref={signupHref} />
         </div>
       </div>

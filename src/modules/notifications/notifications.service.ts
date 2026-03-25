@@ -357,8 +357,8 @@ export class NotificationsService {
     return this.sendKakaoTalkMessage(phone, {
       message: '주문이 완료되었습니다.',
       templateCode: this.resolveOrderCompletionTemplateCode(data),
-      variables: this.buildOrderCompletionVariables(data),
-      buttons: this.buildOrderCompletionButtons(data),
+      variables: this.buildOrderCompletionVariables(orderId, data),
+      buttons: this.buildOrderCompletionButtons(orderId),
       disableSms: true,
     });
   }
@@ -452,15 +452,16 @@ export class NotificationsService {
   }
 
   private buildOrderCompletionVariables(
+    orderId: string,
     data: OrderCompletionKakaoData,
   ): Record<string, string> {
     const deliveryAddress =
-      data.fulfillmentType === 'DELIVERY'
+      data.fulfillmentType === 'DELIVERY' || data.fulfillmentType === 'SHIPPING'
         ? data.deliveryAddress?.trim() || '-'
         : '매장 수령';
     const orderReference = data.orderNo || '주문';
-    const orderTrackingUrl = this.buildOrderTrackingUrl(orderReference);
-    const orderTrackingPath = this.buildOrderTrackingPath(orderReference);
+    const orderTrackingUrl = this.buildOrderTrackingUrl(orderId);
+    const orderTrackingPath = this.buildOrderTrackingPath(orderId);
     const bankName = data.transferAccount?.bankName?.trim() || '-';
     const accountNumber = data.transferAccount?.accountNumber?.trim() || '-';
     const accountHolder = data.transferAccount?.accountHolder?.trim() || '-';
@@ -483,14 +484,13 @@ export class NotificationsService {
     };
   }
 
-  private buildOrderCompletionButtons(data: OrderCompletionKakaoData): Array<{
+  private buildOrderCompletionButtons(orderId: string): Array<{
     buttonName: string;
     buttonType: string;
     linkMo: string;
     linkPc: string;
   }> {
-    const orderReference = data.orderNo || '주문';
-    const orderTrackingUrl = this.buildOrderTrackingUrl(orderReference);
+    const orderTrackingUrl = this.buildOrderTrackingUrl(orderId);
 
     return [
       {
@@ -535,6 +535,8 @@ export class NotificationsService {
         return '배달';
       case 'DINE_IN':
         return '매장식사';
+      case 'SHIPPING':
+        return '택배';
       case 'PICKUP':
       default:
         return '포장';

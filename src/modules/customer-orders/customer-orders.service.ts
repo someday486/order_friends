@@ -17,13 +17,94 @@ import {
   OrderItemResponse,
 } from '../../modules/orders/dto/order-detail.response';
 import { canModifyOrder } from '../../common/utils/role-permission.util';
+import { PaymentsService } from '../payments/payments.service';
+import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
 
 @Injectable()
 export class CustomerOrdersService {
   private readonly logger = new Logger(CustomerOrdersService.name);
   private static readonly ITEMS_SUMMARY_LIMIT = 6;
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
+
+  private async releaseInventoryForCancelledOrder(
+    sb: any,
+    orderId: string,
+    branchId: string,
+    orderNo: string | null,
+  ) {
+    try {
+      const { data: orderItems } = await sb
+        .from('order_items')
+        .select('product_id, qty')
+        .eq('order_id', orderId);
+
+      if (!orderItems || orderItems.length === 0) {
+        return;
+      }
+
+      const productIds = orderItems.map((item: any) => item.product_id);
+      const { data: inventories } = await sb
+        .from('product_inventory')
+        .select('product_id, qty_available, qty_reserved')
+        .in('product_id', productIds)
+        .eq('branch_id', branchId);
+
+      const inventoryMap = new Map<string, any>(
+        inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
+      );
+
+      const updatePromises: PromiseLike<any>[] = [];
+      const logRows: any[] = [];
+
+      for (const item of orderItems) {
+        const inventory = inventoryMap.get(item.product_id) as
+          | { qty_available: number; qty_reserved: number }
+          | undefined;
+        if (!inventory) continue;
+
+        updatePromises.push(
+          sb
+            .from('product_inventory')
+            .update({
+              qty_available: inventory.qty_available + item.qty,
+              qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+            })
+            .eq('product_id', item.product_id)
+            .eq('branch_id', branchId),
+        );
+
+        logRows.push({
+          product_id: item.product_id,
+          branch_id: branchId,
+          transaction_type: 'RELEASE',
+          qty_change: item.qty,
+          qty_before: inventory.qty_available,
+          qty_after: inventory.qty_available + item.qty,
+          reference_id: orderId,
+          reference_type: 'ORDER',
+          notes: `주문 취소로 인한 재고 복구 (주문번호: ${orderNo ?? '-'})`,
+        });
+      }
+
+      await Promise.all([
+        ...updatePromises,
+        logRows.length > 0
+          ? sb.from('inventory_logs').insert(logRows)
+          : Promise.resolve(),
+      ]);
+
+      this.logger.log(`Inventory released for cancelled order: ${orderNo}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to release inventory for cancelled order ${orderId}`,
+        error,
+      );
+    }
+  }
 
   /**
    * UUID 여부 확인
@@ -56,6 +137,154 @@ export class CustomerOrdersService {
     if (branchId) noQuery = noQuery.eq('branch_id', branchId);
     const byNo = await noQuery.maybeSingle();
     if (!byNo.error && byNo.data?.id) return byNo.data.id;
+
+    return null;
+  }
+
+  private async getDepositMatchStatusMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, DepositMatchStatus>> {
+    const map = new Map<string, DepositMatchStatus>();
+    if (orderIds.length === 0) return map;
+
+    const { data, error } = await sb
+      .from('deposit_match_rows')
+      .select('matched_order_id')
+      .in('matched_order_id', orderIds)
+      .eq('match_status', 'MATCHED');
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load deposit match rows for customer orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.matched_order_id ?? '');
+      if (orderId) {
+        map.set(orderId, 'AUTO_MATCHED');
+      }
+    }
+
+    return map;
+  }
+
+  private async getPaymentMethodMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>> {
+    const map = new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
+    if (orderIds.length === 0) return map;
+
+    const { data, error } = await sb
+      .from('payments')
+      .select('order_id, payment_method')
+      .in('order_id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load payment methods for customer orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.order_id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(
+        orderId,
+        this.normalizeOrderPaymentMethod(row?.payment_method ?? null),
+      );
+    }
+
+    return map;
+  }
+
+  private getOrderPaymentMethodMap(
+    _sb: any,
+    _orderIds: string[],
+  ): Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null> {
+    // Some databases in this project do not have orders.payment_method,
+    // so we keep the fallback path as a no-op and rely on payments rows.
+    void _sb;
+    void _orderIds;
+    return new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
+  }
+
+  private async getPaymentStatusMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, string | null>> {
+    const map = new Map<string, string | null>();
+    if (orderIds.length === 0) return map;
+
+    const { data, error } = await sb
+      .from('payments')
+      .select('order_id, status')
+      .in('order_id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load payment statuses for customer orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.order_id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(orderId, (row?.status as string | null | undefined) ?? null);
+    }
+
+    return map;
+  }
+
+  private async getBranchNameMap(
+    sb: any,
+    branchIds: string[],
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (branchIds.length === 0) return map;
+
+    const { data, error } = await sb
+      .from('branches')
+      .select('id, name')
+      .in('id', branchIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load branch names for customer orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const branchId = String(row?.id ?? '');
+      if (!branchId) {
+        continue;
+      }
+      map.set(branchId, String(row?.name ?? ''));
+    }
+
+    return map;
+  }
+
+  private normalizeOrderPaymentMethod(
+    paymentMethod: string | null | undefined,
+  ): 'CARD' | 'TRANSFER' | 'CASH' | null {
+    if (
+      paymentMethod === 'CARD' ||
+      paymentMethod === 'TRANSFER' ||
+      paymentMethod === 'CASH'
+    ) {
+      return paymentMethod;
+    }
 
     return null;
   }
@@ -204,8 +433,12 @@ export class CustomerOrdersService {
   /**
    * YYYY-MM-DD → 다음날 00:00:00.000Z (lt 조건용)
    */
-  private addOneDayUtc(dateYmd: string): string {
-    const d = new Date(`${dateYmd}T00:00:00.000Z`);
+  private getKstDayStartUtc(dateYmd: string): string {
+    return new Date(`${dateYmd}T00:00:00+09:00`).toISOString();
+  }
+
+  private getNextKstDayStartUtc(dateYmd: string): string {
+    const d = new Date(`${dateYmd}T00:00:00+09:00`);
     d.setUTCDate(d.getUTCDate() + 1);
     return d.toISOString();
   }
@@ -220,9 +453,11 @@ export class CustomerOrdersService {
     branchMemberships: BranchMembership[],
     paginationDto: PaginationDto = {},
     status?: OrderStatus,
-    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN',
+    fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING',
     dateStart?: string,
     dateEnd?: string,
+    depositStatus?: DepositMatchStatus,
+    search?: string,
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -250,6 +485,208 @@ export class CustomerOrdersService {
     const { page = 1, limit = 20 } = paginationDto;
     const sb = this.supabase.adminClient();
     const { from, to } = PaginationUtil.getRange(page, limit);
+    const normalizedSearch = search?.trim().toLowerCase() || undefined;
+
+    if (depositStatus || normalizedSearch) {
+      let filteredQuery = sb
+        .from('orders')
+        .select(
+          'id, order_no, status, created_at, total_amount, customer_name, branch_id, fulfillment_type',
+        )
+        .in('branch_id', targetBranchIds);
+
+      if (status) {
+        filteredQuery = filteredQuery.eq('status', status);
+      }
+      if (fulfillmentType) {
+        filteredQuery = filteredQuery.eq('fulfillment_type', fulfillmentType);
+      }
+      if (dateStart) {
+        filteredQuery = filteredQuery.gte(
+          'created_at',
+          this.getKstDayStartUtc(dateStart),
+        );
+      }
+      if (dateEnd) {
+        filteredQuery = filteredQuery.lt(
+          'created_at',
+          this.getNextKstDayStartUtc(dateEnd),
+        );
+      }
+
+      const { data: candidateRows, error: filteredError } =
+        await filteredQuery.order('created_at', { ascending: false });
+
+      if (filteredError) {
+        this.logger.error('Failed to fetch orders', filteredError);
+        throw new Error('Failed to fetch orders');
+      }
+
+      const candidateOrderIds = (candidateRows ?? []).map((row: any) =>
+        String(row.id),
+      );
+      const paymentMethodMap = await this.getPaymentMethodMap(
+        sb,
+        candidateOrderIds,
+      );
+      const orderPaymentMethodMap = this.getOrderPaymentMethodMap(
+        sb,
+        candidateOrderIds,
+      );
+      const depositMatchStatusMap = await this.getDepositMatchStatusMap(
+        sb,
+        candidateOrderIds,
+      );
+      const itemSummaryMap = new Map<
+        string,
+        {
+          itemCount: number;
+          firstItemName: string | null;
+          firstItemQty: number | null;
+          itemsSummary: string;
+        }
+      >();
+
+      if (candidateOrderIds.length > 0) {
+        const { data: orderItems, error: orderItemsError } = await sb
+          .from('order_items')
+          .select('order_id, product_name_snapshot, qty')
+          .in('order_id', candidateOrderIds);
+
+        if (orderItemsError) {
+          this.logger.error(
+            'Failed to fetch order item summaries',
+            orderItemsError,
+          );
+          throw new Error('Failed to fetch order item summaries');
+        }
+
+        const groupedItems = new Map<
+          string,
+          { product_name_snapshot?: string | null; qty?: number | null }[]
+        >();
+
+        for (const item of orderItems ?? []) {
+          const current = groupedItems.get(item.order_id);
+          if (current) {
+            current.push(item);
+            continue;
+          }
+          groupedItems.set(item.order_id, [item]);
+        }
+
+        for (const [orderId, items] of groupedItems.entries()) {
+          const firstItem = items[0];
+          const summaryParts = items
+            .slice(0, CustomerOrdersService.ITEMS_SUMMARY_LIMIT)
+            .map((item) =>
+              `${item.product_name_snapshot ?? ''} ${item.qty ?? 0}`.trim(),
+            )
+            .filter(Boolean);
+          const remainingCount =
+            items.length - CustomerOrdersService.ITEMS_SUMMARY_LIMIT;
+          const itemsSummary =
+            remainingCount > 0
+              ? `${summaryParts.join(', ')}, +${remainingCount}`
+              : summaryParts.join(', ');
+
+          itemSummaryMap.set(orderId, {
+            itemCount: items.length,
+            firstItemName: firstItem?.product_name_snapshot ?? null,
+            firstItemQty: firstItem?.qty ?? null,
+            itemsSummary,
+          });
+        }
+      }
+
+      const filteredRows = (candidateRows ?? []).filter((row: any) => {
+        const orderId = String(row.id);
+        const paymentMethod =
+          orderPaymentMethodMap.get(orderId) ??
+          paymentMethodMap.get(orderId) ??
+          null;
+
+        if (normalizedSearch) {
+          const summary = itemSummaryMap.get(orderId);
+          const haystack = [
+            row.order_no ?? '',
+            row.customer_name ?? '',
+            summary?.firstItemName ?? '',
+            summary?.itemsSummary ?? '',
+          ]
+            .join(' ')
+            .toLowerCase();
+
+          if (!haystack.includes(normalizedSearch)) {
+            return false;
+          }
+        }
+
+        if (depositStatus) {
+          if (paymentMethod !== 'TRANSFER') {
+            return false;
+          }
+
+          const resolvedDepositStatus =
+            depositMatchStatusMap.get(orderId) ?? 'PENDING';
+          return resolvedDepositStatus === depositStatus;
+        }
+
+        return true;
+      });
+
+      const pagedRows = filteredRows.slice(from, to + 1);
+      const orderIds = pagedRows.map((row: any) => row.id);
+      const branchNameMap = await this.getBranchNameMap(
+        sb,
+        Array.from(
+          new Set(
+            pagedRows
+              .map((row: any) => String(row?.branch_id ?? ''))
+              .filter(Boolean),
+          ),
+        ),
+      );
+      const paymentStatusMap = await this.getPaymentStatusMap(sb, orderIds);
+
+      const orders = pagedRows.map((row: any) => {
+        const orderId = String(row.id);
+        const paymentMethod =
+          orderPaymentMethodMap.get(orderId) ??
+          paymentMethodMap.get(orderId) ??
+          null;
+
+        return {
+          id: row.id,
+          orderNo: row.order_no ?? null,
+          orderedAt: row.created_at ?? '',
+          customerName: row.customer_name ?? '',
+          totalAmount: row.total_amount ?? 0,
+          branchId: row.branch_id,
+          branchName:
+            branchNameMap.get(String(row.branch_id ?? '')) ??
+            row.branches?.name ??
+            '',
+          fulfillmentType: row.fulfillment_type ?? null,
+          itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
+          firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
+          firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
+          itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
+          status: row.status as OrderStatus,
+          paymentMethod,
+          paymentStatus: paymentStatusMap.get(orderId) ?? null,
+          depositMatchStatus: depositMatchStatusMap.get(orderId) ?? 'PENDING',
+        };
+      });
+
+      this.logger.log(`Fetched ${orders.length} orders`);
+
+      return PaginationUtil.createResponse(
+        orders,
+        filteredRows.length,
+        paginationDto,
+      );
+    }
 
     // 총 개수 조회
     let countQuery = sb
@@ -264,10 +701,16 @@ export class CustomerOrdersService {
       countQuery = countQuery.eq('fulfillment_type', fulfillmentType);
     }
     if (dateStart) {
-      countQuery = countQuery.gte('created_at', `${dateStart}T00:00:00.000Z`);
+      countQuery = countQuery.gte(
+        'created_at',
+        this.getKstDayStartUtc(dateStart),
+      );
     }
     if (dateEnd) {
-      countQuery = countQuery.lt('created_at', this.addOneDayUtc(dateEnd));
+      countQuery = countQuery.lt(
+        'created_at',
+        this.getNextKstDayStartUtc(dateEnd),
+      );
     }
 
     const { count, error: countError } = await countQuery;
@@ -281,7 +724,7 @@ export class CustomerOrdersService {
     let dataQuery = sb
       .from('orders')
       .select(
-        'id, order_no, status, created_at, total_amount, customer_name, branch_id, branches(name), fulfillment_type',
+        'id, order_no, status, created_at, total_amount, customer_name, branch_id, fulfillment_type',
       )
       .in('branch_id', targetBranchIds)
       .order('created_at', { ascending: false })
@@ -294,10 +737,16 @@ export class CustomerOrdersService {
       dataQuery = dataQuery.eq('fulfillment_type', fulfillmentType);
     }
     if (dateStart) {
-      dataQuery = dataQuery.gte('created_at', `${dateStart}T00:00:00.000Z`);
+      dataQuery = dataQuery.gte(
+        'created_at',
+        this.getKstDayStartUtc(dateStart),
+      );
     }
     if (dateEnd) {
-      dataQuery = dataQuery.lt('created_at', this.addOneDayUtc(dateEnd));
+      dataQuery = dataQuery.lt(
+        'created_at',
+        this.getNextKstDayStartUtc(dateEnd),
+      );
     }
 
     const { data, error } = await dataQuery;
@@ -308,6 +757,21 @@ export class CustomerOrdersService {
     }
 
     const orderIds = (data ?? []).map((row: any) => row.id);
+    const branchNameMap = await this.getBranchNameMap(
+      sb,
+      Array.from(
+        new Set(
+          (data ?? [])
+            .map((row: any) => String(row?.branch_id ?? ''))
+            .filter(Boolean),
+        ),
+      ),
+    );
+    const paymentMethodMap = await this.getPaymentMethodMap(sb, orderIds);
+    const orderPaymentMethodMap = await Promise.resolve(
+      this.getOrderPaymentMethodMap(sb, orderIds),
+    );
+    const paymentStatusMap = await this.getPaymentStatusMap(sb, orderIds);
     const itemSummaryMap = new Map<
       string,
       {
@@ -370,21 +834,42 @@ export class CustomerOrdersService {
       }
     }
 
-    const orders = (data ?? []).map((row: any) => ({
-      id: row.id,
-      orderNo: row.order_no ?? null,
-      orderedAt: row.created_at ?? '',
-      customerName: row.customer_name ?? '',
-      totalAmount: row.total_amount ?? 0,
-      branchId: row.branch_id,
-      branchName: row.branches?.name ?? '',
-      fulfillmentType: row.fulfillment_type ?? null,
-      itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
-      firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
-      firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
-      itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
-      status: row.status as OrderStatus,
-    }));
+    const depositMatchStatusMap = await this.getDepositMatchStatusMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
+
+    const orders = (data ?? []).map((row: any) => {
+      const paymentMethod =
+        orderPaymentMethodMap.get(String(row.id)) ??
+        paymentMethodMap.get(String(row.id)) ??
+        null;
+
+      return {
+        id: row.id,
+        orderNo: row.order_no ?? null,
+        orderedAt: row.created_at ?? '',
+        customerName: row.customer_name ?? '',
+        totalAmount: row.total_amount ?? 0,
+        branchId: row.branch_id,
+        branchName:
+          branchNameMap.get(String(row.branch_id ?? '')) ??
+          row.branches?.name ??
+          '',
+        fulfillmentType: row.fulfillment_type ?? null,
+        itemCount: itemSummaryMap.get(row.id)?.itemCount ?? 0,
+        firstItemName: itemSummaryMap.get(row.id)?.firstItemName ?? null,
+        firstItemQty: itemSummaryMap.get(row.id)?.firstItemQty ?? null,
+        itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
+        status: row.status as OrderStatus,
+        paymentMethod,
+        paymentStatus: paymentStatusMap.get(String(row.id)) ?? null,
+        depositMatchStatus:
+          paymentMethod === 'TRANSFER'
+            ? (depositMatchStatusMap.get(String(row.id)) ?? 'PENDING')
+            : null,
+      };
+    });
 
     this.logger.log(`Fetched ${orders.length} orders`);
 
@@ -447,11 +932,33 @@ export class CustomerOrdersService {
       };
     });
 
+    const paymentMethodMap = await this.getPaymentMethodMap(sb, [
+      String(data.id),
+    ]);
+    const orderPaymentMethodMap = await Promise.resolve(
+      this.getOrderPaymentMethodMap(sb, [String(data.id)]),
+    );
+    const paymentStatusMap = await this.getPaymentStatusMap(sb, [
+      String(data.id),
+    ]);
+    const paymentMethod =
+      orderPaymentMethodMap.get(String(data.id)) ??
+      paymentMethodMap.get(String(data.id)) ??
+      null;
+    const depositMatchStatusMap = await this.getDepositMatchStatusMap(sb, [
+      String(data.id),
+    ]);
+
     return {
       id: data.id,
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      paymentStatus: paymentStatusMap.get(String(data.id)) ?? null,
+      depositMatchStatus:
+        paymentMethod === 'TRANSFER'
+          ? (depositMatchStatusMap.get(String(data.id)) ?? 'PENDING')
+          : null,
       fulfillmentType: data.fulfillment_type ?? null,
       myRole: role,
       customer: {
@@ -462,7 +969,7 @@ export class CustomerOrdersService {
         memo: data.delivery_memo ?? undefined,
       },
       payment: {
-        method: 'CARD' as any,
+        method: paymentMethod,
         subtotal: data.subtotal ?? 0,
         shippingFee: data.delivery_fee ?? 0,
         discount: data.discount_total ?? 0,
@@ -499,6 +1006,13 @@ export class CustomerOrdersService {
 
     const sb = this.supabase.adminClient();
 
+    if (status === OrderStatus.CANCELLED) {
+      await this.paymentsService.refundOrderPaymentForCancellation(
+        order.id,
+        order.branch_id,
+      );
+    }
+
     const { data, error } = await sb
       .from('orders')
       .update({ status })
@@ -514,6 +1028,15 @@ export class CustomerOrdersService {
     this.logger.log(
       `Order ${orderId} status updated to ${status} successfully`,
     );
+
+    if (status === OrderStatus.CANCELLED) {
+      await this.releaseInventoryForCancelledOrder(
+        sb,
+        order.id,
+        order.branch_id,
+        data.order_no ?? order.order_no ?? null,
+      );
+    }
 
     return {
       id: data.id,
@@ -546,6 +1069,27 @@ export class CustomerOrdersService {
     this.logger.log(
       `Bulk updating ${uniqueOrderIds.length} orders to ${status} by user ${userId}`,
     );
+
+    if (status === OrderStatus.CANCELLED) {
+      const results = [];
+      for (const currentOrderId of uniqueOrderIds) {
+        results.push(
+          await this.updateMyOrderStatus(
+            userId,
+            currentOrderId,
+            status,
+            brandMemberships,
+            branchMemberships,
+          ),
+        );
+      }
+
+      return {
+        updatedCount: results.length,
+        status,
+        orderIds: results.map((result) => result.id),
+      };
+    }
 
     const resolvedOrderIds: string[] = [];
     for (const orderId of uniqueOrderIds) {

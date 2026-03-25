@@ -17,7 +17,7 @@ import {
   type WeeklyBusinessHours,
 } from "@/lib/business-hours";
 
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
+type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
 
 type Branch = {
@@ -25,6 +25,7 @@ type Branch = {
   brandId: string;
   name: string;
   slug: string | null;
+  isActive?: boolean;
   logoUrl: string | null;
   coverImageUrl: string | null;
   myRole: string | null;
@@ -42,6 +43,10 @@ type Branch = {
   } | null;
   businessHours?: WeeklyBusinessHours;
   orderNotice?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
+  depositSheetName?: string | null;
+  depositSheetUrl?: string | null;
 };
 
 type Brand = {
@@ -49,13 +54,14 @@ type Brand = {
   slug: string | null;
 };
 
-const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN"];
+const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
+  SHIPPING: "택배",
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -127,12 +133,16 @@ export default function BranchDetailPage() {
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
+  const [depositSheetName, setDepositSheetName] = useState("");
+  const [depositSheetUrl, setDepositSheetUrl] = useState("");
   const [pickupStartTime, setPickupStartTime] = useState("");
   const [pickupEndTime, setPickupEndTime] = useState("");
   const [businessHours, setBusinessHours] = useState<BusinessHoursFormState>(
     () => createBusinessHoursFormState(),
   );
   const [orderNotice, setOrderNotice] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
   const [stampActive, setStampActive] = useState(false);
   const [stampPerOrder, setStampPerOrder] = useState(1);
@@ -175,6 +185,13 @@ export default function BranchDetailPage() {
       JSON.stringify(serializeBusinessHoursForm(businessHours)) ===
       JSON.stringify(branch.businessHours ?? null);
     const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
+    const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
+    const sameKakaoChannelUrl =
+      kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
+    const sameDepositSheetName =
+      depositSheetName.trim() === (branch.depositSheetName ?? "");
+    const sameDepositSheetUrl =
+      depositSheetUrl.trim() === (branch.depositSheetUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
@@ -186,7 +203,11 @@ export default function BranchDetailPage() {
       !sameTransferInfo ||
       !samePickupTimeConfig ||
       !sameBusinessHours ||
-      !sameOrderNotice
+      !sameOrderNotice ||
+      !sameContactPhone ||
+      !sameKakaoChannelUrl ||
+      !sameDepositSheetName ||
+      !sameDepositSheetUrl
     );
   }, [
     allowedPaymentMethods,
@@ -203,6 +224,10 @@ export default function BranchDetailPage() {
     pickupEndTime,
     pickupStartTime,
     orderNotice,
+    contactPhone,
+    kakaoChannelUrl,
+    depositSheetName,
+    depositSheetUrl,
   ]);
 
   const resetForm = (source: Branch) => {
@@ -223,6 +248,8 @@ export default function BranchDetailPage() {
     setTransferBankName(source.transferAccount?.bankName ?? "");
     setTransferAccountNumber(source.transferAccount?.accountNumber ?? "");
     setTransferAccountHolder(source.transferAccount?.accountHolder ?? "");
+    setDepositSheetName(source.depositSheetName ?? "");
+    setDepositSheetUrl(source.depositSheetUrl ?? "");
     setPickupStartTime(source.pickupTimeConfig?.startTime ?? "");
     setPickupEndTime(source.pickupTimeConfig?.endTime ?? "");
     setBusinessHours(
@@ -232,6 +259,8 @@ export default function BranchDetailPage() {
       ),
     );
     setOrderNotice(source.orderNotice ?? "");
+    setContactPhone(source.contactPhone ?? "");
+    setKakaoChannelUrl(source.kakaoChannelUrl ?? "");
   };
 
   useEffect(() => {
@@ -403,7 +432,11 @@ export default function BranchDetailPage() {
           accountNumber: transferAccountNumber.trim(),
           accountHolder: transferAccountHolder.trim(),
         },
+        depositSheetName: depositSheetName.trim() || null,
+        depositSheetUrl: depositSheetUrl.trim() || null,
         orderNotice: orderNotice.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        kakaoChannelUrl: kakaoChannelUrl.trim() || null,
         pickupTimeConfig:
           pickupStartTime.trim() && pickupEndTime.trim()
             ? {
@@ -429,15 +462,35 @@ export default function BranchDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 지점을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(
+      `"${branch.name}" 지점을 비활성화하시겠습니까?
+비활성화 후에는 주문 페이지에서 숨겨지며, 상세 화면에서 다시 활성화할 수 있습니다.`,
+    );
     if (!confirmed) return;
 
     try {
       await apiClient.delete(`/customer/branches/${branchId}`);
-      router.replace("/customer/branches");
+      setBranch((prev) => (prev ? { ...prev, isActive: false } : prev));
+      toast.success("\uC9C0\uC810\uC744 \uBE44\uD65C\uC131\uD654\uD588\uC2B5\uB2C8\uB2E4.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "지점 삭제에 실패했습니다.");
+      toast.error(err?.message ?? "\uC9C0\uC810 \uBE44\uD65C\uC131\uD654\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.");
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!branch) return;
+
+    try {
+      const updated = await apiClient.patch<Branch>(`/customer/branches/${branchId}`, {
+        isActive: true,
+      });
+      setBranch(updated);
+      resetForm(updated);
+      toast.success("\uC9C0\uC810\uC744 \uB2E4\uC2DC \uD65C\uC131\uD654\uD588\uC2B5\uB2C8\uB2E4.");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message ?? "\uC9C0\uC810 \uD65C\uC131\uD654\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.");
     }
   };
 
@@ -477,20 +530,39 @@ export default function BranchDetailPage() {
       </button>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 상세</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-extrabold m-0 text-foreground">{"\uC9C0\uC810 \uC0C1\uC138"}</h1>
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+              branch.isActive === false
+                ? "bg-neutral-500/15 text-text-secondary"
+                : "bg-success/15 text-success"
+            }`}
+          >
+            {branch.isActive === false ? "\uBE44\uD65C\uC131" : "\uC6B4\uC601\uC911"}
+          </span>
+        </div>
         {canEdit && !isEditing && (
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setIsEditing(true)}
               className="py-2 px-4 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm font-semibold hover:bg-bg-secondary transition-colors"
             >
-              수정하기
+              {"\uC218\uC815\uD558\uAE30"}
             </button>
+            {branch.isActive === false && (
+              <button
+                onClick={handleReactivate}
+                className="py-2 px-4 rounded-lg border border-success bg-success/10 text-success text-sm font-semibold hover:bg-success/20 transition-colors"
+              >
+                {"\uB2E4\uC2DC \uD65C\uC131\uD654"}
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="py-2 px-4 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm font-semibold hover:bg-danger-500/10 transition-colors"
             >
-              삭제
+              {"\uBE44\uD65C\uC131\uD654"}
             </button>
           </div>
         )}
@@ -693,6 +765,39 @@ export default function BranchDetailPage() {
               </p>
             </section>
 
+            <section>
+              <SectionHeading>고객 문의 정보</SectionHeading>
+              <div className="grid gap-2">
+                <input
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="문의 전화번호"
+                />
+                <input
+                  value={kakaoChannelUrl}
+                  onChange={(e) => setKakaoChannelUrl(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="https://pf.kakao.com/_example/chat"
+                />
+                <input
+                  value={depositSheetName}
+                  onChange={(e) => setDepositSheetName(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="입금기록 시트명 (예: 시트1)"
+                />
+                <input
+                  value={depositSheetUrl}
+                  onChange={(e) => setDepositSheetUrl(e.target.value)}
+                  className="input-field w-full"
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                />
+              </div>
+              <p className="text-xs text-text-tertiary mt-1.5">
+                공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 수단입니다.
+              </p>
+            </section>
+
             {allowedPaymentMethods.includes("TRANSFER") && (
               <section>
                 <SectionHeading>계좌이체 입금 정보</SectionHeading>
@@ -748,8 +853,7 @@ export default function BranchDetailPage() {
                   alt="커버 이미지"
                   width={1200}
                   height={675}
-                  className="w-full object-cover"
-                  style={{ aspectRatio: "16/9" }}
+                  className="h-44 w-full object-cover md:h-56"
                 />
               </div>
             )}
@@ -838,6 +942,20 @@ export default function BranchDetailPage() {
                 </div>
 
                 <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">고객 문의 전화번호</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground">
+                    {branch.contactPhone?.trim() || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-text-secondary mb-1.5">카카오톡 상담 URL</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground break-all">
+                    {branch.kakaoChannelUrl?.trim() || "-"}
+                  </div>
+                </div>
+
+                <div>
                   <div className="text-[13px] text-text-secondary mb-1.5">기본 픽업 시간</div>
                   <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground">
                     {branch.pickupTimeConfig?.startTime && branch.pickupTimeConfig?.endTime
@@ -876,6 +994,14 @@ export default function BranchDetailPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-text-tertiary w-16 shrink-0">예금주</span>
                         <span className="text-foreground">{branch.transferAccount?.accountHolder?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">시트명</span>
+                        <span className="text-foreground">{branch.depositSheetName?.trim() || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-text-tertiary w-16 shrink-0">?쒗듃留곹겕</span>
+                        <span className="text-foreground break-all">{branch.depositSheetUrl?.trim() || "-"}</span>
                       </div>
                     </div>
                   </div>

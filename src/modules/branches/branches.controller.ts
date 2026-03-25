@@ -30,11 +30,13 @@ export class BranchesController {
   async getBranches(
     @Req() req: AuthRequest,
     @Query('brandId') brandId: string,
+    @Query('includeInactive') includeInactive?: string,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
     return this.branchesService.getBranches(
       req.accessToken,
       brandId,
+      includeInactive === 'true',
       req.isAdmin,
     );
   }

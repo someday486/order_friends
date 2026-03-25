@@ -457,6 +457,7 @@ export class CustomerOrdersService {
     dateStart?: string,
     dateEnd?: string,
     depositStatus?: DepositMatchStatus,
+    search?: string,
   ) {
     this.logger.log(
       `Fetching orders${branchId ? ` for branch ${branchId}` : ' (all branches)'} by user ${userId}`,
@@ -484,8 +485,9 @@ export class CustomerOrdersService {
     const { page = 1, limit = 20 } = paginationDto;
     const sb = this.supabase.adminClient();
     const { from, to } = PaginationUtil.getRange(page, limit);
+    const normalizedSearch = search?.trim().toLowerCase() || undefined;
 
-    if (depositStatus) {
+    if (depositStatus || normalizedSearch) {
       let filteredQuery = sb
         .from('orders')
         .select(
@@ -535,36 +537,6 @@ export class CustomerOrdersService {
         sb,
         candidateOrderIds,
       );
-
-      const filteredRows = (candidateRows ?? []).filter((row: any) => {
-        const orderId = String(row.id);
-        const paymentMethod =
-          orderPaymentMethodMap.get(orderId) ??
-          paymentMethodMap.get(orderId) ??
-          null;
-
-        if (paymentMethod !== 'TRANSFER') {
-          return false;
-        }
-
-        const resolvedDepositStatus =
-          depositMatchStatusMap.get(orderId) ?? 'PENDING';
-        return resolvedDepositStatus === depositStatus;
-      });
-
-      const pagedRows = filteredRows.slice(from, to + 1);
-      const orderIds = pagedRows.map((row: any) => row.id);
-      const branchNameMap = await this.getBranchNameMap(
-        sb,
-        Array.from(
-          new Set(
-            pagedRows
-              .map((row: any) => String(row?.branch_id ?? ''))
-              .filter(Boolean),
-          ),
-        ),
-      );
-      const paymentStatusMap = await this.getPaymentStatusMap(sb, orderIds);
       const itemSummaryMap = new Map<
         string,
         {
@@ -575,11 +547,11 @@ export class CustomerOrdersService {
         }
       >();
 
-      if (orderIds.length > 0) {
+      if (candidateOrderIds.length > 0) {
         const { data: orderItems, error: orderItemsError } = await sb
           .from('order_items')
           .select('order_id, product_name_snapshot, qty')
-          .in('order_id', orderIds);
+          .in('order_id', candidateOrderIds);
 
         if (orderItemsError) {
           this.logger.error(
@@ -626,6 +598,56 @@ export class CustomerOrdersService {
           });
         }
       }
+
+      const filteredRows = (candidateRows ?? []).filter((row: any) => {
+        const orderId = String(row.id);
+        const paymentMethod =
+          orderPaymentMethodMap.get(orderId) ??
+          paymentMethodMap.get(orderId) ??
+          null;
+
+        if (normalizedSearch) {
+          const summary = itemSummaryMap.get(orderId);
+          const haystack = [
+            row.order_no ?? '',
+            row.customer_name ?? '',
+            summary?.firstItemName ?? '',
+            summary?.itemsSummary ?? '',
+          ]
+            .join(' ')
+            .toLowerCase();
+
+          if (!haystack.includes(normalizedSearch)) {
+            return false;
+          }
+        }
+
+        if (depositStatus) {
+          if (paymentMethod !== 'TRANSFER') {
+            return false;
+          }
+
+          const resolvedDepositStatus =
+            depositMatchStatusMap.get(orderId) ?? 'PENDING';
+          return resolvedDepositStatus === depositStatus;
+        }
+
+        return true;
+      });
+
+      const pagedRows = filteredRows.slice(from, to + 1);
+      const orderIds = pagedRows.map((row: any) => row.id);
+      const branchNameMap = await this.getBranchNameMap(
+        sb,
+        Array.from(
+          new Set(
+            pagedRows
+              .map((row: any) => String(row?.branch_id ?? ''))
+              .filter(Boolean),
+          ),
+        ),
+      );
+      const paymentStatusMap = await this.getPaymentStatusMap(sb, orderIds);
 
       const orders = pagedRows.map((row: any) => {
         const orderId = String(row.id);

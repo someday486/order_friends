@@ -180,6 +180,10 @@ export class CreateBranchRequest {
 }
 
 export class UpdateBranchRequest {
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @IsString()
   @IsOptional()
   name?: string;

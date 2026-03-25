@@ -125,6 +125,7 @@ export class PublicOrderService {
         )
       `,
       )
+      .eq('is_active', true)
       .order('created_at', { ascending: true })
       .limit(1000);
 
@@ -237,6 +238,7 @@ export class PublicOrderService {
       .from('branches')
       .select('id, name, slug, created_at')
       .eq('brand_id', brand.id)
+      .eq('is_active', true)
       .order('created_at', { ascending: true })
       .limit(1000);
 
@@ -373,6 +375,7 @@ export class PublicOrderService {
         .from('branches')
         .select('id, name, slug, created_at')
         .eq('brand_id', brandId)
+        .eq('is_active', true)
         .order('created_at', { ascending: true })
         .limit(1000);
 
@@ -511,6 +514,7 @@ export class PublicOrderService {
       .from('branches')
       .select('id, name, slug, created_at')
       .eq('brand_id', context.brandId)
+      .eq('is_active', true)
       .order('created_at', { ascending: true })
       .limit(1000);
 
@@ -1495,6 +1499,7 @@ export class PublicOrderService {
       `,
       )
       .eq('id', branchId)
+      .eq('is_active', true)
       .single();
 
     if (error || !data) {
@@ -1545,6 +1550,7 @@ export class PublicOrderService {
       `,
       )
       .eq('slug', slug)
+      .eq('is_active', true)
       .limit(2);
 
     if (error) {
@@ -1608,6 +1614,7 @@ export class PublicOrderService {
       `,
       )
       .eq('slug', branchSlug)
+      .eq('is_active', true)
       .eq('brands.slug', brandSlug)
       .limit(2);
 
@@ -1668,6 +1675,7 @@ export class PublicOrderService {
       `,
       )
       .eq('brands.slug', brandSlug)
+      .eq('is_active', true)
       .order('created_at', { ascending: true });
 
     if (error) {

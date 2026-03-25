@@ -63,6 +63,12 @@ export class CustomerOrdersController {
     description: '입금 상태 필터',
     required: false,
   })
+  @ApiQuery({
+    name: 'search',
+    description:
+      '\uC8FC\uBB38\uBC88\uD638, \uACE0\uAC1D\uBA85, \uC0C1\uD488\uBA85 \uAC80\uC0C9\uC5B4',
+    required: false,
+  })
   @ApiQuery({ name: 'page', description: '페이지 번호', required: false })
   @ApiQuery({ name: 'limit', description: '페이지당 항목 수', required: false })
   @ApiResponse({ status: 200, description: '주문 목록 조회 성공' })
@@ -81,6 +87,7 @@ export class CustomerOrdersController {
       dateStart,
       dateEnd,
       depositStatus,
+      search,
       page,
       limit,
     } = query ?? {};
@@ -100,6 +107,7 @@ export class CustomerOrdersController {
       dateStart,
       dateEnd,
       depositStatus,
+      search,
     );
   }
 

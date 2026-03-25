@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, Matches, IsIn } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  Matches,
+  IsIn,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { OrderStatus } from '../../orders/order-status.enum';
 
@@ -50,4 +57,12 @@ export class GetCustomerOrdersQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(['PENDING', 'AUTO_MATCHED'])
   depositStatus?: 'PENDING' | 'AUTO_MATCHED';
+  @ApiPropertyOptional({
+    description: '주문번호, 고객명, 상품명 검색어',
+    example: '김한나',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 }

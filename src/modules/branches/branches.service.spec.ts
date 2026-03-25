@@ -40,7 +40,7 @@ describe('BranchesService', () => {
       error: null,
     });
 
-    const result = await service.getBranches('token', 'brand', true);
+    const result = await service.getBranches('token', 'brand', false, true);
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('b1');
@@ -78,7 +78,7 @@ describe('BranchesService', () => {
       error: null,
     });
 
-    const result = await service.getBranches('token', 'brand', true);
+    const result = await service.getBranches('token', 'brand', false, true);
 
     expect(result).toEqual([]);
   });
@@ -89,9 +89,9 @@ describe('BranchesService', () => {
       error: { message: 'fail' },
     });
 
-    await expect(service.getBranches('token', 'brand', true)).rejects.toThrow(
-      '[branches.getBranches]',
-    );
+    await expect(
+      service.getBranches('token', 'brand', false, true),
+    ).rejects.toThrow('[branches.getBranches]');
   });
 
   it('getBranch should throw when not found', async () => {

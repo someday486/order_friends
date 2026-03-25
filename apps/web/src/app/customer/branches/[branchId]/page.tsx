@@ -25,6 +25,7 @@ type Branch = {
   brandId: string;
   name: string;
   slug: string | null;
+  isActive?: boolean;
   logoUrl: string | null;
   coverImageUrl: string | null;
   myRole: string | null;
@@ -461,15 +462,35 @@ export default function BranchDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 지점을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(
+      `"${branch.name}" 지점을 비활성화하시겠습니까?
+비활성화 후에는 주문 페이지에서 숨겨지며, 상세 화면에서 다시 활성화할 수 있습니다.`,
+    );
     if (!confirmed) return;
 
     try {
       await apiClient.delete(`/customer/branches/${branchId}`);
-      router.replace("/customer/branches");
+      setBranch((prev) => (prev ? { ...prev, isActive: false } : prev));
+      toast.success("\uC9C0\uC810\uC744 \uBE44\uD65C\uC131\uD654\uD588\uC2B5\uB2C8\uB2E4.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "지점 삭제에 실패했습니다.");
+      toast.error(err?.message ?? "\uC9C0\uC810 \uBE44\uD65C\uC131\uD654\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.");
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!branch) return;
+
+    try {
+      const updated = await apiClient.patch<Branch>(`/customer/branches/${branchId}`, {
+        isActive: true,
+      });
+      setBranch(updated);
+      resetForm(updated);
+      toast.success("\uC9C0\uC810\uC744 \uB2E4\uC2DC \uD65C\uC131\uD654\uD588\uC2B5\uB2C8\uB2E4.");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message ?? "\uC9C0\uC810 \uD65C\uC131\uD654\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.");
     }
   };
 
@@ -509,20 +530,39 @@ export default function BranchDetailPage() {
       </button>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">지점 상세</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-extrabold m-0 text-foreground">{"\uC9C0\uC810 \uC0C1\uC138"}</h1>
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+              branch.isActive === false
+                ? "bg-neutral-500/15 text-text-secondary"
+                : "bg-success/15 text-success"
+            }`}
+          >
+            {branch.isActive === false ? "\uBE44\uD65C\uC131" : "\uC6B4\uC601\uC911"}
+          </span>
+        </div>
         {canEdit && !isEditing && (
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setIsEditing(true)}
               className="py-2 px-4 rounded-lg border border-border bg-bg-tertiary text-foreground text-sm font-semibold hover:bg-bg-secondary transition-colors"
             >
-              수정하기
+              {"\uC218\uC815\uD558\uAE30"}
             </button>
+            {branch.isActive === false && (
+              <button
+                onClick={handleReactivate}
+                className="py-2 px-4 rounded-lg border border-success bg-success/10 text-success text-sm font-semibold hover:bg-success/20 transition-colors"
+              >
+                {"\uB2E4\uC2DC \uD65C\uC131\uD654"}
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="py-2 px-4 rounded-lg border border-danger-500 bg-transparent text-danger-500 text-sm font-semibold hover:bg-danger-500/10 transition-colors"
             >
-              삭제
+              {"\uBE44\uD65C\uC131\uD654"}
             </button>
           </div>
         )}

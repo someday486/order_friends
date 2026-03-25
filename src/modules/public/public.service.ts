@@ -43,6 +43,7 @@ export class PublicService {
       `,
       )
       .eq('id', branchId)
+      .eq('is_active', true)
       .single();
 
     if (error || !data) {

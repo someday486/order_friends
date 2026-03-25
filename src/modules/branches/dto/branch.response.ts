@@ -2,6 +2,7 @@ export class BranchListItemResponse {
   id: string;
   brandId: string;
   name: string;
+  isActive: boolean;
   slug?: string;
   logoUrl?: string | null;
   thumbnailUrl?: string | null;
@@ -65,6 +66,7 @@ export class BranchDetailResponse {
   id: string;
   brandId: string;
   name: string;
+  isActive: boolean;
   slug?: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;

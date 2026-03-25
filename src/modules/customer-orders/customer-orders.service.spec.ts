@@ -885,6 +885,86 @@ describe('CustomerOrdersService', () => {
     ]);
   });
 
+  it('getMyOrders should filter by search across order number, customer name, and product name', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o-match',
+          order_no: 'ORD-100',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T10:00:00.000Z',
+          total_amount: 10,
+          customer_name: '김한나',
+          branch_id: 'b1',
+        },
+        {
+          id: 'o-miss',
+          order_no: 'ORD-200',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T09:00:00.000Z',
+          total_amount: 20,
+          customer_name: '박민수',
+          branch_id: 'b1',
+        },
+      ],
+      error: null,
+    });
+    paymentsChain.in
+      .mockResolvedValueOnce({
+        data: [
+          { order_id: 'o-match', payment_method: 'TRANSFER' },
+          { order_id: 'o-miss', payment_method: 'CASH' },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          { order_id: 'o-match', status: 'PENDING' },
+          { order_id: 'o-miss', status: 'PENDING' },
+        ],
+        error: null,
+      });
+    orderItemsChain.in.mockResolvedValueOnce({
+      data: [
+        {
+          order_id: 'o-match',
+          product_name_snapshot: '프리미엄 고당도 수박',
+          qty: 1,
+        },
+        { order_id: 'o-miss', product_name_snapshot: '사과', qty: 2 },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
+      { page: 1, limit: 10 },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '수박',
+    );
+
+    expect(result.pagination?.total).toBe(1);
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        id: 'o-match',
+        orderNo: 'ORD-100',
+        customerName: '김한나',
+      }),
+    ]);
+  });
+
   it('checkOrderAccess should throw when order not found', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 

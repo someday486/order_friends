@@ -51,6 +51,7 @@ describe('CustomerOrdersController', () => {
       fulfillmentType: 'DELIVERY',
       dateStart: '2026-03-01',
       dateEnd: '2026-03-21',
+      search: '김한나',
       page: 1,
       limit: 10,
     } as any);
@@ -67,6 +68,7 @@ describe('CustomerOrdersController', () => {
       '2026-03-01',
       '2026-03-21',
       undefined,
+      '김한나',
     );
   });
 
@@ -93,6 +95,7 @@ describe('CustomerOrdersController', () => {
       [],
       [],
       { page: 1, limit: 10 },
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -210,6 +213,7 @@ describe('CustomerOrdersController', () => {
           [],
           { page: 1, limit: 10 },
           'COMPLETED',
+          undefined,
           undefined,
           undefined,
           undefined,

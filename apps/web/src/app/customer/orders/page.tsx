@@ -430,6 +430,8 @@ export default function CustomerOrdersPage() {
   const [dateEndInput, setDateEndInput] = useState(() => getTodayYmd());
   const [appliedDateStart, setAppliedDateStart] = useState(() => getTodayYmd());
   const [appliedDateEnd, setAppliedDateEnd] = useState(() => getTodayYmd());
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -681,6 +683,9 @@ export default function CustomerOrdersPage() {
         if (appliedDateEnd) {
           params.append('dateEnd', appliedDateEnd);
         }
+        if (appliedSearch) {
+          params.append('search', appliedSearch);
+        }
 
         let orderItems: Order[] = [];
         let nextTotal = 0;
@@ -762,6 +767,7 @@ export default function CustomerOrdersPage() {
     depositStatusFilter,
     appliedDateStart,
     appliedDateEnd,
+    appliedSearch,
     reloadToken,
   ]);
 
@@ -808,6 +814,7 @@ export default function CustomerOrdersPage() {
   const handleApplyFilter = () => {
     setAppliedDateStart(dateStartInput);
     setAppliedDateEnd(dateEndInput);
+    setAppliedSearch(searchInput.trim());
 
     // ✅ 조회 버튼 누르면 상태는 전체로 초기화
     setStatusFilter("ALL");
@@ -1031,6 +1038,22 @@ export default function CustomerOrdersPage() {
           </select>
         )}
 
+        <select
+          value={depositStatusFilter}
+          onChange={(e) => {
+            setDepositStatusFilter(e.target.value as DepositMatchStatus | 'ALL');
+            setPage(1);
+          }}
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[160px]"
+          aria-label="입금상태 필터"
+        >
+          {DEPOSIT_STATUS_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
         <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:flex sm:w-auto">
           <input
             type="date"
@@ -1050,21 +1073,19 @@ export default function CustomerOrdersPage() {
           />
         </div>
 
-        <select
-          value={depositStatusFilter}
-          onChange={(e) => {
-            setDepositStatusFilter(e.target.value as DepositMatchStatus | 'ALL');
-            setPage(1);
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !isInvalidDateRange) {
+              handleApplyFilter();
+            }
           }}
-          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[160px]"
-          aria-label="입금상태 필터"
-        >
-          {DEPOSIT_STATUS_FILTERS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[220px] sm:max-w-[280px]"
+          placeholder="상품명/주문번호/고객명 검색"
+          aria-label="\uC8FC\uBB38 \uAC80\uC0C9"
+        />
 
         <button
           type="button"
@@ -1075,57 +1096,59 @@ export default function CustomerOrdersPage() {
           조회
         </button>
 
-        <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
-          <input
-            type="checkbox"
-            checked={autoRefreshEnabled}
-            onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
-            className="w-4 h-4 rounded accent-primary cursor-pointer"
-            aria-label="자동 새로고침"
-          />
-          자동갱신
-        </label>
-        <select
-          value={autoRefreshMode}
-          onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
-          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
-          aria-label="자동갱신 속도"
-          disabled={!autoRefreshEnabled}
-        >
-          <option value="FAST">빠름(5초)</option>
-          <option value="DEFAULT">기본(10초)</option>
-          <option value="SAVE">절전(30초)</option>
-        </select>
-
-        {lastAutoRefreshAt && (
-          <span className="inline-flex self-center text-xs text-text-tertiary whitespace-nowrap">
-            최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </span>
-        )}
-
-        <div className="hidden sm:block w-px h-7 bg-border mx-1" />
-
-        <button
-          type="button"
-          onClick={() => setShowExportDialog(true)}
-          className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+          <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
+            <input
+              type="checkbox"
+              checked={autoRefreshEnabled}
+              onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+              className="w-4 h-4 rounded accent-primary cursor-pointer"
+              aria-label="자동 새로고침"
+            />
+            자동갱신
+          </label>
+          <select
+            value={autoRefreshMode}
+            onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
+            className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
+            aria-label="자동갱신 속도"
+            disabled={!autoRefreshEnabled}
           >
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-            <polyline points="7,10 12,15 17,10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          내보내기
-        </button>
+            <option value="FAST">빠름(5초)</option>
+            <option value="DEFAULT">기본(10초)</option>
+            <option value="SAVE">절전(30초)</option>
+          </select>
+
+          {lastAutoRefreshAt && (
+            <span className="inline-flex h-9 items-center text-xs text-text-tertiary whitespace-nowrap">
+              최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+
+          <div className="hidden sm:block w-px h-7 bg-border mx-1" />
+
+          <button
+            type="button"
+            onClick={() => setShowExportDialog(true)}
+            className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7,10 12,15 17,10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            내보내기
+          </button>
+        </div>
 
         {isInvalidDateRange && (
           <p className="w-full mt-0.5 text-xs text-danger-500">

@@ -1003,151 +1003,159 @@ export default function CustomerOrdersPage() {
 
 
       {/* ── Section 2: OrderFiltersBar ── */}
-      <div className="flex flex-wrap items-end gap-2 mb-4 p-3 rounded-xl border border-border bg-bg-secondary">
-        <select
-          value={brandFilter}
-          onChange={(e) => {
-            setBrandFilter(e.target.value);
-            setPage(1);
-          }}
-          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[160px] sm:max-w-[220px]"
-        >
-          <option value="ALL">모든 브랜드</option>
-          {brands.map((brand) => (
-            <option key={brand.id} value={brand.id}>
-              {brand.name}
-            </option>
-          ))}
-        </select>
+      <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-3.5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-end">
+            <div className="flex flex-1 flex-wrap items-end gap-2">
+              <select
+                value={brandFilter}
+                onChange={(e) => {
+                  setBrandFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[170px] sm:max-w-[220px]"
+              >
+                <option value="ALL">모든 브랜드</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </select>
 
-        {showMultiBranch && (
-          <select
-            value={branchFilter}
-            onChange={(e) => {
-              setBranchFilter(e.target.value);
-              setPage(1);
-            }}
-            className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[200px]"
-          >
-            <option value="ALL">모든 지점</option>
-            {validBranches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        )}
+              {showMultiBranch && (
+                <select
+                  value={branchFilter}
+                  onChange={(e) => {
+                    setBranchFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[150px] sm:max-w-[200px]"
+                >
+                  <option value="ALL">모든 지점</option>
+                  {validBranches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
-        <select
-          value={depositStatusFilter}
-          onChange={(e) => {
-            setDepositStatusFilter(e.target.value as DepositMatchStatus | 'ALL');
-            setPage(1);
-          }}
-          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[160px]"
-          aria-label="입금상태 필터"
-        >
-          {DEPOSIT_STATUS_FILTERS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+              <select
+                value={depositStatusFilter}
+                onChange={(e) => {
+                  setDepositStatusFilter(e.target.value as DepositMatchStatus | 'ALL');
+                  setPage(1);
+                }}
+                className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[140px] sm:max-w-[160px]"
+                aria-label="입금상태 필터"
+              >
+                {DEPOSIT_STATUS_FILTERS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:flex sm:w-auto">
-          <input
-            type="date"
-            value={dateStartInput}
-            onChange={(e) => setDateStartInput(e.target.value)}
-            className="input-field h-9 text-sm w-full min-w-0 sm:w-[140px]"
-            placeholder="시작일"
-          />
-          <span className="text-text-tertiary text-sm select-none">~</span>
-          <input
-            type="date"
-            value={dateEndInput}
-            min={dateStartInput || undefined}
-            onChange={(e) => setDateEndInput(e.target.value)}
-            className="input-field h-9 text-sm w-full min-w-0 sm:w-[140px]"
-            placeholder="종료일"
-          />
-        </div>
+              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:w-auto sm:min-w-[292px]">
+                <input
+                  type="date"
+                  value={dateStartInput}
+                  onChange={(e) => setDateStartInput(e.target.value)}
+                  className="input-field h-9 text-sm w-full min-w-0"
+                  placeholder="시작일"
+                />
+                <span className="text-text-tertiary text-sm select-none">~</span>
+                <input
+                  type="date"
+                  value={dateEndInput}
+                  min={dateStartInput || undefined}
+                  onChange={(e) => setDateEndInput(e.target.value)}
+                  className="input-field h-9 text-sm w-full min-w-0"
+                  placeholder="종료일"
+                />
+              </div>
+            </div>
 
-        <input
-          type="text"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !isInvalidDateRange) {
-              handleApplyFilter();
-            }
-          }}
-          className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[220px] sm:max-w-[280px]"
-          placeholder="상품명/주문번호/고객명 검색"
-          aria-label="\uC8FC\uBB38 \uAC80\uC0C9"
-        />
+            <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-[420px] xl:flex-none">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isInvalidDateRange) {
+                    handleApplyFilter();
+                  }
+                }}
+                className="input-field h-9 text-sm w-full min-w-0 sm:flex-1"
+                placeholder="상품명/주문번호/고객명 검색"
+                aria-label="\uC8FC\uBB38 \uAC80\uC0C9"
+              />
 
-        <button
-          type="button"
-          onClick={handleApplyFilter}
-          disabled={isInvalidDateRange}
-          className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity w-full sm:w-auto"
-        >
-          조회
-        </button>
+              <button
+                type="button"
+                onClick={handleApplyFilter}
+                disabled={isInvalidDateRange}
+                className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity w-full sm:w-[92px] sm:shrink-0"
+              >
+                조회
+              </button>
+            </div>
+          </div>
 
-        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
-          <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
-            <input
-              type="checkbox"
-              checked={autoRefreshEnabled}
-              onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
-              className="w-4 h-4 rounded accent-primary cursor-pointer"
-              aria-label="자동 새로고침"
-            />
-            자동갱신
-          </label>
-          <select
-            value={autoRefreshMode}
-            onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
-            className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
-            aria-label="자동갱신 속도"
-            disabled={!autoRefreshEnabled}
-          >
-            <option value="FAST">빠름(5초)</option>
-            <option value="DEFAULT">기본(10초)</option>
-            <option value="SAVE">절전(30초)</option>
-          </select>
+          <div className="flex flex-col gap-2 border-t border-border/70 pt-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-bg-tertiary text-sm text-foreground cursor-pointer select-none w-full sm:w-auto">
+                <input
+                  type="checkbox"
+                  checked={autoRefreshEnabled}
+                  onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded accent-primary cursor-pointer"
+                  aria-label="자동 새로고침"
+                />
+                자동갱신
+              </label>
+              <select
+                value={autoRefreshMode}
+                onChange={(e) => setAutoRefreshMode(e.target.value as AutoRefreshMode)}
+                className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[124px] sm:max-w-[140px]"
+                aria-label="자동갱신 속도"
+                disabled={!autoRefreshEnabled}
+              >
+                <option value="FAST">빠름(5초)</option>
+                <option value="DEFAULT">기본(10초)</option>
+                <option value="SAVE">절전(30초)</option>
+              </select>
 
-          {lastAutoRefreshAt && (
-            <span className="inline-flex h-9 items-center text-xs text-text-tertiary whitespace-nowrap">
-              최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          )}
+              {lastAutoRefreshAt && (
+                <span className="inline-flex h-9 items-center text-xs text-text-tertiary whitespace-nowrap px-1">
+                  최근갱신 {lastAutoRefreshAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              )}
+            </div>
 
-          <div className="hidden sm:block w-px h-7 bg-border mx-1" />
-
-          <button
-            type="button"
-            onClick={() => setShowExportDialog(true)}
-            className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <button
+              type="button"
+              onClick={() => setShowExportDialog(true)}
+              className="h-9 px-3.5 rounded-md border border-border bg-bg-tertiary text-foreground text-sm font-medium hover:bg-bg-tertiary/80 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto lg:min-w-[116px]"
             >
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="7,10 12,15 17,10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            내보내기
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7,10 12,15 17,10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              내보내기
+            </button>
+          </div>
         </div>
 
         {isInvalidDateRange && (

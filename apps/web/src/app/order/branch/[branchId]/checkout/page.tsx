@@ -21,6 +21,7 @@ import {
 } from '@/lib/order-session';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
+import { AddressSearchFields } from '@/components/order/AddressSearchFields';
 import { PickupDateCalendar } from '@/components/order/PickupDateCalendar';
 import { type WeeklyBusinessHours } from '@/lib/business-hours';
 import {
@@ -72,6 +73,7 @@ type CreateOrderResult = {
 };
 
 type PublicBranchConfigResponse = {
+  cashReceiptEnabled?: boolean | null;
   enabledFulfillmentTypes?: string[] | null;
   allowedPaymentMethods?: string[] | null;
   contactPhone?: string | null;
@@ -189,6 +191,7 @@ export default function CheckoutPage() {
   const [customerAddress1, setCustomerAddress1] = useState('');
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
+  const [cashReceiptEnabled, setCashReceiptEnabled] = useState(false);
   const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
   const [taxInvoiceBusinessNumber, setTaxInvoiceBusinessNumber] = useState('');
   const [selectedPickupDate, setSelectedPickupDate] = useState('');
@@ -226,6 +229,7 @@ export default function CheckoutPage() {
   );
   const supportsReceiptRequest =
     paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
+  const canRequestReceipt = cashReceiptEnabled && supportsReceiptRequest;
 
   useEffect(() => {
     if (!hasScheduledPickupConfig) {
@@ -267,10 +271,10 @@ export default function CheckoutPage() {
   }, [hasScheduledPickupConfig, pickupTimeOptionsForSelectedDate]);
 
   useEffect(() => {
-    if (supportsReceiptRequest) return;
+    if (canRequestReceipt) return;
     setTaxInvoiceRequested(false);
     setTaxInvoiceBusinessNumber('');
-  }, [supportsReceiptRequest]);
+  }, [canRequestReceipt]);
 
   // 저장된 고객 정보 로드
   useEffect(() => {
@@ -454,12 +458,14 @@ export default function CheckoutPage() {
         if (latestPaymentMethods.length > 0) {
           normalizedPaymentMethods = latestPaymentMethods;
         }
+        setCashReceiptEnabled(latestConfig?.cashReceiptEnabled === true);
         setBranchContactPhone(latestConfig?.contactPhone?.trim() || null);
         setBranchKakaoChannelUrl(latestConfig?.kakaoChannelUrl?.trim() || null);
         setTransferAccount(latestConfig?.transferAccount ?? null);
         setPickupTimeConfig(latestConfig?.pickupTimeConfig ?? null);
         setBusinessHours(latestConfig?.businessHours ?? null);
       } catch {
+        setCashReceiptEnabled(false);
         setBranchContactPhone(null);
         setBranchKakaoChannelUrl(null);
         setTransferAccount(null);
@@ -522,7 +528,11 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (taxInvoiceRequested && normalizedTaxInvoiceBusinessNumber.length !== 10) {
+    if (
+      canRequestReceipt &&
+      taxInvoiceRequested &&
+      normalizedTaxInvoiceBusinessNumber.length !== 10
+    ) {
       toast.error(
         '지출증빙 요청을 위해 10자리 사업자등록번호를 입력해 주세요.',
       );
@@ -602,7 +612,7 @@ export default function CheckoutPage() {
           qty: item.qty,
           options: item.selectedOptions.map((opt) => ({ optionId: opt.id })),
         })),
-        cashReceipt: taxInvoiceRequested
+        cashReceipt: canRequestReceipt && taxInvoiceRequested
           ? {
               requested: true,
               type: 'EXPENSE_PROOF',
@@ -948,20 +958,15 @@ export default function CheckoutPage() {
                   {fulfillmentType === 'SHIPPING' ? '배송 주소' : '배달 주소'}{' '}
                   <span className="text-danger-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={customerAddress1}
-                  onChange={(e) => setCustomerAddress1(e.target.value)}
-                  data-testid="customer-address1-input"
-                  placeholder="기본 주소"
-                  className="input-field w-full h-12"
-                />
-                <input
-                  type="text"
-                  value={customerAddress2}
-                  onChange={(e) => setCustomerAddress2(e.target.value)}
-                  placeholder="상세 주소 (동/호수 등)"
-                  className="input-field w-full h-12 mt-2"
+                <AddressSearchFields
+                  showLabel={false}
+                  addressLabel={
+                    fulfillmentType === 'SHIPPING' ? '배송 주소' : '배달 주소'
+                  }
+                  address1={customerAddress1}
+                  address2={customerAddress2}
+                  onAddress1Change={setCustomerAddress1}
+                  onAddress2Change={setCustomerAddress2}
                 />
               </div>
             )}
@@ -1041,7 +1046,7 @@ export default function CheckoutPage() {
               </p>
             </div>
           )}
-          {supportsReceiptRequest && (
+          {canRequestReceipt && (
             <div className="mt-3 rounded-xl border border-border bg-bg-secondary p-4 animate-fade-in">
               <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
                 <input
@@ -1104,3 +1109,4 @@ export default function CheckoutPage() {
     </div>
   );
 }
+

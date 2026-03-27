@@ -30,6 +30,7 @@ type PublicBranchResponse = {
   id: string;
   name: string;
   brandName?: string;
+  cashReceiptEnabled?: boolean | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   contactPhone?: string | null;

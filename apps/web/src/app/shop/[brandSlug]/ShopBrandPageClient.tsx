@@ -1,9 +1,10 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { AddressSearchFields } from '@/components/order/AddressSearchFields';
 import Modal from '@/components/ui/Modal';
 import { apiClient } from '@/lib/api-client';
 import { formatWon } from '@/lib/format';
@@ -39,6 +40,7 @@ export type ShopBrandResponse = {
   brandId: string;
   brandSlug: string;
   brandName: string;
+  cashReceiptEnabled?: boolean | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   fulfillmentType: 'DELIVERY';
@@ -286,12 +288,14 @@ export default function ShopBrandPageClient({
   );
   const supportsReceiptRequest =
     paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
+  const canRequestReceipt =
+    data?.cashReceiptEnabled === true && supportsReceiptRequest;
 
   useEffect(() => {
-    if (supportsReceiptRequest) return;
+    if (canRequestReceipt) return;
     setTaxInvoiceRequested(false);
     setTaxInvoiceBusinessNumber('');
-  }, [supportsReceiptRequest]);
+  }, [canRequestReceipt]);
 
   useEffect(() => {
     const saved = loadCustomerInfoDraft();
@@ -538,7 +542,11 @@ export default function ShopBrandPageClient({
       return;
     }
 
-    if (taxInvoiceRequested && normalizedTaxInvoiceBusinessNumber.length !== 10) {
+    if (
+      canRequestReceipt &&
+      taxInvoiceRequested &&
+      normalizedTaxInvoiceBusinessNumber.length !== 10
+    ) {
       setSubmitError('지출증빙 요청을 위해 10자리 사업자등록번호를 입력해주세요.');
       return;
     }
@@ -563,7 +571,7 @@ export default function ShopBrandPageClient({
           customerAddress2: customerAddress2 || undefined,
           customerMemo: customerMemo || undefined,
           paymentMethod,
-          cashReceipt: taxInvoiceRequested
+          cashReceipt: canRequestReceipt && taxInvoiceRequested
             ? {
                 requested: true,
                 type: 'EXPENSE_PROOF',
@@ -949,19 +957,15 @@ export default function ShopBrandPageClient({
                 aria-label="연락처"
                 inputMode="tel"
               />
-              <input
-                value={customerAddress1}
-                onChange={(e) => setCustomerAddress1(e.target.value)}
-                className="input-field h-11 w-full"
-                placeholder="배송 주소 *"
-                aria-label="배송 주소"
-              />
-              <input
-                value={customerAddress2}
-                onChange={(e) => setCustomerAddress2(e.target.value)}
-                className="input-field h-11 w-full"
-                placeholder="상세 주소 (선택)"
-                aria-label="상세 주소"
+              <AddressSearchFields
+                addressLabel="배송 주소"
+                address1={customerAddress1}
+                address2={customerAddress2}
+                onAddress1Change={setCustomerAddress1}
+                onAddress2Change={setCustomerAddress2}
+                address1Placeholder="배송 주소 *"
+                address2Placeholder="상세 주소 (선택)"
+                className="space-y-0"
               />
               <textarea
                 value={customerMemo}
@@ -1030,7 +1034,7 @@ export default function ShopBrandPageClient({
                   </div>
                 ) : null}
 
-                {supportsReceiptRequest ? (
+                {canRequestReceipt ? (
                   <div className="mt-3 rounded-xl border border-border bg-bg-secondary p-3">
                     <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
                       <input

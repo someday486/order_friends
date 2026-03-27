@@ -82,6 +82,7 @@ describe('PublicOrderService - Shop Flow', () => {
           id: 'brand-1',
           name: 'Test Brand',
           slug: 'test-brand',
+          cash_receipt_enabled: true,
           logo_url: 'logo',
           cover_image_url: 'cover',
         },
@@ -158,6 +159,7 @@ describe('PublicOrderService - Shop Flow', () => {
 
     expect(result.brandId).toBe('brand-1');
     expect(result.brandSlug).toBe('test-brand');
+    expect(result.cashReceiptEnabled).toBe(true);
     expect(result.fulfillmentType).toBe('DELIVERY');
     expect(result.paymentMethods).toEqual(expect.arrayContaining(['CARD']));
     expect(result.products).toHaveLength(2);
@@ -342,6 +344,12 @@ describe('PublicOrderService - Shop Flow', () => {
       customerPhone: '010-1234-5678',
       customerAddress1: 'Seoul',
       paymentMethod: 'CARD' as any,
+      cashReceipt: {
+        requested: true,
+        type: 'EXPENSE_PROOF',
+        identityType: 'BUSINESS_NUMBER',
+        identityValue: '1234567890',
+      },
       items: [{ productId: 'tpl-1', qty: 1 }],
     });
 
@@ -349,6 +357,12 @@ describe('PublicOrderService - Shop Flow', () => {
       expect.objectContaining({
         branchId: 'branch-1',
         fulfillmentType: 'DELIVERY',
+        cashReceipt: {
+          requested: true,
+          type: 'EXPENSE_PROOF',
+          identityType: 'BUSINESS_NUMBER',
+          identityValue: '1234567890',
+        },
         items: [{ productId: 'prod-1', qty: 1 }],
       }),
     );

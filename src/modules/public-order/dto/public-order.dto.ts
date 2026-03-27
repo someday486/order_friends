@@ -24,6 +24,7 @@ export class PublicBranchResponse {
   id: string;
   name: string;
   brandName?: string;
+  cashReceiptEnabled?: boolean;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   contactPhone?: string | null;

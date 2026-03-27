@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PaymentMethod } from './public-order.dto';
+import { CashReceiptRequestDto, PaymentMethod } from './public-order.dto';
 
 export class PublicShopBrandProductResponse {
   id: string;
@@ -29,6 +29,7 @@ export class PublicShopBrandResponse {
   brandId: string;
   brandSlug: string;
   brandName: string;
+  cashReceiptEnabled?: boolean;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   fulfillmentType: 'DELIVERY';
@@ -112,4 +113,13 @@ export class CreatePublicShopOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => ShopOrderItemDto)
   items: ShopOrderItemDto[];
+
+  @ApiPropertyOptional({
+    description: '현금영수증 요청 정보',
+    type: CashReceiptRequestDto,
+  })
+  @ValidateNested()
+  @Type(() => CashReceiptRequestDto)
+  @IsOptional()
+  cashReceipt?: CashReceiptRequestDto;
 }

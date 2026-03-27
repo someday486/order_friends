@@ -35,6 +35,7 @@ type Branch = {
   id: string;
   name: string;
   brandName?: string;
+  cashReceiptEnabled?: boolean | null;
   address?: string | null;
   contactPhone?: string | null;
   kakaoChannelUrl?: string | null;

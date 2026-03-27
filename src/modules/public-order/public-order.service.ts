@@ -186,6 +186,7 @@ export class PublicOrderService {
     brandId: string;
     brandSlug: string;
     brandName: string;
+    cashReceiptEnabled: boolean;
     logoUrl: string | null;
     coverImageUrl: string | null;
     branchId: string;
@@ -206,7 +207,9 @@ export class PublicOrderService {
     let brandError: any = null;
     ({ data: brandRows, error: brandError } = await adminSb
       .from('brands')
-      .select('id, name, slug, logo_url, cover_image_url, shop_payment_methods')
+      .select(
+        'id, name, slug, logo_url, cover_image_url, shop_payment_methods, cash_receipt_enabled',
+      )
       .eq('slug', brandSlug)
       .limit(2));
     if (
@@ -216,7 +219,9 @@ export class PublicOrderService {
     ) {
       ({ data: brandRows, error: brandError } = await adminSb
         .from('brands')
-        .select('id, name, slug, logo_url, cover_image_url')
+        .select(
+          'id, name, slug, logo_url, cover_image_url, cash_receipt_enabled',
+        )
         .eq('slug', brandSlug)
         .limit(2));
     }
@@ -336,6 +341,7 @@ export class PublicOrderService {
       brandId: brand.id,
       brandSlug: brand.slug ?? brandSlug,
       brandName: brand.name ?? '',
+      cashReceiptEnabled: brand.cash_receipt_enabled === true,
       logoUrl: brand.logo_url ?? null,
       coverImageUrl: brand.cover_image_url ?? null,
       branchId: chosen.branchId,
@@ -974,6 +980,7 @@ export class PublicOrderService {
       brandId: context.brandId,
       brandSlug: context.brandSlug,
       brandName: context.brandName,
+      cashReceiptEnabled: context.cashReceiptEnabled,
       logoUrl: context.logoUrl,
       coverImageUrl: context.coverImageUrl,
       fulfillmentType: FulfillmentType.DELIVERY,
@@ -1114,6 +1121,7 @@ export class PublicOrderService {
       customerAddress2: dto.customerAddress2,
       customerMemo: dto.customerMemo,
       paymentMethod,
+      cashReceipt: dto.cashReceipt,
       fulfillmentType: FulfillmentType.DELIVERY,
       items: mappedItems,
     };
@@ -1494,7 +1502,8 @@ export class PublicOrderService {
         brands (
           name,
           logo_url,
-          cover_image_url
+          cover_image_url,
+          cash_receipt_enabled
         )
       `,
       )
@@ -1512,6 +1521,7 @@ export class PublicOrderService {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      cashReceiptEnabled: row.brands?.cash_receipt_enabled === true,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       contactPhone: row.contact_phone ?? null,
@@ -1545,7 +1555,8 @@ export class PublicOrderService {
         brands (
           name,
           logo_url,
-          cover_image_url
+          cover_image_url,
+          cash_receipt_enabled
         )
       `,
       )
@@ -1571,6 +1582,7 @@ export class PublicOrderService {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      cashReceiptEnabled: row.brands?.cash_receipt_enabled === true,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       contactPhone: row.contact_phone ?? null,
@@ -1609,7 +1621,8 @@ export class PublicOrderService {
           name,
           slug,
           logo_url,
-          cover_image_url
+          cover_image_url,
+          cash_receipt_enabled
         )
       `,
       )
@@ -1636,6 +1649,7 @@ export class PublicOrderService {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      cashReceiptEnabled: row.brands?.cash_receipt_enabled === true,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       contactPhone: row.contact_phone ?? null,

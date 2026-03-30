@@ -7,7 +7,7 @@ const MOCK_BRANCH = {
   name: '강남 메인',
   slug: 'gangnam-main',
   enabledFulfillmentTypes: ['PICKUP', 'DELIVERY'],
-  allowedPaymentMethods: ['CARD', 'CASH'],
+  allowedPaymentMethods: ['CARD', 'TRANSFER'],
   orderNotice: '포장은 20분 전에 미리 주문해 주세요.',
 };
 

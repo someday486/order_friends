@@ -2344,10 +2344,7 @@ export class PublicOrderService {
       paymentMethod: string;
     },
   ): Promise<void> {
-    if (
-      params.paymentMethod !== PaymentMethod.TRANSFER &&
-      params.paymentMethod !== PaymentMethod.CASH
-    ) {
+    if (params.paymentMethod !== PaymentMethod.TRANSFER) {
       return;
     }
 

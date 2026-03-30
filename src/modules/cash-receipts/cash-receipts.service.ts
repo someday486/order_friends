@@ -73,10 +73,7 @@ export class CashReceiptsService {
       return;
     }
 
-    if (
-      !['TRANSFER', 'CASH'].includes(String(payment.payment_method ?? '')) ||
-      payment.status !== 'SUCCESS'
-    ) {
+    if (payment.payment_method !== 'TRANSFER' || payment.status !== 'SUCCESS') {
       return;
     }
 

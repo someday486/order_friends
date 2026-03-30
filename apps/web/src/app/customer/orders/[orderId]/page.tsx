@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
-import { formatDateTime, formatPhone, formatWon } from "@/lib/format";
+import {
+  formatBusinessNumber,
+  formatDateTime,
+  formatPhone,
+  formatWon,
+} from "@/lib/format";
 import {
   FULFILLMENT_TYPE_LABEL,
   ORDER_STATUS_DISPLAY_LABEL,
@@ -47,6 +52,10 @@ type OrderDetail = {
     discount: number;
     total: number;
   };
+  taxInvoiceRequest?: {
+    requested: boolean;
+    businessNumber?: string | null;
+  } | null;
   items: OrderItem[];
   myRole?: string;
 };
@@ -613,6 +622,21 @@ export default function CustomerOrderDetailPage() {
           value={PAYMENT_METHOD_LABEL[order.payment.method] || order.payment.method || "-"}
         />
       </div>
+
+      {order.taxInvoiceRequest?.requested && (
+        <div className="bg-card rounded-md border border-border p-4 mb-3">
+          <h2 className="text-sm font-extrabold text-foreground mb-3">
+            세금계산서 요청 정보
+          </h2>
+          <InfoRow label="발행 요청" value="요청됨" />
+          <InfoRow
+            label="사업자등록번호"
+            value={formatBusinessNumber(
+              order.taxInvoiceRequest.businessNumber || "-",
+            )}
+          />
+        </div>
+      )}
 
       {/* Status actions */}
       {canUpdateStatus && (

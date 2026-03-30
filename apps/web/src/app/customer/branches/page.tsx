@@ -43,7 +43,7 @@ type Brand = {
   shop_payment_methods?: string[] | null;
 };
 
-type BranchPaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type BranchPaymentMethod = "CARD" | "TRANSFER";
 type BranchFulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 
 // ============================================================
@@ -53,13 +53,11 @@ type BranchFulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 const SHOP_PAYMENT_METHOD_OPTIONS = [
   { value: "CARD", label: "카드" },
   { value: "TRANSFER", label: "계좌이체" },
-  { value: "CASH", label: "현금" },
 ] as const;
 
 const BRANCH_PAYMENT_METHOD_OPTIONS: Array<{ value: BranchPaymentMethod; label: string }> = [
   { value: "CARD", label: "카드" },
   { value: "TRANSFER", label: "계좌이체" },
-  { value: "CASH", label: "현금" },
 ];
 
 const BRANCH_FULFILLMENT_OPTIONS: Array<{
@@ -619,7 +617,7 @@ function AddBranchModal({
     name: "",
     slug: "",
     enabledFulfillmentTypes: ["PICKUP"],
-    allowedPaymentMethods: ["CARD", "TRANSFER", "CASH"],
+    allowedPaymentMethods: ["CARD", "TRANSFER"],
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",

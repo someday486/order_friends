@@ -13,7 +13,7 @@ import {
 } from './dto/customer-brand.request';
 import { CashReceiptOnboardingService } from '../cash-receipts/cash-receipt-onboarding.service';
 
-const SHOP_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'CASH'] as const;
+const SHOP_PAYMENT_METHODS = ['CARD', 'TRANSFER'] as const;
 type ShopPaymentMethod = (typeof SHOP_PAYMENT_METHODS)[number];
 
 @Injectable()

@@ -44,6 +44,10 @@ type OrderDetail = {
     discount: number;
     total: number;
   };
+  taxInvoiceRequest?: {
+    requested: boolean;
+    businessNumber?: string | null;
+  } | null;
   items: OrderItem[];
 };
 
@@ -83,6 +87,14 @@ const depositMatchClass: Record<DepositMatchStatus, string> = {
 
 function formatWon(amount: number) {
   return `${amount.toLocaleString("ko-KR")}원`;
+}
+
+function formatBusinessNumber(value: string) {
+  const cleaned = value.replace(/\D/g, "");
+  if (cleaned.length === 10) {
+    return cleaned.replace(/(\d{3})(\d{2})(\d{5})/, "$1-$2-$3");
+  }
+  return value;
 }
 
 function formatDateTime(iso: string) {
@@ -457,6 +469,29 @@ function OrderDetailPageContent() {
               </div>
             </div>
           </section>
+
+          {order.taxInvoiceRequest?.requested && (
+            <section className="card p-3.5">
+              <div className="text-sm font-extrabold text-foreground">
+                세금계산서 요청 정보
+              </div>
+
+              <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                <div className="text-[13px] text-text-secondary">발행 요청</div>
+                <div className="text-[13px] text-foreground">요청됨</div>
+              </div>
+              <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                <div className="text-[13px] text-text-secondary">
+                  사업자번호
+                </div>
+                <div className="text-[13px] text-foreground">
+                  {formatBusinessNumber(
+                    order.taxInvoiceRequest.businessNumber || "-",
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>

@@ -115,6 +115,21 @@ export class CustomerOrdersService {
     );
   }
 
+  private buildStatusUpdatePayload(status: OrderStatus) {
+    const timestamp = new Date().toISOString();
+    const payload: Record<string, unknown> = { status };
+
+    if (status === OrderStatus.COMPLETED) {
+      payload.completed_at = timestamp;
+    }
+
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+      payload.cancelled_at = timestamp;
+    }
+
+    return payload;
+  }
+
   /**
    * orderId가 uuid(id)일 수도, order_no일 수도 있음
    * 실제 orders.id(uuid)로 resolve
@@ -898,6 +913,8 @@ export class CustomerOrdersService {
 
     const selectDetail = `
       id, order_no, status, created_at, fulfillment_type,
+      cash_receipt_requested, cash_receipt_type,
+      cash_receipt_identity_type, cash_receipt_identity_value,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -948,6 +965,7 @@ export class CustomerOrdersService {
     const depositMatchStatusMap = await this.getDepositMatchStatusMap(sb, [
       String(data.id),
     ]);
+    const taxInvoiceRequest = this.mapTaxInvoiceRequest(data);
 
     return {
       id: data.id,
@@ -975,7 +993,29 @@ export class CustomerOrdersService {
         discount: data.discount_total ?? 0,
         total: data.total_amount ?? 0,
       },
+      taxInvoiceRequest,
       items,
+    };
+  }
+
+  private mapTaxInvoiceRequest(data: {
+    cash_receipt_requested?: boolean | null;
+    cash_receipt_type?: string | null;
+    cash_receipt_identity_type?: string | null;
+    cash_receipt_identity_value?: string | null;
+  }) {
+    const isRequested =
+      data.cash_receipt_requested === true &&
+      data.cash_receipt_type === 'EXPENSE_PROOF' &&
+      data.cash_receipt_identity_type === 'BUSINESS_NUMBER';
+
+    if (!isRequested) {
+      return null;
+    }
+
+    return {
+      requested: true,
+      businessNumber: data.cash_receipt_identity_value ?? null,
     };
   }
 
@@ -1015,7 +1055,7 @@ export class CustomerOrdersService {
 
     const { data, error } = await sb
       .from('orders')
-      .update({ status })
+      .update(this.buildStatusUpdatePayload(status))
       .eq('id', order.id)
       .select('id, order_no, status, created_at, customer_name, total_amount')
       .single();
@@ -1112,7 +1152,7 @@ export class CustomerOrdersService {
 
     const { data, error } = await sb
       .from('orders')
-      .update({ status })
+      .update(this.buildStatusUpdatePayload(status))
       .in('id', targetOrderIds)
       .select('id');
 

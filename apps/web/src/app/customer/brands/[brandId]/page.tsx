@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { AddressSearchFields } from "@/components/order/AddressSearchFields";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { apiClient } from "@/lib/api-client";
 
@@ -85,6 +86,39 @@ function createFormData(brand: Brand): BrandFormData {
   };
 }
 
+function splitBusinessAddress(address: string | null | undefined): {
+  addressLine1: string;
+  addressLine2: string;
+} {
+  const normalized = address?.trim() ?? "";
+  if (!normalized) {
+    return { addressLine1: "", addressLine2: "" };
+  }
+
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return { addressLine1: "", addressLine2: "" };
+  }
+
+  return {
+    addressLine1: lines[0],
+    addressLine2: lines.slice(1).join(" "),
+  };
+}
+
+function combineBusinessAddress(addressLine1: string, addressLine2: string): string {
+  const primary = addressLine1.trim();
+  const detail = addressLine2.trim();
+
+  if (!primary) return detail;
+  if (!detail) return primary;
+  return `${primary}\n${detail}`;
+}
+
 const emptyFormData: BrandFormData = {
   name: "",
   slug: "",
@@ -114,11 +148,22 @@ export default function BrandDetailPage() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [businessAddress1, setBusinessAddress1] = useState("");
+  const [businessAddress2, setBusinessAddress2] = useState("");
   const [bizCertUploading, setBizCertUploading] = useState(false);
   const [bizCertUploadError, setBizCertUploadError] = useState<string | null>(
     null,
   );
   const bizCertInputRef = useRef<HTMLInputElement>(null);
+
+  const syncBrandForm = (nextBrand: Brand) => {
+    const nextFormData = createFormData(nextBrand);
+    const nextAddress = splitBusinessAddress(nextFormData.address);
+    setBrand(nextBrand);
+    setFormData(nextFormData);
+    setBusinessAddress1(nextAddress.addressLine1);
+    setBusinessAddress2(nextAddress.addressLine2);
+  };
 
   useEffect(() => {
     const loadBrand = async () => {
@@ -127,8 +172,7 @@ export default function BrandDetailPage() {
         setError(null);
 
         const data = await apiClient.get<Brand>(`/customer/brands/${brandId}`);
-        setBrand(data);
-        setFormData(createFormData(data));
+        syncBrandForm(data);
       } catch (e) {
         console.error(e);
         setError(
@@ -237,7 +281,8 @@ export default function BrandDetailPage() {
         biz_name: formData.biz_name || null,
         biz_reg_no: formData.biz_reg_no || null,
         rep_name: formData.rep_name || null,
-        address: formData.address || null,
+        address:
+          combineBusinessAddress(businessAddress1, businessAddress2) || null,
         cash_receipt_provider:
           formData.cash_receipt_enabled && formData.cash_receipt_provider
             ? formData.cash_receipt_provider
@@ -251,8 +296,7 @@ export default function BrandDetailPage() {
         payload,
       );
 
-      setBrand(updatedBrand);
-      setFormData(createFormData(updatedBrand));
+      syncBrandForm(updatedBrand);
       setIsEditing(false);
       toast.success("브랜드 정보가 저장되었습니다.");
     } catch (e) {
@@ -407,13 +451,24 @@ export default function BrandDetailPage() {
                 주소
               </label>
               <input
-                type="text"
-                value={formData.address}
+                type="hidden"
+                value={combineBusinessAddress(businessAddress1, businessAddress2)}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, address: e.target.value }))
                 }
                 className="input-field w-full"
                 placeholder="사업장 주소"
+              />
+              <AddressSearchFields
+                showLabel={false}
+                addressLabel="사업장 주소"
+                address1={businessAddress1}
+                address2={businessAddress2}
+                onAddress1Change={setBusinessAddress1}
+                onAddress2Change={setBusinessAddress2}
+                address1Placeholder="사업장 기본 주소"
+                address2Placeholder="상세 주소"
+                className="mt-3"
               />
             </div>
 
@@ -636,7 +691,11 @@ export default function BrandDetailPage() {
               <button
                 onClick={() => {
                   setIsEditing(false);
-                  setFormData(createFormData(brand));
+                  const nextFormData = createFormData(brand);
+                  const nextAddress = splitBusinessAddress(nextFormData.address);
+                  setFormData(nextFormData);
+                  setBusinessAddress1(nextAddress.addressLine1);
+                  setBusinessAddress2(nextAddress.addressLine2);
                   setBizCertUploadError(null);
                 }}
                 disabled={saveLoading}

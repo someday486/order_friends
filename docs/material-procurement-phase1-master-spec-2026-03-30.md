@@ -1,7 +1,7 @@
 # 자재 발주 시스템 Phase 1 통합 명세서
 
 작성일: 2026-03-30
-상태: Draft v1
+상태: Draft v2
 문서 성격: Phase 1 실행 기준서
 현재 유지 문서:
 
@@ -85,6 +85,12 @@ Phase 1은 아래 세 가지 운영 방식 중 모두 수용할 수 있도록 �
 - 매장은 요청 생성과 제출을 담당한다.
 - 브랜드 운영자는 승인과 발주 전환을 담당한다.
 - 작은 고객사는 설정에서 승인 단계를 약화해 매장 자율형으로 운영할 수 있다.
+
+Phase 1 기본 승인 기준은 아래와 같이 고정한다.
+
+- `approvalMode = NONE`이면 submit 이후 별도 approve 없이 convert가 가능하다.
+- self-approval은 기본적으로 금지한다.
+- self-approval이 필요한 고객만 `allowBranchSelfApproval = true`를 명시적으로 켠다.
 
 ## 5. 핵심 사용자 시나리오
 
@@ -635,11 +641,15 @@ route:
 
 - `SUBMITTED` 상태에서만 approve / reject 가능
 - reject에는 reason 필수
-- approval mode가 `NONE`이면 approve 없이 convert 가능하게 할지 Phase 1에서 정책 확정 필요
+- `approvalMode = NONE`이면 approve 단계 없이 convert 가능
+- request 작성자는 기본적으로 자신의 request를 approve할 수 없다.
+- `allowBranchSelfApproval = true`일 때만 예외적으로 self-approval을 허용한다.
 
 ### 발주서 전환
 
 - 이미 PO로 전환된 request는 중복 전환 금지
+- `approvalMode = SINGLE_STEP`이면 `APPROVED` 상태에서만 convert 가능
+- `approvalMode = NONE`이면 `SUBMITTED` 상태에서 convert 가능
 - convert 시 line snapshot을 PO line에 복사
 - convert 후 request 상태를 `CONVERTED_TO_PO`로 변경
 
@@ -660,13 +670,13 @@ route:
 
 - `procurementEnabled`
 - `approvalMode`
+- `allowBranchSelfApproval`
 - `autoCreatePurchaseOrder`
 - `defaultCurrency`
 
 ### 추가로 고려해야 할 설정
 
 - request amount threshold
-- branch self-approval 허용 여부
 - inactive supplier fallback 알림 여부
 - 기본 납기일 계산 규칙
 
@@ -795,7 +805,7 @@ Phase 1은 아래가 모두 만족되면 완료로 본다.
 
 - 공급사 / 품목 / 공급사 품목 / 발주 가이드 CRUD가 가능하다.
 - 발주 요청 생성부터 발주서 전환까지 끊기지 않는다.
-- 최소 1단계 승인 흐름이 동작한다.
+- 설정에 따라 no-approval bypass 또는 1단계 승인 흐름이 동작한다.
 - 발주서 전송 기록이 남는다.
 - 브랜드 / 매장 설정이 동작한다.
 - 감사 로그가 남는다.
@@ -825,13 +835,11 @@ Phase 1은 아래가 모두 만족되면 완료로 본다.
 
 아래는 구현 전에 꼭 확정해야 한다.
 
-1. `approvalMode = NONE`일 때 submit 이후 바로 convert를 허용할지
-2. branch manager의 self-approval 허용 여부
-3. request / PO 번호 체계를 DB sequence로 할지 애플리케이션 생성으로 할지
-4. supplier item line 중복을 허용할지
-5. 발주 가이드를 brand 공통으로 허용할지 branch 전용으로 한정할지
-6. PO 전송 시 실제 이메일 발송은 Phase 1에서 제외할지 최소 지원할지
-7. soft delete 전략을 어디까지 적용할지
+1. request / PO 번호 체계를 DB sequence로 할지 애플리케이션 생성으로 할지
+2. supplier item line 중복을 허용할지
+3. 발주 가이드를 brand 공통으로 허용할지 branch 전용으로 한정할지
+4. PO 전송 시 실제 이메일 발송은 Phase 1에서 제외할지 최소 지원할지
+5. soft delete 전략을 어디까지 적용할지
 
 ## 24. 다음 추천 작업
 

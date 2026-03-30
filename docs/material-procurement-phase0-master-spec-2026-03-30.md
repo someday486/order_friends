@@ -1,7 +1,7 @@
 # 자재 발주 시스템 Phase 0 통합 명세서
 
 작성일: 2026-03-30
-상태: Draft v1
+상태: Draft v2
 문서 성격: Phase 0 기반 설계 기준서
 현재 유지 문서:
 
@@ -22,6 +22,7 @@ Phase 0의 목적은 화면을 만드는 것이 아니라 이후 모든 페이�
 - scope 규칙
 - 번호 체계
 - 감사 로그 원칙
+- 운영 마감과 정산의 경계
 
 ## 2. Phase 0 목표
 
@@ -103,6 +104,9 @@ Phase 0이 끝나면 팀이 같은 단어와 같은 구조를 보고 이야기�
 - `PurchaseOrder`
 - `Receiving`
 - `SupplierInvoice`
+
+### 후속 정산 확장 예약
+
 - `Adjustment`
 - `SupplierStatement`
 
@@ -154,7 +158,7 @@ Phase 0이 끝나면 팀이 같은 단어와 같은 구조를 보고 이야기�
 - 소유자와 운영자는 브랜드 기준 관리 권한을 가진다.
 - 매장 매니저는 매장 운영 권한을 가진다.
 - 매장 스태프는 요청 생성과 보조 입력 중심이다.
-- 회계는 송장과 정산 중심 권한을 가진다.
+- 회계는 송장 검증과 외부 정산 연계 중심 권한을 가진다.
 
 ### 권한 설계 원칙
 
@@ -200,7 +204,6 @@ Phase 0이 끝나면 팀이 같은 단어와 같은 구조를 보고 이야기�
 - `MATCHED`
 - `VARIANCE_DETECTED`
 - `APPROVED`
-- `SETTLED`
 - `CLOSED`
 
 ## 9. 상태 전이 원칙
@@ -215,7 +218,16 @@ Phase 0이 끝나면 팀이 같은 단어와 같은 구조를 보고 이야기�
 
 - `READY_TO_SEND`에서 전송 가능
 - `SENT` 이후에는 receiving / invoice와 연결될 수 있음
+- receiving 결과에 따라 `PARTIALLY_RECEIVED` 또는 `RECEIVED`로 이동한다.
+- 승인된 invoice가 연결되고 open exception이 없으면 `INVOICED`로 이동한다.
+- `CLOSED`는 procurement 운영 마감 상태이며 외부 지급 완료를 뜻하지 않는다.
 - 종료 상태 이후 수정은 금지
+
+### Supplier Invoice
+
+- `UPLOADED` 이후에는 `MATCHED` 또는 `VARIANCE_DETECTED`로 이동한다.
+- `APPROVED`는 송장 검증 완료를 의미한다.
+- `CLOSED`는 procurement 문서 마감을 뜻하며 정산 지급과 동일 의미가 아니다.
 
 ### 상태 전이 설계 원칙
 
@@ -297,6 +309,12 @@ Phase 0에서 확정할 기준:
 - 운영 이력은 삭제보다 보존 우선
 - soft delete 여부를 엔티티별로 문서화
 
+### 운영 마감과 정산 경계
+
+- Phase 0~4 문서군은 procurement 운영 마감까지를 다룬다.
+- 지급 실행, 회계 대사, supplier statement는 별도 정산 트랙에서 다룬다.
+- 따라서 `APPROVED`, `CLOSED` 같은 상태 이름을 지급 완료 의미로 재사용하지 않는다.
+
 ### 동시성
 
 - 수정 충돌 방지를 위한 optimistic check 고려
@@ -328,6 +346,8 @@ Phase 0에서 확정할 기준:
 - 감사 로그 필드 확정
 - 공통 API 규칙 초안 확정
 - 용어 사전 확정
+- approval bypass / self-approval 기본 규칙 확정
+- inventory 기반 계산의 데이터 출처 계약 확정
 
 ## 16. 완료 기준
 

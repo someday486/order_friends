@@ -1,7 +1,7 @@
 # 자재 발주 시스템 전체 페이즈 통합 명세서
 
 작성일: 2026-03-30
-상태: Draft v1
+상태: Draft v2
 문서 성격: Phase 0~4 통합 로드맵 및 실행 기준서
 현재 유지 문서:
 
@@ -31,10 +31,14 @@
 최종적으로 이 서비스는 아래를 지원해야 한다.
 
 - 브랜드 / 매장 / 공급사 단위 운영
-- 요청 -> 승인 -> 발주 -> 입고 -> 송장 -> 정산 -> 예외 처리
+- 요청 -> 승인 -> 발주 -> 입고 -> 송장 검증 -> 예외 처리
 - 가격 추적과 권장 발주
 - 공급사 연동과 자동화
 - 감사 로그와 운영 통제
+
+현재 문서 세트는 procurement 운영 범위를 송장 검증과 운영 마감까지로 한정한다.
+
+지급 실행, supplier statement, 회계 대사, 세금계산서 이후 정산은 별도 회계 / 정산 트랙으로 분리하며, 본 Phase 0~4 문서군의 구현 범위에는 포함하지 않는다.
 
 ## 3. 제품 원칙
 
@@ -88,6 +92,9 @@
 - `ReceivingLine`
 - `SupplierInvoice`
 - `InvoiceMatchResult`
+
+### 후속 정산 확장 예약 영역
+
 - `Adjustment`
 - `SupplierStatement`
 
@@ -138,8 +145,11 @@
 - `MATCHED`
 - `VARIANCE_DETECTED`
 - `APPROVED`
-- `SETTLED`
 - `CLOSED`
+
+`APPROVED`는 procurement 관점에서 송장 검증이 끝난 상태를 뜻한다.
+
+`CLOSED`는 운영 마감 상태를 뜻하며, 외부 회계 시스템의 지급 완료와 동일 의미로 사용하지 않는다.
 
 ## 7. 설정 계층
 
@@ -290,6 +300,7 @@ Phase 1 상세는 `docs/material-procurement-phase1-master-spec-2026-03-30.md`�
 - 송장을 업로드하고 발주 / 입고와 연결할 수 있다.
 - 차이와 불일치가 예외 큐로 떠야 한다.
 - 운영자가 예외를 해소하고 이력이 남아야 한다.
+- procurement 기준 운영 마감은 가능하지만 지급 자동화는 범위 밖이다.
 
 ## 12. Phase 3. 가격 / 리포트 / 권장 발주
 
@@ -345,6 +356,7 @@ Phase 1 상세는 `docs/material-procurement-phase1-master-spec-2026-03-30.md`�
 - 매장별 par level을 관리할 수 있다.
 - 권장 발주량이 계산된다.
 - 공급사별 성과와 비용 리포트를 볼 수 있다.
+- 재고 기반 계산에 사용된 데이터 출처를 설명할 수 있다.
 
 ## 13. Phase 4. 자동화 / 연동 / 공급사 포털
 
@@ -391,6 +403,8 @@ Phase 1 상세는 `docs/material-procurement-phase1-master-spec-2026-03-30.md`�
 - 공급사마다 다른 채널과 포맷을 수용해야 함
 - OCR은 운영 보조일 뿐, 수동 검토 플로우를 반드시 유지해야 함
 - 자동화는 예외 처리 설계가 먼저 있어야 안전함
+- 다단계 승인 정책은 Phase 1의 승인 기본 규칙이 먼저 고정되어 있어야 안전함
+- 공급사 응답은 canonical PO 상태 또는 예외로만 매핑되어야 함
 
 ### 완료 기준
 
@@ -413,14 +427,17 @@ Phase 1 상세는 `docs/material-procurement-phase1-master-spec-2026-03-30.md`�
 
 - request / PO / supplier item 구조가 먼저 안정적이어야 한다.
 - send log와 PO line snapshot이 있어야 입고와 송장 연결이 수월하다.
+- approval bypass와 self-approval 기본 정책이 먼저 고정되어 있어야 한다.
 
 ### Phase 2 -> Phase 3
 
 - 입고 / 송장 데이터가 쌓여야 가격 추이와 공급사 성과가 의미를 가진다.
+- inventory source와 procurement item 연결 계약이 있어야 권장 발주가 안정적이다.
 
 ### Phase 3 -> Phase 4
 
 - 예외와 리포트가 안정화되어야 자동화 리스크를 통제할 수 있다.
+- approval baseline과 supplier response mapping 규칙이 먼저 문서화되어야 한다.
 
 ## 16. 공통 비기능 요구사항
 
@@ -526,16 +543,17 @@ Phase 1 상세는 `docs/material-procurement-phase1-master-spec-2026-03-30.md`�
 - 전체 페이즈 통합본: 이 문서
 - Phase 0 기준서: `material-procurement-phase0-master-spec-2026-03-30.md`
 - Phase 1 실행 기준서: `material-procurement-phase1-master-spec-2026-03-30.md`
-- Phase 2 기준서: `material-procurement-phase2-master-spec-2026-03-30.md`
-- Phase 3 기준서: `material-procurement-phase3-master-spec-2026-03-30.md`
-- Phase 4 기준서: `material-procurement-phase4-master-spec-2026-03-30.md`
+- Phase 2 실행 기준서: `material-procurement-phase2-master-spec-2026-03-30.md`
+- Phase 3 실행 기준서: `material-procurement-phase3-master-spec-2026-03-30.md`
+- Phase 4 실행 기준서: `material-procurement-phase4-master-spec-2026-03-30.md`
 
 ## 21. 다음 추천 작업
 
 1. Phase 1 migration pseudo-SQL 통합본 작성
 2. 화면 와이어프레임 또는 IA 다이어그램 작성
 3. 실제 `customer-procurement` 모듈 구현 착수
-4. Phase 2~4 세부 DB / DTO / 정책 문서 확장
+4. Phase 2~4 migration pseudo-SQL 및 API 상세표 작성
+5. 정산 / supplier statement 별도 후속 명세 문서 분리 여부 결정
 
 ## 22. 참고 벤치마크
 

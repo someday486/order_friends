@@ -52,13 +52,38 @@ type OrderDetail = {
     discount: number;
     total: number;
   };
-  taxInvoiceRequest?: {
+  cashReceiptRequest?: {
     requested: boolean;
-    businessNumber?: string | null;
+    type?: string | null;
+    identityType?: string | null;
+    identityValue?: string | null;
   } | null;
   items: OrderItem[];
   myRole?: string;
 };
+
+const CASH_RECEIPT_TYPE_LABEL: Record<string, string> = {
+  INCOME_DEDUCTION: "소득공제용",
+  EXPENSE_PROOF: "지출증빙용",
+};
+
+function getCashReceiptIdentityLabel(identityType?: string | null) {
+  if (identityType === "PHONE") return "휴대폰 번호";
+  if (identityType === "BUSINESS_NUMBER") return "사업자등록번호";
+  return "식별번호";
+}
+
+function formatCashReceiptIdentityValue(
+  identityType?: string | null,
+  identityValue?: string | null,
+) {
+  if (!identityValue) return "-";
+  if (identityType === "PHONE") return formatPhone(identityValue);
+  if (identityType === "BUSINESS_NUMBER") {
+    return formatBusinessNumber(identityValue);
+  }
+  return identityValue;
+}
 
 // ============================================================
 // Constants
@@ -623,16 +648,25 @@ export default function CustomerOrderDetailPage() {
         />
       </div>
 
-      {order.taxInvoiceRequest?.requested && (
+      {order.cashReceiptRequest?.requested && (
         <div className="bg-card rounded-md border border-border p-4 mb-3">
           <h2 className="text-sm font-extrabold text-foreground mb-3">
-            세금계산서 요청 정보
+            현금영수증 요청 정보
           </h2>
           <InfoRow label="발행 요청" value="요청됨" />
           <InfoRow
-            label="사업자등록번호"
-            value={formatBusinessNumber(
-              order.taxInvoiceRequest.businessNumber || "-",
+            label="발급 유형"
+            value={
+              CASH_RECEIPT_TYPE_LABEL[order.cashReceiptRequest.type || ""] ||
+              order.cashReceiptRequest.type ||
+              "-"
+            }
+          />
+          <InfoRow
+            label={getCashReceiptIdentityLabel(order.cashReceiptRequest.identityType)}
+            value={formatCashReceiptIdentityValue(
+              order.cashReceiptRequest.identityType,
+              order.cashReceiptRequest.identityValue,
             )}
           />
         </div>

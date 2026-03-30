@@ -33,11 +33,77 @@ let cachedUserId: string | null = null;
 let cachedUserData: UserData | null = null;
 let inFlightUserId: string | null = null;
 let inFlightUserRolePromise: Promise<UserData | null> | null = null;
+const USER_ROLE_CACHE_KEY = 'orderfriends:user-role-cache';
+const USER_ROLE_CACHE_TTL_MS = 60_000;
+
+type StoredUserRoleCache = {
+  userId: string;
+  userData: UserData;
+  expiresAt: number;
+};
+
+function readStoredUserRoleCache(userId: string | null): UserData | null {
+  if (!userId || typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(USER_ROLE_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as StoredUserRoleCache;
+    if (
+      parsed.userId !== userId ||
+      !parsed.userData ||
+      parsed.expiresAt <= Date.now()
+    ) {
+      window.localStorage.removeItem(USER_ROLE_CACHE_KEY);
+      return null;
+    }
+
+    return parsed.userData;
+  } catch {
+    window.localStorage.removeItem(USER_ROLE_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeStoredUserRoleCache(userId: string, userData: UserData) {
+  if (typeof window === 'undefined') return;
+
+  const payload: StoredUserRoleCache = {
+    userId,
+    userData,
+    expiresAt: Date.now() + USER_ROLE_CACHE_TTL_MS,
+  };
+
+  try {
+    window.localStorage.setItem(USER_ROLE_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore storage quota/private mode failures and keep in-memory cache only.
+  }
+}
+
+function clearStoredUserRoleCache() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.removeItem(USER_ROLE_CACHE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
 
 function getCachedUserRole(userId: string | null) {
   if (!userId) return null;
-  if (cachedUserId !== userId) return null;
-  return cachedUserData;
+  if (cachedUserId === userId && cachedUserData) {
+    return cachedUserData;
+  }
+
+  const stored = readStoredUserRoleCache(userId);
+  if (!stored) return null;
+
+  cachedUserId = userId;
+  cachedUserData = stored;
+  return stored;
 }
 
 function clearUserRoleCache() {
@@ -45,6 +111,7 @@ function clearUserRoleCache() {
   cachedUserData = null;
   inFlightUserId = null;
   inFlightUserRolePromise = null;
+  clearStoredUserRoleCache();
 }
 
 async function fetchUserRoleData(userId: string): Promise<UserData | null> {
@@ -63,6 +130,7 @@ async function fetchUserRoleData(userId: string): Promise<UserData | null> {
     .then((data) => {
       cachedUserId = userId;
       cachedUserData = data;
+      writeStoredUserRoleCache(userId, data);
       return data;
     })
     .finally(() => {

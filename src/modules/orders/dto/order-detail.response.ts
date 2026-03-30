@@ -8,9 +8,11 @@ export class OrderItemResponse {
   unitPrice: number;
 }
 
-export class TaxInvoiceRequestResponse {
+export class CashReceiptRequestResponse {
   requested: boolean;
-  businessNumber?: string | null;
+  type?: string | null;
+  identityType?: string | null;
+  identityValue?: string | null;
 }
 
 export class OrderDetailResponse {
@@ -38,7 +40,7 @@ export class OrderDetailResponse {
     discount: number;
     total: number;
   };
-  taxInvoiceRequest?: TaxInvoiceRequestResponse | null;
+  cashReceiptRequest?: CashReceiptRequestResponse | null;
 
   items: OrderItemResponse[];
 }

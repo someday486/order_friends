@@ -96,3 +96,16 @@ export function formatBusinessNumber(value: string): string {
   }
   return value;
 }
+
+export function formatCashReceiptProvider(
+  value: string | null | undefined,
+): string {
+  if (!value) return '-';
+
+  const normalized = value.trim().toUpperCase();
+  if (normalized === 'POPBILL') {
+    return 'Popbill';
+  }
+
+  return value;
+}

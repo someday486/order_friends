@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { formatPhone } from "@/lib/format";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 import BranchSelector from "@/components/admin/BranchSelector";
 import {
@@ -44,11 +45,18 @@ type OrderDetail = {
     discount: number;
     total: number;
   };
-  taxInvoiceRequest?: {
+  cashReceiptRequest?: {
     requested: boolean;
-    businessNumber?: string | null;
+    type?: string | null;
+    identityType?: string | null;
+    identityValue?: string | null;
   } | null;
   items: OrderItem[];
+};
+
+const CASH_RECEIPT_TYPE_LABEL: Record<string, string> = {
+  INCOME_DEDUCTION: "소득공제용",
+  EXPENSE_PROOF: "지출증빙용",
 };
 
 const STATUS_FLOW: OrderStatus[] = [
@@ -95,6 +103,24 @@ function formatBusinessNumber(value: string) {
     return cleaned.replace(/(\d{3})(\d{2})(\d{5})/, "$1-$2-$3");
   }
   return value;
+}
+
+function getCashReceiptIdentityLabel(identityType?: string | null) {
+  if (identityType === "PHONE") return "휴대폰 번호";
+  if (identityType === "BUSINESS_NUMBER") return "사업자등록번호";
+  return "식별번호";
+}
+
+function formatCashReceiptIdentityValue(
+  identityType?: string | null,
+  identityValue?: string | null,
+) {
+  if (!identityValue) return "-";
+  if (identityType === "PHONE") return formatPhone(identityValue);
+  if (identityType === "BUSINESS_NUMBER") {
+    return formatBusinessNumber(identityValue);
+  }
+  return identityValue;
 }
 
 function formatDateTime(iso: string) {
@@ -470,10 +496,10 @@ function OrderDetailPageContent() {
             </div>
           </section>
 
-          {order.taxInvoiceRequest?.requested && (
+          {order.cashReceiptRequest?.requested && (
             <section className="card p-3.5">
               <div className="text-sm font-extrabold text-foreground">
-                세금계산서 요청 정보
+                현금영수증 요청 정보
               </div>
 
               <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
@@ -481,12 +507,21 @@ function OrderDetailPageContent() {
                 <div className="text-[13px] text-foreground">요청됨</div>
               </div>
               <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                <div className="text-[13px] text-text-secondary">발급 유형</div>
+                <div className="text-[13px] text-foreground">
+                  {CASH_RECEIPT_TYPE_LABEL[order.cashReceiptRequest.type || ""] ||
+                    order.cashReceiptRequest.type ||
+                    "-"}
+                </div>
+              </div>
+              <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
                 <div className="text-[13px] text-text-secondary">
-                  사업자번호
+                  {getCashReceiptIdentityLabel(order.cashReceiptRequest.identityType)}
                 </div>
                 <div className="text-[13px] text-foreground">
-                  {formatBusinessNumber(
-                    order.taxInvoiceRequest.businessNumber || "-",
+                  {formatCashReceiptIdentityValue(
+                    order.cashReceiptRequest.identityType,
+                    order.cashReceiptRequest.identityValue,
                   )}
                 </div>
               </div>

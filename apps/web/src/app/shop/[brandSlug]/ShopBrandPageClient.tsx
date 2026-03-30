@@ -78,7 +78,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   TRANSFER: '🏦 계좌이체',
 };
 
-function normalizeBusinessNumber(value: string) {
+function normalizePhoneNumber(value: string) {
   return value.replace(/[^\d]/g, '');
 }
 
@@ -268,8 +268,7 @@ export default function ShopBrandPageClient({
   const [customerAddress1, setCustomerAddress1] = useState('');
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
-  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
-  const [taxInvoiceBusinessNumber, setTaxInvoiceBusinessNumber] = useState('');
+  const [cashReceiptRequested, setCashReceiptRequested] = useState(false);
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const [authInfoLoaded, setAuthInfoLoaded] = useState(false);
   const authInfoRequestedRef = useRef(false);
@@ -281,9 +280,9 @@ export default function ShopBrandPageClient({
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const normalizedTaxInvoiceBusinessNumber = useMemo(
-    () => normalizeBusinessNumber(taxInvoiceBusinessNumber),
-    [taxInvoiceBusinessNumber],
+  const normalizedCashReceiptPhone = useMemo(
+    () => normalizePhoneNumber(customerPhone),
+    [customerPhone],
   );
   const supportsReceiptRequest =
     paymentMethod === 'TRANSFER';
@@ -292,8 +291,7 @@ export default function ShopBrandPageClient({
 
   useEffect(() => {
     if (canRequestReceipt) return;
-    setTaxInvoiceRequested(false);
-    setTaxInvoiceBusinessNumber('');
+    setCashReceiptRequested(false);
   }, [canRequestReceipt]);
 
   useEffect(() => {
@@ -543,10 +541,10 @@ export default function ShopBrandPageClient({
 
     if (
       canRequestReceipt &&
-      taxInvoiceRequested &&
-      normalizedTaxInvoiceBusinessNumber.length !== 10
+      cashReceiptRequested &&
+      ![10, 11].includes(normalizedCashReceiptPhone.length)
     ) {
-      setSubmitError('지출증빙 요청을 위해 10자리 사업자등록번호를 입력해주세요.');
+      setSubmitError('현금영수증 발급을 위해 휴대폰 번호를 정확히 입력해주세요.');
       return;
     }
 
@@ -570,12 +568,12 @@ export default function ShopBrandPageClient({
           customerAddress2: customerAddress2 || undefined,
           customerMemo: customerMemo || undefined,
           paymentMethod,
-          cashReceipt: canRequestReceipt && taxInvoiceRequested
+          cashReceipt: canRequestReceipt && cashReceiptRequested
             ? {
                 requested: true,
-                type: 'EXPENSE_PROOF',
-                identityType: 'BUSINESS_NUMBER',
-                identityValue: normalizedTaxInvoiceBusinessNumber,
+                type: 'INCOME_DEDUCTION',
+                identityType: 'PHONE',
+                identityValue: normalizedCashReceiptPhone,
               }
             : undefined,
           items: cartItems.map((item) => ({
@@ -1038,27 +1036,20 @@ export default function ShopBrandPageClient({
                     <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
                       <input
                         type="checkbox"
-                        checked={taxInvoiceRequested}
+                        checked={cashReceiptRequested}
                         onChange={(e) =>
-                          setTaxInvoiceRequested(e.target.checked)
+                          setCashReceiptRequested(e.target.checked)
                         }
                       />
-                      세금계산서 발행 요청
+                      현금영수증 발급 요청
                     </label>
                     <p className="mt-2 text-xs text-text-secondary">
-                      사업자 증빙이 필요하면 사업자등록번호를 입력해주세요.
+                      주문자 휴대폰 번호로 소득공제용 현금영수증을 발급합니다.
                     </p>
-                    {taxInvoiceRequested ? (
-                      <input
-                        type="text"
-                        value={taxInvoiceBusinessNumber}
-                        onChange={(e) =>
-                          setTaxInvoiceBusinessNumber(e.target.value)
-                        }
-                        className="input-field mt-3 h-11 w-full"
-                        placeholder="세금계산서 발행 전용 번호"
-                        inputMode="numeric"
-                      />
+                    {cashReceiptRequested ? (
+                      <div className="mt-3 rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
+                        발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}
+                      </div>
                     ) : null}
                   </div>
                 ) : null}

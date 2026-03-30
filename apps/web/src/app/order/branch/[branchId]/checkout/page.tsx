@@ -129,7 +129,7 @@ function getPaymentIcon(method: PaymentMethod) {
   return '💵';
 }
 
-function normalizeBusinessNumber(value: string) {
+function normalizePhoneNumber(value: string) {
   return value.replace(/[^\d]/g, '');
 }
 
@@ -192,8 +192,7 @@ export default function CheckoutPage() {
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
   const [cashReceiptEnabled, setCashReceiptEnabled] = useState(false);
-  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
-  const [taxInvoiceBusinessNumber, setTaxInvoiceBusinessNumber] = useState('');
+  const [cashReceiptRequested, setCashReceiptRequested] = useState(false);
   const [selectedPickupDate, setSelectedPickupDate] = useState('');
   const [requestedPickupTime, setRequestedPickupTime] = useState('');
   const [pickupTimeConfig, setPickupTimeConfig] =
@@ -223,9 +222,9 @@ export default function CheckoutPage() {
     () => appendEuroRo(customerName, '주문자명'),
     [customerName],
   );
-  const normalizedTaxInvoiceBusinessNumber = useMemo(
-    () => normalizeBusinessNumber(taxInvoiceBusinessNumber),
-    [taxInvoiceBusinessNumber],
+  const normalizedCashReceiptPhone = useMemo(
+    () => normalizePhoneNumber(customerPhone),
+    [customerPhone],
   );
   const supportsReceiptRequest =
     paymentMethod === 'TRANSFER';
@@ -272,8 +271,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (canRequestReceipt) return;
-    setTaxInvoiceRequested(false);
-    setTaxInvoiceBusinessNumber('');
+    setCashReceiptRequested(false);
   }, [canRequestReceipt]);
 
   // 저장된 고객 정보 로드
@@ -530,12 +528,10 @@ export default function CheckoutPage() {
 
     if (
       canRequestReceipt &&
-      taxInvoiceRequested &&
-      normalizedTaxInvoiceBusinessNumber.length !== 10
+      cashReceiptRequested &&
+      ![10, 11].includes(normalizedCashReceiptPhone.length)
     ) {
-      toast.error(
-        '지출증빙 요청을 위해 10자리 사업자등록번호를 입력해 주세요.',
-      );
+      toast.error('현금영수증 발급을 위해 휴대폰 번호를 정확히 입력해 주세요.');
       return;
     }
 
@@ -612,12 +608,12 @@ export default function CheckoutPage() {
           qty: item.qty,
           options: item.selectedOptions.map((opt) => ({ optionId: opt.id })),
         })),
-        cashReceipt: canRequestReceipt && taxInvoiceRequested
+        cashReceipt: canRequestReceipt && cashReceiptRequested
           ? {
               requested: true,
-              type: 'EXPENSE_PROOF',
-              identityType: 'BUSINESS_NUMBER',
-              identityValue: normalizedTaxInvoiceBusinessNumber,
+              type: 'INCOME_DEDUCTION',
+              identityType: 'PHONE',
+              identityValue: normalizedCashReceiptPhone,
             }
           : undefined,
       };
@@ -1051,29 +1047,19 @@ export default function CheckoutPage() {
               <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
                 <input
                   type="checkbox"
-                  checked={taxInvoiceRequested}
-                  onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
+                  checked={cashReceiptRequested}
+                  onChange={(e) => setCashReceiptRequested(e.target.checked)}
                 />
-                세금계산서 발행 요청
+                현금영수증 발급 요청
               </label>
               <p className="mt-2 text-xs text-text-secondary">
-                사업자 증빙이 필요하면 사업자등록번호를 입력해 주세요.
+                주문자 휴대폰 번호로 소득공제용 현금영수증을 발급합니다.
               </p>
-              {taxInvoiceRequested && (
+              {cashReceiptRequested && (
                 <div className="mt-3">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-secondary">
-                    세금계산서 발행 전용 번호
-                  </label>
-                  <input
-                    type="text"
-                    value={taxInvoiceBusinessNumber}
-                    onChange={(e) =>
-                      setTaxInvoiceBusinessNumber(e.target.value)
-                    }
-                    inputMode="numeric"
-                    placeholder="123-45-67890"
-                    className="input-field h-12 w-full"
-                  />
+                  <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
+                    발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}
+                  </div>
                 </div>
               )}
             </div>

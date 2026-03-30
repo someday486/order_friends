@@ -1453,6 +1453,44 @@ describe('CustomerOrdersService', () => {
     expect(result.status).toBe(OrderStatus.READY);
   });
 
+  it('updateMyOrderStatus should persist completed_at when completing an order', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          status: OrderStatus.COMPLETED,
+          created_at: 't',
+          customer_name: 'A',
+          total_amount: 10,
+        },
+        error: null,
+      });
+
+    const result = await service.updateMyOrderStatus(
+      'user-1',
+      'o1',
+      OrderStatus.COMPLETED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.status).toBe(OrderStatus.COMPLETED);
+    expect(ordersChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: OrderStatus.COMPLETED,
+        completed_at: expect.any(String),
+      }),
+    );
+  });
+
   it('updateMyOrderStatus should refund and release inventory on cancellation', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'o1' },
@@ -1521,6 +1559,12 @@ describe('CustomerOrdersService', () => {
     expect(
       mockPaymentsService.refundOrderPaymentForCancellation,
     ).toHaveBeenCalledWith('o1', 'b1');
+    expect(ordersChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: OrderStatus.CANCELLED,
+        cancelled_at: expect.any(String),
+      }),
+    );
     expect(inventoryLogsChain.insert).toHaveBeenCalled();
   });
 
@@ -1644,6 +1688,37 @@ describe('CustomerOrdersService', () => {
     expect(result.updatedCount).toBe(2);
     expect(result.status).toBe(OrderStatus.READY);
     expect(result.orderIds).toEqual(['o1', 'o2']);
+  });
+
+  it('updateMyOrdersStatusBulk should persist completed_at for completed updates', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'o2' }, error: null });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: 'o2', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      });
+
+    const result = await service.updateMyOrdersStatusBulk(
+      'user-1',
+      ['o1', 'o2'],
+      OrderStatus.COMPLETED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(ordersChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: OrderStatus.COMPLETED,
+        completed_at: expect.any(String),
+      }),
+    );
+    expect(result.status).toBe(OrderStatus.COMPLETED);
   });
 
   it('updateMyOrdersStatusBulk should route cancellations through single-order flow', async () => {

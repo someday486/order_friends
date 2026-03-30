@@ -115,6 +115,21 @@ export class CustomerOrdersService {
     );
   }
 
+  private buildStatusUpdatePayload(status: OrderStatus) {
+    const timestamp = new Date().toISOString();
+    const payload: Record<string, unknown> = { status };
+
+    if (status === OrderStatus.COMPLETED) {
+      payload.completed_at = timestamp;
+    }
+
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+      payload.cancelled_at = timestamp;
+    }
+
+    return payload;
+  }
+
   /**
    * orderId가 uuid(id)일 수도, order_no일 수도 있음
    * 실제 orders.id(uuid)로 resolve
@@ -1040,7 +1055,7 @@ export class CustomerOrdersService {
 
     const { data, error } = await sb
       .from('orders')
-      .update({ status })
+      .update(this.buildStatusUpdatePayload(status))
       .eq('id', order.id)
       .select('id, order_no, status, created_at, customer_name, total_amount')
       .single();
@@ -1137,7 +1152,7 @@ export class CustomerOrdersService {
 
     const { data, error } = await sb
       .from('orders')
-      .update({ status })
+      .update(this.buildStatusUpdatePayload(status))
       .in('id', targetOrderIds)
       .select('id');
 

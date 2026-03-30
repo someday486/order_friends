@@ -785,6 +785,12 @@ describe('OrdersService', () => {
       expect(
         mockPaymentsService.refundOrderPaymentForCancellation,
       ).toHaveBeenCalledWith('123', 'branch-123');
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: OrderStatus.CANCELLED,
+          cancelled_at: expect.any(String),
+        }),
+      );
       expect(mockCashReceiptsService.cancelForOrder).toHaveBeenCalledWith(
         '123',
         'Order status changed to CANCELLED',
@@ -814,6 +820,12 @@ describe('OrdersService', () => {
       );
 
       expect(result.status).toBe(OrderStatus.COMPLETED);
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: OrderStatus.COMPLETED,
+          completed_at: expect.any(String),
+        }),
+      );
       expect(
         mockCashReceiptsService.issueForCompletedOrder,
       ).toHaveBeenCalledWith('123');

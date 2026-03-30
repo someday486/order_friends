@@ -49,6 +49,21 @@ export class OrdersService {
     }
   }
 
+  private buildStatusUpdatePayload(status: OrderStatus) {
+    const timestamp = new Date().toISOString();
+    const payload: Record<string, unknown> = { status };
+
+    if (status === OrderStatus.COMPLETED) {
+      payload.completed_at = timestamp;
+    }
+
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+      payload.cancelled_at = timestamp;
+    }
+
+    return payload;
+  }
+
   private async releaseInventoryForCancelledOrder(
     sb: any,
     orderId: string,
@@ -549,7 +564,7 @@ export class OrdersService {
 
     const { data, error } = await sb
       .from('orders')
-      .update({ status })
+      .update(this.buildStatusUpdatePayload(status))
       .eq('id', resolvedId)
       .eq('branch_id', branchId)
       .select('id, order_no, status')

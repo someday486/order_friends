@@ -1129,6 +1129,14 @@ export class PaymentsService {
       return;
     }
 
+    // Unpaid or failed payments can be cancelled without a refund.
+    if (
+      paymentRecord.status === PaymentStatus.PENDING ||
+      paymentRecord.status === PaymentStatus.FAILED
+    ) {
+      return;
+    }
+
     if (
       paymentRecord.status !== PaymentStatus.SUCCESS &&
       paymentRecord.status !== PaymentStatus.PARTIAL_REFUNDED

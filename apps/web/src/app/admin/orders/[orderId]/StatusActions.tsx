@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { resolveApiBase } from "@/lib/api-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 
@@ -15,7 +16,6 @@ type OrderStatus =
   | "DONE"
   | "CANCELED";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 // CREATED를 시작 상태로 포함
 const FLOW: OrderStatus[] = ["CREATED", "PAID", "PREPARING", "SHIPPED", "DONE"];
@@ -78,9 +78,10 @@ function StatusActionsContent({
 
     try {
       const token = await getAccessToken();
+      const apiBase = resolveApiBase();
       const query = resolvedBranchId ? `?branchId=${encodeURIComponent(resolvedBranchId)}` : "";
 
-      const res = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(orderId)}/status${query}`, {
+      const res = await fetch(`${apiBase}/admin/orders/${encodeURIComponent(orderId)}/status${query}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

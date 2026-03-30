@@ -1,6 +1,6 @@
 import { getInitialSession } from '@/lib/auth/client';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 const E2E_BYPASS_AUTH = process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === 'true';
 const E2E_ACCESS_TOKEN = 'e2e-test-token';
 const E2E_AUTH_COOKIE = 'of_e2e_auth=1';
@@ -14,34 +14,46 @@ type CachedResponseEntry = {
 const pendingGetRequests = new Map<string, Promise<unknown>>();
 const cachedGetResponses = new Map<string, CachedResponseEntry>();
 
-if (!API_BASE) {
-  throw new Error('NEXT_PUBLIC_API_BASE_URL is not configured');
+function trimTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, '');
 }
 
-function resolveApiBase(): string {
-  // If the app is opened from another device (192.168.x.x),
-  // localhost API base would point to that device itself.
+function isLocalHostname(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+export function resolveApiBase(): string {
   if (typeof window === 'undefined') {
-    return API_BASE!;
+    if (!API_BASE) {
+      throw new Error('NEXT_PUBLIC_API_BASE_URL is not configured');
+    }
+
+    return trimTrailingSlashes(API_BASE);
+  }
+
+  const currentOrigin = trimTrailingSlashes(window.location.origin);
+
+  if (!API_BASE) {
+    return currentOrigin;
   }
 
   try {
-    const configured = new URL(API_BASE!);
-    const isConfiguredLocal =
-      configured.hostname === 'localhost' ||
-      configured.hostname === '127.0.0.1';
-    const currentHost = window.location.hostname;
-    const isCurrentLocal =
-      currentHost === 'localhost' || currentHost === '127.0.0.1';
+    const configured = new URL(API_BASE);
+    const isConfiguredLocal = isLocalHostname(configured.hostname);
+    const isCurrentLocal = isLocalHostname(window.location.hostname);
 
+    // On deployed hosts, ignore a localhost API base and stay on same-origin.
     if (isConfiguredLocal && !isCurrentLocal) {
-      configured.hostname = currentHost;
-      return configured.origin;
+      return currentOrigin;
     }
 
     return configured.origin;
   } catch {
-    return API_BASE!.replace(/\/+$/, '');
+    if (API_BASE.startsWith('/')) {
+      return `${currentOrigin}${API_BASE}`;
+    }
+
+    return trimTrailingSlashes(API_BASE);
   }
 }
 

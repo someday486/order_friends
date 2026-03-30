@@ -9,7 +9,7 @@ function formatAccessError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
   if (message.includes('API Network Error: /me')) {
-    return '권한 확인 서버(http://localhost:4000)에 연결할 수 없습니다. 백엔드가 실행 중인지 확인한 뒤 다시 시도해 주세요.';
+    return '권한 확인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.';
   }
 
   return message || '로그인 상태를 확인하지 못했습니다.';

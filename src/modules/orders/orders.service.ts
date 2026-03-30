@@ -482,7 +482,7 @@ export class OrdersService {
     const depositMatchStatusMap = await this.getDepositMatchStatusMap(sb, [
       String(data.id),
     ]);
-    const taxInvoiceRequest = this.mapTaxInvoiceRequest(data);
+    const cashReceiptRequest = this.mapCashReceiptRequest(data);
 
     return {
       id: data.id,
@@ -509,29 +509,26 @@ export class OrdersService {
         discount: data.discount_total ?? 0,
         total: data.total_amount ?? 0,
       },
-      taxInvoiceRequest,
+      cashReceiptRequest,
       items,
     };
   }
 
-  private mapTaxInvoiceRequest(data: {
+  private mapCashReceiptRequest(data: {
     cash_receipt_requested?: boolean | null;
     cash_receipt_type?: string | null;
     cash_receipt_identity_type?: string | null;
     cash_receipt_identity_value?: string | null;
   }) {
-    const isRequested =
-      data.cash_receipt_requested === true &&
-      data.cash_receipt_type === 'EXPENSE_PROOF' &&
-      data.cash_receipt_identity_type === 'BUSINESS_NUMBER';
-
-    if (!isRequested) {
+    if (data.cash_receipt_requested !== true) {
       return null;
     }
 
     return {
       requested: true,
-      businessNumber: data.cash_receipt_identity_value ?? null,
+      type: data.cash_receipt_type ?? null,
+      identityType: data.cash_receipt_identity_type ?? null,
+      identityValue: data.cash_receipt_identity_value ?? null,
     };
   }
 

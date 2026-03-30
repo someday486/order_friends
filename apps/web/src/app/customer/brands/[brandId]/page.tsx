@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { AddressSearchFields } from "@/components/order/AddressSearchFields";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { apiClient } from "@/lib/api-client";
+import { formatCashReceiptProvider } from "@/lib/format";
 
 type Brand = {
   id: string;
@@ -854,7 +855,7 @@ export default function BrandDetailPage() {
                     발급사
                   </div>
                   <div className="text-[15px] text-foreground">
-                    {brand.cash_receipt_provider ?? "-"}
+                    {formatCashReceiptProvider(brand.cash_receipt_provider)}
                   </div>
                 </div>
                 <div>

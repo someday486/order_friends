@@ -435,9 +435,11 @@ describe('OrdersService', () => {
 
       const result = await service.getOrder('token', '123', 'branch-123');
 
-      expect(result.taxInvoiceRequest).toEqual({
+      expect(result.cashReceiptRequest).toEqual({
         requested: true,
-        businessNumber: '1234567890',
+        type: 'EXPENSE_PROOF',
+        identityType: 'BUSINESS_NUMBER',
+        identityValue: '1234567890',
       });
     });
 

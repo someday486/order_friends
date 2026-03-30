@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { Metadata } from 'next';
-import type { User } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { AuthProvider } from "@/providers/AuthProvider";
@@ -21,11 +21,16 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   let initialUser: User | null = null;
+  let initialSession: Session | null = null;
 
   try {
     const supabase = await getSupabaseServerClient();
-    const { data } = await supabase.auth.getUser();
-    initialUser = data.user ?? null;
+    const [{ data: sessionData }, { data: userData }] = await Promise.all([
+      supabase.auth.getSession(),
+      supabase.auth.getUser(),
+    ]);
+    initialSession = sessionData.session ?? null;
+    initialUser = userData.user ?? null;
   } catch {
     // Fall back to client-side auth sync when server auth lookup fails.
   }
@@ -33,7 +38,10 @@ export default async function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <AuthProvider initialUser={initialUser}>
+        <AuthProvider
+          initialSession={initialSession}
+          initialUser={initialUser}
+        >
           <DocumentTitleSync />
           {children}
         </AuthProvider>

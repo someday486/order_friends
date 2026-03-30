@@ -40,6 +40,12 @@ export function seedSessionCache(session: Session | null) {
   clearVerifiedUserCache();
 }
 
+export function seedVerifiedUserCache(user: User | null) {
+  cachedVerifiedUser = user;
+  cachedVerifiedUserFetchedAt = Date.now();
+  inFlightVerifiedUserPromise = null;
+}
+
 export async function getInitialSession(): Promise<Session | null> {
   if (hasFreshSessionCache()) {
     return cachedSession;

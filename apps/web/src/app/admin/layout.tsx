@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDarkMode } from '@/hooks/useDarkMode';
@@ -102,22 +102,6 @@ export default function AdminLayout({
     },
     [prefetchRoute],
   );
-
-  const prefetchTargets = useMemo(() => {
-    return Array.from(
-      new Set(
-        menuSections.flatMap((section) => section.items.map((item) => item.href)),
-      ),
-    );
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      prefetchTargets.forEach((href) => prefetchRoute(href));
-    }, 150);
-
-    return () => window.clearTimeout(timer);
-  }, [prefetchRoute, prefetchTargets]);
 
   return (
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">

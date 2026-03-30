@@ -58,6 +58,11 @@ function getCashReceiptIssueTimingLabel(value: string | null): string {
   return value ?? "-";
 }
 
+function isPdfUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /\.pdf($|[?#])/i.test(value);
+}
+
 function createFormData(brand: Brand): BrandFormData {
   return {
     name: brand.name || "",
@@ -147,7 +152,43 @@ export default function BrandDetailPage() {
     [brand?.slug],
   );
 
+  const editingBizCertIsPdf = isPdfUrl(formData.bizCertUrl);
+  const bizCertIsPdf = isPdfUrl(brand?.biz_cert_url);
+
   const handleBizCertUpload = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      setBizCertUploadError("파일 크기는 5MB 이하여야 합니다.");
+      return;
+    }
+
+    if (file.type === "application/pdf") {
+      try {
+        setBizCertUploadError(null);
+        setBizCertUploading(true);
+
+        const uploadBody = new FormData();
+        uploadBody.append("file", file);
+        uploadBody.append("folder", "biz-certs");
+
+        const uploaded = await apiClient.post<{ url: string }>(
+          "/upload/image",
+          uploadBody,
+        );
+        setFormData((prev) => ({ ...prev, bizCertUrl: uploaded.url }));
+      } catch (e) {
+        console.error(e);
+        setBizCertUploadError(
+          e instanceof Error
+            ? e.message
+            : "?ъ뾽?먮벑濡앹쬆 ?낅줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎.",
+        );
+      } finally {
+        setBizCertUploading(false);
+      }
+
+      return;
+    }
+
     if (!file.type.startsWith("image/")) {
       setBizCertUploadError("이미지 파일만 업로드할 수 있습니다.");
       return;
@@ -534,6 +575,14 @@ export default function BrandDetailPage() {
                     rel="noopener noreferrer"
                     className="inline-block overflow-hidden rounded-lg border border-border"
                   >
+                    {editingBizCertIsPdf ? (
+                      <div className="flex h-[120px] w-[180px] flex-col items-center justify-center gap-2 bg-bg-tertiary px-4 text-center">
+                        <div className="text-lg font-bold text-foreground">PDF</div>
+                        <div className="text-xs text-text-secondary">
+                          클릭해서 사업자등록증 파일 열기
+                        </div>
+                      </div>
+                    ) : (
                     <Image
                       src={formData.bizCertUrl}
                       alt="사업자등록증"
@@ -541,6 +590,7 @@ export default function BrandDetailPage() {
                       height={120}
                       className="h-[120px] w-[180px] object-cover"
                     />
+                    )}
                   </a>
                 ) : (
                   <div className="flex h-[120px] w-[180px] items-center justify-center rounded-lg border border-dashed border-border bg-bg-tertiary text-xs text-text-tertiary">
@@ -552,7 +602,7 @@ export default function BrandDetailPage() {
                   <input
                     ref={bizCertInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,application/pdf,.pdf"
                     onChange={handleBizCertFileChange}
                     className="hidden"
                   />
@@ -616,6 +666,14 @@ export default function BrandDetailPage() {
                   rel="noopener noreferrer"
                   className="inline-block"
                 >
+                  {bizCertIsPdf ? (
+                    <div className="flex h-[120px] w-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-border bg-bg-tertiary px-4 text-center transition-opacity hover:opacity-90">
+                      <div className="text-lg font-bold text-foreground">PDF</div>
+                      <div className="text-xs text-text-secondary">
+                        클릭해서 사업자등록증 파일 열기
+                      </div>
+                    </div>
+                  ) : (
                   <Image
                     src={brand.biz_cert_url}
                     alt="사업자등록증"
@@ -623,6 +681,7 @@ export default function BrandDetailPage() {
                     height={120}
                     className="h-[120px] w-[180px] rounded-lg border border-border object-cover transition-opacity hover:opacity-90"
                   />
+                  )}
                 </a>
               </div>
             )}

@@ -171,12 +171,6 @@ export class CustomerBrandsService {
     this.logger.log(`Fetching brand ${brandId} for user: ${userId}`);
 
     const membership = brandMemberships.find((m) => m.brand_id === brandId);
-    if (!membership) {
-      this.logger.warn(
-        `User ${userId} attempted to access brand ${brandId} without membership`,
-      );
-      throw new ForbiddenException('You do not have access to this brand');
-    }
 
     const sb = this.supabase.adminClient();
 
@@ -193,12 +187,22 @@ export class CustomerBrandsService {
       throw new NotFoundException('Brand not found');
     }
 
+    const effectiveRole =
+      membership?.role ?? (data.owner_user_id === userId ? 'OWNER' : null);
+
+    if (!effectiveRole) {
+      this.logger.warn(
+        `User ${userId} attempted to access brand ${brandId} without membership`,
+      );
+      throw new ForbiddenException('You do not have access to this brand');
+    }
+
     return {
       ...data,
       shop_payment_methods: this.normalizeShopPaymentMethods(
         data.shop_payment_methods,
       ),
-      myRole: membership.role,
+      myRole: effectiveRole,
     };
   }
 
@@ -298,21 +302,37 @@ export class CustomerBrandsService {
   ) {
     this.logger.log(`Updating brand ${brandId} by user: ${userId}`);
 
+    const sb = this.supabase.adminClient();
     const membership = brandMemberships.find((m) => m.brand_id === brandId);
-    if (!membership) {
-      throw new ForbiddenException('You do not have access to this brand');
+    let effectiveRole = membership?.role ?? null;
+
+    if (!effectiveRole) {
+      const { data: ownedBrand, error: ownedBrandError } = await sb
+        .from('brands')
+        .select('id, owner_user_id')
+        .eq('id', brandId)
+        .single();
+
+      if (
+        ownedBrandError ||
+        !ownedBrand ||
+        ownedBrand.owner_user_id !== userId
+      ) {
+        throw new ForbiddenException('You do not have access to this brand');
+      }
+
+      effectiveRole = 'OWNER';
     }
 
-    if (membership.role !== 'OWNER' && membership.role !== 'ADMIN') {
+    if (effectiveRole !== 'OWNER' && effectiveRole !== 'ADMIN') {
       this.logger.warn(
-        `User ${userId} with role ${membership.role} attempted to update brand ${brandId}`,
+        `User ${userId} with role ${effectiveRole} attempted to update brand ${brandId}`,
       );
       throw new ForbiddenException(
         'Only OWNER or ADMIN can update brand information',
       );
     }
 
-    const sb = this.supabase.adminClient();
     let existingBrand: any = null;
 
     const {
@@ -439,7 +459,7 @@ export class CustomerBrandsService {
       shop_payment_methods: this.normalizeShopPaymentMethods(
         data.shop_payment_methods,
       ),
-      myRole: membership.role,
+      myRole: effectiveRole,
     };
   }
 }

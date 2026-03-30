@@ -84,7 +84,7 @@ export class BrandsService {
       const { data, error } = await sb
         .from('brands')
         .select(
-          'id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, created_at',
+          'id, name, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at',
         )
         .order('created_at', { ascending: false });
 
@@ -98,6 +98,7 @@ export class BrandsService {
         slug: row.slug ?? null,
         bizName: row.biz_name ?? null,
         bizRegNo: row.biz_reg_no ?? null,
+        address: row.address ?? null,
         logoUrl: row.logo_url ?? null,
         createdAt: row.created_at ?? '',
       }));
@@ -111,7 +112,7 @@ export class BrandsService {
         `
         brand_id,
         brands (
-          id, name, slug, biz_name, biz_reg_no, logo_url, cover_image_url, created_at
+          id, name, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at
         )
       `,
       )
@@ -129,6 +130,7 @@ export class BrandsService {
         slug: row.brands.slug ?? null,
         bizName: row.brands.biz_name ?? null,
         bizRegNo: row.brands.biz_reg_no ?? null,
+        address: row.brands.address ?? null,
         logoUrl: row.brands.logo_url ?? null,
         createdAt: row.brands.created_at ?? '',
       }));

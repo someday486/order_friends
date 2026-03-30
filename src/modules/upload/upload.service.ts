@@ -14,18 +14,30 @@ export class UploadService {
   private readonly bucketName = 'product-images';
 
   // Allowed file types
-  private readonly allowedMimeTypes = [
+  private readonly allowedImageMimeTypes = [
     'image/jpeg',
     'image/jpg',
     'image/png',
     'image/webp',
     'image/gif',
   ];
+  private readonly allowedBizCertMimeTypes = [
+    ...this.allowedImageMimeTypes,
+    'application/pdf',
+  ];
 
   // Max file size: 5MB
   private readonly maxFileSize = 5 * 1024 * 1024;
 
   constructor(private readonly supabase: SupabaseService) {}
+
+  private getAllowedMimeTypes(folder: string): string[] {
+    if (folder === 'biz-certs') {
+      return this.allowedBizCertMimeTypes;
+    }
+
+    return this.allowedImageMimeTypes;
+  }
 
   /**
    * Upload image to Supabase Storage
@@ -35,13 +47,15 @@ export class UploadService {
     folder: string = 'general',
   ): Promise<UploadResult> {
     this.logger.log(
-      `Uploading image: ${file.originalname} to folder: ${folder}`,
+      `Uploading file: ${file.originalname} to folder: ${folder}`,
     );
 
+    const allowedMimeTypes = this.getAllowedMimeTypes(folder);
+
     // Validate file type
-    if (!this.allowedMimeTypes.includes(file.mimetype)) {
+    if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `Invalid file type. Allowed types: ${this.allowedMimeTypes.join(', ')}`,
+        `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`,
       );
     }
 
@@ -79,7 +93,7 @@ export class UploadService {
         .from(this.bucketName)
         .getPublicUrl(fileName);
 
-      this.logger.log(`Successfully uploaded image: ${fileName}`);
+      this.logger.log(`Successfully uploaded file: ${fileName}`);
 
       return {
         url: urlData.publicUrl,

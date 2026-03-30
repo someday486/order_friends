@@ -8,6 +8,7 @@ export class BrandListItemResponse {
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
+  address?: string | null;
   logoUrl?: string | null;
   createdAt: string;
 }

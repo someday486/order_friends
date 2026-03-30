@@ -80,7 +80,15 @@ describe('CustomerBrandsService', () => {
     ).rejects.toThrow('Failed to fetch brands');
   });
 
-  it('getMyBrand should throw when membership missing', async () => {
+  it('getMyBrand should throw when membership and ownership are missing', async () => {
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'brand-1',
+        owner_user_id: 'other-user',
+      },
+      error: null,
+    });
+
     await expect(service.getMyBrand('brand-1', 'user-1', [])).rejects.toThrow(
       ForbiddenException,
     );
@@ -112,6 +120,24 @@ describe('CustomerBrandsService', () => {
     expect(result.myRole).toBe('ADMIN');
     expect(result.id).toBe('brand-1');
     expect(result.slug).toBe('brand');
+  });
+
+  it('getMyBrand should allow owner without cached membership', async () => {
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'brand-1',
+        name: 'Brand',
+        slug: 'brand',
+        owner_user_id: 'user-1',
+        created_at: 'now',
+      },
+      error: null,
+    });
+
+    const result = await service.getMyBrand('brand-1', 'user-1', []);
+
+    expect(result.myRole).toBe('OWNER');
+    expect(result.id).toBe('brand-1');
   });
 
   it('createMyBrand should allow OWNER/ADMIN and create brand', async () => {
@@ -224,7 +250,15 @@ describe('CustomerBrandsService', () => {
     ).rejects.toThrow('Failed to create brand membership');
   });
 
-  it('updateMyBrand should throw when membership missing', async () => {
+  it('updateMyBrand should throw when membership and ownership are missing', async () => {
+    mockSb.single.mockResolvedValueOnce({
+      data: {
+        id: 'brand-1',
+        owner_user_id: 'other-user',
+      },
+      error: null,
+    });
+
     await expect(
       service.updateMyBrand('brand-1', {}, 'user-1', []),
     ).rejects.toThrow(ForbiddenException);
@@ -276,6 +310,37 @@ describe('CustomerBrandsService', () => {
 
     expect(result.id).toBe('brand-1');
     expect(result.myRole).toBe('OWNER');
+  });
+
+  it('updateMyBrand should allow owner without cached membership', async () => {
+    mockSb.single
+      .mockResolvedValueOnce({
+        data: {
+          id: 'brand-1',
+          owner_user_id: 'user-1',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'brand-1',
+          name: 'Brand',
+          slug: 'brand',
+          owner_user_id: 'user-1',
+          created_at: '2026-01-01',
+        },
+        error: null,
+      });
+
+    const result = await service.updateMyBrand(
+      'brand-1',
+      { name: 'Brand' } as any,
+      'user-1',
+      [],
+    );
+
+    expect(result.myRole).toBe('OWNER');
+    expect(result.id).toBe('brand-1');
   });
 
   it('updateMyBrand should apply optional fields', async () => {

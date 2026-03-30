@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { formatDateTimeFull, formatWon } from "@/lib/format";
+import { formatDateTimeFull, formatPhone, formatWon } from "@/lib/format";
 import { ORDER_STATUS_LABEL_LONG, type OrderStatus } from "@/types/common";
 import { apiClient } from "@/lib/api-client";
 import { loadLastOrderRecord } from "@/lib/order-session";
@@ -24,7 +24,10 @@ type OrderResult = {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
+  requestedTime?: string | null;
   paymentMethod?: string | null;
+  branchContactPhone?: string | null;
+  branchKakaoChannelUrl?: string | null;
   customer?: {
     phone?: string | null;
   } | null;
@@ -40,6 +43,22 @@ type OrderResult = {
   }>;
 };
 
+type PublicBranchSupportInfo = {
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
+};
+
+function toText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function toTelHref(phone: string): string | null {
+  const cleaned = phone.replace(/\D/g, "");
+  return cleaned ? `tel:${cleaned}` : null;
+}
+
 function normalizeOrder(raw: unknown): OrderResult | null {
   if (!raw || typeof raw !== "object") return null;
   const source = raw as Record<string, unknown>;
@@ -49,6 +68,7 @@ function normalizeOrder(raw: unknown): OrderResult | null {
   const status = source.status;
   const totalAmount = source.totalAmount ?? source.total_amount;
   const createdAt = source.createdAt ?? source.created_at;
+  const requestedTime = source.requestedTime ?? source.requested_time;
   const items = Array.isArray(source.items) ? source.items : [];
 
   if (typeof orderNo !== "string") return null;
@@ -71,7 +91,14 @@ function normalizeOrder(raw: unknown): OrderResult | null {
     status: status as OrderStatus,
     totalAmount,
     createdAt,
+    requestedTime: typeof requestedTime === "string" ? requestedTime : null,
     paymentMethod: typeof source.paymentMethod === "string" ? source.paymentMethod : null,
+    branchContactPhone: toText(
+      source.branchContactPhone ?? source.branch_contact_phone,
+    ),
+    branchKakaoChannelUrl: toText(
+      source.branchKakaoChannelUrl ?? source.branch_kakao_channel_url,
+    ),
     customer: customerRaw
       ? {
           phone: typeof customerRaw.phone === "string" ? customerRaw.phone : null,
@@ -143,20 +170,12 @@ function normalizeStampInfo(raw: unknown): StampInfo | null {
   };
 }
 
-// ── 체크마크 SVG 애니메이션 ──
 function AnimatedCheckmark() {
   return (
     <div className="relative flex items-center justify-center">
-      {/* 배경 원 */}
       <div className="w-24 h-24 rounded-full bg-success-500/15 flex items-center justify-center animate-scale-in">
         <div className="w-16 h-16 rounded-full bg-success-500/25 flex items-center justify-center">
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 60 60"
-            fill="none"
-            className="drop-shadow-sm"
-          >
+          <svg width="40" height="40" viewBox="0 0 60 60" fill="none" className="drop-shadow-sm">
             <circle cx="30" cy="30" r="28" fill="#34C759" />
             <path
               d="M16 30 L26 40 L44 20"
@@ -177,7 +196,6 @@ function AnimatedCheckmark() {
   );
 }
 
-// ── 컨페티 파티클 ──
 function Confetti() {
   const particles = [
     { color: "#FF3B30", x: 10, y: -20, r: -30, delay: 0 },
@@ -247,7 +265,6 @@ export default function CompletePage() {
     load();
   }, [order, orderId]);
 
-  // 주문 완료 시 confetti 실행
   useEffect(() => {
     if (order) {
       const timer = setTimeout(() => setShowConfetti(true), 300);
@@ -255,7 +272,6 @@ export default function CompletePage() {
     }
   }, [order]);
 
-  // 스탬프 정보 조회
   useEffect(() => {
     if (!order || !branchId) return;
     const phone = order.customer?.phone;
@@ -267,8 +283,49 @@ export default function CompletePage() {
         const normalized = normalizeStampInfo(data);
         if (normalized) setStampInfo(normalized);
       })
-      .catch(() => {/* non-fatal */});
+      .catch(() => {
+        // non-fatal
+      });
   }, [order, branchId]);
+
+  useEffect(() => {
+    if (!order || !branchId) return;
+    if (order.branchContactPhone?.trim() || order.branchKakaoChannelUrl?.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    apiClient
+      .get<PublicBranchSupportInfo>(
+        `/public/branches/${encodeURIComponent(branchId)}`,
+        { auth: false },
+      )
+      .then((branch) => {
+        if (cancelled) return;
+        const contactPhone = toText(branch?.contactPhone);
+        const kakaoChannelUrl = toText(branch?.kakaoChannelUrl);
+        if (!contactPhone && !kakaoChannelUrl) return;
+
+        setOrder((current) =>
+          current
+            ? {
+                ...current,
+                branchContactPhone: current.branchContactPhone ?? contactPhone,
+                branchKakaoChannelUrl:
+                  current.branchKakaoChannelUrl ?? kakaoChannelUrl,
+              }
+            : current,
+        );
+      })
+      .catch(() => {
+        // non-fatal
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, order, order?.branchContactPhone, order?.branchKakaoChannelUrl]);
 
   if (loading) {
     return (
@@ -300,7 +357,6 @@ export default function CompletePage() {
 
   return (
     <>
-      {/* confetti 애니메이션 CSS */}
       <style>{`
         @keyframes checkDraw {
           to { stroke-dashoffset: 0; }
@@ -314,18 +370,16 @@ export default function CompletePage() {
       <div className="min-h-screen bg-background text-foreground relative">
         {showConfetti && <Confetti />}
 
-        {/* ── 성공 히어로 ── */}
         <div className="pt-12 pb-8 px-6 text-center flex flex-col items-center gap-4">
           <AnimatedCheckmark />
           <div>
-            <h1 className="text-2xl font-extrabold text-foreground mb-1">주문이 완료됐어요!</h1>
+            <h1 className="text-2xl font-extrabold text-foreground mb-1">주문이 완료되었습니다</h1>
             <p className="text-text-secondary text-sm">
               매장에서 주문을 확인하고 있습니다.<br />잠시만 기다려 주세요.
             </p>
           </div>
         </div>
 
-        {/* ── 주문 요약 카드 ── */}
         <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-bg-tertiary">
             <div className="text-xs text-text-tertiary mb-1">주문번호</div>
@@ -342,6 +396,12 @@ export default function CompletePage() {
               <span className="text-sm text-text-tertiary">주문일시</span>
               <span className="text-sm text-foreground">{formatDateTimeFull(order.createdAt)}</span>
             </div>
+            {order.requestedTime && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-text-tertiary">픽업 희망 시간</span>
+                <span className="text-sm text-foreground">{formatDateTimeFull(order.requestedTime)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center border-t border-border pt-3">
               <span className="text-sm font-semibold text-foreground">결제금액</span>
               <span className="text-xl font-extrabold text-foreground">{formatWon(order.totalAmount)}</span>
@@ -349,7 +409,6 @@ export default function CompletePage() {
           </div>
         </div>
 
-        {/* ── 스탬프 카드 ── */}
         {stampInfo?.config && (
           <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -378,7 +437,6 @@ export default function CompletePage() {
           </div>
         )}
 
-        {/* ── 계좌이체 안내 ── */}
         {order.paymentMethod === "TRANSFER" && order.transferAccount && (
           <div className="mx-4 mb-4 rounded-2xl border border-warning-200 bg-warning-50 p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -405,7 +463,33 @@ export default function CompletePage() {
           </div>
         )}
 
-        {/* ── 주문 내역 ── */}
+        {(order.branchContactPhone?.trim() ||
+          order.branchKakaoChannelUrl?.trim()) && (
+          <div className="mx-4 mb-4 rounded-2xl border border-border bg-bg-secondary p-4">
+            <div className="text-sm font-bold text-foreground mb-2">문의 안내</div>
+            <div className="flex flex-wrap gap-2">
+              {order.branchContactPhone?.trim() && (
+                <a
+                  href={toTelHref(order.branchContactPhone.trim()) ?? undefined}
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  전화 문의 {formatPhone(order.branchContactPhone.trim())}
+                </a>
+              )}
+              {order.branchKakaoChannelUrl?.trim() && (
+                <a
+                  href={order.branchKakaoChannelUrl.trim()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground no-underline hover:bg-bg-tertiary transition-colors"
+                >
+                  카카오톡 상담
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         {order.items.length > 0 && (
           <div className="mx-4 mb-6">
             <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">주문 내역</h3>
@@ -427,9 +511,7 @@ export default function CompletePage() {
           </div>
         )}
 
-        {/* ── CTA 버튼 ── */}
         <div className="px-4 pb-8 space-y-3">
-          {/* Primary: 주문 추적 */}
           <Link href={`/order/track/${order.id}`} className="no-underline block">
             <button className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer flex items-center justify-center gap-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -440,7 +522,6 @@ export default function CompletePage() {
             </button>
           </Link>
 
-          {/* Secondary: 메뉴로 */}
           <Link href={`/order/branch/${branchId}`} className="no-underline block">
             <button className="w-full p-3.5 rounded-2xl border border-border bg-transparent text-foreground text-sm font-semibold cursor-pointer">
               메뉴로 돌아가기

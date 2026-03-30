@@ -49,6 +49,7 @@ describe('BranchesController', () => {
       'token',
       'brand-1',
       false,
+      false,
     );
   });
 

@@ -14,6 +14,7 @@ import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import Tooltip from "@/components/ui/Tooltip";
 import { CardSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/common";
 import {
   AbcAnalysis,
   CohortAnalysis,
@@ -64,6 +65,8 @@ const formatShortDate = (value: string) => {
   }
   return `${date.getMonth() + 1}/${date.getDate()}`;
 };
+
+const toIsoDate = (date: Date) => date.toISOString().split("T")[0];
 
 const isPeriodComparison = <T,>(
   value: MaybePeriodComparison<T>
@@ -200,6 +203,7 @@ function AnalyticsContent() {
     return new Date().toISOString().split("T")[0];
   });
   const [compareEnabled, setCompareEnabled] = useState(false);
+  const [quickRange, setQuickRangeType] = useState<"7d" | "30d" | "month" | "custom">("30d");
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchLoading, setBranchLoading] = useState(false);
@@ -569,15 +573,10 @@ function AnalyticsContent() {
     );
   }
 
-  const statusLabelMap: Record<string, string> = {
-    CREATED: "생성",
-    CONFIRMED: "확정",
-    PREPARING: "준비중",
-    READY: "준비완료",
-    COMPLETED: "완료",
-    CANCELLED: "취소",
-    REFUNDED: "환불",
-  };
+  const statusLabelMap: Record<string, string> = ORDER_STATUS_LABEL as Record<
+    OrderStatus,
+    string
+  >;
 
   const salesCurrent = salesData?.current;
   const productCurrent = productData?.current;
@@ -667,13 +666,152 @@ function AnalyticsContent() {
       description: "선택한 기간에 고객 활동 기록이 없습니다.",
     },
   };
+  const setQuickRange = (range: "7d" | "30d" | "month") => {
+    setQuickRangeType(range);
+    const today = new Date();
+    const end = toIsoDate(today);
+
+    if (range === "month") {
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      setStartDate(toIsoDate(monthStart));
+      setEndDate(end);
+      return;
+    }
+
+    const days = range === "7d" ? 6 : 29;
+    const start = new Date(today);
+    start.setDate(today.getDate() - days);
+    setStartDate(toIsoDate(start));
+    setEndDate(end);
+  };
+
+  const salesTrendText = salesData?.changes?.totalRevenue;
+  const salesInsight = salesCurrent
+    ? salesTrendText === undefined
+      ? `최근 ${salesCurrent.revenueByDay.length || 0}일 기준으로 매출 흐름을 확인해보세요.`
+      : salesTrendText >= 0
+        ? `이전 기간보다 매출이 ${formatPercent(salesTrendText)} 증가했어요.`
+        : `이전 기간보다 매출이 ${formatPercent(Math.abs(salesTrendText))} 감소했어요.`
+    : "매출 흐름을 확인할 데이터가 없습니다.";
+
+  const bestProduct = productCurrent?.topProducts?.[0];
+  const productInsight = bestProduct
+    ? `가장 잘 나가는 상품은 ${bestProduct.productName} (${formatCurrency(bestProduct.totalRevenue)})입니다.`
+    : "판매 상위 상품 데이터가 없습니다.";
+
+  const peakHour = orderCurrent?.peakHours
+    ?.slice()
+    .sort((a, b) => b.orderCount - a.orderCount)?.[0];
+  const orderInsight = peakHour
+    ? `주문이 가장 몰린 시간은 ${peakHour.hour}시 (${peakHour.orderCount.toLocaleString()}건)입니다.`
+    : "주문 피크 시간 데이터가 없습니다.";
+
+  const repeatRate = customerCurrent?.repeatCustomerRate;
+  const customerInsight =
+    repeatRate === undefined
+      ? "고객 재방문 데이터를 확인할 수 없습니다."
+      : `재방문 고객 비율은 ${formatPercent(repeatRate)}입니다.`;
+
+  const insightByTab: Record<"sales" | "products" | "orders" | "customers", string> = {
+    sales: salesInsight,
+    products: productInsight,
+    orders: orderInsight,
+    customers: customerInsight,
+  };
+  const actionsByTab: Record<"sales" | "products" | "orders" | "customers", string[]> = {
+    sales: [
+      "매출이 오른 날의 프로모션을 다음 주에도 반복해보세요.",
+      "평균 주문 금액이 낮다면 세트 메뉴 노출을 늘려보세요.",
+    ],
+    products: [
+      "상위 상품 3개를 주문 화면 첫 줄에 배치해보세요.",
+      "회전율이 낮은 상품은 한정 할인으로 테스트해보세요.",
+    ],
+    orders: [
+      "피크 시간대 직전에 준비 인력을 보강해보세요.",
+      "취소 비율이 높은 상태를 원인별로 점검해보세요.",
+    ],
+    customers: [
+      "재방문 고객에게 다음 주문 쿠폰을 발송해보세요.",
+      "신규 고객 첫 주문 후 3일 내 리마인드 메시지를 보내보세요.",
+    ],
+  };
+  const todayLabel = new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+  const tabCards: Array<{
+    key: "sales" | "products" | "orders" | "customers";
+    label: string;
+    description: string;
+    highlight: string;
+  }> = [
+    {
+      key: "sales",
+      label: "매출 흐름",
+      description: "기간별 매출과 주문 추이를 확인",
+      highlight: salesCurrent
+        ? `${formatCurrency(salesCurrent.totalRevenue)}`
+        : "데이터 없음",
+    },
+    {
+      key: "products",
+      label: "잘 나가는 상품",
+      description: "판매 상위 상품과 회전율 확인",
+      highlight: bestProduct ? bestProduct.productName : "데이터 없음",
+    },
+    {
+      key: "orders",
+      label: "주문 패턴",
+      description: "주문 상태와 피크 시간 파악",
+      highlight: peakHour ? `피크 ${peakHour.hour}시` : "데이터 없음",
+    },
+    {
+      key: "customers",
+      label: "단골 고객",
+      description: "신규/재방문 고객 변화 확인",
+      highlight:
+        repeatRate === undefined ? "데이터 없음" : `재방문 ${formatPercent(repeatRate)}`,
+    },
+  ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <h1 className="text-2xl font-bold text-foreground">분석 대시보드</h1>
-        <div className="flex flex-wrap gap-4 items-end">
-          <div>
+    <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+      <div className="card p-4 sm:p-6 border border-primary-100 bg-gradient-to-b from-primary-50/50 to-bg-primary">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">한눈에 보는 우리 매장</h1>
+          <p className="text-sm text-text-secondary">
+            핵심 지표부터 확인하고, 필요한 경우에만 심화 분석을 펼쳐보세요.
+          </p>
+          <p className="text-xs text-text-tertiary">업데이트 기준: {todayLabel}</p>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={`category-tab ${quickRange === "7d" ? "category-tab-active" : ""}`}
+            onClick={() => setQuickRange("7d")}
+          >
+            최근 7일
+          </button>
+          <button
+            type="button"
+            className={`category-tab ${quickRange === "30d" ? "category-tab-active" : ""}`}
+            onClick={() => setQuickRange("30d")}
+          >
+            최근 30일
+          </button>
+          <button
+            type="button"
+            className={`category-tab ${quickRange === "month" ? "category-tab-active" : ""}`}
+            onClick={() => setQuickRange("month")}
+          >
+            이번 달
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-4 items-end">
+          <div className="w-full sm:w-auto">
             <label className="block text-sm mb-1 text-text-secondary">지점</label>
             <select
               value={effectiveBranchId ?? ""}
@@ -687,7 +825,7 @@ function AnalyticsContent() {
                 selectBranch(value);
                 router.replace(`/customer/analytics?branchId=${encodeURIComponent(value)}`);
               }}
-              className="input-field min-w-[200px]"
+              className="input-field w-full sm:w-auto sm:min-w-[200px]"
               disabled={branchLoading || branches.length === 0}
             >
               <option value="">{branchPlaceholder}</option>
@@ -701,54 +839,83 @@ function AnalyticsContent() {
               <p className="text-xs text-danger-500 mt-1">{branchError}</p>
             )}
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-sm mb-1 text-text-secondary">시작일</label>
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="input-field"
+              onChange={(e) => {
+                setQuickRangeType("custom");
+                setStartDate(e.target.value);
+              }}
+              className="input-field w-full"
             />
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-sm mb-1 text-text-secondary">종료일</label>
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="input-field"
+              onChange={(e) => {
+                setQuickRangeType("custom");
+                setEndDate(e.target.value);
+              }}
+              className="input-field w-full"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-text-secondary">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-primary-500"
-              checked={compareEnabled}
-              onChange={(e) => setCompareEnabled(e.target.checked)}
-            />
-            이전 기간 비교
-          </label>
+          <details className="w-full sm:w-auto sm:min-w-[180px]">
+            <summary className="cursor-pointer select-none text-sm text-text-secondary">
+              비교 옵션
+            </summary>
+            <label className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary-500"
+                checked={compareEnabled}
+                onChange={(e) => setCompareEnabled(e.target.checked)}
+              />
+              이전 기간 비교
+            </label>
+          </details>
         </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-6">
-        {[
-          { key: "sales", label: "매출" },
-          { key: "products", label: "상품" },
-          { key: "orders", label: "주문" },
-          { key: "customers", label: "고객" },
-        ].map((tab) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {tabCards.map((tab) => (
           <button
+            type="button"
             key={tab.key}
-            onClick={() =>
-              setActiveTab(tab.key as "sales" | "products" | "orders" | "customers")
-            }
-            className={`category-tab ${activeTab === tab.key ? "category-tab-active" : ""}`}
+            onClick={() => setActiveTab(tab.key)}
+            className={`rounded-xl border p-4 text-left transition-colors ${
+              activeTab === tab.key
+                ? "border-primary-300 bg-primary-50"
+                : "border-border bg-bg-secondary hover:bg-bg-tertiary"
+            }`}
           >
-            {tab.label}
+            <p className="text-xs text-text-tertiary">분석 영역</p>
+            <p className="mt-1 text-base font-semibold text-foreground">{tab.label}</p>
+            <p className="mt-1 text-xs text-text-secondary">{tab.description}</p>
+            <p className="mt-3 text-sm font-semibold text-primary-700">{tab.highlight}</p>
           </button>
         ))}
       </div>
+
+      {effectiveBranchId && !activeLoading && !activeError && (
+        <div className="rounded-md border border-primary-200 bg-primary-50 p-4">
+          <p className="text-sm font-semibold text-primary-700">오늘의 인사이트</p>
+          <p className="mt-1 text-sm text-primary-800">{insightByTab[activeTab]}</p>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+            {actionsByTab[activeTab].map((action) => (
+              <div
+                key={action}
+                className="rounded-md border border-primary-100 bg-white/80 px-3 py-2 text-xs text-primary-900"
+              >
+                {action}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!effectiveBranchId && (
         <div className="rounded-md border border-border bg-bg-secondary p-4 text-sm text-text-secondary">
@@ -774,8 +941,8 @@ function AnalyticsContent() {
             <>
           {/* 매출 분석 */}
           {activeTab === "sales" && salesCurrent && (
-            <div className="card p-6 space-y-6">
-              <h2 className="text-xl font-semibold text-foreground">매출 분석</h2>
+            <div className="card p-4 sm:p-6 space-y-5 sm:space-y-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">매출 분석</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <KpiCard
                   title="총 매출"
@@ -831,8 +998,8 @@ function AnalyticsContent() {
 
           {/* 상품 분석 */}
           {activeTab === "products" && productCurrent && (
-            <div className="card p-6 space-y-6">
-              <h2 className="text-xl font-semibold text-foreground">상품 분석</h2>
+            <div className="card p-4 sm:p-6 space-y-5 sm:space-y-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">잘 나가는 상품</h2>
               <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
                 <div>
                   <h3 className="font-semibold mb-2 text-foreground">상위 10개 상품</h3>
@@ -867,8 +1034,11 @@ function AnalyticsContent() {
           )}
 
           {activeTab === "products" && (abcData || hourlyData || combinationData) && (
-            <div className="card p-6 space-y-8">
-              <h2 className="text-xl font-semibold text-foreground">상품 분석 심화</h2>
+            <details className="card p-4 sm:p-6">
+              <summary className="cursor-pointer text-sm sm:text-base font-semibold text-foreground">
+                고급 분석 보기
+              </summary>
+              <div className="mt-6 space-y-8">
 
               <div>
                 <h3 className="font-semibold mb-2 text-foreground">
@@ -982,13 +1152,14 @@ function AnalyticsContent() {
                   <p className="text-sm text-text-secondary">데이터가 없습니다.</p>
                 )}
               </div>
-            </div>
+              </div>
+            </details>
           )}
 
           {/* 주문 분석 */}
           {activeTab === "orders" && orderCurrent && (
-            <div className="card p-6 space-y-6">
-              <h2 className="text-xl font-semibold text-foreground">주문 분석</h2>
+            <div className="card p-4 sm:p-6 space-y-5 sm:space-y-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">주문 패턴</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                   <h3 className="font-semibold mb-2 text-foreground">상태 분포</h3>
@@ -1030,24 +1201,34 @@ function AnalyticsContent() {
 
           {/* 고객 분석 */}
           {activeTab === "customers" && customerCurrent && (
-            <div className="card p-6 space-y-6">
-              <h2 className="text-xl font-semibold text-foreground">고객 분석</h2>
+            <div className="card p-4 sm:p-6 space-y-5 sm:space-y-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">단골 고객</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <KpiCard
-                  title="총 고객 수"
+                  title="전체 고객"
                   value={customerCurrent.totalCustomers}
                   change={compareEnabled ? customerData?.changes?.totalCustomers : undefined}
                 />
                 <KpiCard
-                  title="신규 고객"
+                  title="이번 기간 신규 고객"
                   value={customerCurrent.newCustomers}
                   change={compareEnabled ? customerData?.changes?.newCustomers : undefined}
                 />
                 <KpiCard
-                  title="재방문 고객"
+                  title="다시 온 고객"
                   value={customerCurrent.returningCustomers}
                   change={compareEnabled ? customerData?.changes?.returningCustomers : undefined}
                 />
+              </div>
+            </div>
+          )}
+
+          {activeTab === "customers" && customerCurrent && (
+            <details className="card p-4 sm:p-6">
+              <summary className="cursor-pointer text-sm sm:text-base font-semibold text-foreground">
+                고객 지표 더 보기
+              </summary>
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <KpiCard
                   title="고객 생애 가치"
                   value={customerCurrent.clv}
@@ -1069,12 +1250,15 @@ function AnalyticsContent() {
                   titleTooltip="고객 1인당 평균 주문 횟수입니다."
                 />
               </div>
-            </div>
+            </details>
           )}
 
           {activeTab === "customers" && (cohortData || rfmData) && (
-            <div className="card p-6 space-y-8">
-              <h2 className="text-xl font-semibold text-foreground">고객 분석 심화</h2>
+            <details className="card p-4 sm:p-6">
+              <summary className="cursor-pointer text-sm sm:text-base font-semibold text-foreground">
+                고급 분석 보기
+              </summary>
+              <div className="mt-6 space-y-8">
 
               <div>
                 <h3 className="font-semibold mb-2 text-foreground">
@@ -1143,7 +1327,8 @@ function AnalyticsContent() {
                   )}
                 </div>
               </div>
-            </div>
+              </div>
+            </details>
           )}
             </>
           )}

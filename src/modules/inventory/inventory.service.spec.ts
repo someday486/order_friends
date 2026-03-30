@@ -37,6 +37,13 @@ describe('InventoryService', () => {
     service = new InventoryService(supabase as SupabaseService);
   };
 
+  const mockBranchAccess = (branchId = 'b1', brandId = 'brand-1') => {
+    chains.branches.single.mockResolvedValueOnce({
+      data: { id: branchId, brand_id: brandId },
+      error: null,
+    });
+  };
+
   beforeEach(() => {
     setup();
     jest.clearAllMocks();
@@ -288,6 +295,7 @@ describe('InventoryService', () => {
   });
 
   it('getInventoryByProduct should return existing inventory', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -315,6 +323,7 @@ describe('InventoryService', () => {
     const result = await service.getInventoryByProduct(
       'u1',
       'p1',
+      'b1',
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -322,6 +331,7 @@ describe('InventoryService', () => {
   });
 
   it('getInventoryByProduct should create inventory when missing', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -351,6 +361,7 @@ describe('InventoryService', () => {
     const result = await service.getInventoryByProduct(
       'u1',
       'p1',
+      'b1',
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -358,6 +369,7 @@ describe('InventoryService', () => {
   });
 
   it('getInventoryByProduct should throw if create fails', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -375,6 +387,7 @@ describe('InventoryService', () => {
       service.getInventoryByProduct(
         'u1',
         'p1',
+        'b1',
         [],
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
@@ -382,6 +395,7 @@ describe('InventoryService', () => {
   });
 
   it('updateInventory should return current when no updates', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -412,6 +426,7 @@ describe('InventoryService', () => {
       'u1',
       'p1',
       {},
+      'b1',
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -420,6 +435,7 @@ describe('InventoryService', () => {
   });
 
   it('updateInventory should throw when inventory missing', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -439,6 +455,7 @@ describe('InventoryService', () => {
         'u1',
         'p1',
         { qty_available: 1 } as any,
+        'b1',
         [],
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
@@ -446,6 +463,7 @@ describe('InventoryService', () => {
   });
 
   it('updateInventory should throw on update error and create log on change', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -477,6 +495,7 @@ describe('InventoryService', () => {
         'u1',
         'p1',
         { qty_available: 2 } as any,
+        'b1',
         [],
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
@@ -484,6 +503,7 @@ describe('InventoryService', () => {
   });
 
   it('updateInventory should log when qty changes', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -521,6 +541,7 @@ describe('InventoryService', () => {
       'u1',
       'p1',
       { qty_available: 2 } as any,
+      'b1',
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -531,6 +552,7 @@ describe('InventoryService', () => {
   });
 
   it('updateInventory should update low stock threshold without logging', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -569,6 +591,7 @@ describe('InventoryService', () => {
       'u1',
       'p1',
       { low_stock_threshold: 3 } as any,
+      'b1',
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
@@ -579,6 +602,7 @@ describe('InventoryService', () => {
   });
 
   it('adjustInventory should throw when qty would go negative', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -598,6 +622,7 @@ describe('InventoryService', () => {
         'u1',
         'p1',
         { qty_change: -2, transaction_type: 'ADJUST' } as any,
+        'b1',
         [],
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
@@ -605,6 +630,7 @@ describe('InventoryService', () => {
   });
 
   it('adjustInventory should throw when inventory missing', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -624,6 +650,7 @@ describe('InventoryService', () => {
         'u1',
         'p1',
         { qty_change: 1, transaction_type: 'ADJUST' } as any,
+        'b1',
         [],
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
@@ -631,6 +658,7 @@ describe('InventoryService', () => {
   });
 
   it('adjustInventory should throw on update error', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -654,6 +682,7 @@ describe('InventoryService', () => {
         'u1',
         'p1',
         { qty_change: 1, transaction_type: 'ADJUST' } as any,
+        'b1',
         [],
         [{ branch_id: 'b1', role: 'OWNER' }],
       ),
@@ -661,6 +690,7 @@ describe('InventoryService', () => {
   });
 
   it('adjustInventory should update and return detail', async () => {
+    mockBranchAccess();
     chains.products.single.mockResolvedValueOnce({
       data: {
         id: 'p1',
@@ -686,11 +716,67 @@ describe('InventoryService', () => {
       'u1',
       'p1',
       { qty_change: 1, transaction_type: 'ADJUST' } as any,
+      'b1',
       [],
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
     expect(result.id).toBe('i1');
     expect(detailSpy).toHaveBeenCalled();
+  });
+
+  it('adjustInventory should use requested branchId instead of product branch_id', async () => {
+    chains.products.single.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        name: 'P',
+        branch_id: 'b1',
+        branches: { brand_id: 'brand-1' },
+      },
+      error: null,
+    });
+    mockBranchAccess('b2');
+    chains.product_inventory.single.mockResolvedValueOnce({
+      data: { id: 'i2', product_id: 'p1', branch_id: 'b2', qty_available: 3 },
+      error: null,
+    });
+    chains.product_inventory.eq
+      .mockReturnValueOnce(chains.product_inventory)
+      .mockReturnValueOnce(chains.product_inventory)
+      .mockResolvedValueOnce({ error: null });
+    const logSpy = jest
+      .spyOn(service as any, 'createInventoryLog')
+      .mockResolvedValueOnce(undefined);
+    const detailSpy = jest
+      .spyOn(service, 'getInventoryByProduct')
+      .mockResolvedValueOnce({ id: 'i2' } as any);
+
+    await service.adjustInventory(
+      'u1',
+      'p1',
+      { qty_change: 2, transaction_type: 'ADJUST' } as any,
+      'b2',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
+
+    expect(chains.product_inventory.eq).toHaveBeenCalledWith('branch_id', 'b2');
+    expect(logSpy).toHaveBeenCalledWith(
+      'p1',
+      'b2',
+      'ADJUST',
+      2,
+      3,
+      5,
+      'u1',
+      undefined,
+    );
+    expect(detailSpy).toHaveBeenCalledWith(
+      'u1',
+      'p1',
+      'b2',
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [],
+    );
   });
 
   it('bulkDeactivateInventory should throw when items are empty', async () => {
@@ -889,6 +975,50 @@ describe('InventoryService', () => {
       [{ branch_id: 'b1', role: 'OWNER' }],
     );
     expect(result[0].product_name).toBe('Unknown');
+  });
+
+  it('getLowStockAlerts should aggregate accessible branches when branchId is omitted', async () => {
+    chains.branches.in
+      .mockResolvedValueOnce({
+        data: [{ id: 'b1', name: 'B1' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'b2', name: 'B2' }],
+        error: null,
+      });
+    chains.product_inventory.order.mockResolvedValueOnce({
+      data: [
+        {
+          product_id: 'p1',
+          branch_id: 'b1',
+          qty_available: 1,
+          low_stock_threshold: 2,
+          products: { name: 'P1' },
+          branches: { name: 'B1' },
+        },
+        {
+          product_id: 'p2',
+          branch_id: 'b2',
+          qty_available: 0,
+          low_stock_threshold: 1,
+          products: { name: 'P2' },
+          branches: { name: 'B2' },
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getLowStockAlerts(
+      'u1',
+      undefined,
+      [{ brand_id: 'brand-1', role: 'OWNER' }],
+      [{ branch_id: 'b1', role: 'ADMIN' }],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0].branch_name).toBe('B1');
+    expect(result[1].branch_name).toBe('B2');
   });
 
   it('getLowStockAlerts should throw on error', async () => {

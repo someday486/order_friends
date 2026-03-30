@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useNotifications } from "@/providers/NotificationProvider";
@@ -10,7 +10,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 외부 클릭 시 닫기
+  // 바깥 영역 클릭 시 닫기
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {

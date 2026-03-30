@@ -31,7 +31,7 @@ describe('CustomerBranchesService', () => {
 
   it('getMyBranches should throw when brand membership missing', async () => {
     await expect(
-      service.getMyBranches('user-1', 'brand-1', [], []),
+      service.getMyBranches('user-1', 'brand-1', false, [], []),
     ).rejects.toThrow(ForbiddenException);
   });
 
@@ -45,6 +45,7 @@ describe('CustomerBranchesService', () => {
       service.getMyBranches(
         'user-1',
         'brand-1',
+        false,
         [{ brand_id: 'brand-1', role: 'OWNER' } as any],
         [],
       ),
@@ -60,6 +61,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       'brand-1',
+      false,
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
       [],
     );
@@ -77,6 +79,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       'brand-1',
+      false,
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
       [],
     );
@@ -99,6 +102,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       undefined,
+      false,
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
       [{ branch_id: 'b2', role: 'STAFF' } as any],
     );
@@ -116,6 +120,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       undefined,
+      false,
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
       [{ branch_id: 'b1', role: 'STAFF' } as any],
     );
@@ -135,6 +140,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       undefined,
+      false,
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
       [{ branch_id: 'b2', role: 'STAFF' } as any],
     );
@@ -155,6 +161,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       undefined,
+      false,
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
       [{ branch_id: 'b2', role: 'STAFF' } as any],
     );
@@ -191,6 +198,7 @@ describe('CustomerBranchesService', () => {
     const result = await service.getMyBranches(
       'user-1',
       undefined,
+      false,
       [],
       [{ branch_id: 'b2', role: 'STAFF' } as any],
     );
@@ -200,7 +208,13 @@ describe('CustomerBranchesService', () => {
   });
 
   it('getMyBranches should return empty when no accessible branches', async () => {
-    const result = await service.getMyBranches('user-1', undefined, [], []);
+    const result = await service.getMyBranches(
+      'user-1',
+      undefined,
+      false,
+      [],
+      [],
+    );
     expect(result).toEqual([]);
   });
 
@@ -553,14 +567,14 @@ describe('CustomerBranchesService', () => {
     ).rejects.toThrow('Failed to update branch');
   });
 
-  it('deleteMyBranch should delete branch', async () => {
+  it('deleteMyBranch should deactivate branch', async () => {
     mockSb.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1', name: 'B1' },
       error: null,
     });
     mockSb.eq
-      .mockReturnValueOnce(mockSb) // checkBranchAccess
-      .mockResolvedValueOnce({ error: null }); // delete
+      .mockReturnValueOnce(mockSb)
+      .mockResolvedValueOnce({ error: null });
 
     const result = await service.deleteMyBranch(
       'user-1',
@@ -588,14 +602,14 @@ describe('CustomerBranchesService', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('deleteMyBranch should throw on delete error', async () => {
+  it('deleteMyBranch should throw on deactivate error', async () => {
     mockSb.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1', name: 'B1' },
       error: null,
     });
-    mockSb.eq
-      .mockReturnValueOnce(mockSb)
-      .mockResolvedValueOnce({ error: { message: 'fail' } });
+    mockSb.eq.mockReturnValueOnce(mockSb).mockResolvedValueOnce({
+      error: { message: 'fail' },
+    });
 
     await expect(
       service.deleteMyBranch(

@@ -28,8 +28,10 @@ const canCreateBrand = (
   loading: boolean,
   brands: Brand[],
   membershipsLoading: boolean,
+  canCreateBrandDirectly?: boolean,
 ) => {
   if (loading || membershipsLoading) return false;
+  if (canCreateBrandDirectly) return true;
   if (role === "system_admin" || role === "brand_owner") return true;
 
   return brands.some(
@@ -43,7 +45,7 @@ export default function CustomerBrandsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const { role, loading: roleLoading } = useUserRole();
+  const { role, userData, loading: roleLoading } = useUserRole();
 
   const loadBrands = async () => {
     try {
@@ -64,7 +66,13 @@ export default function CustomerBrandsPage() {
     loadBrands().catch(() => null);
   }, []);
 
-  const allowAdd = canCreateBrand(role, roleLoading, brands, roleLoading);
+  const allowAdd = canCreateBrand(
+    role,
+    roleLoading,
+    brands,
+    roleLoading,
+    userData?.canCreateBrand,
+  );
 
   if (loading) {
     return (
@@ -104,11 +112,11 @@ export default function CustomerBrandsPage() {
 
       {brands.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">No brand found.</div>
-          <div className="text-sm">If you need access, request brand membership or create a new brand.</div>
+          <div className="text-base mb-2">브랜드가 없습니다.</div>
+          <div className="text-sm">접근 권한이 필요하면 브랜드 멤버십을 요청하거나 새 브랜드를 생성하세요.</div>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {brands.map((brand) => (
             <BrandCard key={brand.id} brand={brand} />
           ))}

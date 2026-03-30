@@ -2,7 +2,12 @@ import { CacheService } from './cache.service';
 
 describe('CacheService', () => {
   const makeService = (overrides: Partial<Record<string, any>> = {}) => {
-    const store = overrides.store ?? { keys: jest.fn().mockResolvedValue([]) };
+    const store =
+      overrides.store ??
+      ({
+        keys: jest.fn().mockResolvedValue([]),
+        clear: jest.fn(),
+      } as any);
     const cacheManager = {
       get: jest.fn(),
       set: jest.fn(),

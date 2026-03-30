@@ -1,12 +1,18 @@
 import {
+  IsBoolean,
   IsString,
   IsNumber,
   IsArray,
   IsOptional,
   ValidateNested,
   Min,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  CashReceiptIdentityType,
+  CashReceiptType,
+} from '../../cash-receipts/cash-receipt.types';
 
 // ============================================================
 // Response DTOs
@@ -69,6 +75,24 @@ export class OrderItemDto {
   options?: OrderItemOptionDto[];
 }
 
+export class CashReceiptRequestDto {
+  @IsBoolean()
+  @IsOptional()
+  requested?: boolean = false;
+
+  @IsEnum(CashReceiptType)
+  @IsOptional()
+  type?: CashReceiptType;
+
+  @IsEnum(CashReceiptIdentityType)
+  @IsOptional()
+  identityType?: CashReceiptIdentityType;
+
+  @IsString()
+  @IsOptional()
+  identityValue?: string;
+}
+
 export class CreatePublicOrderRequest {
   @IsString()
   branchId: string;
@@ -100,4 +124,9 @@ export class CreatePublicOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
+
+  @ValidateNested()
+  @Type(() => CashReceiptRequestDto)
+  @IsOptional()
+  cashReceipt?: CashReceiptRequestDto;
 }

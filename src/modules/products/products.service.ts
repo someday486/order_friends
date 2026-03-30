@@ -75,6 +75,8 @@ export class ProductsService {
     return (data ?? []).map((row: any) => ({
       id: row.id,
       name: row.name,
+      description: row.description ?? null,
+      categoryId: row.category_id ?? null,
       price: this.getPriceFromRow(row),
       isActive: !(row.is_hidden ?? false),
       sortOrder: 0,
@@ -112,6 +114,8 @@ export class ProductsService {
     const items = (data ?? []).map((row: any) => ({
       id: row.id,
       name: row.name,
+      description: row.description ?? null,
+      categoryId: row.category_id ?? null,
       price: this.getPriceFromRow(row),
       isActive: !(row.is_hidden ?? false),
       sortOrder: 0,
@@ -239,7 +243,9 @@ export class ProductsService {
     const { data: productData, error: productError } = await sb
       .from('products')
       .insert(insertPayload)
-      .select('id, branch_id, name, category_id, description, base_price, image_url, is_hidden, created_at, updated_at')
+      .select(
+        'id, branch_id, name, category_id, description, base_price, image_url, is_hidden, created_at, updated_at',
+      )
       .single();
 
     if (productError) {
@@ -306,7 +312,9 @@ export class ProductsService {
       .from('products')
       .update(baseUpdate)
       .eq('id', productId)
-      .select('id, branch_id, name, category_id, description, base_price, image_url, is_hidden, created_at, updated_at')
+      .select(
+        'id, branch_id, name, category_id, description, base_price, image_url, is_hidden, created_at, updated_at',
+      )
       .maybeSingle();
 
     if (error) {

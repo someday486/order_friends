@@ -7,6 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
+import {
+  buildSystemAdminConfig,
+  isConfiguredSystemAdmin,
+  type SystemAdminConfig,
+} from '../utils/system-admin.util';
 
 const AUTH_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const AUTH_CACHE_MAX_SIZE = 1000;
@@ -17,31 +22,42 @@ type CachedAuth = {
   expiresAt: number;
 };
 
+function readCanCreateBrandFromMetadata(
+  metadata: Record<string, unknown> | undefined,
+): boolean {
+  return metadata?.customer_brand_creator_approved === true;
+}
+
+function shouldBypassAuthCache(req: {
+  path?: string;
+  originalUrl?: string;
+  route?: { path?: string };
+}): boolean {
+  const candidates = [req.path, req.originalUrl, req.route?.path].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+
+  return candidates.some(
+    (path) =>
+      path === '/me' ||
+      path === '/me/profile' ||
+      path.startsWith('/customer/brands') ||
+      path === 'customer/brands' ||
+      path.startsWith('customer/brands'),
+  );
+}
+
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private readonly adminEmails: Set<string>;
-  private readonly adminUserIds: Set<string>;
-  private readonly adminEmailDomains: Set<string>;
-  private readonly adminBypassAll: boolean;
+  private readonly systemAdminConfig: SystemAdminConfig;
   private readonly authCache = new Map<string, CachedAuth>();
 
   constructor(
     private readonly supabase: SupabaseService,
     private readonly config: ConfigService,
   ) {
-    const rawEmails = this.parseList(this.config.get<string>('ADMIN_EMAILS'));
-    const rawUserIds = this.parseList(
-      this.config.get<string>('ADMIN_USER_IDS'),
-    );
-    const rawDomains = this.parseList(
-      this.config.get<string>('ADMIN_EMAIL_DOMAINS'),
-    );
-
-    this.adminEmails = new Set(rawEmails.map((value) => value.toLowerCase()));
-    this.adminUserIds = new Set(rawUserIds);
-    this.adminEmailDomains = this.normalizeDomains(rawDomains);
-    this.adminBypassAll = this.parseBoolean(
-      this.config.get<string>('ADMIN_BYPASS'),
+    this.systemAdminConfig = buildSystemAdminConfig((key) =>
+      this.config.get<string>(key),
     );
   }
 
@@ -57,7 +73,8 @@ export class AuthGuard implements CanActivate {
 
     // Check auth cache first
     const now = Date.now();
-    const cached = this.authCache.get(token);
+    const useCache = !shouldBypassAuthCache(req);
+    const cached = useCache ? this.authCache.get(token) : undefined;
     if (cached && now < cached.expiresAt) {
       req.user = cached.user;
       req.accessToken = token;
@@ -68,32 +85,81 @@ export class AuthGuard implements CanActivate {
     // Cache miss — validate with Supabase
     const sb = this.supabase.userClient(token);
 
-    const { data, error } = await sb.auth.getUser();
+    let data:
+      | {
+          user?: {
+            id: string;
+            email?: string | null;
+          } | null;
+        }
+      | null
+      | undefined;
+    let error: unknown;
+    try {
+      ({ data, error } = await sb.auth.getUser());
+    } catch {
+      this.authCache.delete(token);
+      throw new UnauthorizedException('Invalid token');
+    }
+
     if (error || !data?.user) {
       this.authCache.delete(token);
       throw new UnauthorizedException('Invalid token');
     }
 
-    const user: RequestUser = {
-      id: data.user.id,
-      email: data.user.email ?? undefined,
+    const authUser = data.user as {
+      id: string;
+      email?: string | null;
+      user_metadata?: Record<string, unknown> | null;
     };
 
-    const email = data.user.email?.toLowerCase();
+    const user: RequestUser = {
+      id: authUser.id,
+      email: authUser.email ?? undefined,
+      canCreateBrand: readCanCreateBrandFromMetadata(
+        authUser.user_metadata ?? undefined,
+      ),
+    };
+
+    let profile: { is_system_admin?: boolean } | null = null;
+    let profileError: unknown;
+    try {
+      const profileResult = await sb
+        .from('profiles')
+        .select('is_system_admin')
+        .eq('id', authUser.id)
+        .maybeSingle();
+      profile = profileResult.data;
+      profileError = profileResult.error;
+    } catch {
+      this.authCache.delete(token);
+      throw new UnauthorizedException('Failed to verify admin permissions');
+    }
+
+    if (profileError) {
+      this.authCache.delete(token);
+      throw new UnauthorizedException('Failed to verify admin permissions');
+    }
+
     const isAdmin =
-      this.adminBypassAll ||
-      this.adminUserIds.has(data.user.id) ||
-      (email ? this.adminEmails.has(email) : false) ||
-      (email ? this.isAllowedDomain(email) : false) ||
-      this.isAdminFromMetadata(data.user as any);
+      Boolean(profile?.is_system_admin) ||
+      isConfiguredSystemAdmin(
+        this.systemAdminConfig,
+        data.user.id,
+        data.user.email ?? undefined,
+      );
 
     // Store in cache
-    this.evictExpiredEntries(now);
-    this.authCache.set(token, {
-      user,
-      isAdmin,
-      expiresAt: now + AUTH_CACHE_TTL_MS,
-    });
+    if (useCache) {
+      this.evictExpiredEntries(now);
+      this.authCache.set(token, {
+        user,
+        isAdmin,
+        expiresAt: now + AUTH_CACHE_TTL_MS,
+      });
+    } else {
+      this.authCache.delete(token);
+    }
 
     req.user = user;
     req.accessToken = token;
@@ -113,52 +179,5 @@ export class AuthGuard implements CanActivate {
       const firstKey = this.authCache.keys().next().value as string;
       this.authCache.delete(firstKey);
     }
-  }
-
-  private parseList(value?: string): string[] {
-    if (!value) return [];
-    return value
-      .split(/[,;\s]+/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-  }
-
-  private parseBoolean(value?: string): boolean {
-    if (!value) return false;
-    const normalized = value.trim().toLowerCase();
-    return normalized === 'true' || normalized === '1' || normalized === 'yes';
-  }
-
-  private normalizeDomains(values: string[]): Set<string> {
-    const domains = values
-      .map((value) => value.trim().toLowerCase())
-      .filter((value) => value.length > 0)
-      .map((value) => (value.startsWith('@') ? value.slice(1) : value));
-    return new Set(domains);
-  }
-
-  private isAllowedDomain(email: string): boolean {
-    if (this.adminEmailDomains.size === 0) return false;
-    const domain = email.split('@')[1]?.trim().toLowerCase();
-    if (!domain) return false;
-    return this.adminEmailDomains.has(domain);
-  }
-
-  private isAdminFromMetadata(user: any): boolean {
-    const appMetadata = user?.app_metadata ?? {};
-    const userMetadata = user?.user_metadata ?? {};
-
-    const appFlag = appMetadata?.is_admin;
-    const userFlag = userMetadata?.is_admin;
-    const appRole = appMetadata?.role;
-    const userRole = userMetadata?.role;
-
-    if (appFlag === true || userFlag === true) return true;
-    if (typeof appRole === 'string' && appRole.toLowerCase() === 'admin')
-      return true;
-    if (typeof userRole === 'string' && userRole.toLowerCase() === 'admin')
-      return true;
-
-    return false;
   }
 }

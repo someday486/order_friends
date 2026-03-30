@@ -86,3 +86,26 @@ export function formatPhone(phone: string): string {
   }
   return phone;
 }
+
+/** 사업자등록번호 형식화 (예: 123-45-67890) */
+export function formatBusinessNumber(value: string): string {
+  if (!value) return '-';
+  const cleaned = value.replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    return cleaned.replace(/(\d{3})(\d{2})(\d{5})/, '$1-$2-$3');
+  }
+  return value;
+}
+
+export function formatCashReceiptProvider(
+  value: string | null | undefined,
+): string {
+  if (!value) return '-';
+
+  const normalized = value.trim().toUpperCase();
+  if (normalized === 'POPBILL') {
+    return 'Popbill';
+  }
+
+  return value;
+}

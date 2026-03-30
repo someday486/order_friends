@@ -12,6 +12,7 @@ import PieChart from "@/components/analytics/PieChart";
 import HeatmapTable from "@/components/analytics/HeatmapTable";
 import RfmScatterChart from "@/components/analytics/RfmScatterChart";
 import Tooltip from "@/components/ui/Tooltip";
+import { ORDER_STATUS_LABEL } from "@/types/common";
 import type { AbcAnalysis, CohortAnalysis, RfmAnalysis } from "@/types/analytics";
 
 
@@ -119,15 +120,7 @@ const HelpLabel = ({ label, description }: { label: string; description: string 
   </span>
 );
 
-const STATUS_LABELS: Record<string, string> = {
-  CREATED: "접수",
-  CONFIRMED: "확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
-};
+const STATUS_LABELS: Record<string, string> = ORDER_STATUS_LABEL;
 
 // ============================================================
 // Components
@@ -452,7 +445,7 @@ export default function BrandAnalyticsPage() {
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <div ref={brandDropdownRef} className="relative max-w-[240px] w-full">
+        <div ref={brandDropdownRef} className="relative w-full sm:max-w-[240px]">
           <button
             type="button"
             onClick={() => setIsBrandOpen((v) => !v)}
@@ -544,21 +537,23 @@ export default function BrandAnalyticsPage() {
           )}
         </div>
 
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="input-field w-[140px]"
-        />
-        <span className="self-center text-text-tertiary">~</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="input-field w-[140px]"
-        />
+        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 sm:flex sm:w-auto">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="input-field w-full min-w-0 sm:w-[140px]"
+          />
+          <span className="self-center text-center text-text-tertiary">~</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="input-field w-full min-w-0 sm:w-[140px]"
+          />
+        </div>
 
-        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer self-center">
+        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer w-full sm:w-auto sm:self-center">
           <input
             type="checkbox"
             checked={compare}

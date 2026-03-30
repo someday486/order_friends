@@ -12,8 +12,6 @@ import {
   ZAxis,
 } from "recharts";
 
-import type { TooltipProps } from "recharts";
-
 type RfmPoint = {
   recency: number;
   frequency: number;
@@ -54,7 +52,7 @@ const LEGEND_ORDER = ["Champions", "Loyal", "Potential", "New", "At Risk", "Lost
 function RfmTooltip({ active, payload }: any) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const p = payload[0].payload;
+  const p = payload[0].payload as RfmPoint;
 
   return (
     <div className="rounded-lg border border-border bg-bg-secondary px-3 py-2 shadow-lg">

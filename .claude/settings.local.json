@@ -19,7 +19,8 @@
       "Bash(wc:*)",
       "Bash(tree:*)",
       "Bash(npx tailwindcss init:*)",
-      "Bash(npx next build)"
+      "Bash(npx next build)",
+      "Bash(grep -r \"profiles\\\\|brand_members\\\\|branch_members\" /c/dev/order_friends/supabase/migrations/*.sql)"
     ]
   }
 }

@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsString,
   IsNumber,
   IsArray,
@@ -6,9 +7,14 @@ import {
   ValidateNested,
   Min,
   IsEnum,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  CashReceiptIdentityType,
+  CashReceiptType,
+} from '../../cash-receipts/cash-receipt.types';
 
 // ============================================================
 // Response DTOs
@@ -18,14 +24,59 @@ export class PublicBranchResponse {
   id: string;
   name: string;
   brandName?: string;
+  cashReceiptEnabled?: boolean;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  contactPhone?: string | null;
+  kakaoChannelUrl?: string | null;
   enabledFulfillmentTypes?: string[];
   allowedPaymentMethods?: string[];
+  orderNotice?: string | null;
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
     accountHolder?: string | null;
+  } | null;
+  pickupTimeConfig?: {
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
+  businessHours?: {
+    monday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    tuesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    wednesday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    thursday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    friday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    saturday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
+    sunday?: {
+      isOpen?: boolean;
+      openTime?: string | null;
+      closeTime?: string | null;
+    } | null;
   } | null;
 }
 
@@ -56,7 +107,10 @@ export class PublicProductResponse {
   name: string;
   description?: string | null;
   price: number;
+  discountPrice?: number;
+  urgentDiscountEndAt?: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[];
   categoryId?: string | null;
   categoryName?: string | null;
   sortOrder?: number;
@@ -75,6 +129,7 @@ export class PublicOrderResponse {
   status: string;
   totalAmount: number;
   createdAt: string;
+  requestedTime?: string | null;
   paymentMethod?: string | null;
   fulfillmentType?: string | null;
   transferAccount?: {
@@ -89,6 +144,8 @@ export class PublicOrderResponse {
     address2?: string | null;
     memo?: string | null;
   };
+  branchContactPhone?: string | null;
+  branchKakaoChannelUrl?: string | null;
   items: {
     productName: string;
     qty: number;
@@ -137,13 +194,47 @@ export class OrderItemDto {
 export enum PaymentMethod {
   CARD = 'CARD',
   TRANSFER = 'TRANSFER',
-  CASH = 'CASH',
 }
 
 export enum FulfillmentType {
   PICKUP = 'PICKUP',
   DELIVERY = 'DELIVERY',
   DINE_IN = 'DINE_IN',
+  SHIPPING = 'SHIPPING',
+}
+
+export class CashReceiptRequestDto {
+  @ApiPropertyOptional({
+    description: '현금영수증 발급 요청 여부',
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  requested?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: '현금영수증 발급 타입',
+    enum: CashReceiptType,
+  })
+  @IsEnum(CashReceiptType)
+  @IsOptional()
+  type?: CashReceiptType;
+
+  @ApiPropertyOptional({
+    description: '현금영수증 식별 수단',
+    enum: CashReceiptIdentityType,
+  })
+  @IsEnum(CashReceiptIdentityType)
+  @IsOptional()
+  identityType?: CashReceiptIdentityType;
+
+  @ApiPropertyOptional({
+    description: '현금영수증 식별값',
+    example: '01012345678',
+  })
+  @IsString()
+  @IsOptional()
+  identityValue?: string;
 }
 
 export class CreatePublicOrderRequest {
@@ -216,6 +307,14 @@ export class CreatePublicOrderRequest {
   @IsOptional()
   fulfillmentType?: FulfillmentType = FulfillmentType.PICKUP;
 
+  @ApiPropertyOptional({
+    description: '픽업 희망 시간 (ISO 8601)',
+    example: '2026-03-15T06:30:00.000Z',
+  })
+  @IsDateString()
+  @IsOptional()
+  requestedTime?: string;
+
   @ApiProperty({
     description: '주문 상품 목록',
     type: [OrderItemDto],
@@ -224,4 +323,13 @@ export class CreatePublicOrderRequest {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
+
+  @ApiPropertyOptional({
+    description: '현금영수증 요청 정보',
+    type: CashReceiptRequestDto,
+  })
+  @ValidateNested()
+  @Type(() => CashReceiptRequestDto)
+  @IsOptional()
+  cashReceipt?: CashReceiptRequestDto;
 }

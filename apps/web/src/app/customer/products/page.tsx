@@ -1,11 +1,13 @@
 ﻿"use client";
 
 import type React from "react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import { ImageUpload } from "@/components/ui/ImageUpload";
+import Modal from "@/components/ui/Modal";
 import { Switch } from "@/components/common/Switch";
 import { HelpCircle, Pencil, Search, X, ExternalLink, Star, ChevronDown } from "lucide-react";
 
@@ -39,7 +41,12 @@ type BrandTemplate = {
   name: string;
   description?: string | null;
   price: number;
+  discountPrice?: number;
+  urgentDiscountPrice?: number | null;
+  urgentDiscountStartAt?: string | null;
+  urgentDiscountEndAt?: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[];
   isActive: boolean;
   sortOrder: number;
   appliedBranchIds?: string[];
@@ -54,7 +61,10 @@ type TemplateForm = {
   name: string;
   description: string;
   price: string;
-  imageUrl: string;
+  urgentDiscountPrice: string;
+  urgentDiscountStartAt: string;
+  urgentDiscountEndAt: string;
+  imageUrls: string[];
   isActive: boolean;
   inventoryMode: "PRODUCT" | "NONE";
 };
@@ -62,6 +72,14 @@ type TemplateForm = {
 type BulkStatus = "keep" | "active" | "inactive";
 type BulkInventoryMode = "keep" | "PRODUCT" | "NONE";
 type SalesChannelFilter = "ALL" | "ONLINE_SHOP" | `BRANCH:${string}`;
+type UrgentDiscountHistory = {
+  id?: string;
+  price: number | null;
+  startAt: string | null;
+  endAt: string | null;
+  recordedReason?: string | null;
+  createdAt?: string | null;
+};
 
 type CategoryFilter =
   | "ALL"
@@ -97,10 +115,144 @@ const EMPTY_FORM: TemplateForm = {
   name: "",
   description: "",
   price: "",
-  imageUrl: "",
+  urgentDiscountPrice: "",
+  urgentDiscountStartAt: "",
+  urgentDiscountEndAt: "",
+  imageUrls: [],
   isActive: true,
   inventoryMode: "PRODUCT",
 };
+
+const MAX_TEMPLATE_IMAGES = 10;
+
+function normalizeImageUrls(imageUrls?: string[] | null, imageUrl?: string | null) {
+  const normalized = Array.from(
+    new Set(
+      (Array.isArray(imageUrls) ? imageUrls : [])
+        .filter((url): url is string => typeof url === "string")
+        .map((url) => url.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (normalized.length > 0) {
+    return normalized.slice(0, MAX_TEMPLATE_IMAGES);
+  }
+
+  if (typeof imageUrl === "string" && imageUrl.trim().length > 0) {
+    return [imageUrl.trim()];
+  }
+
+  return [];
+}
+
+function toDatetimeLocalValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (num: number) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+}
+
+function toIsoOrNull(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function formatKoreanDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function getUrgentDiscountHistoryBadge(
+  recordedReason?: string | null,
+  endAt?: string | null,
+) {
+  const reason = (recordedReason ?? "").toUpperCase();
+  if (reason === "CLEARED") {
+    return {
+      label: "해제",
+      className: "bg-neutral-200 text-neutral-700 border border-neutral-300",
+    };
+  }
+  if (reason === "REPLACED") {
+    return {
+      label: "교체",
+      className: "bg-primary-100 text-primary-700 border border-primary-200",
+    };
+  }
+
+  const endTs = endAt ? Date.parse(endAt) : Number.NaN;
+  if (Number.isFinite(endTs) && endTs < Date.now()) {
+    return {
+      label: "만료",
+      className: "bg-warning-100 text-warning-700 border border-warning-200",
+    };
+  }
+
+  if (reason === "UPDATED") {
+    return {
+      label: "변경",
+      className: "bg-blue-100 text-blue-700 border border-blue-200",
+    };
+  }
+
+  return {
+    label: "설정",
+    className: "bg-success/15 text-success border border-success/30",
+  };
+}
+
+const URGENT_DISCOUNT_UNSUPPORTED_MESSAGE =
+  "긴급할인 기능을 사용하려면 상품 테이블에 할인 컬럼이 필요합니다.";
+
+const URGENT_DISCOUNT_TOOLTIP_MESSAGE =
+  "긴급할인가는 짧은 시간 동안 임시로 노출하는 할인 가격입니다. 기본 가격보다 낮게 입력하고, 필요하면 시작/종료 시간을 함께 설정하세요.";
+
+function isUrgentDiscountUnsupportedError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes(URGENT_DISCOUNT_UNSUPPORTED_MESSAGE);
+}
+
+function getMergedUrgentDiscountHistories(
+  histories: UrgentDiscountHistory[],
+  fallbackHistory: UrgentDiscountHistory | null,
+) {
+  return [...histories, ...(fallbackHistory ? [fallbackHistory] : [])]
+    .filter((history, index, array) =>
+      array.findIndex(
+        (target) =>
+          target.price === history.price &&
+          target.startAt === history.startAt &&
+          target.endAt === history.endAt,
+      ) === index,
+    )
+    .slice(0, 20);
+}
+
+function InlineHelpTooltip({ content }: { content: string }) {
+  return (
+    <span className="relative inline-flex cursor-pointer items-center group">
+      <HelpCircle className="w-3.5 h-3.5 text-text-secondary hover:text-foreground transition-colors" />
+      <span className="pointer-events-none absolute left-5 top-1/2 z-50 w-64 -translate-y-1/2 rounded-md border border-border bg-bg-tertiary p-3 text-xs text-text-secondary opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {content}
+      </span>
+    </span>
+  );
+}
 
 
 
@@ -156,6 +308,9 @@ function BranchChecklistTable({
   onlineShopChecked,
   onToggleOnlineShop,
   onlineShopUrl,
+  onlineShopCategories,
+  onlineShopCategoryId,
+  onChangeOnlineShopCategory,
   brandSlug,
   disabled,
 }: {
@@ -169,6 +324,9 @@ function BranchChecklistTable({
   onlineShopChecked?: boolean;
   onToggleOnlineShop?: () => void;
   onlineShopUrl?: string | null;
+  onlineShopCategories?: ProductCategory[];
+  onlineShopCategoryId?: string;
+  onChangeOnlineShopCategory?: (categoryId: string) => void;
   brandSlug?: string | null;
   disabled?: boolean;
 }) {
@@ -191,7 +349,7 @@ function BranchChecklistTable({
     : allBranchesChecked;
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className="border border-border rounded-lg overflow-x-auto overflow-y-hidden">
       <div className="p-3 border-b border-border bg-bg-tertiary">
         <input
           type="text"
@@ -201,7 +359,7 @@ function BranchChecklistTable({
           className="input-field w-full text-xs"
         />
       </div>
-      <table className="w-full border-collapse">
+      <table className="min-w-[520px] w-full border-collapse">
         <thead className="bg-white">
           <tr>
             <th className="w-12 py-2.5 px-3 text-center">
@@ -311,7 +469,27 @@ function BranchChecklistTable({
 
 
               {onChangeCategory && (
-                <td className="py-2.5 px-3 text-xs text-text-tertiary">카테고리 미사용</td>
+                <td className="py-2.5 px-3">
+                  {onChangeOnlineShopCategory ? (
+                    <select
+                      value={onlineShopCategoryId ?? ""}
+                      onChange={(event) => onChangeOnlineShopCategory(event.target.value)}
+                      disabled={disabled || !(onlineShopChecked ?? false)}
+                      className="input-field h-8 py-1 text-xs"
+                    >
+                      <option value="">카테고리 없음</option>
+                      {(onlineShopCategories ?? [])
+                        .filter((category) => category.isActive !== false)
+                        .map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-text-tertiary">카테고리 미사용</span>
+                  )}
+                </td>
               )}
             </tr>
           )}
@@ -358,8 +536,10 @@ export default function CustomerProductsPage() {
   }, []);
 
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [onlineShopBranch, setOnlineShopBranch] = useState<Branch | null>(null);
   const [branchCategories, setBranchCategories] = useState<Record<string, ProductCategory[]>>({});
   const [templates, setTemplates] = useState<BrandTemplate[]>([]);
+  const [isUrgentDiscountSupported, setIsUrgentDiscountSupported] = useState(true);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -392,6 +572,17 @@ export default function CustomerProductsPage() {
   const [salesChannelFilter, setSalesChannelFilter] = useState<SalesChannelFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [isEditChannelOpen, setIsEditChannelOpen] = useState(false);
+  const [editInitialSnapshot, setEditInitialSnapshot] = useState<string | null>(null);
+  const [editUrgentDiscountHistory, setEditUrgentDiscountHistory] =
+    useState<UrgentDiscountHistory | null>(null);
+  const [editUrgentDiscountHistories, setEditUrgentDiscountHistories] = useState<
+    UrgentDiscountHistory[]
+  >([]);
+  const [editUrgentDiscountHistoriesLoading, setEditUrgentDiscountHistoriesLoading] =
+    useState(false);
+  const [isUrgentHistoryModalOpen, setIsUrgentHistoryModalOpen] = useState(false);
+  const [isEditDrawerVisible, setIsEditDrawerVisible] = useState(false);
+  const editDrawerCloseTimerRef = useRef<number | null>(null);
   const brandSearchInputRef = useRef<HTMLInputElement | null>(null);
   const selectedBrand = useMemo(
     () => brands.find((brand) => brand.id === selectedBrandId) ?? null,
@@ -425,11 +616,56 @@ export default function CustomerProductsPage() {
   }, [filteredBrands, favoriteBrandIds, favoriteSet]);
   
   const selectedBrandShopUrl = getShopUrl(selectedBrand?.slug);
+  const onlineShopCategories = useMemo(() => {
+    if (!onlineShopBranch) return [];
+    return branchCategories[onlineShopBranch.id] ?? [];
+  }, [branchCategories, onlineShopBranch]);
+  const mergedEditUrgentDiscountHistories = useMemo(
+    () =>
+      getMergedUrgentDiscountHistories(
+        editUrgentDiscountHistories,
+        editUrgentDiscountHistory,
+      ),
+    [editUrgentDiscountHistories, editUrgentDiscountHistory],
+  );
+
+  const clearEditDrawerCloseTimer = useCallback(() => {
+    if (editDrawerCloseTimerRef.current !== null) {
+      window.clearTimeout(editDrawerCloseTimerRef.current);
+      editDrawerCloseTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => clearEditDrawerCloseTimer();
+  }, [clearEditDrawerCloseTimer]);
+
+  useEffect(() => {
+    if (editingTemplateId) {
+      setIsEditDrawerVisible(true);
+    }
+  }, [editingTemplateId]);
 
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const disableUrgentDiscountUI = useCallback(() => {
+    setIsUrgentDiscountSupported(false);
+    setCreateForm((prev) => ({
+      ...prev,
+      urgentDiscountPrice: "",
+      urgentDiscountStartAt: "",
+      urgentDiscountEndAt: "",
+    }));
+    setEditForm((prev) => ({
+      ...prev,
+      urgentDiscountPrice: "",
+      urgentDiscountStartAt: "",
+      urgentDiscountEndAt: "",
+    }));
+  }, []);
 
   const selectedFilterBranchId = useMemo(
     () => getBranchIdFromSalesChannelFilter(salesChannelFilter),
@@ -708,7 +944,7 @@ export default function CustomerProductsPage() {
     searchedTemplates.every((template) => selectedTemplateIds.has(template.id));
   const createSelectedCount = createBranchIds.size + (createOnlineShopChecked ? 1 : 0);
   const createTotalCount = branches.length + 1;
-  const hasCreateImage = Boolean(createForm.imageUrl);
+  const hasCreateImage = createForm.imageUrls.length > 0;
 
   const toggleSetValue = (source: Set<string>, id: string) => {
     const next = new Set(source);
@@ -734,8 +970,10 @@ export default function CustomerProductsPage() {
   const buildBranchCategoryAssignments = (
     selectedBranchIds: Set<string>,
     selectedCategoryIds: Record<string, string>,
+    extraBranchIds: string[] = [],
   ) => {
-    return Array.from(selectedBranchIds).map((branchId) => ({
+    const branchIds = [...new Set([...Array.from(selectedBranchIds), ...extraBranchIds])];
+    return branchIds.map((branchId) => ({
       branchId,
       categoryId: selectedCategoryIds[branchId]?.trim() ? selectedCategoryIds[branchId] : null,
     }));
@@ -771,18 +1009,66 @@ export default function CustomerProductsPage() {
     });
   }, []);
 
+  const loadTemplateUrgentDiscountHistories = useCallback(
+    async (templateId: string) => {
+      setEditUrgentDiscountHistoriesLoading(true);
+      try {
+        const rows = await apiClient.get<
+          Array<{
+            id: string;
+            discountPrice: number | null;
+            discountStartAt: string | null;
+            discountEndAt: string | null;
+            recordedReason?: string | null;
+            createdAt?: string | null;
+          }>
+        >(
+          `/customer/products/brand-templates/${encodeURIComponent(
+            templateId,
+          )}/urgent-discount-histories?limit=20`,
+        );
+
+        setEditUrgentDiscountHistories(
+          (rows ?? []).map((row) => ({
+            id: row.id,
+            price:
+              typeof row.discountPrice === "number" ? row.discountPrice : null,
+            startAt: row.discountStartAt ?? null,
+            endAt: row.discountEndAt ?? null,
+            recordedReason: row.recordedReason ?? null,
+            createdAt: row.createdAt ?? null,
+          })),
+        );
+      } catch (e) {
+        console.error(e);
+        setEditUrgentDiscountHistories([]);
+      } finally {
+        setEditUrgentDiscountHistoriesLoading(false);
+      }
+    },
+    [],
+  );
+
   const loadBrandContext = useCallback(async (brandId: string, brandName?: string | null) => {
     const [branchRows] = await Promise.all([
       apiClient.get<Branch[]>(`/customer/branches?brandId=${encodeURIComponent(brandId)}`),
       loadTemplates(brandId),
     ]);
 
+    const internalOnlineShopBranch =
+      branchRows.find((branch) => isInternalOnlineShopBranch(branch, brandName)) ?? null;
     const visibleBranchRows = branchRows.filter(
       (branch) => !isInternalOnlineShopBranch(branch, brandName),
     );
 
-    await loadBranchCategories(visibleBranchRows);
+    setOnlineShopBranch(internalOnlineShopBranch);
     setBranches(visibleBranchRows);
+    // Categories are only needed for channel assignment/filter controls, so load in background.
+    void loadBranchCategories(
+      internalOnlineShopBranch
+        ? [...visibleBranchRows, internalOnlineShopBranch]
+        : visibleBranchRows,
+    );
     setCreateBranchIds(new Set(visibleBranchRows.map((branch) => branch.id)));
     setCreateOnlineShopChecked(true);
     setCreateBranchCategoryIds({});
@@ -822,6 +1108,7 @@ export default function CustomerProductsPage() {
         if (brandRows.length === 0) {
           setSelectedBrandId("");
           setBranches([]);
+          setOnlineShopBranch(null);
           setTemplates([]);
           return;
         }
@@ -876,6 +1163,47 @@ export default function CustomerProductsPage() {
       toast.error("가격은 0 이상의 숫자여야 합니다.");
       return;
     }
+    const parsedUrgentDiscountPrice = isUrgentDiscountSupported
+      ? createForm.urgentDiscountPrice.trim()
+        ? Number.parseInt(createForm.urgentDiscountPrice, 10)
+        : null
+      : null;
+    if (isUrgentDiscountSupported) {
+      if (
+        parsedUrgentDiscountPrice !== null &&
+        (Number.isNaN(parsedUrgentDiscountPrice) ||
+          parsedUrgentDiscountPrice < 0 ||
+          parsedUrgentDiscountPrice >= parsedPrice)
+      ) {
+        toast.error("긴급할인가는 기본 가격보다 낮은 0 이상 숫자여야 합니다.");
+        return;
+      }
+      const urgentDiscountStartAt = toIsoOrNull(createForm.urgentDiscountStartAt);
+      const urgentDiscountEndAt = toIsoOrNull(createForm.urgentDiscountEndAt);
+      if (createForm.urgentDiscountStartAt.trim() && !urgentDiscountStartAt) {
+        toast.error("긴급할인 시작 시각 형식이 올바르지 않습니다.");
+        return;
+      }
+      if (createForm.urgentDiscountEndAt.trim() && !urgentDiscountEndAt) {
+        toast.error("긴급할인 종료 시각 형식이 올바르지 않습니다.");
+        return;
+      }
+      if (
+        urgentDiscountStartAt &&
+        urgentDiscountEndAt &&
+        new Date(urgentDiscountStartAt).getTime() >=
+          new Date(urgentDiscountEndAt).getTime()
+      ) {
+        toast.error("긴급할인 종료 시각은 시작 시각보다 늦어야 합니다.");
+        return;
+      }
+    }
+    const urgentDiscountStartAt = isUrgentDiscountSupported
+      ? toIsoOrNull(createForm.urgentDiscountStartAt)
+      : null;
+    const urgentDiscountEndAt = isUrgentDiscountSupported
+      ? toIsoOrNull(createForm.urgentDiscountEndAt)
+      : null;
 
     try {
       setSaving(true);
@@ -884,7 +1212,17 @@ export default function CustomerProductsPage() {
         name: createForm.name.trim(),
         description: createForm.description.trim() || undefined,
         price: parsedPrice,
-        imageUrl: createForm.imageUrl.trim() || undefined,
+        urgentDiscountPrice: isUrgentDiscountSupported
+          ? parsedUrgentDiscountPrice ?? undefined
+          : undefined,
+        urgentDiscountStartAt: isUrgentDiscountSupported
+          ? urgentDiscountStartAt ?? undefined
+          : undefined,
+        urgentDiscountEndAt: isUrgentDiscountSupported
+          ? urgentDiscountEndAt ?? undefined
+          : undefined,
+        imageUrl: createForm.imageUrls[0],
+        imageUrls: createForm.imageUrls,
         isActive: createForm.isActive,
         isOnlineShopVisible: createOnlineShopChecked,
         inventoryMode: createForm.inventoryMode,
@@ -892,6 +1230,7 @@ export default function CustomerProductsPage() {
         branchCategoryAssignments: buildBranchCategoryAssignments(
           createBranchIds,
           createBranchCategoryIds,
+          createOnlineShopChecked && onlineShopBranch ? [onlineShopBranch.id] : [],
         ),
       });
 
@@ -904,6 +1243,9 @@ export default function CustomerProductsPage() {
       toast.success("브랜드 메뉴를 등록했습니다.");
     } catch (e) {
       console.error(e);
+      if (isUrgentDiscountUnsupportedError(e)) {
+        disableUrgentDiscountUI();
+      }
       toast.error(e instanceof Error ? e.message : "브랜드 메뉴 등록에 실패했습니다.");
     } finally {
       setSaving(false);
@@ -911,32 +1253,179 @@ export default function CustomerProductsPage() {
   };
 
   const startEditTemplate = (template: BrandTemplate) => {
-    setEditingTemplateId(template.id);
-    setEditForm({
+    const urgentDiscountEndTs = template.urgentDiscountEndAt
+      ? Date.parse(template.urgentDiscountEndAt)
+      : Number.NaN;
+    const isExpiredUrgentDiscount =
+      Number.isFinite(urgentDiscountEndTs) && urgentDiscountEndTs <= Date.now();
+
+    setEditUrgentDiscountHistory(
+      isExpiredUrgentDiscount
+        ? {
+            price:
+              typeof template.urgentDiscountPrice === "number"
+                ? template.urgentDiscountPrice
+                : null,
+            startAt: template.urgentDiscountStartAt ?? null,
+            endAt: template.urgentDiscountEndAt ?? null,
+          }
+        : null,
+    );
+
+    const initialForm: TemplateForm = {
       name: template.name,
       description: template.description ?? "",
       price: String(template.price ?? 0),
-      imageUrl: template.imageUrl ?? "",
+      urgentDiscountPrice:
+        !isExpiredUrgentDiscount && typeof template.urgentDiscountPrice === "number"
+          ? String(template.urgentDiscountPrice)
+          : "",
+      urgentDiscountStartAt: isExpiredUrgentDiscount
+        ? ""
+        : toDatetimeLocalValue(template.urgentDiscountStartAt),
+      urgentDiscountEndAt: isExpiredUrgentDiscount
+        ? ""
+        : toDatetimeLocalValue(template.urgentDiscountEndAt),
+      imageUrls: normalizeImageUrls(template.imageUrls, template.imageUrl),
       isActive: template.isActive,
       inventoryMode: template.inventoryMode === "NONE" ? "NONE" : "PRODUCT",
-    });
-    setEditBranchIds(new Set(template.appliedBranchIds ?? []));
-    setEditOnlineShopChecked(template.isOnlineShopVisible !== false);
+    };
+    const initialBranchIds = Array.from(new Set(template.appliedBranchIds ?? [])).sort();
+    const initialOnlineShopChecked = template.isOnlineShopVisible !== false;
     const mappedCategories: Record<string, string> = {};
     for (const [branchId, categoryId] of Object.entries(template.appliedBranchCategoryIds ?? {})) {
       if (typeof categoryId === "string" && categoryId.length > 0) {
         mappedCategories[branchId] = categoryId;
       }
     }
+
+    const normalizedInitialCategories = Object.fromEntries(
+      Object.entries(mappedCategories).sort(([a], [b]) => a.localeCompare(b)),
+    );
+    setEditInitialSnapshot(
+      JSON.stringify({
+        form: initialForm,
+        branchIds: initialBranchIds,
+        onlineShopChecked: initialOnlineShopChecked,
+        categories: normalizedInitialCategories,
+      }),
+    );
+
+    clearEditDrawerCloseTimer();
+    setIsEditDrawerVisible(true);
+    setEditingTemplateId(template.id);
+    setEditForm(initialForm);
+    setEditBranchIds(new Set(initialBranchIds));
+    setEditOnlineShopChecked(initialOnlineShopChecked);
     setEditBranchCategoryIds(mappedCategories);
+    setEditUrgentDiscountHistories([]);
+    setEditUrgentDiscountHistoriesLoading(false);
+    setIsUrgentHistoryModalOpen(false);
+    setIsEditChannelOpen(false);
+    void loadTemplateUrgentDiscountHistories(template.id);
   };
 
-  const cancelEditTemplate = () => {
+  const addCreateImage = useCallback((url: string | null) => {
+    if (!url) return;
+    setCreateForm((prev) => {
+      const next = normalizeImageUrls([...prev.imageUrls, url], undefined);
+      return { ...prev, imageUrls: next };
+    });
+  }, []);
+
+  const addEditImage = useCallback((url: string | null) => {
+    if (!url) return;
+    setEditForm((prev) => {
+      const next = normalizeImageUrls([...prev.imageUrls, url], undefined);
+      return { ...prev, imageUrls: next };
+    });
+  }, []);
+
+  const removeCreateImageAt = (index: number) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      imageUrls: prev.imageUrls.filter((_, i) => i !== index),
+    }));
+  };
+
+  const removeEditImageAt = (index: number) => {
+    setEditForm((prev) => ({
+      ...prev,
+      imageUrls: prev.imageUrls.filter((_, i) => i !== index),
+    }));
+  };
+
+  const setCreatePrimaryImage = (index: number) => {
+    setCreateForm((prev) => {
+      const target = prev.imageUrls[index];
+      if (!target) return prev;
+      const reordered = [target, ...prev.imageUrls.filter((_, i) => i !== index)];
+      return { ...prev, imageUrls: reordered };
+    });
+  };
+
+  const setEditPrimaryImage = (index: number) => {
+    setEditForm((prev) => {
+      const target = prev.imageUrls[index];
+      if (!target) return prev;
+      const reordered = [target, ...prev.imageUrls.filter((_, i) => i !== index)];
+      return { ...prev, imageUrls: reordered };
+    });
+  };
+
+  const hasEditChanges = useMemo(() => {
+    if (!editingTemplateId || !editInitialSnapshot) {
+      return false;
+    }
+    const normalizedCurrentCategories = Object.fromEntries(
+      Object.entries(editBranchCategoryIds).sort(([a], [b]) => a.localeCompare(b)),
+    );
+    const currentSnapshot = JSON.stringify({
+      form: editForm,
+      branchIds: Array.from(editBranchIds).sort(),
+      onlineShopChecked: editOnlineShopChecked,
+      categories: normalizedCurrentCategories,
+    });
+    return currentSnapshot !== editInitialSnapshot;
+  }, [
+    editBranchCategoryIds,
+    editBranchIds,
+    editForm,
+    editInitialSnapshot,
+    editOnlineShopChecked,
+    editingTemplateId,
+  ]);
+
+  const resetEditTemplateState = useCallback(() => {
     setEditingTemplateId(null);
     setEditForm(EMPTY_FORM);
     setEditBranchIds(new Set());
     setEditOnlineShopChecked(true);
     setEditBranchCategoryIds({});
+    setEditInitialSnapshot(null);
+    setEditUrgentDiscountHistory(null);
+    setEditUrgentDiscountHistories([]);
+    setEditUrgentDiscountHistoriesLoading(false);
+    setIsUrgentHistoryModalOpen(false);
+    setIsEditChannelOpen(false);
+  }, []);
+
+  const cancelEditTemplate = (skipConfirm = false) => {
+    if (!skipConfirm && hasEditChanges) {
+      const shouldClose = window.confirm(
+        "저장하지 않은 변경 사항이 있습니다. 편집을 닫을까요?",
+      );
+      if (!shouldClose) {
+        return false;
+      }
+    }
+    setIsEditDrawerVisible(false);
+    clearEditDrawerCloseTimer();
+    editDrawerCloseTimerRef.current = window.setTimeout(() => {
+      resetEditTemplateState();
+      editDrawerCloseTimerRef.current = null;
+    }, 180);
+    return true;
   };
 
   const handleSaveTemplate = async (templateId: string) => {
@@ -953,6 +1442,47 @@ export default function CustomerProductsPage() {
       toast.error("가격은 0 이상의 숫자여야 합니다.");
       return;
     }
+    const parsedUrgentDiscountPrice = isUrgentDiscountSupported
+      ? editForm.urgentDiscountPrice.trim()
+        ? Number.parseInt(editForm.urgentDiscountPrice, 10)
+        : null
+      : null;
+    if (isUrgentDiscountSupported) {
+      if (
+        parsedUrgentDiscountPrice !== null &&
+        (Number.isNaN(parsedUrgentDiscountPrice) ||
+          parsedUrgentDiscountPrice < 0 ||
+          parsedUrgentDiscountPrice >= parsedPrice)
+      ) {
+        toast.error("긴급할인가는 기본 가격보다 낮은 0 이상 숫자여야 합니다.");
+        return;
+      }
+      const urgentDiscountStartAt = toIsoOrNull(editForm.urgentDiscountStartAt);
+      const urgentDiscountEndAt = toIsoOrNull(editForm.urgentDiscountEndAt);
+      if (editForm.urgentDiscountStartAt.trim() && !urgentDiscountStartAt) {
+        toast.error("긴급할인 시작 시각 형식이 올바르지 않습니다.");
+        return;
+      }
+      if (editForm.urgentDiscountEndAt.trim() && !urgentDiscountEndAt) {
+        toast.error("긴급할인 종료 시각 형식이 올바르지 않습니다.");
+        return;
+      }
+      if (
+        urgentDiscountStartAt &&
+        urgentDiscountEndAt &&
+        new Date(urgentDiscountStartAt).getTime() >=
+          new Date(urgentDiscountEndAt).getTime()
+      ) {
+        toast.error("긴급할인 종료 시각은 시작 시각보다 늦어야 합니다.");
+        return;
+      }
+    }
+    const urgentDiscountStartAt = isUrgentDiscountSupported
+      ? toIsoOrNull(editForm.urgentDiscountStartAt)
+      : null;
+    const urgentDiscountEndAt = isUrgentDiscountSupported
+      ? toIsoOrNull(editForm.urgentDiscountEndAt)
+      : null;
 
     try {
       setSaving(true);
@@ -960,7 +1490,17 @@ export default function CustomerProductsPage() {
         name: editForm.name.trim(),
         description: editForm.description.trim() || undefined,
         price: parsedPrice,
-        imageUrl: editForm.imageUrl.trim() || undefined,
+        urgentDiscountPrice: isUrgentDiscountSupported
+          ? parsedUrgentDiscountPrice
+          : undefined,
+        urgentDiscountStartAt: isUrgentDiscountSupported
+          ? urgentDiscountStartAt
+          : undefined,
+        urgentDiscountEndAt: isUrgentDiscountSupported
+          ? urgentDiscountEndAt
+          : undefined,
+        imageUrl: editForm.imageUrls[0],
+        imageUrls: editForm.imageUrls,
         isActive: editForm.isActive,
         isOnlineShopVisible: editOnlineShopChecked,
         inventoryMode: editForm.inventoryMode,
@@ -968,14 +1508,18 @@ export default function CustomerProductsPage() {
         branchCategoryAssignments: buildBranchCategoryAssignments(
           editBranchIds,
           editBranchCategoryIds,
+          editOnlineShopChecked && onlineShopBranch ? [onlineShopBranch.id] : [],
         ),
       });
 
       await loadTemplates(selectedBrandId);
-      cancelEditTemplate();
+      cancelEditTemplate(true);
       toast.success("브랜드 메뉴를 수정했습니다.");
     } catch (e) {
       console.error(e);
+      if (isUrgentDiscountUnsupportedError(e)) {
+        disableUrgentDiscountUI();
+      }
       toast.error(e instanceof Error ? e.message : "브랜드 메뉴 수정에 실패했습니다.");
     } finally {
       setSaving(false);
@@ -1146,35 +1690,6 @@ export default function CustomerProductsPage() {
     }
   };
 
-  const handleToggleOnlineShopVisibleFromAll = async (template: BrandTemplate) => {
-    if (!selectedBrandId) return;
-
-    const nextVisible = template.isOnlineShopVisible === false;
-    const prevVisible = template.isOnlineShopVisible !== false;
-
-    // optimistic update (해당 항목만)
-    setTemplates((ts) =>
-      ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: nextVisible } : t)),
-    );
-
-    try {
-      setSaving(true);
-      await apiClient.patch(`/customer/products/brand-templates/${template.id}`, {
-        isOnlineShopVisible: nextVisible,
-      });
-      toast.success(nextVisible ? "온라인샵에 노출했습니다." : "온라인샵에서 숨겼습니다.");
-    } catch (e) {
-      // rollback (해당 항목만)
-      setTemplates((ts) =>
-        ts.map((t) => (t.id === template.id ? { ...t, isOnlineShopVisible: prevVisible } : t)),
-      );
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "온라인샵 노출 변경에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleBulkUpdateTemplates = async () => {
     if (!selectedBrandId || selectedTemplateIds.size === 0) {
       return;
@@ -1234,8 +1749,8 @@ export default function CustomerProductsPage() {
   };
 
   return (
-    <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="min-w-0 overflow-x-hidden">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-extrabold text-foreground m-0">
@@ -1250,27 +1765,32 @@ export default function CustomerProductsPage() {
               </div>
             </div>
           </div>
+          {selectedBrandId && (
+            <div className="mt-1 text-sm text-text-secondary">
+              총 {searchedTemplates.length}개 상품
+            </div>
+          )}
         </div>
         {selectedBrandId && canManage && (
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors flex-shrink-0"
+            className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors flex-shrink-0 w-full sm:w-auto"
           >
             + 상품등록
           </button>
         )}
       </div>
 
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-4 mb-4">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border pb-3 mb-3">
       <div className="flex flex-wrap items-end gap-3">
-        <div ref={brandDropdownRef} className="flex-1 min-w-[200px] relative">
+        <div ref={brandDropdownRef} className="relative w-full min-w-0 sm:flex-1 sm:min-w-[200px]">
           <label className="block text-sm text-text-secondary mb-2 font-semibold">브랜드</label>
 
           {/* Trigger */}
           <button
             type="button"
             onClick={() => setIsBrandOpen((v) => !v)}
-            className="input-field w-full flex items-center justify-between gap-2"
+            className="input-field h-9 text-sm w-full flex items-center justify-between gap-2"
             aria-haspopup="listbox"
             aria-expanded={isBrandOpen}
           >
@@ -1349,12 +1869,12 @@ export default function CustomerProductsPage() {
 
         {selectedBrandId && (
           <>
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-full min-w-0 sm:flex-1 sm:min-w-[200px]">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">판매채널</label>
               <select
                 value={salesChannelFilter}
                 onChange={(event) => setSalesChannelFilter(event.target.value as SalesChannelFilter)}
-                className="input-field w-full"
+                className="input-field h-9 text-sm w-full"
               >
                 <option value="ALL">전체</option>
                 <option value="ONLINE_SHOP">온라인샵</option>
@@ -1366,12 +1886,12 @@ export default function CustomerProductsPage() {
               </select>
             </div>
 
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-full min-w-0 sm:flex-1 sm:min-w-[200px]">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">카테고리</label>
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value as CategoryFilter)}
-                className="input-field w-full"
+                className="input-field h-9 text-sm w-full"
               >
                 <option value="ALL">전체</option>
                 <option value="UNCATEGORIZED">카테고리 없음</option>
@@ -1386,7 +1906,7 @@ export default function CustomerProductsPage() {
               </select>
             </div>
 
-            <div className="w-80">
+            <div className="w-full lg:w-80">
               <label className="block text-sm text-text-secondary mb-2 font-semibold">검색</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
@@ -1400,7 +1920,7 @@ export default function CustomerProductsPage() {
                     }
                   }}
                   placeholder="메뉴명/설명 검색"
-                  className="input-field w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
+                  className="input-field h-9 text-sm w-full pl-9 pr-9 focus:ring-1 focus:ring-primary-500"
                   aria-label="메뉴 검색"
                 />
                 {searchInput && (
@@ -1416,11 +1936,6 @@ export default function CustomerProductsPage() {
               </div>
             </div>
 
-            <div className="flex items-center h-10">
-              <span className="text-sm text-text-secondary whitespace-nowrap">
-                총 {searchedTemplates.length}개
-              </span>
-            </div>
           </>
         )}
       </div>
@@ -1449,8 +1964,8 @@ export default function CustomerProductsPage() {
           ) : (
             <>
               <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-bold text-foreground">일괄변경</h3>
 
                     <div className="relative group cursor-pointer">
@@ -1480,7 +1995,7 @@ export default function CustomerProductsPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setIsBulkOpen((prev) => !prev)}
@@ -1491,7 +2006,7 @@ export default function CustomerProductsPage() {
                   </div>
                 </div>
 
-                {isBulkOpen && (
+                {isBulkOpen && selectedTemplateIds.size > 0 && (
                   <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
@@ -1616,11 +2131,11 @@ export default function CustomerProductsPage() {
               </div>
 
               <div className="pb-24">
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <table className="w-full border-collapse">
+                <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+                  <table className="min-w-[880px] w-full border-collapse">
                   <thead className="bg-white">
                     <tr>
-                      <th className="w-12 py-2 px-3 text-left">
+                      <th className="w-12 py-3 px-3 text-left">
                         <input
                           type="checkbox"
                           checked={allTemplatesChecked}
@@ -1629,12 +2144,12 @@ export default function CustomerProductsPage() {
                           className="w-4 h-4 rounded accent-primary"
                         />
                       </th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">메뉴</th>
-                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">기본가</th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">판매채널</th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">노출상태</th>
-                      <th className="text-left py-2 px-3 text-xs font-bold text-text-secondary">재고관리</th>
-                      <th className="text-right py-2 px-3 text-xs font-bold text-text-secondary">편집</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">메뉴</th>
+                      <th className="text-right py-3 px-3 text-xs font-bold text-text-secondary">기본가</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">판매채널</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">노출상태</th>
+                      <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">재고관리</th>
+                      <th className="text-right py-3 px-3 text-xs font-bold text-text-secondary">편집</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1649,8 +2164,7 @@ export default function CustomerProductsPage() {
                       const isOnlineShopVisible = template.isOnlineShopVisible !== false;
 
                       return (
-                        <Fragment key={template.id}>
-                          <tr className="border-t border-border hover:bg-bg-secondary/40 transition-colors">
+                          <tr key={template.id} className="border-t border-border hover:bg-bg-tertiary transition-colors">
                             <td className="py-2 px-3">
                               <input
                                 type="checkbox"
@@ -1669,31 +2183,26 @@ export default function CustomerProductsPage() {
                               )}
                             </td>
                             <td className="py-2 px-3 text-sm text-foreground text-right">
-                              {formatWon(template.price)}
+                              {typeof template.discountPrice === "number" &&
+                              template.discountPrice >= 0 &&
+                              template.discountPrice < template.price ? (
+                                <div className="inline-flex flex-col items-end">
+                                  <span className="text-[11px] text-text-tertiary line-through">
+                                    {formatWon(template.price)}
+                                  </span>
+                                  <span className="font-semibold text-danger-500">
+                                    {formatWon(template.discountPrice)}
+                                  </span>
+                                </div>
+                              ) : (
+                                formatWon(template.price)
+                              )}
                             </td>
                             <td className="py-2 px-3 text-sm text-foreground">
                               {salesChannelFilter === "ALL" ? (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAppliedDrawerTemplateId(template.id);
-                                    setDrawerBranchSearch("");
-                                  }}
-                                  className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
-                                >
-                                  {appliedCount}/{totalCount} 매장
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleOnlineShopVisibleFromAll(template)}
-                                  disabled={saving}
-                                  className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                                >
-                                  {isOnlineShopVisible ? "온라인샵 숨김" : "온라인샵 노출"}
-                                </button>
-                              </div>
+                              <span className="text-xs text-text-secondary">
+                                매장 {appliedCount}/{totalCount} · {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                              </span>
                               ) : salesChannelFilter === "ONLINE_SHOP" ? (
                                 <span
                                   className={`inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold ${
@@ -1784,125 +2293,6 @@ export default function CustomerProductsPage() {
                               </div>
                             </td>
                           </tr>
-                          {isEditing && (
-                            <tr className="border-t border-border bg-bg-secondary/50">
-                              <td colSpan={7} className="py-4 px-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                  <div>
-                                    <label className="block text-xs text-text-secondary mb-1">상품명</label>
-                                    <input
-                                      value={editForm.name}
-                                      onChange={(event) =>
-                                        setEditForm((prev) => ({ ...prev, name: event.target.value }))
-                                      }
-                                      placeholder="메뉴명"
-                                      className="input-field"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs text-text-secondary mb-1">가격</label>
-                                    <input
-                                      value={editForm.price}
-                                      onChange={(event) =>
-                                        setEditForm((prev) => ({ ...prev, price: event.target.value }))
-                                      }
-                                      placeholder="가격"
-                                      className="input-field"
-                                      inputMode="numeric"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs text-text-secondary mb-1">상품 설명</label>
-                                    <textarea
-                                      value={editForm.description}
-                                      onChange={(event) =>
-                                        setEditForm((prev) => ({ ...prev, description: event.target.value }))
-                                      }
-                                      placeholder="설명 (선택)"
-                                      className="input-field min-h-[88px] resize-y"
-                                    />
-                                  </div>
-
-                                </div>
-
-                                <div className="mb-3">
-                                  <ImageUpload
-                                    value={editForm.imageUrl || null}
-                                    onChange={(url) =>
-                                      setEditForm((prev) => ({ ...prev, imageUrl: url ?? "" }))
-                                    }
-                                    folder="product-images"
-                                    label="메뉴 이미지"
-                                    aspectRatio="1/1"
-                                  />
-                                </div>
-
-                                <div className="mb-4">
-                                  <button
-                                    type="button"
-                                    onClick={() => setIsEditChannelOpen((prev) => !prev)}
-                                    className="flex items-center justify-between w-full mb-2 px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm text-text-secondary font-semibold">
-                                        채널 설정
-                                      </span>
-                                      <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
-                                        선택 {editBranchIds.size + (editOnlineShopChecked ? 1 : 0)} / {branches.length + 1}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs text-text-secondary">
-                                      {isEditChannelOpen ? "접기" : "펼치기"}
-                                    </span>
-                                  </button>
-
-                                  {isEditChannelOpen && (
-                                    <BranchChecklistTable
-                                      branches={branches}
-                                      selectedIds={editBranchIds}
-                                      onToggle={(branchId) =>
-                                        setEditBranchIds((prev) => toggleSetValue(prev, branchId))
-                                      }
-                                      onToggleAll={(checked) => setAllBranchChecks(checked, "edit")}
-                                      categoryMap={branchCategories}
-                                      selectedCategoryIds={editBranchCategoryIds}
-                                      onChangeCategory={(branchId, categoryId) =>
-                                        setEditBranchCategoryIds((prev) => ({
-                                          ...prev,
-                                          [branchId]: categoryId,
-                                        }))
-                                      }
-                                      onlineShopChecked={editOnlineShopChecked}
-                                      onToggleOnlineShop={() =>
-                                        setEditOnlineShopChecked((prev) => !prev)
-                                      }
-                                      onlineShopUrl={selectedBrandShopUrl}
-                                      brandSlug={selectedBrand?.slug ?? null}
-                                      disabled={saving}
-                                    />
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-2 justify-end">
-                                  <button
-                                    onClick={() => cancelEditTemplate()}
-                                    disabled={saving}
-                                    className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
-                                  >
-                                    취소
-                                  </button>
-                                  <button
-                                    onClick={() => handleSaveTemplate(template.id)}
-                                    disabled={saving}
-                                    className="px-3 py-1.5 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
-                                  >
-                                    저장
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
                       );
                     })}
                     {searchedTemplates.length === 0 && (
@@ -1985,6 +2375,391 @@ export default function CustomerProductsPage() {
                 )}
               </div>
 
+              {editingTemplateId && (() => {
+                const editingTemplate = templates.find((template) => template.id === editingTemplateId);
+                if (!editingTemplate) return null;
+
+                return (
+                  <div className="fixed inset-0 z-50 flex items-end md:items-stretch md:justify-end">
+                    <div
+                      className={`absolute inset-0 bg-black/30 transition-opacity duration-200 ${
+                        isEditDrawerVisible ? "opacity-100" : "opacity-0"
+                      }`}
+                      onClick={() => cancelEditTemplate()}
+                    />
+
+                    <div
+                      className={`relative w-full md:max-w-[860px] bg-background border-border shadow-xl h-[92vh] md:h-full rounded-t-2xl md:rounded-none md:border-l flex flex-col transform transition-transform duration-200 ease-out ${
+                        isEditDrawerVisible
+                          ? "translate-y-0 md:translate-y-0 md:translate-x-0"
+                          : "translate-y-full md:translate-y-0 md:translate-x-full"
+                      }`}
+                    >
+                      <div className="pt-2 pb-1 flex justify-center md:hidden">
+                        <span className="h-1.5 w-12 rounded-full bg-border" />
+                      </div>
+
+                      <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-4 border-b border-border">
+                        <div>
+                          <h3 className="text-base font-bold text-foreground">메뉴 수정</h3>
+                          <p className="text-xs text-text-secondary mt-0.5 truncate max-w-[320px]">
+                            {editingTemplate.name}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => cancelEditTemplate()}
+                          disabled={saving}
+                          className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                          aria-label="편집 닫기"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto px-4 py-3 md:px-5 md:py-4">
+                        <div className="grid grid-cols-1 gap-3 mb-3">
+                          <div className="min-w-0">
+                            <label className="block text-xs text-text-secondary mb-1">상품명</label>
+                            <input
+                              value={editForm.name}
+                              onChange={(event) =>
+                                setEditForm((prev) => ({ ...prev, name: event.target.value }))
+                              }
+                              placeholder="메뉴명"
+                              className="input-field w-full"
+                              autoFocus
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="min-w-0">
+                              <label className="block text-xs text-text-secondary mb-1">가격</label>
+                              <input
+                                value={editForm.price}
+                                onChange={(event) => {
+                                  const digitsOnly = event.target.value.replace(/[^\d]/g, "");
+                                  setEditForm((prev) => ({ ...prev, price: digitsOnly }));
+                                }}
+                                placeholder="가격"
+                                className="input-field w-full"
+                                inputMode="numeric"
+                              />
+                            </div>
+                            {isUrgentDiscountSupported && (
+                              <div className="min-w-0">
+                                <label className="mb-1 flex items-center gap-1 text-xs text-text-secondary">
+                                  <span>긴급할인가 (선택)</span>
+                                  <InlineHelpTooltip content={URGENT_DISCOUNT_TOOLTIP_MESSAGE} />
+                                </label>
+                                <input
+                                  value={editForm.urgentDiscountPrice}
+                                  onChange={(event) => {
+                                    const digitsOnly = event.target.value.replace(/[^\d]/g, "");
+                                    setEditForm((prev) => ({ ...prev, urgentDiscountPrice: digitsOnly }));
+                                  }}
+                                  placeholder="예: 3900"
+                                  className="input-field w-full"
+                                  inputMode="numeric"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          {isUrgentDiscountSupported && (
+                            <>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="min-w-0">
+                                  <label className="mb-1 block whitespace-nowrap text-xs text-text-secondary">
+                                    긴급할인 시작 (선택)
+                                  </label>
+                                  <input
+                                    type="datetime-local"
+                                    value={editForm.urgentDiscountStartAt}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        urgentDiscountStartAt: event.target.value,
+                                      }))
+                                    }
+                                    className="input-field w-full"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <label className="mb-1 block whitespace-nowrap text-xs text-text-secondary">
+                                    긴급할인 종료 (선택)
+                                  </label>
+                                  <input
+                                    type="datetime-local"
+                                    value={editForm.urgentDiscountEndAt}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        urgentDiscountEndAt: event.target.value,
+                                      }))
+                                    }
+                                    className="input-field w-full"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 rounded-md border border-warning-500/30 bg-warning-500/10 px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold text-warning-700">
+                                    긴급할인 이력
+                                  </div>
+                                  <div className="mt-1 text-2xs text-text-secondary">
+                                    이전 할인 설정, 변경, 만료 내역은 팝업에서 확인할 수 있습니다.
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsUrgentHistoryModalOpen(true)}
+                                  className="shrink-0 rounded-md border border-warning-500/40 bg-bg-secondary px-3 py-1.5 text-xs font-semibold text-warning-700 transition-colors hover:bg-warning-500/10"
+                                >
+                                  이력 보기
+                                </button>
+                              </div>
+                            </>
+                          )}
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-text-secondary mb-1">상품 설명</label>
+                            <textarea
+                              value={editForm.description}
+                              onChange={(event) =>
+                                setEditForm((prev) => ({ ...prev, description: event.target.value }))
+                              }
+                              placeholder="설명 (선택)"
+                              className="input-field min-h-[88px] resize-y"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-text-secondary mb-1">재고관리</label>
+                            <select
+                              value={editForm.inventoryMode}
+                              onChange={(event) =>
+                                setEditForm((prev) => ({
+                                  ...prev,
+                                  inventoryMode:
+                                    event.target.value === "NONE" ? "NONE" : "PRODUCT",
+                                }))
+                              }
+                              className="input-field w-full"
+                            >
+                              <option value="PRODUCT">사용</option>
+                              <option value="NONE">미사용</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <div className="mb-2">
+                            <span className="text-xs text-text-secondary font-semibold">
+                              메뉴 이미지 ({editForm.imageUrls.length}/{MAX_TEMPLATE_IMAGES})
+                            </span>
+                          </div>
+
+                          {editForm.imageUrls.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                              {editForm.imageUrls.map((url, index) => (
+                                <div key={`${url}-${index}`} className="relative border border-border rounded-md overflow-hidden bg-bg-secondary">
+                                  <div className="relative w-full aspect-square">
+                                    <Image
+                                      src={url}
+                                      alt={`메뉴 이미지 ${index + 1}`}
+                                      fill
+                                      unoptimized
+                                      sizes="(max-width: 640px) 50vw, 33vw"
+                                      className="object-cover"
+                                    />
+                                  </div>
+                                  <div className="p-2 flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditPrimaryImage(index)}
+                                      className={`px-2 py-1 rounded text-2xs font-semibold border transition-colors ${
+                                        index === 0
+                                          ? "bg-primary-500 text-white border-primary-500"
+                                          : "bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary"
+                                      }`}
+                                    >
+                                      {index === 0 ? "대표" : "대표로"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeEditImageAt(index)}
+                                      className="px-2 py-1 rounded text-2xs font-semibold border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {editForm.imageUrls.length < MAX_TEMPLATE_IMAGES && (
+                            <ImageUpload
+                              value={null}
+                              onChange={addEditImage}
+                              folder="product-images"
+                              label="이미지 추가"
+                              aspectRatio="1/1"
+                            />
+                          )}
+                        </div>
+
+                        <div className="mb-4">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditChannelOpen((prev) => !prev)}
+                            className="flex items-center justify-between w-full mb-2 px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-text-secondary font-semibold">
+                                채널 설정
+                              </span>
+                              <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-bg-tertiary text-text-secondary">
+                                선택 {editBranchIds.size + (editOnlineShopChecked ? 1 : 0)} / {branches.length + 1}
+                              </span>
+                            </div>
+                            <span className="text-xs text-text-secondary">
+                              {isEditChannelOpen ? "접기" : "펼치기"}
+                            </span>
+                          </button>
+
+                          {isEditChannelOpen && (
+                            <BranchChecklistTable
+                              branches={branches}
+                              selectedIds={editBranchIds}
+                              onToggle={(branchId) =>
+                                setEditBranchIds((prev) => toggleSetValue(prev, branchId))
+                              }
+                              onToggleAll={(checked) => setAllBranchChecks(checked, "edit")}
+                              categoryMap={branchCategories}
+                              selectedCategoryIds={editBranchCategoryIds}
+                              onChangeCategory={(branchId, categoryId) =>
+                                setEditBranchCategoryIds((prev) => ({
+                                  ...prev,
+                                  [branchId]: categoryId,
+                                }))
+                              }
+                              onlineShopChecked={editOnlineShopChecked}
+                              onToggleOnlineShop={() =>
+                                setEditOnlineShopChecked((prev) => !prev)
+                              }
+                              onlineShopUrl={selectedBrandShopUrl}
+                              onlineShopCategories={onlineShopCategories}
+                              onlineShopCategoryId={
+                                onlineShopBranch
+                                  ? (editBranchCategoryIds[onlineShopBranch.id] ?? "")
+                                  : ""
+                              }
+                              onChangeOnlineShopCategory={(categoryId) => {
+                                if (!onlineShopBranch) return;
+                                setEditBranchCategoryIds((prev) => ({
+                                  ...prev,
+                                  [onlineShopBranch.id]: categoryId,
+                                }));
+                              }}
+                              brandSlug={selectedBrand?.slug ?? null}
+                              disabled={saving}
+                            />
+                          )}
+                        </div>
+
+                        <Modal
+                          open={isUrgentHistoryModalOpen}
+                          title="긴급할인 이력"
+                          onClose={() => setIsUrgentHistoryModalOpen(false)}
+                          width={680}
+                        >
+                          <div className="space-y-3">
+                            <div className="rounded-md border border-border bg-bg-tertiary px-3 py-2">
+                              <div className="text-sm font-semibold text-foreground">
+                                {editingTemplate.name}
+                              </div>
+                              <div className="mt-1 text-xs text-text-secondary">
+                                만료된 할인은 자동으로 입력값을 비워 두었습니다. 다시 진행하려면 새 기간을 입력해주세요.
+                              </div>
+                            </div>
+
+                            {editUrgentDiscountHistoriesLoading ? (
+                              <div className="rounded-md border border-border bg-bg-secondary px-4 py-6 text-center text-sm text-text-secondary">
+                                이력 불러오는 중...
+                              </div>
+                            ) : mergedEditUrgentDiscountHistories.length === 0 ? (
+                              <div className="rounded-md border border-border bg-bg-secondary px-4 py-6 text-center text-sm text-text-secondary">
+                                아직 긴급할인 이력이 없습니다.
+                              </div>
+                            ) : (
+                              <div className="overflow-hidden rounded-md border border-border">
+                                <div className="grid grid-cols-[88px_120px_1fr_132px] gap-3 border-b border-border bg-bg-tertiary px-4 py-3 text-xs font-semibold text-text-secondary">
+                                  <div>상태</div>
+                                  <div>긴급할인가</div>
+                                  <div>적용 기간</div>
+                                  <div>기록 시각</div>
+                                </div>
+                                <div className="max-h-[360px] overflow-y-auto bg-bg-secondary">
+                                  {mergedEditUrgentDiscountHistories.map((history, index) => {
+                                    const badge = getUrgentDiscountHistoryBadge(
+                                      history.recordedReason,
+                                      history.endAt,
+                                    );
+                                    return (
+                                      <div
+                                        key={
+                                          history.id ??
+                                          `${history.startAt ?? "no-start"}-${history.endAt ?? "no-end"}-${history.price ?? "no-price"}-${index}`
+                                        }
+                                        className="grid grid-cols-[88px_120px_1fr_132px] gap-3 border-b border-border px-4 py-3 text-sm text-foreground last:border-b-0"
+                                      >
+                                        <div>
+                                          <span
+                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-semibold ${badge.className}`}
+                                          >
+                                            {badge.label}
+                                          </span>
+                                        </div>
+                                        <div className="font-medium">
+                                          {typeof history.price === "number"
+                                            ? `${history.price.toLocaleString()}원`
+                                            : "-"}
+                                        </div>
+                                        <div className="text-text-secondary">
+                                          {formatKoreanDateTime(history.startAt)} ~{" "}
+                                          {formatKoreanDateTime(history.endAt)}
+                                        </div>
+                                        <div className="text-text-tertiary">
+                                          {formatKoreanDateTime(history.createdAt)}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </Modal>
+                      </div>
+
+                      <div className="border-t border-border px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:px-5 md:py-4 flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => cancelEditTemplate()}
+                          disabled={saving}
+                          className="flex-1 md:flex-none px-3 py-2 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={() => handleSaveTemplate(editingTemplate.id)}
+                          disabled={saving}
+                          className="flex-1 md:flex-none px-3 py-2 rounded-md bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                        >
+                          저장
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
             </>
           )}
         </>
@@ -1993,7 +2768,7 @@ export default function CustomerProductsPage() {
 
       {isBulkOpen && hasSelectedTemplates && (
         <div className="fixed bottom-0 right-0 left-0 md:left-64 z-40 bg-background/95 backdrop-blur border-t border-border shadow-lg">
-          <div className="w-full px-6 py-3 flex items-center justify-between gap-3">
+          <div className="w-full px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-sm text-text-secondary">
               <span className="font-semibold text-foreground">
                 {selectedTemplateIds.size}개 메뉴 선택됨
@@ -2003,7 +2778,7 @@ export default function CustomerProductsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -2011,7 +2786,7 @@ export default function CustomerProductsPage() {
                   setBulkAutoOpenDisabled(true);
                   setIsBulkOpen(false);
                 }}
-                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-text-secondary text-sm font-semibold hover:bg-bg-tertiary transition-colors"
+                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-text-secondary text-sm font-semibold hover:bg-bg-tertiary transition-colors w-full sm:w-auto"
               >
                 접기
               </button>
@@ -2024,7 +2799,7 @@ export default function CustomerProductsPage() {
                   !hasSelectedTemplates ||
                   (!bulkChangeStatus && !bulkChangeInventory && !bulkChangeChannels)
                 }
-                className="px-5 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors w-full sm:w-auto"
               >
                 일괄 변경 실행
               </button>
@@ -2183,30 +2958,89 @@ export default function CustomerProductsPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                 <div className="border border-border rounded-lg p-3 bg-bg-secondary">
                   <h3 className="text-sm font-semibold text-foreground mb-2">기본 정보</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">메뉴명</label>
-                      <input
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-xs text-text-secondary mb-1">메뉴명</label>
+                        <input
                         value={createForm.name}
                         onChange={(event) =>
                           setCreateForm((prev) => ({ ...prev, name: event.target.value }))
                         }
-                        placeholder="메뉴명"
-                        className="input-field"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">가격</label>
-                      <input
-                        value={createForm.price}
-                        onChange={(event) =>
-                          setCreateForm((prev) => ({ ...prev, price: event.target.value }))
-                        }
-                        placeholder="가격"
-                        className="input-field"
-                        inputMode="numeric"
-                      />
-                    </div>
+                          placeholder="메뉴명"
+                          className="input-field"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-text-secondary mb-1">가격</label>
+                          <input
+                            value={createForm.price}
+                            onChange={(event) =>
+                              setCreateForm((prev) => ({ ...prev, price: event.target.value }))
+                            }
+                            placeholder="가격"
+                            className="input-field"
+                            inputMode="numeric"
+                          />
+                        </div>
+                        {isUrgentDiscountSupported && (
+                          <div>
+                            <label className="mb-1 flex items-center gap-1 text-xs text-text-secondary">
+                              <span>긴급할인가 (선택)</span>
+                              <InlineHelpTooltip content={URGENT_DISCOUNT_TOOLTIP_MESSAGE} />
+                            </label>
+                            <input
+                              value={createForm.urgentDiscountPrice}
+                              onChange={(event) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  urgentDiscountPrice: event.target.value.replace(/[^\d]/g, ""),
+                                }))
+                              }
+                              placeholder="예: 3900"
+                              className="input-field"
+                              inputMode="numeric"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    {isUrgentDiscountSupported && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="min-w-0">
+                          <label className="block text-xs text-text-secondary mb-1">긴급할인 시작 (선택)</label>
+                          <input
+                            type="datetime-local"
+                            value={createForm.urgentDiscountStartAt}
+                            onChange={(event) =>
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                urgentDiscountStartAt: event.target.value,
+                              }))
+                            }
+                            className="input-field w-full"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <label className="block text-xs text-text-secondary mb-1">긴급할인 종료 (선택)</label>
+                          <input
+                            type="datetime-local"
+                            value={createForm.urgentDiscountEndAt}
+                            onChange={(event) =>
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                urgentDiscountEndAt: event.target.value,
+                              }))
+                            }
+                            className="input-field w-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {!isUrgentDiscountSupported && (
+                      <p className="text-xs text-text-tertiary">
+                        긴급할인 기능은 현재 DB 마이그레이션 적용 후 사용할 수 있습니다.
+                      </p>
+                    )}
                     <div>
                       <label className="block text-xs text-text-secondary mb-1">설명 (선택)</label>
                       <input
@@ -2238,13 +3072,60 @@ export default function CustomerProductsPage() {
                 </div>
 
                 <div className="border border-border rounded-lg p-3 bg-bg-secondary">
-                  <ImageUpload
-                    value={createForm.imageUrl || null}
-                    onChange={(url) => setCreateForm((prev) => ({ ...prev, imageUrl: url ?? "" }))}
-                    folder="product-images"
-                    label="메뉴 이미지"
-                    aspectRatio="1/1"
-                  />
+                  <div className="mb-2">
+                    <span className="text-xs text-text-secondary font-semibold">
+                      메뉴 이미지 ({createForm.imageUrls.length}/{MAX_TEMPLATE_IMAGES})
+                    </span>
+                  </div>
+
+                  {createForm.imageUrls.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                      {createForm.imageUrls.map((url, index) => (
+                        <div key={`${url}-${index}`} className="relative border border-border rounded-md overflow-hidden bg-bg-secondary">
+                          <div className="relative w-full aspect-square">
+                            <Image
+                              src={url}
+                              alt={`등록 이미지 ${index + 1}`}
+                              fill
+                              unoptimized
+                              sizes="(max-width: 640px) 50vw, 33vw"
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="p-2 flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setCreatePrimaryImage(index)}
+                              className={`px-2 py-1 rounded text-2xs font-semibold border transition-colors ${
+                                index === 0
+                                  ? "bg-primary-500 text-white border-primary-500"
+                                  : "bg-bg-secondary text-text-secondary border-border hover:bg-bg-tertiary"
+                              }`}
+                            >
+                              {index === 0 ? "대표" : "대표로"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeCreateImageAt(index)}
+                              className="px-2 py-1 rounded text-2xs font-semibold border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {createForm.imageUrls.length < MAX_TEMPLATE_IMAGES && (
+                    <ImageUpload
+                      value={null}
+                      onChange={addCreateImage}
+                      folder="product-images"
+                      label="이미지 추가"
+                      aspectRatio="1/1"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -2265,9 +3146,9 @@ export default function CustomerProductsPage() {
                     선택 {createBranchIds.size + (createOnlineShopChecked ? 1 : 0)} / {branches.length + 1}
                   </span>
                 </div>
-                <BranchChecklistTable
-                  branches={branches}
-                  selectedIds={createBranchIds}
+                  <BranchChecklistTable
+                    branches={branches}
+                    selectedIds={createBranchIds}
                   onToggle={(branchId) =>
                     setCreateBranchIds((prev) => toggleSetValue(prev, branchId))
                   }
@@ -2280,14 +3161,27 @@ export default function CustomerProductsPage() {
                       [branchId]: categoryId,
                     }))
                   }
-                  onlineShopChecked={createOnlineShopChecked}
-                  onToggleOnlineShop={() =>
-                    setCreateOnlineShopChecked((prev) => !prev)
-                  }
-                  onlineShopUrl={selectedBrandShopUrl}
-                  brandSlug={selectedBrand?.slug ?? null}
-                  disabled={saving}
-                />
+                    onlineShopChecked={createOnlineShopChecked}
+                    onToggleOnlineShop={() =>
+                      setCreateOnlineShopChecked((prev) => !prev)
+                    }
+                    onlineShopUrl={selectedBrandShopUrl}
+                    onlineShopCategories={onlineShopCategories}
+                    onlineShopCategoryId={
+                      onlineShopBranch
+                        ? (createBranchCategoryIds[onlineShopBranch.id] ?? "")
+                        : ""
+                    }
+                    onChangeOnlineShopCategory={(categoryId) => {
+                      if (!onlineShopBranch) return;
+                      setCreateBranchCategoryIds((prev) => ({
+                        ...prev,
+                        [onlineShopBranch.id]: categoryId,
+                      }));
+                    }}
+                    brandSlug={selectedBrand?.slug ?? null}
+                    disabled={saving}
+                  />
               </div>
 
               <div className="flex items-center justify-end gap-2">

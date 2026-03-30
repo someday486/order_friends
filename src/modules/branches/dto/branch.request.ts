@@ -5,6 +5,8 @@ import {
   IsArray,
   IsEnum,
   ValidateNested,
+  IsBoolean,
+  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -12,12 +14,12 @@ export enum BranchFulfillmentType {
   PICKUP = 'PICKUP',
   DELIVERY = 'DELIVERY',
   DINE_IN = 'DINE_IN',
+  SHIPPING = 'SHIPPING',
 }
 
 export enum BranchPaymentMethod {
   CARD = 'CARD',
   TRANSFER = 'TRANSFER',
-  CASH = 'CASH',
 }
 
 export class TransferAccountRequest {
@@ -32,6 +34,71 @@ export class TransferAccountRequest {
   @IsString()
   @IsOptional()
   accountHolder?: string;
+}
+
+export class PickupTimeConfigRequest {
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  startTime?: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  endTime?: string;
+}
+
+export class BusinessHourDayRequest {
+  @IsBoolean()
+  @IsOptional()
+  isOpen?: boolean;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  openTime?: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/)
+  @IsOptional()
+  closeTime?: string;
+}
+
+export class WeeklyBusinessHoursRequest {
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  monday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  tuesday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  wednesday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  thursday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  friday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  saturday?: BusinessHourDayRequest;
+
+  @ValidateNested()
+  @Type(() => BusinessHourDayRequest)
+  @IsOptional()
+  sunday?: BusinessHourDayRequest;
 }
 
 export class CreateBranchRequest {
@@ -73,9 +140,49 @@ export class CreateBranchRequest {
   @Type(() => TransferAccountRequest)
   @IsOptional()
   transferAccount?: TransferAccountRequest;
+
+  @ValidateNested()
+  @Type(() => PickupTimeConfigRequest)
+  @IsOptional()
+  pickupTimeConfig?: PickupTimeConfigRequest;
+
+  @ValidateNested()
+  @Type(() => WeeklyBusinessHoursRequest)
+  @IsOptional()
+  businessHours?: WeeklyBusinessHoursRequest;
+
+  @IsString()
+  @IsOptional()
+  orderNotice?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  depositSheetName?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'depositSheetUrl must be a valid URL' },
+  )
+  @IsOptional()
+  depositSheetUrl?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'kakaoChannelUrl must be a valid URL' },
+  )
+  @IsOptional()
+  kakaoChannelUrl?: string;
 }
 
 export class UpdateBranchRequest {
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @IsString()
   @IsOptional()
   name?: string;
@@ -113,4 +220,40 @@ export class UpdateBranchRequest {
   @Type(() => TransferAccountRequest)
   @IsOptional()
   transferAccount?: TransferAccountRequest;
+
+  @ValidateNested()
+  @Type(() => PickupTimeConfigRequest)
+  @IsOptional()
+  pickupTimeConfig?: PickupTimeConfigRequest;
+
+  @ValidateNested()
+  @Type(() => WeeklyBusinessHoursRequest)
+  @IsOptional()
+  businessHours?: WeeklyBusinessHoursRequest;
+
+  @IsString()
+  @IsOptional()
+  orderNotice?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  depositSheetName?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'depositSheetUrl must be a valid URL' },
+  )
+  @IsOptional()
+  depositSheetUrl?: string;
+
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'kakaoChannelUrl must be a valid URL' },
+  )
+  @IsOptional()
+  kakaoChannelUrl?: string;
 }

@@ -4,6 +4,7 @@ import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Create Order Branches', () => {
   let service: PublicOrderService;
@@ -11,6 +12,7 @@ describe('PublicOrderService - Create Order Branches', () => {
   let adminChains: Record<string, any>;
   let adminClient: any;
   let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -35,6 +37,7 @@ describe('PublicOrderService - Create Order Branches', () => {
     };
     adminChains = {
       orders: makeChain(),
+      payments: makeChain(),
       order_items: makeChain(),
       order_dedup_logs: makeChain(),
       product_inventory: makeChain(),
@@ -47,6 +50,11 @@ describe('PublicOrderService - Create Order Branches', () => {
     };
     stampsService = {
       earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -61,6 +69,7 @@ describe('PublicOrderService - Create Order Branches', () => {
         },
         { provide: InventoryService, useValue: {} },
         { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 

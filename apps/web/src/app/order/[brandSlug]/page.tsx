@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { apiClient } from "@/lib/api-client";
-import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
+import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
 
 type PublicBrandBranch = {
   id: string;
@@ -22,7 +22,10 @@ type PublicBrandBranchesResponse = {
   branches: PublicBrandBranch[];
 };
 
-function getBranchOrderPath(brandSlug: string, branch: PublicBrandBranch): string {
+function getBranchOrderPath(
+  brandSlug: string,
+  branch: PublicBrandBranch,
+): string {
   if (branch.slug) {
     return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branch.slug)}`;
   }
@@ -53,13 +56,13 @@ export default function BrandOrderPage() {
 
         setData(response);
       } catch {
-        setError("브랜드 정보를 불러오지 못했습니다.");
+        setError('브랜드 정보를 불러오지 못했습니다.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBranches();
+    void fetchBranches();
   }, [brandSlug]);
 
   const resolvedBrandSlug = data?.brandSlug || brandSlug;
@@ -70,7 +73,10 @@ export default function BrandOrderPage() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="max-w-lg mx-auto p-6">
-          <div className="card p-6 text-center text-text-secondary" data-testid="branch-selector-loading">
+          <div
+            className="card p-6 text-center text-text-secondary"
+            data-testid="branch-selector-loading"
+          >
             지점 정보를 불러오는 중입니다.
           </div>
         </div>
@@ -82,9 +88,16 @@ export default function BrandOrderPage() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="max-w-lg mx-auto p-6">
-          <div className="card p-6 text-center" data-testid="branch-selector-error">
-            <div className="text-base font-semibold text-foreground mb-1">브랜드를 찾을 수 없습니다.</div>
-            <p className="text-sm text-text-secondary">{error ?? "다시 시도해 주세요."}</p>
+          <div
+            className="card p-6 text-center"
+            data-testid="branch-selector-error"
+          >
+            <div className="text-base font-semibold text-foreground mb-1">
+              브랜드를 찾을 수 없습니다.
+            </div>
+            <p className="text-sm text-text-secondary">
+              {error ?? '다시 시도해 주세요.'}
+            </p>
           </div>
         </div>
       </div>
@@ -96,7 +109,7 @@ export default function BrandOrderPage() {
       <div className="max-w-lg mx-auto">
         <header className="sticky top-0 z-30 bg-background border-b border-border">
           {data.coverImageUrl && (
-            <div className="h-32 -mb-4 relative">
+            <div className="relative z-0 h-32 -mb-4 overflow-hidden">
               <Image
                 src={data.coverImageUrl}
                 alt=""
@@ -109,14 +122,14 @@ export default function BrandOrderPage() {
             </div>
           )}
 
-          <div className="px-4 py-4 flex items-center gap-3">
+          <div className="relative z-10 px-4 py-4 flex items-center gap-3">
             {data.logoUrl ? (
               <Image
                 src={data.logoUrl}
                 alt={brandName}
-                width={44}
-                height={44}
-                className="w-11 h-11 rounded-full object-cover border border-border"
+                width={48}
+                height={48}
+                className="w-12 h-12 rounded-full object-cover border border-border"
                 unoptimized
               />
             ) : (
@@ -127,18 +140,25 @@ export default function BrandOrderPage() {
 
             <div>
               <div className="text-2xs text-text-tertiary">브랜드 주문</div>
-              <h1 className="text-lg font-bold text-foreground leading-tight">{brandName}</h1>
-              <p className="text-xs text-text-secondary mt-0.5">주문할 지점을 선택해 주세요.</p>
+              <h1 className="text-lg font-bold text-foreground leading-tight">
+                {brandName}
+              </h1>
+              <p className="text-xs text-text-secondary mt-0.5">
+                주문할 지점을 선택해 주세요.
+              </p>
             </div>
           </div>
           <div className="px-4 pb-4">
-            <KakaoQuickLoginButton />
+            <PublicAuthActions />
           </div>
         </header>
 
         <main className="p-4 pb-8">
           {branches.length === 0 ? (
-            <div className="card p-6 text-center" data-testid="branch-selector-empty">
+            <div
+              className="card p-6 text-center"
+              data-testid="branch-selector-empty"
+            >
               <div className="text-base font-semibold text-foreground mb-1">
                 주문 가능한 지점이 없습니다.
               </div>
@@ -161,9 +181,9 @@ export default function BrandOrderPage() {
                         <Image
                           src={branch.logoUrl}
                           alt={branch.name}
-                          width={40}
-                          height={40}
-                          className="w-10 h-10 rounded-full object-cover border border-border"
+                          width={48}
+                          height={48}
+                          className="w-12 h-12 rounded-full object-cover border border-border"
                           unoptimized
                         />
                       ) : (
@@ -172,7 +192,9 @@ export default function BrandOrderPage() {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="text-sm font-bold text-foreground truncate">{branch.name}</div>
+                        <div className="text-sm font-bold text-foreground truncate">
+                          {branch.name}
+                        </div>
                         <div className="text-xs text-text-tertiary truncate">
                           {getBranchOrderPath(resolvedBrandSlug, branch)}
                         </div>

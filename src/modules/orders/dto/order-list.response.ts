@@ -6,7 +6,10 @@ export class OrderListItemResponse {
   orderedAt: string;
   customerName: string;
   totalAmount: number;
-  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | null;
+  paymentMethod?: 'CARD' | 'TRANSFER' | 'CASH' | null;
+  paymentStatus?: string | null;
+  depositMatchStatus?: 'PENDING' | 'AUTO_MATCHED' | null;
+  fulfillmentType?: 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING' | null;
   branchId: string;
   branchName: string;
   itemCount: number;

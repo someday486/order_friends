@@ -11,17 +11,264 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
+import { PaymentsService } from '../payments/payments.service';
+import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
+import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly paymentsService: PaymentsService,
+    private readonly cashReceiptsService: CashReceiptsService,
+  ) {}
+
+  private async syncCashReceiptForStatusChange(
+    orderId: string,
+    status: OrderStatus,
+  ): Promise<void> {
+    try {
+      if (status === OrderStatus.COMPLETED) {
+        await this.cashReceiptsService.issueForCompletedOrder(orderId);
+        return;
+      }
+
+      if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+        await this.cashReceiptsService.cancelForOrder(
+          orderId,
+          `Order status changed to ${status}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Cash receipt sync failed for order ${orderId} (${status})`,
+        error,
+      );
+    }
+  }
+
+  private buildStatusUpdatePayload(status: OrderStatus) {
+    const timestamp = new Date().toISOString();
+    const payload: Record<string, unknown> = { status };
+
+    if (status === OrderStatus.COMPLETED) {
+      payload.completed_at = timestamp;
+    }
+
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+      payload.cancelled_at = timestamp;
+    }
+
+    return payload;
+  }
+
+  private async releaseInventoryForCancelledOrder(
+    sb: any,
+    orderId: string,
+    branchId: string,
+    orderNo: string | null,
+  ) {
+    try {
+      const { data: orderItems } = await sb
+        .from('order_items')
+        .select('product_id, qty')
+        .eq('order_id', orderId);
+
+      if (!orderItems || orderItems.length === 0) {
+        return;
+      }
+
+      const productIds = orderItems.map((item: any) => item.product_id);
+      const { data: inventories } = await sb
+        .from('product_inventory')
+        .select('product_id, qty_available, qty_reserved')
+        .in('product_id', productIds)
+        .eq('branch_id', branchId);
+
+      const inventoryMap = new Map<string, any>(
+        inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
+      );
+
+      const updatePromises: PromiseLike<any>[] = [];
+      const logRows: any[] = [];
+
+      for (const item of orderItems) {
+        const inventory = inventoryMap.get(item.product_id) as
+          | { qty_available: number; qty_reserved: number }
+          | undefined;
+        if (!inventory) continue;
+
+        updatePromises.push(
+          sb
+            .from('product_inventory')
+            .update({
+              qty_available: inventory.qty_available + item.qty,
+              qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
+            })
+            .eq('product_id', item.product_id)
+            .eq('branch_id', branchId),
+        );
+
+        logRows.push({
+          product_id: item.product_id,
+          branch_id: branchId,
+          transaction_type: 'RELEASE',
+          qty_change: item.qty,
+          qty_before: inventory.qty_available,
+          qty_after: inventory.qty_available + item.qty,
+          reference_id: orderId,
+          reference_type: 'ORDER',
+          notes: `주문 취소로 인한 재고 복구 (주문번호: ${orderNo ?? '-'})`,
+        });
+      }
+
+      await Promise.all([
+        ...updatePromises,
+        logRows.length > 0
+          ? sb.from('inventory_logs').insert(logRows)
+          : Promise.resolve(),
+      ]);
+
+      this.logger.log(`Inventory released for cancelled order: ${orderNo}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to release inventory for cancelled order ${orderId}`,
+        error,
+      );
+      // Don't throw - cancellation should remain effective even if inventory sync fails
+    }
+  }
 
   private isUuid(v: string) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       v,
     );
+  }
+
+  private async getDepositMatchStatusMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, DepositMatchStatus>> {
+    const map = new Map<string, DepositMatchStatus>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('deposit_match_rows')
+      .select('matched_order_id')
+      .in('matched_order_id', orderIds)
+      .eq('match_status', 'MATCHED');
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load deposit match rows for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.matched_order_id ?? '');
+      if (orderId) {
+        map.set(orderId, 'AUTO_MATCHED');
+      }
+    }
+
+    return map;
+  }
+
+  private async getPaymentMethodMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>> {
+    const map = new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('payments')
+      .select('order_id, payment_method')
+      .in('order_id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load payment methods for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.order_id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(
+        orderId,
+        this.normalizeOrderPaymentMethod(row?.payment_method ?? null),
+      );
+    }
+
+    return map;
+  }
+
+  private getOrderPaymentMethodMap(
+    _sb: any,
+    _orderIds: string[],
+  ): Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null> {
+    // Some databases in this project do not have orders.payment_method,
+    // so we keep the fallback path as a no-op and rely on payments rows.
+    void _sb;
+    void _orderIds;
+    return new Map<string, 'CARD' | 'TRANSFER' | 'CASH' | null>();
+  }
+
+  private async getPaymentStatusMap(
+    sb: any,
+    orderIds: string[],
+  ): Promise<Map<string, string | null>> {
+    const map = new Map<string, string | null>();
+    if (orderIds.length === 0) {
+      return map;
+    }
+
+    const { data, error } = await sb
+      .from('payments')
+      .select('order_id, status')
+      .in('order_id', orderIds);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load payment statuses for orders: ${error.message}`,
+      );
+      return map;
+    }
+
+    for (const row of data ?? []) {
+      const orderId = String(row?.order_id ?? '');
+      if (!orderId || map.has(orderId)) {
+        continue;
+      }
+      map.set(orderId, (row?.status as string | null | undefined) ?? null);
+    }
+
+    return map;
+  }
+
+  private normalizeOrderPaymentMethod(
+    paymentMethod: string | null | undefined,
+  ): 'CARD' | 'TRANSFER' | 'CASH' | null {
+    if (
+      paymentMethod === 'CARD' ||
+      paymentMethod === 'TRANSFER' ||
+      paymentMethod === 'CASH'
+    ) {
+      return paymentMethod;
+    }
+
+    return null;
   }
 
   /**
@@ -98,21 +345,53 @@ export class OrdersService {
       );
     }
 
-    const orders = (data ?? []).map((row: any) => ({
-      id: row.id,
-      orderNo: row.order_no ?? null,
-      orderedAt: row.created_at ?? '',
-      customerName: row.customer_name ?? '',
-      totalAmount: row.total_amount ?? 0,
-      status: row.status as OrderStatus,
-      fulfillmentType: row.fulfillment_type ?? null,
+    const paymentMethodMap = await this.getPaymentMethodMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
+    const orderPaymentMethodMap = await Promise.resolve(
+      this.getOrderPaymentMethodMap(
+        sb,
+        (data ?? []).map((row: any) => String(row.id)),
+      ),
+    );
+    const paymentStatusMap = await this.getPaymentStatusMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
+    const depositMatchStatusMap = await this.getDepositMatchStatusMap(
+      sb,
+      (data ?? []).map((row: any) => String(row.id)),
+    );
 
-      // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
-      branchId: row.branch_id ?? branchId ?? null,
-      branchName: row.branches?.name ?? row.branch_name ?? null,
-      itemCount: row.itemCount ?? row.item_count ?? 0,
-      firstItemName: row.firstItemName ?? row.first_item_name ?? null,
-    }));
+    const orders = (data ?? []).map((row: any) => {
+      const paymentMethod =
+        orderPaymentMethodMap.get(String(row.id)) ??
+        paymentMethodMap.get(String(row.id)) ??
+        null;
+
+      return {
+        id: row.id,
+        orderNo: row.order_no ?? null,
+        orderedAt: row.created_at ?? '',
+        customerName: row.customer_name ?? '',
+        totalAmount: row.total_amount ?? 0,
+        status: row.status as OrderStatus,
+        paymentMethod,
+        paymentStatus: paymentStatusMap.get(String(row.id)) ?? null,
+        depositMatchStatus:
+          paymentMethod === 'TRANSFER'
+            ? (depositMatchStatusMap.get(String(row.id)) ?? 'PENDING')
+            : null,
+        fulfillmentType: row.fulfillment_type ?? null,
+
+        // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
+        branchId: row.branch_id ?? branchId ?? null,
+        branchName: row.branches?.name ?? row.branch_name ?? null,
+        itemCount: row.itemCount ?? row.item_count ?? 0,
+        firstItemName: row.firstItemName ?? row.first_item_name ?? null,
+      };
+    });
 
     this.logger.log(`Fetched ${orders.length} orders for branch: ${branchId}`);
 
@@ -136,6 +415,8 @@ export class OrdersService {
 
     const selectDetail = `
       id, order_no, status, created_at, fulfillment_type,
+      cash_receipt_requested, cash_receipt_type,
+      cash_receipt_identity_type, cash_receipt_identity_value,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -185,11 +466,34 @@ export class OrdersService {
       };
     });
 
+    const paymentMethodMap = await this.getPaymentMethodMap(sb, [
+      String(data.id),
+    ]);
+    const orderPaymentMethodMap = await Promise.resolve(
+      this.getOrderPaymentMethodMap(sb, [String(data.id)]),
+    );
+    const paymentStatusMap = await this.getPaymentStatusMap(sb, [
+      String(data.id),
+    ]);
+    const paymentMethod =
+      orderPaymentMethodMap.get(String(data.id)) ??
+      paymentMethodMap.get(String(data.id)) ??
+      null;
+    const depositMatchStatusMap = await this.getDepositMatchStatusMap(sb, [
+      String(data.id),
+    ]);
+    const cashReceiptRequest = this.mapCashReceiptRequest(data);
+
     return {
       id: data.id,
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
+      paymentStatus: paymentStatusMap.get(String(data.id)) ?? null,
+      depositMatchStatus:
+        paymentMethod === 'TRANSFER'
+          ? (depositMatchStatusMap.get(String(data.id)) ?? 'PENDING')
+          : null,
       fulfillmentType: data.fulfillment_type ?? null,
       customer: {
         name: data.customer_name ?? '',
@@ -199,13 +503,32 @@ export class OrdersService {
         memo: data.delivery_memo ?? undefined,
       },
       payment: {
-        method: 'CARD' as any,
+        method: paymentMethod,
         subtotal: data.subtotal ?? 0,
         shippingFee: data.delivery_fee ?? 0,
         discount: data.discount_total ?? 0,
         total: data.total_amount ?? 0,
       },
+      cashReceiptRequest,
       items,
+    };
+  }
+
+  private mapCashReceiptRequest(data: {
+    cash_receipt_requested?: boolean | null;
+    cash_receipt_type?: string | null;
+    cash_receipt_identity_type?: string | null;
+    cash_receipt_identity_value?: string | null;
+  }) {
+    if (data.cash_receipt_requested !== true) {
+      return null;
+    }
+
+    return {
+      requested: true,
+      type: data.cash_receipt_type ?? null,
+      identityType: data.cash_receipt_identity_type ?? null,
+      identityValue: data.cash_receipt_identity_value ?? null,
     };
   }
 
@@ -229,9 +552,16 @@ export class OrdersService {
       throw new OrderNotFoundException(orderId);
     }
 
+    if (status === OrderStatus.CANCELLED) {
+      await this.paymentsService.refundOrderPaymentForCancellation(
+        resolvedId,
+        branchId,
+      );
+    }
+
     const { data, error } = await sb
       .from('orders')
-      .update({ status })
+      .update(this.buildStatusUpdatePayload(status))
       .eq('id', resolvedId)
       .eq('branch_id', branchId)
       .select('id, order_no, status')
@@ -254,82 +584,16 @@ export class OrdersService {
       throw new OrderNotFoundException(orderId);
     }
 
-    // ============================================================
-    // Handle inventory release for cancelled orders
-    // ============================================================
     if (status === 'CANCELLED') {
-      try {
-        // Get order items to release inventory
-        const { data: orderItems } = await sb
-          .from('order_items')
-          .select('product_id, qty')
-          .eq('order_id', resolvedId);
-
-        if (orderItems && orderItems.length > 0) {
-          // Get current inventory for these products
-          const productIds = orderItems.map((item: any) => item.product_id);
-          const { data: inventories } = await sb
-            .from('product_inventory')
-            .select('product_id, qty_available, qty_reserved')
-            .in('product_id', productIds)
-            .eq('branch_id', branchId);
-
-          const inventoryMap = new Map(
-            inventories?.map((inv: any) => [inv.product_id, inv]) ?? [],
-          );
-
-          // 재고 업데이트 및 로그 삽입을 병렬 처리
-          const updatePromises: Promise<any>[] = [];
-          const logRows: any[] = [];
-
-          for (const item of orderItems) {
-            const inventory = inventoryMap.get(item.product_id);
-            if (!inventory) continue;
-
-            updatePromises.push(
-              sb
-                .from('product_inventory')
-                .update({
-                  qty_available: inventory.qty_available + item.qty,
-                  qty_reserved: Math.max(0, inventory.qty_reserved - item.qty),
-                })
-                .eq('product_id', item.product_id)
-                .eq('branch_id', branchId),
-            );
-
-            logRows.push({
-              product_id: item.product_id,
-              branch_id: branchId,
-              transaction_type: 'RELEASE',
-              qty_change: item.qty,
-              qty_before: inventory.qty_available,
-              qty_after: inventory.qty_available + item.qty,
-              reference_id: resolvedId,
-              reference_type: 'ORDER',
-              notes: `주문 취소로 인한 재고 복구 (주문번호: ${data.order_no})`,
-            });
-          }
-
-          // 재고 업데이트 병렬 실행 + 로그 일괄 삽입
-          await Promise.all([
-            ...updatePromises,
-            logRows.length > 0
-              ? sb.from('inventory_logs').insert(logRows)
-              : Promise.resolve(),
-          ]);
-
-          this.logger.log(
-            `Inventory released for cancelled order: ${data.order_no}`,
-          );
-        }
-      } catch (error) {
-        this.logger.error(
-          `Failed to release inventory for cancelled order ${resolvedId}`,
-          error,
-        );
-        // Don't throw - order is already cancelled, just log the error
-      }
+      await this.releaseInventoryForCancelledOrder(
+        sb,
+        resolvedId,
+        branchId,
+        data.order_no ?? null,
+      );
     }
+
+    await this.syncCashReceiptForStatusChange(resolvedId, status);
 
     this.logger.log(
       `Order status updated successfully: ${orderId} -> ${status}`,

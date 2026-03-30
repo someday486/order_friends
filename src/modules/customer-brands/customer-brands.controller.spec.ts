@@ -67,6 +67,7 @@ describe('CustomerBrandsController', () => {
       createData,
       'user-1',
       [],
+      undefined,
     );
   });
 

@@ -1,4 +1,5 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
 
 // Response DTOs
 export class BrandListItemResponse {
@@ -7,6 +8,7 @@ export class BrandListItemResponse {
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
+  address?: string | null;
   logoUrl?: string | null;
   createdAt: string;
 }
@@ -21,6 +23,13 @@ export class BrandDetailResponse {
   repName?: string | null;
   address?: string | null;
   bizCertUrl?: string | null;
+  cashReceiptEnabled?: boolean;
+  cashReceiptProvider?: string | null;
+  cashReceiptMerchantId?: string | null;
+  cashReceiptIssueTiming?: string | null;
+  cashReceiptSelfIssueEnabled?: boolean;
+  cashReceiptContactName?: string | null;
+  cashReceiptContactPhone?: string | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   createdAt: string;
@@ -62,6 +71,34 @@ export class CreateBrandRequest {
   @IsString()
   @IsOptional()
   coverImageUrl?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  cashReceiptEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptProvider?: string;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptMerchantId?: string;
+
+  @IsEnum(CashReceiptIssueTiming)
+  @IsOptional()
+  cashReceiptIssueTiming?: CashReceiptIssueTiming;
+
+  @IsBoolean()
+  @IsOptional()
+  cashReceiptSelfIssueEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptContactName?: string;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptContactPhone?: string;
 }
 
 export class UpdateBrandRequest {
@@ -100,4 +137,32 @@ export class UpdateBrandRequest {
   @IsString()
   @IsOptional()
   coverImageUrl?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  cashReceiptEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptProvider?: string;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptMerchantId?: string;
+
+  @IsEnum(CashReceiptIssueTiming)
+  @IsOptional()
+  cashReceiptIssueTiming?: CashReceiptIssueTiming;
+
+  @IsBoolean()
+  @IsOptional()
+  cashReceiptSelfIssueEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptContactName?: string;
+
+  @IsString()
+  @IsOptional()
+  cashReceiptContactPhone?: string;
 }

@@ -21,7 +21,7 @@ export class CustomerProductsService {
   constructor(private readonly supabase: SupabaseService) {}
 
   /**
-   * 브랜치에 대한 접근 권한 확인
+   * 釉뚮옖移섏뿉 ????묎렐 沅뚰븳 ?뺤씤
    */
   private async checkBranchAccess(
     branchId: string,
@@ -35,7 +35,7 @@ export class CustomerProductsService {
   }> {
     const sb = this.supabase.adminClient();
 
-    // 브랜치 정보 조회
+    // 釉뚮옖移??뺣낫 議고쉶
     const { data: branch, error } = await sb
       .from('branches')
       .select('id, brand_id, name, slug, created_at')
@@ -46,7 +46,7 @@ export class CustomerProductsService {
       throw new NotFoundException('Branch not found');
     }
 
-    // 1. 브랜치 멤버십 확인 (우선순위)
+    // 1. 釉뚮옖移?硫ㅻ쾭???뺤씤 (?곗꽑?쒖쐞)
     const branchMembership = branchMemberships.find(
       (m) => m.branch_id === branchId,
     );
@@ -54,7 +54,7 @@ export class CustomerProductsService {
       return { branchMembership, branch };
     }
 
-    // 2. 브랜드 멤버십으로 확인
+    // 2. 釉뚮옖??硫ㅻ쾭??쑝濡??뺤씤
     const brandMembership = brandMemberships.find(
       (m) => m.brand_id === branch.brand_id,
     );
@@ -66,7 +66,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 상품에 대한 접근 권한 확인
+   * ?곹뭹??????묎렐 沅뚰븳 ?뺤씤
    */
   private async checkProductAccess(
     productId: string,
@@ -76,7 +76,7 @@ export class CustomerProductsService {
   ): Promise<{ role: string; product: any }> {
     const sb = this.supabase.adminClient();
 
-    // 상품 및 브랜치 정보 조회
+    // ?곹뭹 諛?釉뚮옖移??뺣낫 議고쉶
     const { data: product, error } = await sb
       .from('products')
       .select('*, branches!inner(id, brand_id)')
@@ -90,7 +90,7 @@ export class CustomerProductsService {
     const branchId = product.branch_id;
     const brandId = product.branches.brand_id;
 
-    // 1. 브랜치 멤버십 확인 (우선순위)
+    // 1. 釉뚮옖移?硫ㅻ쾭???뺤씤 (?곗꽑?쒖쐞)
     const branchMembership = branchMemberships.find(
       (m) => m.branch_id === branchId,
     );
@@ -98,7 +98,7 @@ export class CustomerProductsService {
       return { role: branchMembership.role, product };
     }
 
-    // 2. 브랜드 멤버십으로 확인
+    // 2. 釉뚮옖??硫ㅻ쾭??쑝濡??뺤씤
     const brandMembership = brandMemberships.find(
       (m) => m.brand_id === brandId,
     );
@@ -110,7 +110,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 수정/삭제 권한 확인 (OWNER/ADMIN/BRANCH_OWNER/BRANCH_ADMIN 가능)
+   * ?섏젙/??젣 沅뚰븳 ?뺤씤 (OWNER/ADMIN/BRANCH_OWNER/BRANCH_ADMIN 媛??
    */
   private checkModificationPermission(
     role: string,
@@ -135,6 +135,265 @@ export class CustomerProductsService {
     }
 
     return String(mode).toUpperCase() === 'NONE' ? 'NONE' : 'PRODUCT';
+  }
+
+  private parseTemplateImageUrls(value: unknown): string[] {
+    if (typeof value !== 'string') return [];
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (!Array.isArray(parsed)) return [];
+        return [...new Set(parsed.filter((item) => typeof item === 'string'))]
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, 10);
+      } catch {
+        return [];
+      }
+    }
+
+    return [trimmed];
+  }
+
+  private getPrimaryTemplateImageUrl(value: unknown): string | null {
+    const urls = this.parseTemplateImageUrls(value);
+    if (urls.length > 0) return urls[0];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    return null;
+  }
+
+  private normalizeTemplateImageUrls(
+    imageUrl?: string | null,
+    imageUrls?: string[] | null,
+  ): string[] {
+    const base = Array.isArray(imageUrls) ? imageUrls : [];
+    const normalized = [...new Set(base)]
+      .filter((url): url is string => typeof url === 'string')
+      .map((url) => url.trim())
+      .filter(Boolean);
+
+    if (normalized.length > 0) {
+      return normalized.slice(0, 10);
+    }
+
+    if (typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
+      return [imageUrl.trim()];
+    }
+
+    return [];
+  }
+
+  private serializeTemplateImageUrls(urls: string[]): string | null {
+    if (urls.length === 0) return null;
+    if (urls.length === 1) return urls[0];
+    return JSON.stringify(urls);
+  }
+
+  private parseDateTimeOrNull(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const ts = Date.parse(trimmed);
+    if (Number.isNaN(ts)) return null;
+    return new Date(ts).toISOString();
+  }
+
+  private resolveActiveUrgentDiscount(
+    row: any,
+    basePrice: number,
+  ): { discountPrice: number | null; isActive: boolean } {
+    const rawDiscountValue = row?.urgent_discount_price;
+    if (
+      rawDiscountValue === null ||
+      rawDiscountValue === undefined ||
+      rawDiscountValue === ''
+    ) {
+      return { discountPrice: null, isActive: false };
+    }
+    const rawPrice = Number(rawDiscountValue);
+    if (!Number.isFinite(rawPrice) || rawPrice < 0 || rawPrice >= basePrice) {
+      return { discountPrice: null, isActive: false };
+    }
+
+    const startAt = this.parseDateTimeOrNull(row?.urgent_discount_start_at);
+    const endAt = this.parseDateTimeOrNull(row?.urgent_discount_end_at);
+    const now = Date.now();
+    if (startAt && now < Date.parse(startAt)) {
+      return { discountPrice: rawPrice, isActive: false };
+    }
+    if (endAt && now > Date.parse(endAt)) {
+      return { discountPrice: rawPrice, isActive: false };
+    }
+    return { discountPrice: rawPrice, isActive: true };
+  }
+
+  private buildUrgentDiscountFields(
+    basePrice: number,
+    payload: {
+      urgentDiscountPrice?: number | null;
+      urgentDiscountStartAt?: string | null;
+      urgentDiscountEndAt?: string | null;
+    },
+  ) {
+    const hasPrice = payload.urgentDiscountPrice !== undefined;
+    const hasStart = payload.urgentDiscountStartAt !== undefined;
+    const hasEnd = payload.urgentDiscountEndAt !== undefined;
+    if (!hasPrice && !hasStart && !hasEnd) {
+      return null;
+    }
+
+    const fields: {
+      urgent_discount_price?: number | null;
+      urgent_discount_start_at?: string | null;
+      urgent_discount_end_at?: string | null;
+    } = {};
+
+    if (hasPrice) {
+      const price = payload.urgentDiscountPrice;
+      if (price === null) {
+        fields.urgent_discount_price = null;
+      } else if (
+        typeof price !== 'number' ||
+        !Number.isFinite(price) ||
+        price < 0
+      ) {
+        throw new BadRequestException(
+          '湲닿툒?좎씤 媛寃⑹? 0 ?댁긽???レ옄?ъ빞 ?⑸땲??',
+        );
+      } else if (price >= basePrice) {
+        throw new BadRequestException(
+          '湲닿툒?좎씤 媛寃⑹? 湲곕낯 媛寃⑸낫????븘???⑸땲??',
+        );
+      } else {
+        fields.urgent_discount_price = Math.floor(price);
+      }
+    }
+
+    if (hasStart) {
+      const normalized = this.parseDateTimeOrNull(
+        payload.urgentDiscountStartAt,
+      );
+      fields.urgent_discount_start_at = payload.urgentDiscountStartAt
+        ? normalized
+        : null;
+      if (payload.urgentDiscountStartAt && !normalized) {
+        throw new BadRequestException(
+          '湲닿툒?좎씤 ?쒖옉 ?쒓컖 ?뺤떇???щ컮瑜댁? ?딆뒿?덈떎.',
+        );
+      }
+    }
+
+    if (hasEnd) {
+      const normalized = this.parseDateTimeOrNull(payload.urgentDiscountEndAt);
+      fields.urgent_discount_end_at = payload.urgentDiscountEndAt
+        ? normalized
+        : null;
+      if (payload.urgentDiscountEndAt && !normalized) {
+        throw new BadRequestException(
+          '湲닿툒?좎씤 醫낅즺 ?쒓컖 ?뺤떇???щ컮瑜댁? ?딆뒿?덈떎.',
+        );
+      }
+    }
+
+    const startAt = fields.urgent_discount_start_at;
+    const endAt = fields.urgent_discount_end_at;
+    if (startAt && endAt && Date.parse(startAt) >= Date.parse(endAt)) {
+      throw new BadRequestException(
+        '湲닿툒?좎씤 醫낅즺 ?쒓컖? ?쒖옉 ?쒓컖蹂대떎 ??뼱???⑸땲??',
+      );
+    }
+
+    return fields;
+  }
+
+  private getUrgentDiscountSnapshot(row: any): {
+    price: number | null;
+    startAt: string | null;
+    endAt: string | null;
+  } {
+    const rawPrice = Number(row?.urgent_discount_price);
+    const price =
+      Number.isFinite(rawPrice) && rawPrice >= 0 ? Math.floor(rawPrice) : null;
+    return {
+      price,
+      startAt: this.parseDateTimeOrNull(row?.urgent_discount_start_at),
+      endAt: this.parseDateTimeOrNull(row?.urgent_discount_end_at),
+    };
+  }
+
+  private isSameUrgentDiscountSnapshot(
+    a: { price: number | null; startAt: string | null; endAt: string | null },
+    b: { price: number | null; startAt: string | null; endAt: string | null },
+  ) {
+    return (
+      a.price === b.price && a.startAt === b.startAt && a.endAt === b.endAt
+    );
+  }
+
+  private isMissingUrgentDiscountHistoryTableError(error: any): boolean {
+    const message = String(error?.message ?? '').toLowerCase();
+    const hint = String(error?.hint ?? '').toLowerCase();
+    const details = String(error?.details ?? '').toLowerCase();
+    const joined = `${message} ${hint} ${details}`;
+
+    if (!joined.includes('brand_product_urgent_discount_histories')) {
+      return false;
+    }
+
+    return (
+      joined.includes('does not exist') ||
+      joined.includes('relation') ||
+      joined.includes('schema cache')
+    );
+  }
+
+  private async appendUrgentDiscountHistory(
+    brandProductId: string,
+    brandId: string,
+    snapshot: {
+      price: number | null;
+      startAt: string | null;
+      endAt: string | null;
+    },
+    recordedBy: string,
+    reason: 'SET' | 'UPDATED' | 'REPLACED' | 'CLEARED',
+  ) {
+    if (snapshot.price === null) {
+      return;
+    }
+
+    const sb = this.supabase.adminClient();
+    const { error } = await sb
+      .from('brand_product_urgent_discount_histories')
+      .insert({
+        brand_product_id: brandProductId,
+        brand_id: brandId,
+        discount_price: snapshot.price,
+        discount_start_at: snapshot.startAt,
+        discount_end_at: snapshot.endAt,
+        recorded_reason: reason,
+        recorded_by: recordedBy,
+      });
+
+    if (!error) {
+      return;
+    }
+
+    if (this.isMissingUrgentDiscountHistoryTableError(error)) {
+      this.logger.warn(
+        'urgent discount history table is missing. skip recording history.',
+      );
+      return;
+    }
+
+    this.logger.error(
+      `Failed to record urgent discount history for template ${brandProductId}`,
+      error,
+    );
+    throw new Error('Failed to record urgent discount history');
   }
 
   private async syncInventoryTrackingForProducts(
@@ -294,6 +553,33 @@ export class CustomerProductsService {
     return role === 'OWNER' || role === 'ADMIN';
   }
 
+  private isMissingColumnError(error: any, columnName?: string): boolean {
+    const message = String(error?.message ?? '');
+    const hint = String(error?.hint ?? '');
+    const details = String(error?.details ?? '');
+    const joined = `${message} ${hint} ${details}`.toLowerCase();
+    if (!joined.includes('column')) return false;
+    if (
+      !joined.includes('schema cache') &&
+      !joined.includes('does not exist')
+    ) {
+      return false;
+    }
+    if (!columnName) return true;
+    return joined.includes(columnName.toLowerCase());
+  }
+  private isMissingUrgentDiscountColumnError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    const hint = String(error?.hint ?? '');
+    const details = String(error?.details ?? '');
+    const joined = `${message} ${hint} ${details}`.toLowerCase();
+    const hasUrgentDiscountColumn =
+      joined.includes('urgent_discount_price') ||
+      joined.includes('urgent_discount_start_at') ||
+      joined.includes('urgent_discount_end_at');
+    if (!hasUrgentDiscountColumn) return false;
+    return this.isMissingColumnError(error);
+  }
   private async getBrandBranches(brandId: string) {
     const sb = this.supabase.adminClient();
     const { data, error } = await sb
@@ -430,8 +716,11 @@ export class CustomerProductsService {
       name: template.name,
       description: template.description ?? null,
       base_price: template.base_price ?? 0,
-      image_url: template.image_url ?? null,
+      image_url: this.getPrimaryTemplateImageUrl(template.image_url),
       sort_order: template.sort_order ?? 0,
+      urgent_discount_price: template.urgent_discount_price ?? null,
+      urgent_discount_start_at: template.urgent_discount_start_at ?? null,
+      urgent_discount_end_at: template.urgent_discount_end_at ?? null,
     };
   }
 
@@ -443,6 +732,11 @@ export class CustomerProductsService {
       .eq('brand_product_id', template.id);
 
     if (error) {
+      if (this.isMissingUrgentDiscountColumnError(error)) {
+        throw new BadRequestException(
+          '긴급할인 기능을 사용하려면 상품 테이블에 할인 컬럼이 필요합니다.',
+        );
+      }
       this.logger.error(
         `Failed to sync linked products for template ${template.id}`,
         error,
@@ -643,13 +937,25 @@ export class CustomerProductsService {
   ) {
     const appliedBranchIds = options?.appliedBranchIds ?? [];
     const linkedProduct = options?.linkedProduct;
+    const imageUrls = this.parseTemplateImageUrls(row.image_url);
+    const basePrice = row.base_price ?? 0;
+    const urgentDiscount = this.resolveActiveUrgentDiscount(row, basePrice);
     return {
       id: row.id,
       brandId: row.brand_id,
       name: row.name,
       description: row.description ?? null,
-      price: row.base_price ?? 0,
-      imageUrl: row.image_url ?? null,
+      price: basePrice,
+      discountPrice: urgentDiscount.isActive
+        ? urgentDiscount.discountPrice
+        : undefined,
+      urgentDiscountPrice: urgentDiscount.discountPrice,
+      urgentDiscountStartAt:
+        this.parseDateTimeOrNull(row.urgent_discount_start_at) ?? null,
+      urgentDiscountEndAt:
+        this.parseDateTimeOrNull(row.urgent_discount_end_at) ?? null,
+      imageUrl: imageUrls[0] ?? null,
+      imageUrls,
       isActive: row.is_active ?? true,
       sortOrder: row.sort_order ?? 0,
       createdAt: row.created_at ?? '',
@@ -667,7 +973,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 내 지점의 상품 카테고리 목록 조회
+   * ??吏?먯쓽 ?곹뭹 移댄뀒怨좊━ 紐⑸줉 議고쉶
    */
   async getMyCategories(
     userId: string,
@@ -679,7 +985,7 @@ export class CustomerProductsService {
       `Fetching categories for branch ${branchId} by user ${userId}`,
     );
 
-    // 브랜치 접근 권한 확인
+    // 釉뚮옖移??묎렐 沅뚰븳 ?뺤씤
     await this.checkBranchAccess(
       branchId,
       userId,
@@ -715,7 +1021,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 내 지점의 상품 목록 조회
+   * ??吏?먯쓽 ?곹뭹 紐⑸줉 議고쉶
    */
   async getMyProducts(
     userId: string,
@@ -727,7 +1033,7 @@ export class CustomerProductsService {
       `Fetching products for branch ${branchId} by user ${userId}`,
     );
 
-    // 브랜치 접근 권한 확인
+    // 釉뚮옖移??묎렐 沅뚰븳 ?뺤씤
     await this.checkBranchAccess(
       branchId,
       userId,
@@ -769,7 +1075,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 내 상품 상세 조회
+   * ???곹뭹 ?곸꽭 議고쉶
    */
   async getMyProduct(
     userId: string,
@@ -786,7 +1092,7 @@ export class CustomerProductsService {
       branchMemberships,
     );
 
-    // 상품 옵션 조회
+    // ?곹뭹 ?듭뀡 議고쉶
     const sb = this.supabase.adminClient();
     const { data: options, error: optionsError } = await sb
       .from('product_options')
@@ -808,7 +1114,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 상품 생성 (OWNER, ADMIN만 가능)
+   * ?곹뭹 ?앹꽦 (OWNER, ADMIN留?媛??
    */
   async createMyProduct(
     userId: string,
@@ -820,7 +1126,7 @@ export class CustomerProductsService {
       `Creating product for branch ${dto.branchId} by user ${userId}`,
     );
 
-    // 브랜치 접근 권한 확인
+    // 釉뚮옖移??묎렐 沅뚰븳 ?뺤씤
     const { branchMembership, brandMembership } = await this.checkBranchAccess(
       dto.branchId,
       userId,
@@ -833,12 +1139,12 @@ export class CustomerProductsService {
       throw new ForbiddenException('You do not have access to this branch');
     }
 
-    // 생성 권한 확인
+    // ?앹꽦 沅뚰븳 ?뺤씤
     this.checkModificationPermission(role, 'create products', userId);
 
     const sb = this.supabase.adminClient();
 
-    // 상품 생성
+    // ?곹뭹 ?앹꽦
     const { data: product, error: productError } = await sb
       .from('products')
       .insert({
@@ -862,7 +1168,7 @@ export class CustomerProductsService {
       throw new Error('Failed to create product');
     }
 
-    // 상품 옵션 생성 (있는 경우)
+    // ?곹뭹 ?듭뀡 ?앹꽦 (?덈뒗 寃쎌슦)
     if (dto.options && dto.options.length > 0) {
       const optionsToInsert = dto.options.map((opt) => ({
         product_id: product.id,
@@ -881,7 +1187,7 @@ export class CustomerProductsService {
           `Failed to create options for product ${product.id}`,
           optionsError,
         );
-        // 상품은 생성되었으므로 에러를 던지지 않고 로그만 남김
+        // ?곹뭹? ?앹꽦?섏뿀?쇰?濡??먮윭瑜??섏?吏 ?딄퀬 濡쒓렇留??④?
       }
     }
 
@@ -891,7 +1197,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 상품 수정 (OWNER, ADMIN만 가능)
+   * ?곹뭹 ?섏젙 (OWNER, ADMIN留?媛??
    */
   async updateMyProduct(
     userId: string,
@@ -902,7 +1208,7 @@ export class CustomerProductsService {
   ) {
     this.logger.log(`Updating product ${productId} by user ${userId}`);
 
-    // 접근 권한 확인
+    // ?묎렐 沅뚰븳 ?뺤씤
     const { role } = await this.checkProductAccess(
       productId,
       userId,
@@ -910,12 +1216,12 @@ export class CustomerProductsService {
       branchMemberships,
     );
 
-    // 수정 권한 확인
+    // ?섏젙 沅뚰븳 ?뺤씤
     this.checkModificationPermission(role, 'update products', userId);
 
     const sb = this.supabase.adminClient();
 
-    // 수정 가능한 필드만 허용
+    // ?섏젙 媛?ν븳 ?꾨뱶留??덉슜
     const updateFields: any = {};
     if (dto.name !== undefined) updateFields.name = dto.name;
     if (dto.description !== undefined)
@@ -953,7 +1259,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 상품 삭제 (OWNER, ADMIN만 가능)
+   * ?곹뭹 ??젣 (OWNER, ADMIN留?媛??
    */
   async deleteMyProduct(
     userId: string,
@@ -963,7 +1269,7 @@ export class CustomerProductsService {
   ) {
     this.logger.log(`Deleting product ${productId} by user ${userId}`);
 
-    // 접근 권한 확인
+    // ?묎렐 沅뚰븳 ?뺤씤
     const { role } = await this.checkProductAccess(
       productId,
       userId,
@@ -971,7 +1277,7 @@ export class CustomerProductsService {
       branchMemberships,
     );
 
-    // 삭제 권한 확인
+    // ??젣 沅뚰븳 ?뺤씤
     this.checkModificationPermission(role, 'delete products', userId);
 
     const sb = this.supabase.adminClient();
@@ -989,7 +1295,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 상품 일괄 상태 변경 (OWNER, ADMIN만 가능)
+   * ?곹뭹 ?쇨큵 ?곹깭 蹂寃?(OWNER, ADMIN留?媛??
    */
   async bulkUpdateProductStatus(
     userId: string,
@@ -1040,7 +1346,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 카테고리 일괄 활성화/비활성화 (OWNER, ADMIN만 가능)
+   * 移댄뀒怨좊━ ?쇨큵 ?쒖꽦??鍮꾪솢?깊솕 (OWNER, ADMIN留?媛??
    */
   async bulkUpdateCategoryStatus(
     userId: string,
@@ -1101,7 +1407,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 상품 정렬 순서 일괄 변경 (OWNER, ADMIN만 가능)
+   * ?곹뭹 ?뺣젹 ?쒖꽌 ?쇨큵 蹂寃?(OWNER, ADMIN留?媛??
    */
   async reorderProducts(
     userId: string,
@@ -1155,7 +1461,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 카테고리 생성 (OWNER, ADMIN만 가능)
+   * 移댄뀒怨좊━ ?앹꽦 (OWNER, ADMIN留?媛??
    */
   async createCategory(
     userId: string,
@@ -1215,7 +1521,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 카테고리 일괄 생성 (선택한 매장들에 동일 카테고리 생성)
+   * 移댄뀒怨좊━ ?쇨큵 ?앹꽦 (?좏깮??留ㅼ옣?ㅼ뿉 ?숈씪 移댄뀒怨좊━ ?앹꽦)
    */
   async bulkCreateCategories(
     userId: string,
@@ -1360,7 +1666,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 카테고리 수정 (OWNER, ADMIN만 가능)
+   * 移댄뀒怨좊━ ?섏젙 (OWNER, ADMIN留?媛??
    */
   async updateCategory(
     userId: string,
@@ -1373,7 +1679,7 @@ export class CustomerProductsService {
 
     const sb = this.supabase.adminClient();
 
-    // 카테고리 조회하여 branch_id 확인
+    // 移댄뀒怨좊━ 議고쉶?섏뿬 branch_id ?뺤씤
     const { data: category, error: catError } = await sb
       .from('product_categories')
       .select('*')
@@ -1436,7 +1742,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 카테고리 삭제 (OWNER, ADMIN만 가능)
+   * 移댄뀒怨좊━ ??젣 (OWNER, ADMIN留?媛??
    */
   async deleteCategory(
     userId: string,
@@ -1485,7 +1791,7 @@ export class CustomerProductsService {
   }
 
   /**
-   * 카테고리 정렬 순서 일괄 변경 (OWNER, ADMIN만 가능)
+   * 移댄뀒怨좊━ ?뺣젹 ?쒖꽌 ?쇨큵 蹂寃?(OWNER, ADMIN留?媛??
    */
   async reorderCategories(
     userId: string,
@@ -1677,6 +1983,70 @@ export class CustomerProductsService {
     });
   }
 
+  async getBrandProductTemplateUrgentDiscountHistories(
+    userId: string,
+    templateId: string,
+    limit: number,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    const sb = this.supabase.adminClient();
+    const { data: template, error: templateError } = await sb
+      .from('brand_products')
+      .select('id, brand_id')
+      .eq('id', templateId)
+      .single();
+
+    if (templateError || !template) {
+      throw new NotFoundException('Brand template not found');
+    }
+
+    const { role } = await this.checkBrandAccess(
+      template.brand_id,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    if (!this.canManageBrandTemplates(role)) {
+      throw new ForbiddenException(
+        'Only OWNER/ADMIN can manage brand template history',
+      );
+    }
+
+    const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
+    const { data, error } = await sb
+      .from('brand_product_urgent_discount_histories')
+      .select(
+        'id, discount_price, discount_start_at, discount_end_at, recorded_reason, created_at',
+      )
+      .eq('brand_product_id', templateId)
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+
+    if (error) {
+      if (this.isMissingUrgentDiscountHistoryTableError(error)) {
+        return [];
+      }
+      this.logger.error(
+        `Failed to fetch urgent discount histories for template ${templateId}`,
+        error,
+      );
+      throw new Error('Failed to fetch urgent discount histories');
+    }
+
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      discountPrice:
+        typeof row.discount_price === 'number' ? row.discount_price : null,
+      discountStartAt: this.parseDateTimeOrNull(row.discount_start_at),
+      discountEndAt: this.parseDateTimeOrNull(row.discount_end_at),
+      recordedReason:
+        typeof row.recorded_reason === 'string' ? row.recorded_reason : null,
+      createdAt: this.parseDateTimeOrNull(row.created_at),
+    }));
+  }
+
   async createBrandProductTemplate(
     userId: string,
     dto: {
@@ -1685,6 +2055,10 @@ export class CustomerProductsService {
       description?: string;
       price: number;
       imageUrl?: string;
+      imageUrls?: string[];
+      urgentDiscountPrice?: number | null;
+      urgentDiscountStartAt?: string | null;
+      urgentDiscountEndAt?: string | null;
       sortOrder?: number;
       isActive?: boolean;
       isOnlineShopVisible?: boolean;
@@ -1711,29 +2085,56 @@ export class CustomerProductsService {
       );
     }
 
+    const normalizedImageUrls = this.normalizeTemplateImageUrls(
+      dto.imageUrl,
+      dto.imageUrls,
+    );
+    const urgentDiscountFields = this.buildUrgentDiscountFields(dto.price, {
+      urgentDiscountPrice: dto.urgentDiscountPrice,
+      urgentDiscountStartAt: dto.urgentDiscountStartAt,
+      urgentDiscountEndAt: dto.urgentDiscountEndAt,
+    });
+    const insertFields: Record<string, any> = {
+      brand_id: dto.brandId,
+      name: dto.name,
+      description: dto.description ?? null,
+      base_price: dto.price,
+      image_url: this.serializeTemplateImageUrls(normalizedImageUrls),
+      sort_order: dto.sortOrder ?? 0,
+      is_active: dto.isActive ?? true,
+      is_online_shop_visible: dto.isOnlineShopVisible ?? true,
+    };
+    if (urgentDiscountFields) {
+      Object.assign(insertFields, urgentDiscountFields);
+    }
+
     const sb = this.supabase.adminClient();
     const { data, error } = await sb
       .from('brand_products')
-      .insert({
-        brand_id: dto.brandId,
-        name: dto.name,
-        description: dto.description ?? null,
-        base_price: dto.price,
-        image_url: dto.imageUrl ?? null,
-        sort_order: dto.sortOrder ?? 0,
-        is_active: dto.isActive ?? true,
-        is_online_shop_visible: dto.isOnlineShopVisible ?? true,
-      })
+      .insert(insertFields)
       .select('*')
       .single();
 
     if (error || !data) {
+      if (this.isMissingUrgentDiscountColumnError(error)) {
+        throw new BadRequestException(
+          '긴급할인 기능을 사용하려면 상품 테이블에 할인 컬럼이 필요합니다.',
+        );
+      }
       this.logger.error(
         `Failed to create brand template for brand ${dto.brandId}`,
         error,
       );
       throw new Error('Failed to create brand template');
     }
+
+    await this.appendUrgentDiscountHistory(
+      data.id,
+      data.brand_id,
+      this.getUrgentDiscountSnapshot(data),
+      userId,
+      'SET',
+    );
 
     await this.syncTemplateBranchAssignments(data, dto.branchIds, {
       useAllOnMissing: true,
@@ -1765,6 +2166,10 @@ export class CustomerProductsService {
       description?: string;
       price?: number;
       imageUrl?: string;
+      imageUrls?: string[];
+      urgentDiscountPrice?: number | null;
+      urgentDiscountStartAt?: string | null;
+      urgentDiscountEndAt?: string | null;
       sortOrder?: number;
       isActive?: boolean;
       isOnlineShopVisible?: boolean;
@@ -1802,16 +2207,38 @@ export class CustomerProductsService {
       );
     }
 
+    const previousUrgentSnapshot = this.getUrgentDiscountSnapshot(template);
+
     const updateFields: any = {};
     if (dto.name !== undefined) updateFields.name = dto.name;
     if (dto.description !== undefined)
       updateFields.description = dto.description;
     if (dto.price !== undefined) updateFields.base_price = dto.price;
-    if (dto.imageUrl !== undefined) updateFields.image_url = dto.imageUrl;
+    if (dto.imageUrl !== undefined || dto.imageUrls !== undefined) {
+      const normalizedImageUrls = this.normalizeTemplateImageUrls(
+        dto.imageUrl,
+        dto.imageUrls,
+      );
+      updateFields.image_url =
+        this.serializeTemplateImageUrls(normalizedImageUrls);
+    }
     if (dto.sortOrder !== undefined) updateFields.sort_order = dto.sortOrder;
     if (dto.isActive !== undefined) updateFields.is_active = dto.isActive;
     if (dto.isOnlineShopVisible !== undefined) {
       updateFields.is_online_shop_visible = dto.isOnlineShopVisible;
+    }
+    const basePriceForDiscount =
+      dto.price !== undefined ? dto.price : Number(template.base_price ?? 0);
+    const urgentDiscountFields = this.buildUrgentDiscountFields(
+      basePriceForDiscount,
+      {
+        urgentDiscountPrice: dto.urgentDiscountPrice,
+        urgentDiscountStartAt: dto.urgentDiscountStartAt,
+        urgentDiscountEndAt: dto.urgentDiscountEndAt,
+      },
+    );
+    if (urgentDiscountFields) {
+      Object.assign(updateFields, urgentDiscountFields);
     }
 
     let latestTemplate = template;
@@ -1825,6 +2252,11 @@ export class CustomerProductsService {
         .single();
 
       if (error || !data) {
+        if (this.isMissingUrgentDiscountColumnError(error)) {
+          throw new BadRequestException(
+            '긴급할인 기능을 사용하려면 상품 테이블에 할인 컬럼이 필요합니다.',
+          );
+        }
         this.logger.error(
           `Failed to update brand template ${templateId}`,
           error,
@@ -1834,6 +2266,33 @@ export class CustomerProductsService {
 
       latestTemplate = data;
       await this.syncTemplateFieldsToLinkedProducts(latestTemplate);
+    }
+
+    const latestUrgentSnapshot = this.getUrgentDiscountSnapshot(latestTemplate);
+    if (
+      !this.isSameUrgentDiscountSnapshot(
+        previousUrgentSnapshot,
+        latestUrgentSnapshot,
+      )
+    ) {
+      if (previousUrgentSnapshot.price !== null) {
+        await this.appendUrgentDiscountHistory(
+          latestTemplate.id,
+          latestTemplate.brand_id,
+          previousUrgentSnapshot,
+          userId,
+          latestUrgentSnapshot.price === null ? 'CLEARED' : 'REPLACED',
+        );
+      }
+      if (latestUrgentSnapshot.price !== null) {
+        await this.appendUrgentDiscountHistory(
+          latestTemplate.id,
+          latestTemplate.brand_id,
+          latestUrgentSnapshot,
+          userId,
+          previousUrgentSnapshot.price === null ? 'SET' : 'UPDATED',
+        );
+      }
     }
 
     if (latestTemplate.is_active === false) {
@@ -2165,9 +2624,12 @@ export class CustomerProductsService {
         name: template.name,
         description: template.description ?? null,
         base_price: template.base_price ?? 0,
-        image_url: template.image_url ?? null,
+        image_url: this.getPrimaryTemplateImageUrl(template.image_url),
         is_hidden: false,
         sort_order: template.sort_order ?? 0,
+        urgent_discount_price: template.urgent_discount_price ?? null,
+        urgent_discount_start_at: template.urgent_discount_start_at ?? null,
+        urgent_discount_end_at: template.urgent_discount_end_at ?? null,
       })
       .select('*')
       .single();

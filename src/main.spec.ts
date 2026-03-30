@@ -59,14 +59,23 @@ const flushPromises = async () =>
   new Promise((resolve) => setImmediate(resolve));
 
 describe('main bootstrap', () => {
-  const makeApp = () =>
-    ({
+  jest.setTimeout(15000);
+
+  const makeApp = () => {
+    const server = {
+      keepAliveTimeout: 0,
+      headersTimeout: 0,
+    };
+
+    return {
       use: jest.fn(),
       useGlobalFilters: jest.fn(),
       useGlobalPipes: jest.fn(),
       enableCors: jest.fn(),
       listen: jest.fn().mockResolvedValue(undefined),
-    }) as unknown as INestApplication;
+      getHttpServer: jest.fn(() => server),
+    } as unknown as INestApplication;
+  };
 
   const runMain = async (app: INestApplication) => {
     let nestFactoryMock: any;
@@ -137,6 +146,7 @@ describe('main bootstrap', () => {
 
     expect(sentryMock.init).toHaveBeenCalled();
     expect(nestFactoryMock.create).toHaveBeenCalledWith(expect.any(Function), {
+      bufferLogs: false,
       rawBody: true,
     });
     expect(helmetMock).toHaveBeenCalled();

@@ -4,6 +4,7 @@ import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Inventory Integration', () => {
   let service: PublicOrderService;
@@ -11,6 +12,7 @@ describe('PublicOrderService - Inventory Integration', () => {
   let adminChains: Record<string, any>;
   let adminClient: any;
   let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -35,7 +37,9 @@ describe('PublicOrderService - Inventory Integration', () => {
       order_item_options: makeChain(),
     };
     adminChains = {
+      branches: makeChain(),
       orders: makeChain(),
+      payments: makeChain(),
       order_items: makeChain(),
       product_inventory: makeChain(),
     };
@@ -47,6 +51,11 @@ describe('PublicOrderService - Inventory Integration', () => {
     };
     stampsService = {
       earnStamps: jest.fn().mockResolvedValue(undefined),
+    };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -61,6 +70,7 @@ describe('PublicOrderService - Inventory Integration', () => {
         },
         { provide: InventoryService, useValue: {} },
         { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -118,6 +128,21 @@ describe('PublicOrderService - Inventory Integration', () => {
       .mockResolvedValueOnce({ data: { id: 'item-2' }, error: null });
 
     adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          transfer_account: {
+            bank_name: 'Shinhan',
+            account_number: '110-285-321233',
+            account_holder: 'Kim Jihoon',
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { name: '테스트매장' },
+        error: null,
+      });
 
     const result = await service.createOrder(mockOrderDto as any);
 
@@ -134,6 +159,159 @@ describe('PublicOrderService - Inventory Integration', () => {
           { product_id: 'product-2', qty: 1 },
         ],
       },
+    );
+    expect(notificationsService.sendOrderCompletionKakao).toHaveBeenCalledWith(
+      'order-123',
+      expect.objectContaining({
+        customerName: 'Customer',
+        totalAmount: 35000,
+        paymentMethod: 'CARD',
+        transferAccount: {
+          bankName: 'Shinhan',
+          accountNumber: '110-285-321233',
+          accountHolder: 'Kim Jihoon',
+        },
+        branchName: '테스트매장',
+      }),
+      '010-1234-5678',
+    );
+    expect(adminChains.payments.insert).not.toHaveBeenCalled();
+  });
+
+  it('should create pending manual payment record for transfer orders', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      paymentMethod: 'TRANSFER',
+      items: [{ productId: 'product-1', qty: 1, unitPrice: 32000 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 32000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-124',
+        order_no: 'ORD-002',
+        total_amount: 32000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminChains.product_inventory.in.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          transfer_account: {
+            bank_name: 'NH',
+            account_number: '302-2022-0855-71',
+            account_holder: '미남과일',
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { name: '테스트매장' },
+        error: null,
+      });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.paymentMethod).toBe('TRANSFER');
+    expect(adminChains.payments.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        order_id: 'order-124',
+        amount: 32000,
+        currency: 'KRW',
+        provider: 'MANUAL',
+        status: 'PENDING',
+        payment_method: 'TRANSFER',
+      }),
+    );
+  });
+
+  it('should log a warning when order completion KakaoTalk sending fails', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      items: [{ productId: 'product-1', qty: 1, unitPrice: 10000 }],
+    };
+
+    notificationsService.sendOrderCompletionKakao.mockResolvedValueOnce({
+      success: false,
+      errorMessage: 'KakaoTalk API error: 400 invalid template',
+    });
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 10000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-123',
+        order_no: 'ORD-001',
+        total_amount: 10000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: { transfer_account: null },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { name: '테스트매장' },
+        error: null,
+      });
+
+    const warnSpy = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation();
+
+    await service.createOrder(mockOrderDto as any);
+    await Promise.resolve();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to send order completion KakaoTalk for order order-123: KakaoTalk API error: 400 invalid template',
     );
   });
 
@@ -971,6 +1149,16 @@ describe('PublicOrderService - Inventory Integration', () => {
     );
   });
 
+  it('should parse qualified missing column names from postgres errors', () => {
+    const error = {
+      code: '42703',
+      message: 'column order_items_1.unit_price does not exist',
+    };
+
+    expect((service as any).isMissingColumnError(error)).toBe(true);
+    expect((service as any).getMissingColumnName(error)).toBe('unit_price');
+  });
+
   it('should retry order insert across multiple schema-cache missing columns', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',
@@ -1106,6 +1294,61 @@ describe('PublicOrderService - Inventory Integration', () => {
     expect(anonChains.order_items.insert).not.toHaveBeenCalled();
   });
 
+  it('should fallback to admin client when anon insert returns Invalid channel_id', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: 'P0001',
+        message: 'Invalid channel_id',
+      },
+    });
+
+    adminChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-admin-2',
+        order_no: 'OA-2',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    adminChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-admin-2' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.id).toBe('order-admin-2');
+    expect(anonChains.orders.insert).toHaveBeenCalledTimes(1);
+    expect(adminChains.orders.insert).toHaveBeenCalledTimes(1);
+    expect(adminChains.order_items.insert).toHaveBeenCalledTimes(1);
+    expect(anonChains.order_items.insert).not.toHaveBeenCalled();
+  });
+
   it('should retry order item insert when unit_price is missing in schema cache', async () => {
     const mockOrderDto = {
       branchId: 'branch-123',
@@ -1222,6 +1465,57 @@ describe('PublicOrderService - Inventory Integration', () => {
       2,
       expect.objectContaining({
         fulfillment_type: 'PICKUP',
+      }),
+    );
+  });
+
+  it('should save requestedTime for pickup orders', async () => {
+    const requestedTime = '2026-03-15T06:30:00.000Z';
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      fulfillmentType: 'PICKUP',
+      requestedTime,
+      items: [{ productId: 'product-1', qty: 1 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 1000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.orders.limit.mockResolvedValueOnce({ data: [], error: null });
+
+    anonChains.orders.single.mockResolvedValueOnce({
+      data: {
+        id: 'order-1',
+        order_no: 'O-1',
+        total_amount: 1000,
+        status: 'CREATED',
+        created_at: 't',
+      },
+      error: null,
+    });
+
+    anonChains.order_items.single.mockResolvedValueOnce({
+      data: { id: 'item-1' },
+      error: null,
+    });
+    adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await service.createOrder(mockOrderDto as any);
+
+    expect(result.requestedTime).toBe(requestedTime);
+    expect(anonChains.orders.insert).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        requested_time: expect.anything(),
       }),
     );
   });

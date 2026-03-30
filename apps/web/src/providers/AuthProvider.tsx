@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
   createContext,
@@ -6,43 +6,123 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { AuthState } from "@/lib/auth/types";
-import { getInitialSession, subscribeAuth } from "@/lib/auth/client";
+import {
+  getInitialSession,
+  getVerifiedUser,
+  seedSessionCache,
+  seedVerifiedUserCache,
+  subscribeAuth,
+} from "@/lib/auth/client";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import type { Session } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 
 type AuthContextValue = AuthState & {
-  /** 호환용: 기존 코드가 loading을 쓰면 그대로 동작 */
+  /** 기존 코드 호환용 로딩 상태 */
   loading: boolean;
-  /** 로그인/로그아웃 직후 등, 세션을 강제로 재동기화할 때 사용 */
+  /** 로그인/로그아웃 직후 세션 상태 강제 동기화 */
   refresh: () => Promise<void>;
-  /** 로그아웃 함수 */
+  /** 로그아웃 */
   signOut: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-function derive(session: AuthState["session"]): AuthState {
-  if (!session) return { status: "unauthenticated", session: null, user: null };
-  return { status: "authenticated", session, user: session.user ?? null };
+function derive(
+  session: AuthState["session"],
+  user: AuthState["user"],
+): AuthState {
+  if (!session && !user) {
+    return { status: "unauthenticated", session: null, user: null };
+  }
+
+  return {
+    status: "authenticated",
+    session: session ?? null,
+    user: user ?? null,
+  };
+}
+
+function getInitialState(
+  session: Session | null,
+  user: User | null,
+): AuthState {
+  if (!session && !user) {
+    return { status: "loading", session: null, user: null };
+  }
+
+  return derive(session, user);
 }
 
 export function AuthProvider({
   children,
   initialSession = null,
+  initialUser = null,
 }: {
   children: React.ReactNode;
   initialSession?: Session | null;
+  initialUser?: User | null;
 }) {
-  // SSR에서 세션을 받은 경우 loading 없이 바로 최종 상태로 시작
-  const [state, setState] = useState<AuthState>(() => derive(initialSession));
+  const syncIdRef = useRef(0);
+  const [state, setState] = useState<AuthState>(() =>
+    getInitialState(initialSession, initialUser),
+  );
+
+  useEffect(() => {
+    if (initialSession !== undefined) {
+      seedSessionCache(initialSession);
+    }
+
+    if (initialUser !== undefined) {
+      seedVerifiedUserCache(initialUser);
+    }
+  }, [initialSession, initialUser]);
+
+  const syncAuthState = useCallback(async (sessionOverride?: Session | null) => {
+    const syncId = ++syncIdRef.current;
+    const session =
+      sessionOverride === undefined
+        ? await getInitialSession()
+        : sessionOverride;
+
+    if (!session) {
+      if (syncId !== syncIdRef.current) return;
+      setState((prev) => {
+        const next = derive(null, null);
+        if (
+          prev.status === next.status &&
+          prev.session === next.session &&
+          prev.user === next.user
+        ) {
+          return prev;
+        }
+        return next;
+      });
+      return;
+    }
+
+    const user = await getVerifiedUser();
+    if (syncId !== syncIdRef.current) return;
+
+    setState((prev) => {
+      const next = derive(session, user);
+      if (
+        prev.session?.access_token === next.session?.access_token &&
+        prev.user?.id === next.user?.id &&
+        prev.status === next.status
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
-    const session = await getInitialSession();
-    setState(derive(session));
-  }, []);
+    await syncAuthState();
+  }, [syncAuthState]);
 
   const signOut = useCallback(async () => {
     await supabaseBrowser.auth.signOut();
@@ -53,35 +133,23 @@ export function AuthProvider({
   useEffect(() => {
     let mounted = true;
 
-    // initialSession이 없을 때만 클라이언트에서 세션을 다시 확인
-    if (!initialSession) {
+    if (!initialSession || !initialUser) {
       (async () => {
-        const session = await getInitialSession();
         if (!mounted) return;
-        setState(derive(session));
+        await syncAuthState();
       })();
     }
 
-    // 이후 이벤트: 곧바로 최종 상태 반영 (loading으로 되돌리지 않음)
-    // access_token이 동일하면 상태를 업데이트하지 않아 불필요한 재렌더 방지
     const unsubscribe = subscribeAuth((session) => {
-      setState((prev) => {
-        if (
-          prev.session?.access_token === session?.access_token &&
-          prev.status === (session ? "authenticated" : "unauthenticated")
-        ) {
-          return prev;
-        }
-        return derive(session);
-      });
+      if (!mounted) return;
+      void syncAuthState(session);
     });
 
     return () => {
       mounted = false;
       unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialSession, initialUser, syncAuthState]);
 
   const value = useMemo<AuthContextValue>(() => {
     return {

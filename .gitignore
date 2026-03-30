@@ -4,3 +4,5 @@
 dist/
 coverage/
 apps/web/test-results/
+.api-dev.log
+.api-dev.err.log

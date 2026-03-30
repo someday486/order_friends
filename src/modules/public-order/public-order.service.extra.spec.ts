@@ -3,6 +3,7 @@ import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Public Queries', () => {
   let service: PublicOrderService;
@@ -46,6 +47,11 @@ describe('PublicOrderService - Public Queries', () => {
       supabase as SupabaseService,
       {} as InventoryService,
       { earnStamps: jest.fn().mockResolvedValue(undefined) } as StampsService,
+      {
+        sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+          success: true,
+        }),
+      } as unknown as NotificationsService,
     );
   });
 
@@ -308,6 +314,9 @@ describe('PublicOrderService - Public Queries', () => {
     anonChains.orders.maybeSingle
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: null, error: null });
+    adminChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
 
     await expect(service.getOrder('missing')).rejects.toThrow(
       NotFoundException,
@@ -335,6 +344,66 @@ describe('PublicOrderService - Public Queries', () => {
       'e693332e-bedd-458b-bc4e-ac9ee1475ea1',
     );
     expect(result.id).toBe('e693332e-bedd-458b-bc4e-ac9ee1475ea1');
+  });
+
+  it('getOrder should retry with unit_price_snapshot when nested unit_price column is missing', async () => {
+    anonChains.orders.maybeSingle
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column order_items_1.unit_price does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o-unit-fallback',
+          order_no: 'ORD-UNIT-FALLBACK',
+          status: 'CREATED',
+          total_amount: 1200,
+          created_at: 't',
+          order_items: [
+            {
+              product_name_snapshot: 'Americano',
+              qty: 1,
+              unit_price_snapshot: 1200,
+              order_item_options: [],
+            },
+          ],
+        },
+        error: null,
+      });
+
+    const result = await service.getOrder(
+      '43a3aa26-85a6-439b-b27b-51e1221bab73',
+    );
+
+    expect(result.id).toBe('o-unit-fallback');
+    expect(result.items[0].unitPrice).toBe(1200);
+  });
+
+  it('getOrder should fallback to admin query when order number is not visible to anon', async () => {
+    anonChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    adminChains.orders.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o-admin-by-no',
+          order_no: 'ORD-ADMIN-1',
+          status: 'CREATED',
+          total_amount: 12,
+          created_at: 't',
+          order_items: [],
+        },
+        error: null,
+      });
+
+    const result = await service.getOrder('ORD-ADMIN-1');
+    expect(result.id).toBe('o-admin-by-no');
+    expect(result.orderNo).toBe('ORD-ADMIN-1');
   });
 
   it('getCategories should return sorted categories', async () => {

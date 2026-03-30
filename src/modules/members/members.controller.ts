@@ -14,16 +14,74 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 import type { AuthRequest } from '../../common/types/auth-request';
 import { MembersService } from './members.service';
 import {
-  BrandRole,
+  AddBrandMemberRequest,
   UpdateBrandMemberRequest,
   AddBranchMemberRequest,
   UpdateBranchMemberRequest,
+  UpdateMemberProfileRequest,
+  TransferMemberRequest,
 } from './dto/member.dto';
 
 @Controller('admin/members')
 @UseGuards(AuthGuard, AdminGuard)
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
+
+  /**
+   * 승인 대기 사용자 목록 조회
+   * GET /admin/members/pending
+   */
+  @Get('pending')
+  async getPendingApprovalUsers(@Req() req: AuthRequest) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    if (!req.user?.id) throw new Error('Missing user');
+    return this.membersService.getPendingApprovalUsers(req.user.id);
+  }
+
+  /**
+   * 사용자 프로필 수정
+   * PATCH /admin/members/profile/:userId
+   */
+  @Patch('profile/:userId')
+  async updateMemberProfile(
+    @Req() req: AuthRequest,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateMemberProfileRequest,
+  ) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.updateMemberProfile(
+      req.accessToken,
+      userId,
+      dto,
+      req.isAdmin,
+    );
+  }
+
+  /**
+   * 신규 브랜드 생성 권한 승인
+   * POST /admin/members/approve-brand-creator/:userId
+   */
+  @Post('approve-brand-creator/:userId')
+  async approveBrandCreator(@Param('userId') userId: string) {
+    return this.membersService.approveBrandCreator(userId);
+  }
+
+  /**
+   * 멤버 권한 범위 전환
+   * POST /admin/members/transfer
+   */
+  @Post('transfer')
+  async transferMember(
+    @Req() req: AuthRequest,
+    @Body() dto: TransferMemberRequest,
+  ) {
+    if (!req.accessToken) throw new Error('Missing access token');
+    return this.membersService.transferMember(
+      req.accessToken,
+      dto,
+      req.isAdmin,
+    );
+  }
 
   // ============================================================
   // Brand Members
@@ -54,7 +112,7 @@ export class MembersController {
   async addBrandMember(
     @Req() req: AuthRequest,
     @Param('brandId') brandId: string,
-    @Body() body: { userId: string; role?: BrandRole },
+    @Body() body: AddBrandMemberRequest,
   ) {
     if (!req.accessToken) throw new Error('Missing access token');
     return this.membersService.addBrandMember(

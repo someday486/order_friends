@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from './notifications.service';
 import { NotificationType } from './dto/notification.dto';
@@ -96,6 +97,32 @@ describe('NotificationsService', () => {
     expect(completeSms.success).toBe(true);
   });
 
+  it('should warn when live KakaoTalk sending uses a localhost web URL', () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+
+    try {
+      new NotificationsService(
+        makeConfig({
+          SENDGRID_API_KEY: 'sg',
+          SENDGRID_LIVE_MODE: 'true',
+          SMS_API_KEY: 'sms',
+          SMS_API_URL: 'https://example.com/sms',
+          SMS_LIVE_MODE: 'true',
+          SOLAPI_API_KEY: 'solapi-key',
+          SOLAPI_API_SECRET: 'solapi-secret',
+          SOLAPI_KAKAO_PF_ID: 'KA01PF0000000000000000000',
+          SOLAPI_KAKAO_TEMPLATE_ID: 'KA01TP0000000000000000000',
+        }),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        'PUBLIC_WEB_BASE_URL is using a local URL while live KakaoTalk sending is enabled. Order tracking links may be invalid.',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('should send email and sms in non-mock mode', async () => {
     const service = new NotificationsService(
       makeConfig({
@@ -112,6 +139,11 @@ describe('NotificationsService', () => {
         orderNo: 'O-1',
         customerName: 'A',
         paymentMethod: 'CARD',
+        transferAccount: {
+          bankName: 'Shinhan',
+          accountNumber: '110-285-321233',
+          accountHolder: 'Kim Jihoon',
+        },
         amount: 10,
         paidAt: '2024-01-01T00:00:00Z',
         transactionId: 't1',
@@ -197,6 +229,139 @@ describe('NotificationsService', () => {
       );
       expect(result.success).toBe(true);
       expect(result.type).toBe(NotificationType.KAKAO_TALK);
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+  });
+
+  it('should send order completion KakaoTalk through Solapi when configured', async () => {
+    const originalFetch = (globalThis as any).fetch;
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue('{"status":"SENDING"}'),
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const service = new NotificationsService(
+      makeConfig({
+        SOLAPI_API_KEY: 'solapi-key',
+        SOLAPI_API_SECRET: 'solapi-secret',
+        SOLAPI_KAKAO_PF_ID: 'KA01PF0000000000000000000',
+        SOLAPI_KAKAO_TEMPLATE_ID: 'KA01TP0000000000000000000',
+        PUBLIC_WEB_BASE_URL: 'https://orderfriends.example.com',
+      }),
+    );
+
+    const result = await service.sendOrderCompletionKakao(
+      'order-1',
+      {
+        orderNo: 'ORD-001',
+        customerName: 'Kim',
+        items: [
+          { name: 'Americano', qty: 2 },
+          { name: 'Latte', qty: 1 },
+        ],
+        totalAmount: 13500,
+        paymentMethod: 'CARD',
+        transferAccount: {
+          bankName: 'Shinhan',
+          accountNumber: '110-285-321233',
+          accountHolder: 'Kim Jihoon',
+        },
+        fulfillmentType: 'DELIVERY',
+        deliveryAddress: 'Seoul',
+        branchName: 'Order Friends',
+      },
+      '010-1234-5678',
+    );
+
+    try {
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.solapi.com/messages/v4/send-many/detail',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: expect.stringContaining(
+              'HMAC-SHA256 apiKey=solapi-key',
+            ),
+            'Content-Type': 'application/json',
+          }),
+        }),
+      );
+
+      const [, requestInit] = fetchMock.mock.calls[0];
+      expect(requestInit.body).toContain('"messages":[{');
+      expect(requestInit.body).toContain('"type":"ATA"');
+      expect(requestInit.body).toContain('"to":"01012345678"');
+      expect(requestInit.body).toContain(
+        '"templateId":"KA01TP0000000000000000000"',
+      );
+      expect(requestInit.body).toContain('"pfId":"KA01PF0000000000000000000"');
+      expect(requestInit.body).toContain('"Shinhan"');
+      expect(requestInit.body).toContain('"110-285-321233"');
+      expect(requestInit.body).toContain('"Kim Jihoon"');
+      expect(requestInit.body).toContain('"#{LINK}":"order/track/order-1"');
+      expect(requestInit.body).toContain('"#{주문번호}":"ORD-001"');
+      expect(requestInit.body).toContain(
+        '"#{주문확인링크}":"https://orderfriends.example.com/order/track/order-1"',
+      );
+      expect(requestInit.body).toContain('"#{이름}":"Kim"');
+      expect(requestInit.body).toContain('"#{금액}":"13,500"');
+      expect(result.success).toBe(true);
+      expect(result.type).toBe(NotificationType.KAKAO_TALK);
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+  });
+
+  it('should use the transfer template for order completion KakaoTalk', async () => {
+    const originalFetch = (globalThis as any).fetch;
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue('{"status":"SENDING"}'),
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const service = new NotificationsService(
+      makeConfig({
+        SOLAPI_API_KEY: 'solapi-key',
+        SOLAPI_API_SECRET: 'solapi-secret',
+        SOLAPI_KAKAO_PF_ID: 'KA01PF0000000000000000000',
+        SOLAPI_KAKAO_TEMPLATE_ID: 'KA01TP0000000000000000000',
+        PUBLIC_WEB_BASE_URL: 'https://orderfriends.example.com',
+      }),
+    );
+
+    try {
+      await service.sendOrderCompletionKakao(
+        'order-2',
+        {
+          orderNo: 'ORD-002',
+          customerName: 'Kim',
+          items: [{ name: 'Americano', qty: 1 }],
+          totalAmount: 4500,
+          paymentMethod: 'TRANSFER',
+          transferAccount: {
+            bankName: 'Shinhan',
+            accountNumber: '110-285-321233',
+            accountHolder: 'Kim Jihoon',
+          },
+          fulfillmentType: 'PICKUP',
+          deliveryAddress: null,
+          branchName: 'Order Friends',
+        },
+        '010-1234-5678',
+      );
+
+      const [, requestInit] = fetchMock.mock.calls[0];
+      expect(requestInit.body).toContain(
+        '"templateId":"KA01TP260306080352858w6K1BS9FU2r"',
+      );
+      expect(requestInit.body).toContain('"#{LINK}":"order/track/order-2"');
+      expect(requestInit.body).toContain('"#{주문번호}":"ORD-002"');
+      expect(requestInit.body).toContain(
+        '"#{주문확인링크}":"https://orderfriends.example.com/order/track/order-2"',
+      );
     } finally {
       (globalThis as any).fetch = originalFetch;
     }

@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { CustomerDashboardModule } from './modules/customer-dashboard/customer-dashboard.module';
 import { CustomerBrandsModule } from './modules/customer-brands/customer-brands.module';
 import { CustomerBranchesModule } from './modules/customer-branches/customer-branches.module';
+import { CustomerMembersModule } from './modules/customer-members/customer-members.module';
 import { CustomerProductsModule } from './modules/customer-products/customer-products.module';
 import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -26,6 +27,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { StampsModule } from './modules/stamps/stamps.module';
+import { DepositSyncModule } from './modules/deposit-sync/deposit-sync.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -61,6 +63,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     CustomerDashboardModule,
     CustomerBrandsModule,
     CustomerBranchesModule,
+    CustomerMembersModule,
     CustomerProductsModule,
     CustomerOrdersModule,
     InventoryModule,
@@ -70,6 +73,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     UploadModule,
     ExportsModule,
     StampsModule,
+    DepositSyncModule,
   ],
   providers: [
     AuthGuard,

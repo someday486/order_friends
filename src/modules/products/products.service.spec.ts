@@ -76,6 +76,8 @@ describe('ProductsService', () => {
       expect(result[0]).toEqual({
         id: '123',
         name: 'Test Product',
+        description: null,
+        categoryId: null,
         price: 10000,
         isActive: true,
         sortOrder: 0,
@@ -102,6 +104,8 @@ describe('ProductsService', () => {
 
       const result = await service.getProducts('token', 'branch-123', true);
       expect(result[0].price).toBe(5);
+      expect(result[0].description).toBeNull();
+      expect(result[0].categoryId).toBeNull();
       expect(result[1].price).toBe(7);
       expect(result[1].isActive).toBe(false);
     });
@@ -147,6 +151,8 @@ describe('ProductsService', () => {
 
       const result = await service.getProducts('token', 'branch-123', true);
       expect(result[0].price).toBe(0);
+      expect(result[0].description).toBeNull();
+      expect(result[0].categoryId).toBeNull();
       expect(result[0].isActive).toBe(true);
       expect(result[0].createdAt).toBe('');
     });
@@ -248,6 +254,8 @@ describe('ProductsService', () => {
         true,
       );
       expect(result.data).toHaveLength(1);
+      expect(result.data[0].description).toBeNull();
+      expect(result.data[0].categoryId).toBeNull();
       expect(result.pagination.total).toBe(1);
     });
 
@@ -395,22 +403,21 @@ describe('ProductsService', () => {
 
       const mockCreatedProduct = {
         id: 'new-123',
-        ...createDto,
+        branch_id: 'branch-123',
+        name: createDto.name,
+        category_id: createDto.categoryId,
+        description: createDto.description,
         base_price: createDto.price,
+        image_url: createDto.imageUrl,
         is_hidden: false,
         created_at: '2024-01-01',
         updated_at: '2024-01-01',
       };
 
-      mockSupabaseClient.single
-        .mockResolvedValueOnce({
-          data: { id: 'new-123' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: mockCreatedProduct,
-          error: null,
-        });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: mockCreatedProduct,
+        error: null,
+      });
 
       const result = await service.createProduct('token', createDto, true);
 
@@ -455,15 +462,21 @@ describe('ProductsService', () => {
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => undefined);
 
-      mockSupabaseClient.single
-        .mockResolvedValueOnce({
-          data: { id: 'new-123' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: { id: 'new-123' },
-          error: null,
-        });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: {
+          id: 'new-123',
+          branch_id: 'branch-123',
+          name: 'New Product',
+          category_id: null,
+          description: 'Description',
+          base_price: 10000,
+          image_url: null,
+          is_hidden: false,
+          created_at: 't',
+          updated_at: 't',
+        },
+        error: null,
+      });
 
       await service.createProduct('token', createDto as any, true);
       expect(warnSpy).toHaveBeenCalled();
@@ -478,23 +491,21 @@ describe('ProductsService', () => {
         price: 10000,
       };
 
-      mockSupabaseClient.single
-        .mockResolvedValueOnce({
-          data: { id: 'new-123' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 'new-123',
-            branch_id: 'branch-123',
-            name: 'New Product',
-            base_price: 10000,
-            is_hidden: false,
-            created_at: 't',
-            updated_at: 't',
-          },
-          error: null,
-        });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: {
+          id: 'new-123',
+          branch_id: 'branch-123',
+          name: 'New Product',
+          category_id: null,
+          description: null,
+          base_price: 10000,
+          image_url: null,
+          is_hidden: false,
+          created_at: 't',
+          updated_at: 't',
+        },
+        error: null,
+      });
 
       const result = await service.createProduct(
         'token',
@@ -523,11 +534,6 @@ describe('ProductsService', () => {
       };
 
       mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
-        data: { id: '123' },
-        error: null,
-      });
-
-      mockSupabaseClient.single.mockResolvedValue({
         data: mockUpdatedProduct,
         error: null,
       });
@@ -544,16 +550,23 @@ describe('ProductsService', () => {
     });
 
     it('should include description when provided', async () => {
-      const spy = jest
-        .spyOn(service, 'getProduct')
-        .mockResolvedValueOnce({ id: '123', description: 'Desc' } as any);
-
       mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
-        data: { id: '123' },
+        data: {
+          id: '123',
+          branch_id: 'branch-123',
+          name: 'Updated Product',
+          category_id: null,
+          description: 'Desc',
+          base_price: 10000,
+          image_url: null,
+          is_hidden: false,
+          created_at: 't',
+          updated_at: 't',
+        },
         error: null,
       });
 
-      await service.updateProduct(
+      const result = await service.updateProduct(
         'token',
         '123',
         { description: 'Desc' } as any,
@@ -565,7 +578,7 @@ describe('ProductsService', () => {
           description: 'Desc',
         }),
       );
-      expect(spy).toHaveBeenCalled();
+      expect(result.description).toBe('Desc');
     });
 
     it('should throw ProductNotFoundException when product not found', async () => {
@@ -607,15 +620,14 @@ describe('ProductsService', () => {
 
     it('should update isActive when provided', async () => {
       mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
-        data: { id: '123' },
-        error: null,
-      });
-      mockSupabaseClient.single.mockResolvedValueOnce({
         data: {
           id: '123',
           branch_id: 'branch-123',
+          category_id: null,
+          description: null,
           name: 'Updated Product',
           base_price: 10000,
+          image_url: null,
           is_hidden: true,
           created_at: 't',
           updated_at: 't',
@@ -634,16 +646,23 @@ describe('ProductsService', () => {
     });
 
     it('should update category and image when provided', async () => {
-      const spy = jest
-        .spyOn(service, 'getProduct')
-        .mockResolvedValueOnce({ id: '123' } as any);
-
       mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
-        data: { id: '123' },
+        data: {
+          id: '123',
+          branch_id: 'branch-123',
+          name: 'Name',
+          category_id: 'cat-1',
+          description: null,
+          base_price: 10000,
+          image_url: 'img.png',
+          is_hidden: false,
+          created_at: 't',
+          updated_at: 't',
+        },
         error: null,
       });
 
-      await service.updateProduct(
+      const result = await service.updateProduct(
         'token',
         '123',
         { name: 'Name', categoryId: 'cat-1', imageUrl: 'img.png' } as any,
@@ -657,7 +676,8 @@ describe('ProductsService', () => {
           image_url: 'img.png',
         }),
       );
-      expect(spy).toHaveBeenCalled();
+      expect(result.categoryId).toBe('cat-1');
+      expect(result.imageUrl).toBe('img.png');
     });
   });
 

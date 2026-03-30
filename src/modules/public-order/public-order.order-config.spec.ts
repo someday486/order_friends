@@ -4,12 +4,14 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { PublicOrderService } from './public-order.service';
 import { StampsService } from '../stamps/stamps.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PublicOrderService - Branch Order Config', () => {
   let service: PublicOrderService;
   let anonChains: Record<string, any>;
   let adminChains: Record<string, any>;
   let stampsService: { earnStamps: jest.Mock };
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -48,6 +50,11 @@ describe('PublicOrderService - Branch Order Config', () => {
     stampsService = {
       earnStamps: jest.fn().mockResolvedValue(undefined),
     };
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +68,7 @@ describe('PublicOrderService - Branch Order Config', () => {
         },
         { provide: InventoryService, useValue: {} },
         { provide: StampsService, useValue: stampsService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 

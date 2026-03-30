@@ -1,27 +1,48 @@
 import "./globals.css";
-import { AuthProvider } from "@/providers/AuthProvider";
+import type { Metadata } from 'next';
+import type { Session, User } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { AuthProvider } from "@/providers/AuthProvider";
+import { DocumentTitleSync } from '@/components/DocumentTitleSync';
+
+export const metadata: Metadata = {
+  applicationName: '오더프렌즈',
+  title: {
+    default: '오더프렌즈',
+    template: '%s | 오더프렌즈',
+  },
+  description: '브랜드 운영과 주문 관리를 위한 오더프렌즈',
+};
 
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // 서버에서 세션을 미리 가져와 클라이언트 초기 로딩 제거
-  let initialSession = null;
+  let initialUser: User | null = null;
+  let initialSession: Session | null = null;
+
   try {
     const supabase = await getSupabaseServerClient();
-    const { data } = await supabase.auth.getSession();
-    initialSession = data.session ?? null;
+    const [{ data: sessionData }, { data: userData }] = await Promise.all([
+      supabase.auth.getSession(),
+      supabase.auth.getUser(),
+    ]);
+    initialSession = sessionData.session ?? null;
+    initialUser = userData.user ?? null;
   } catch {
-    // 세션 조회 실패 시 클라이언트에서 재시도
+    // Fall back to client-side auth sync when server auth lookup fails.
   }
 
   return (
     <html lang="ko">
       <body>
-        <AuthProvider initialSession={initialSession}>
+        <AuthProvider
+          initialSession={initialSession}
+          initialUser={initialUser}
+        >
+          <DocumentTitleSync />
           {children}
         </AuthProvider>
         <Toaster

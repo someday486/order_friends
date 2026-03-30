@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PublicOrderController } from './public-order.controller';
 import { PublicOrderService } from './public-order.service';
 import { UserRateLimitGuard } from '../../common/guards/user-rate-limit.guard';
+import { StampsService } from '../stamps/stamps.service';
 
 describe('PublicOrderController', () => {
   let controller: PublicOrderController;
@@ -20,12 +21,16 @@ describe('PublicOrderController', () => {
     getOrder: jest.fn(),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
+  const mockStampsService = {
+    getPublicStampInfo: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PublicOrderController],
       providers: [
         { provide: PublicOrderService, useValue: mockService },
+        { provide: StampsService, useValue: mockStampsService },
         { provide: UserRateLimitGuard, useValue: mockGuard },
       ],
     })

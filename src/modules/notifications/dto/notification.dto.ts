@@ -93,6 +93,25 @@ export interface DeliveryCompleteSMSData {
   deliveredAt: string;
 }
 
+export interface OrderCompletionKakaoData {
+  orderNo: string;
+  customerName: string;
+  items: Array<{
+    name: string;
+    qty: number;
+  }>;
+  totalAmount: number;
+  paymentMethod?: string | null;
+  transferAccount?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+  } | null;
+  fulfillmentType: string;
+  deliveryAddress?: string | null;
+  branchName: string;
+}
+
 // Notification Result
 export interface NotificationResult {
   success: boolean;

@@ -1,9 +1,10 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { apiClient } from "@/lib/api-client";
+import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { apiClient } from '@/lib/api-client';
 
 type PublicBrandItem = {
   id: string;
@@ -19,7 +20,7 @@ function getBrandShopPath(brand: PublicBrandItem): string {
   if (brand.slug) {
     return `/shop/${encodeURIComponent(brand.slug)}`;
   }
-  return "";
+  return '';
 }
 
 function BrandCardSkeleton() {
@@ -32,19 +33,21 @@ export default function ShopPage() {
   const [brands, setBrands] = useState<PublicBrandItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     const loadBrands = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await apiClient.get<PublicBrandItem[]>("/public/brands", {
+        const data = await apiClient.get<PublicBrandItem[]>('/public/brands', {
           auth: false,
         });
         setBrands(Array.isArray(data) ? data : []);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "브랜드 목록을 불러오지 못했습니다.");
+        setError(
+          e instanceof Error ? e.message : '브랜드 목록을 불러오지 못했습니다.',
+        );
       } finally {
         setLoading(false);
       }
@@ -66,10 +69,15 @@ export default function ShopPage() {
           <div className="inline-flex items-center rounded-full border border-border bg-bg-secondary px-3 py-1 text-xs text-text-secondary">
             ONLINE SHOP
           </div>
-          <h1 className="mt-3 text-2xl md:text-3xl font-extrabold">브랜드 온라인샵</h1>
+          <h1 className="mt-3 text-2xl md:text-3xl font-extrabold">
+            브랜드 온라인샵
+          </h1>
           <p className="mt-2 text-sm text-text-secondary">
             브랜드를 선택하고 배송 주문을 시작하세요.
           </p>
+          <div className="mt-4 max-w-sm">
+            <PublicAuthActions />
+          </div>
         </header>
 
         <div className="mb-6">
@@ -117,8 +125,8 @@ export default function ShopPage() {
                 <article
                   className={`group overflow-hidden rounded-2xl border border-border bg-bg-secondary transition-all duration-200 ${
                     shopPath
-                      ? "hover:border-primary-400 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
-                      : "opacity-60 cursor-not-allowed"
+                      ? 'hover:border-primary-400 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer'
+                      : 'opacity-60 cursor-not-allowed'
                   }`}
                 >
                   <div className="relative h-32 bg-bg-tertiary">
@@ -161,9 +169,13 @@ export default function ShopPage() {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <h2 className="truncate text-base font-bold">{brand.name}</h2>
+                        <h2 className="truncate text-base font-bold">
+                          {brand.name}
+                        </h2>
                         <p className="text-xs text-text-tertiary mt-0.5">
-                          {shopPath ? "온라인 배송 주문 가능" : "온라인샵 준비 중"}
+                          {shopPath
+                            ? '온라인 배송 주문 가능'
+                            : '온라인샵 준비 중'}
                         </p>
                       </div>
                     </div>

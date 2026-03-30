@@ -1,5 +1,6 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, randomBytes } from 'crypto';
 import {
   NotificationType,
   NotificationStatus,
@@ -13,6 +14,7 @@ import {
   OrderReadySMSData,
   DeliveryCompleteSMSData,
   EmailTemplate,
+  OrderCompletionKakaoData,
 } from './dto/notification.dto';
 
 type EmailPayload = {
@@ -29,8 +31,16 @@ type SmsPayload = {
 
 type KakaoPayload = {
   kind: 'KAKAO_TALK';
-  message: string;
+  message?: string;
   templateCode?: string;
+  variables?: Record<string, string>;
+  disableSms?: boolean;
+  buttons?: Array<{
+    buttonName: string;
+    buttonType: string;
+    linkMo: string;
+    linkPc: string;
+  }>;
 };
 
 type NotificationPayload = EmailPayload | SmsPayload | KakaoPayload;
@@ -54,6 +64,14 @@ export class NotificationsService {
   private readonly sendGridApiUrl = 'https://api.sendgrid.com/v3/mail/send';
   private readonly fromEmail: string;
   private readonly fromName: string;
+  private readonly solapiApiKey: string;
+  private readonly solapiApiSecret: string;
+  private readonly solapiKakaoPfId: string;
+  private readonly solapiKakaoTemplateId: string;
+  private readonly solapiKakaoTransferTemplateId: string;
+  private readonly publicWebBaseUrl: string;
+  private readonly solapiMessageApiUrl =
+    'https://api.solapi.com/messages/v4/send-many/detail';
   private readonly kakaoTalkApiUrl: string;
   private readonly kakaoTalkAccessToken: string;
   private readonly kakaoTalkDefaultTemplateCode: string;
@@ -77,6 +95,20 @@ export class NotificationsService {
       'noreply@orderfriends.com';
     this.fromName =
       this.configService.get<string>('FROM_NAME') || 'OrderFriends';
+    this.solapiApiKey = this.configService.get<string>('SOLAPI_API_KEY') || '';
+    this.solapiApiSecret =
+      this.configService.get<string>('SOLAPI_API_SECRET') || '';
+    this.solapiKakaoPfId =
+      this.configService.get<string>('SOLAPI_KAKAO_PF_ID') || '';
+    this.solapiKakaoTemplateId =
+      this.configService.get<string>('SOLAPI_KAKAO_TEMPLATE_ID') || '';
+    this.solapiKakaoTransferTemplateId =
+      this.configService.get<string>('SOLAPI_KAKAO_TRANSFER_TEMPLATE_ID') ||
+      'KA01TP260306080352858w6K1BS9FU2r';
+    this.publicWebBaseUrl = (
+      this.configService.get<string>('PUBLIC_WEB_BASE_URL') ||
+      'http://localhost:3000'
+    ).replace(/\/+$/, '');
     this.kakaoTalkApiUrl =
       this.configService.get<string>('KAKAO_TALK_API_URL') || '';
     this.kakaoTalkAccessToken =
@@ -91,11 +123,14 @@ export class NotificationsService {
       this.configService.get<string>('SENDGRID_LIVE_MODE') === 'true';
     const smsLiveMode =
       this.configService.get<string>('SMS_LIVE_MODE') === 'true';
+    const hasSolapiKakaoConfig =
+      !!this.solapiApiKey && !!this.solapiApiSecret && !!this.solapiKakaoPfId;
+    const hasLegacyKakaoConfig =
+      !!this.kakaoTalkApiUrl && !!this.kakaoTalkAccessToken;
 
     this.mockEmailMode = !this.sendGridApiKey || !sendGridLiveMode;
     this.mockSmsMode = !this.smsApiKey || !this.smsApiUrl || !smsLiveMode;
-    this.mockKakaoTalkMode =
-      !this.kakaoTalkApiUrl || !this.kakaoTalkAccessToken;
+    this.mockKakaoTalkMode = !hasSolapiKakaoConfig && !hasLegacyKakaoConfig;
 
     if (this.mockEmailMode) {
       this.logger.warn(
@@ -112,6 +147,14 @@ export class NotificationsService {
     if (this.mockKakaoTalkMode) {
       this.logger.warn(
         'KakaoTalk API not fully configured - KakaoTalk notifications in mock mode',
+      );
+    } else if (
+      /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(
+        this.publicWebBaseUrl,
+      )
+    ) {
+      this.logger.warn(
+        'PUBLIC_WEB_BASE_URL is using a local URL while live KakaoTalk sending is enabled. Order tracking links may be invalid.',
       );
     }
 
@@ -298,7 +341,26 @@ export class NotificationsService {
   ): Promise<NotificationResult> {
     this.logger.log(`Sending KakaoTalk message to ${phone}`);
 
-    return this.sendKakaoTalkMessage(phone, message, templateCode);
+    return this.sendKakaoTalkMessage(phone, {
+      message,
+      templateCode,
+    });
+  }
+
+  async sendOrderCompletionKakao(
+    orderId: string,
+    data: OrderCompletionKakaoData,
+    phone: string,
+  ): Promise<NotificationResult> {
+    this.logger.log(`Sending order completion KakaoTalk for order: ${orderId}`);
+
+    return this.sendKakaoTalkMessage(phone, {
+      message: '주문이 완료되었습니다.',
+      templateCode: this.resolveOrderCompletionTemplateCode(data),
+      variables: this.buildOrderCompletionVariables(orderId, data),
+      buttons: this.buildOrderCompletionButtons(orderId),
+      disableSms: true,
+    });
   }
 
   /**
@@ -353,18 +415,147 @@ export class NotificationsService {
 
   private async sendKakaoTalkMessage(
     to: string,
-    message: string,
-    templateCode?: string,
+    kakaoData: Omit<KakaoPayload, 'kind'>,
   ): Promise<NotificationResult> {
     const payload: KakaoPayload = {
       kind: 'KAKAO_TALK',
-      message,
-      templateCode,
+      ...kakaoData,
     };
 
     return this.sendWithRetry(NotificationType.KAKAO_TALK, to, payload, () =>
       this.deliverKakaoTalk(to, payload),
     );
+  }
+
+  private resolveKakaoTemplateCode(templateCode?: string): string | undefined {
+    return (
+      templateCode ||
+      this.solapiKakaoTemplateId ||
+      this.kakaoTalkDefaultTemplateCode ||
+      undefined
+    );
+  }
+
+  private resolveOrderCompletionTemplateCode(
+    data: OrderCompletionKakaoData,
+  ): string | undefined {
+    if (String(data.paymentMethod ?? '').toUpperCase() === 'TRANSFER') {
+      return (
+        this.solapiKakaoTransferTemplateId ||
+        this.solapiKakaoTemplateId ||
+        this.kakaoTalkDefaultTemplateCode ||
+        undefined
+      );
+    }
+
+    return this.resolveKakaoTemplateCode();
+  }
+
+  private buildOrderCompletionVariables(
+    orderId: string,
+    data: OrderCompletionKakaoData,
+  ): Record<string, string> {
+    const deliveryAddress =
+      data.fulfillmentType === 'DELIVERY' || data.fulfillmentType === 'SHIPPING'
+        ? data.deliveryAddress?.trim() || '-'
+        : '매장 수령';
+    const orderReference = data.orderNo || '주문';
+    const orderTrackingUrl = this.buildOrderTrackingUrl(orderId);
+    const orderTrackingPath = this.buildOrderTrackingPath(orderId);
+    const bankName = data.transferAccount?.bankName?.trim() || '-';
+    const accountNumber = data.transferAccount?.accountNumber?.trim() || '-';
+    const accountHolder = data.transferAccount?.accountHolder?.trim() || '-';
+
+    return {
+      '#{이름}': data.customerName || '고객',
+      '#{상품목록}': this.formatOrderItemsForKakao(data.items),
+      '#{금액}': data.totalAmount.toLocaleString('ko-KR'),
+      '#{주문방식}': this.getFulfillmentTypeLabel(data.fulfillmentType),
+      '#{배송지}': deliveryAddress,
+      '#{매장명}': data.branchName || '매장',
+      '#{주문번호}': orderReference,
+      '#{주문확인링크}': orderTrackingUrl,
+      '#{LINK}': orderTrackingPath,
+      '#{은행명}': bankName,
+      '#{은행}': bankName,
+      '#{계좌번호}': accountNumber,
+      '#{입금계좌번호}': accountNumber,
+      '#{예금주}': accountHolder,
+    };
+  }
+
+  private buildOrderCompletionButtons(orderId: string): Array<{
+    buttonName: string;
+    buttonType: string;
+    linkMo: string;
+    linkPc: string;
+  }> {
+    const orderTrackingUrl = this.buildOrderTrackingUrl(orderId);
+
+    return [
+      {
+        buttonName: '주문확인',
+        buttonType: 'WL',
+        linkMo: orderTrackingUrl,
+        linkPc: orderTrackingUrl,
+      },
+    ];
+  }
+
+  private buildOrderTrackingUrl(orderReference: string): string {
+    return `${this.publicWebBaseUrl}/${this.buildOrderTrackingPath(orderReference)}`;
+  }
+
+  private buildOrderTrackingPath(orderReference: string): string {
+    return `order/track/${encodeURIComponent(orderReference)}`;
+  }
+
+  private formatOrderItemsForKakao(
+    items: OrderCompletionKakaoData['items'],
+  ): string {
+    if (!items.length) {
+      return '-';
+    }
+
+    const maxItems = 6;
+    const visibleItems = items
+      .slice(0, maxItems)
+      .map((item) => `${item.name} ${item.qty}개`);
+
+    if (items.length > maxItems) {
+      visibleItems.push(`외 ${items.length - maxItems}건`);
+    }
+
+    return visibleItems.join('\n');
+  }
+
+  private getFulfillmentTypeLabel(fulfillmentType: string): string {
+    switch (fulfillmentType) {
+      case 'DELIVERY':
+        return '배달';
+      case 'DINE_IN':
+        return '매장식사';
+      case 'SHIPPING':
+        return '택배';
+      case 'PICKUP':
+      default:
+        return '포장';
+    }
+  }
+
+  private normalizePhoneNumber(phone: string): string {
+    const digitsOnly = phone.replace(/[^\d]/g, '');
+    return digitsOnly || phone.trim();
+  }
+
+  private buildSolapiAuthorizationHeader(): string {
+    const date = new Date().toISOString();
+    const salt = randomBytes(16).toString('hex');
+    const signature = createHmac('sha256', this.solapiApiSecret)
+      .update(date + salt)
+      .digest('hex');
+
+    return `HMAC-SHA256 apiKey=${this.solapiApiKey}, date=${date}, salt=${salt}, signature=${signature}`;
   }
 
   private parseKakaoTalkResponseBody(
@@ -461,32 +652,67 @@ export class NotificationsService {
     to: string,
     payload: KakaoPayload,
   ): Promise<void> {
+    const templateCode = this.resolveKakaoTemplateCode(payload.templateCode);
+    const normalizedPhone = this.normalizePhoneNumber(to);
+
     if (this.mockKakaoTalkMode) {
       this.logger.log('[MOCK KAKAO TALK] ==========================');
-      this.logger.log(`To: ${to}`);
-      this.logger.log(
-        `Template: ${payload.templateCode || this.kakaoTalkDefaultTemplateCode || 'default'}`,
-      );
-      this.logger.log(`Message: ${payload.message}`);
+      this.logger.log(`To: ${normalizedPhone}`);
+      this.logger.log(`Template: ${templateCode || 'default'}`);
+      this.logger.log(`Message: ${payload.message || 'N/A'}`);
+      if (payload.variables) {
+        this.logger.log(`Variables: ${JSON.stringify(payload.variables)}`);
+      }
       this.logger.log('=============================================');
       return;
     }
 
-    const response = await fetch(this.kakaoTalkApiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.kakaoTalkAccessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        phone: to,
-        message: payload.message,
-        templateCode:
-          payload.templateCode ||
-          this.kakaoTalkDefaultTemplateCode ||
-          undefined,
-      }),
-    });
+    let response: Response;
+
+    if (this.solapiApiKey && this.solapiApiSecret && this.solapiKakaoPfId) {
+      if (!templateCode) {
+        throw new Error(
+          'KakaoTalk template code is required when using Solapi',
+        );
+      }
+
+      response = await fetch(this.solapiMessageApiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: this.buildSolapiAuthorizationHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              to: normalizedPhone,
+              type: 'ATA',
+              ...(payload.message ? { text: payload.message } : {}),
+              kakaoOptions: {
+                pfId: this.solapiKakaoPfId,
+                templateId: templateCode,
+                disableSms: payload.disableSms ?? true,
+                ...(payload.variables ? { variables: payload.variables } : {}),
+                ...(payload.buttons ? { buttons: payload.buttons } : {}),
+              },
+            },
+          ],
+        }),
+      });
+    } else {
+      response = await fetch(this.kakaoTalkApiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.kakaoTalkAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          message: payload.message,
+          templateCode,
+        }),
+      });
+    }
 
     const responseText = await response.text();
     const responseBody = this.parseKakaoTalkResponseBody(responseText);

@@ -305,7 +305,7 @@ export default function OrderPage() {
   const allowedPaymentMethods =
     branch?.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
       ? branch.allowedPaymentMethods
-      : ['CARD', 'TRANSFER', 'CASH'];
+      : ['CARD', 'TRANSFER'];
 
   // 주문하기
   const goToCheckout = () => {

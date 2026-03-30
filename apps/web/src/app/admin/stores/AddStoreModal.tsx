@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 
-type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type PaymentMethod = "CARD" | "TRANSFER";
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 
 type TransferAccountInput = {
@@ -40,7 +40,6 @@ type Props = {
 const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
   { value: "CARD", label: "카드" },
   { value: "TRANSFER", label: "계좌이체" },
-  { value: "CASH", label: "현금" },
 ];
 
 const FULFILLMENT_OPTIONS: Array<{ value: FulfillmentType; label: string }> = [
@@ -74,7 +73,6 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>([
     "CARD",
     "TRANSFER",
-    "CASH",
   ]);
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");

@@ -75,7 +75,6 @@ type CreatedOrder = {
 
 const PAYMENT_LABEL: Record<string, string> = {
   CARD: '💳 카드',
-  CASH: '💵 현금',
   TRANSFER: '🏦 계좌이체',
 };
 
@@ -287,7 +286,7 @@ export default function ShopBrandPageClient({
     [taxInvoiceBusinessNumber],
   );
   const supportsReceiptRequest =
-    paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
+    paymentMethod === 'TRANSFER';
   const canRequestReceipt =
     data?.cashReceiptEnabled === true && supportsReceiptRequest;
 

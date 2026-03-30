@@ -18,7 +18,7 @@ import {
 } from "@/lib/business-hours";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
-type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type PaymentMethod = "CARD" | "TRANSFER";
 
 type Branch = {
   id: string;
@@ -55,7 +55,7 @@ type Brand = {
 };
 
 const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
-const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
+const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
@@ -67,7 +67,6 @@ const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   CARD: "카드",
   TRANSFER: "계좌이체",
-  CASH: "현금",
 };
 
 function normalizeSlug(value: string) {
@@ -165,7 +164,7 @@ export default function BranchDetailPage() {
     if (!branch) return false;
 
     const originFulfillment = branch.enabledFulfillmentTypes ?? ["PICKUP"];
-    const originPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"];
+    const originPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER"];
 
     const sameFulfillment =
       enabledFulfillmentTypes.length === originFulfillment.length &&
@@ -243,7 +242,7 @@ export default function BranchDetailPage() {
     setAllowedPaymentMethods(
       source.allowedPaymentMethods && source.allowedPaymentMethods.length > 0
         ? source.allowedPaymentMethods
-        : ["CARD", "TRANSFER", "CASH"],
+        : ["CARD", "TRANSFER"],
     );
     setTransferBankName(source.transferAccount?.bankName ?? "");
     setTransferAccountNumber(source.transferAccount?.accountNumber ?? "");
@@ -923,7 +922,7 @@ export default function BranchDetailPage() {
                 <div>
                   <div className="text-[13px] text-text-secondary mb-1.5">결제 수단</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"]).map((item) => (
+                    {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER"]).map((item) => (
                       <span
                         key={item}
                         className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-bg-tertiary border border-border text-foreground"

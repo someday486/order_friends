@@ -194,7 +194,6 @@ export class OrderItemDto {
 export enum PaymentMethod {
   CARD = 'CARD',
   TRANSFER = 'TRANSFER',
-  CASH = 'CASH',
 }
 
 export enum FulfillmentType {

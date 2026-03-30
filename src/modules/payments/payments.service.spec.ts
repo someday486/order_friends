@@ -2316,6 +2316,29 @@ describe('PaymentsService', () => {
     expect(paymentsChain.maybeSingle).toHaveBeenCalled();
   });
 
+  it('refundOrderPaymentForCancellation should skip pending payments', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1' },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        status: PaymentStatus.PENDING,
+        amount: 10,
+        refund_amount: 0,
+      },
+      error: null,
+    });
+
+    await service.refundOrderPaymentForCancellation('o1', 'b1');
+
+    expect(paymentsChain.update).not.toHaveBeenCalled();
+  });
+
   it('verifyTossWebhookSignature should validate signature', () => {
     const service = setupService({
       TOSS_WEBHOOK_SECRET: 'secret',

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole, type UserRole } from '@/hooks/useUserRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { NotificationProvider } from '@/providers/NotificationProvider';
@@ -210,25 +210,6 @@ export default function CustomerLayout({
     },
     [prefetchRoute],
   );
-
-  const prefetchTargets = useMemo(() => {
-    return Array.from(
-      new Set([
-        ...visibleSections.flatMap((section) =>
-          section.items.map((item) => item.href),
-        ),
-        '/customer/mypage',
-      ]),
-    );
-  }, [visibleSections]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      prefetchTargets.forEach((href) => prefetchRoute(href));
-    }, 150);
-
-    return () => window.clearTimeout(timer);
-  }, [prefetchRoute, prefetchTargets]);
 
   return (
     <NotificationProvider>

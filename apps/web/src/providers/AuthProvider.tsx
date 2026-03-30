@@ -10,7 +10,13 @@ import React, {
   useState,
 } from "react";
 import type { AuthState } from "@/lib/auth/types";
-import { getInitialSession, getVerifiedUser, subscribeAuth } from "@/lib/auth/client";
+import {
+  getInitialSession,
+  getVerifiedUser,
+  seedSessionCache,
+  seedVerifiedUserCache,
+  subscribeAuth,
+} from "@/lib/auth/client";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -64,6 +70,16 @@ export function AuthProvider({
   const [state, setState] = useState<AuthState>(() =>
     getInitialState(initialSession, initialUser),
   );
+
+  useEffect(() => {
+    if (initialSession !== undefined) {
+      seedSessionCache(initialSession);
+    }
+
+    if (initialUser !== undefined) {
+      seedVerifiedUserCache(initialUser);
+    }
+  }, [initialSession, initialUser]);
 
   const syncAuthState = useCallback(async (sessionOverride?: Session | null) => {
     const syncId = ++syncIdRef.current;

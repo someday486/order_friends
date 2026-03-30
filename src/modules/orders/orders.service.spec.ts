@@ -402,6 +402,45 @@ describe('OrdersService', () => {
       expect(result.depositMatchStatus).toBeNull();
     });
 
+    it('should expose tax invoice request info when business expense proof was requested', async () => {
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.CREATED,
+        created_at: '2024-01-01',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: null,
+        subtotal: 10000,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 10000,
+        cash_receipt_requested: true,
+        cash_receipt_type: 'EXPENSE_PROOF',
+        cash_receipt_identity_type: 'BUSINESS_NUMBER',
+        cash_receipt_identity_value: '1234567890',
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.taxInvoiceRequest).toEqual({
+        requested: true,
+        businessNumber: '1234567890',
+      });
+    });
+
     it('should return empty items when order items are missing', async () => {
       const mockOrder = {
         id: '123',

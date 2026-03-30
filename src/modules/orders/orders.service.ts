@@ -400,6 +400,8 @@ export class OrdersService {
 
     const selectDetail = `
       id, order_no, status, created_at, fulfillment_type,
+      cash_receipt_requested, cash_receipt_type,
+      cash_receipt_identity_type, cash_receipt_identity_value,
       customer_name, customer_phone,
       delivery_address, delivery_memo,
       subtotal, delivery_fee, discount_total, total_amount,
@@ -465,6 +467,7 @@ export class OrdersService {
     const depositMatchStatusMap = await this.getDepositMatchStatusMap(sb, [
       String(data.id),
     ]);
+    const taxInvoiceRequest = this.mapTaxInvoiceRequest(data);
 
     return {
       id: data.id,
@@ -491,7 +494,29 @@ export class OrdersService {
         discount: data.discount_total ?? 0,
         total: data.total_amount ?? 0,
       },
+      taxInvoiceRequest,
       items,
+    };
+  }
+
+  private mapTaxInvoiceRequest(data: {
+    cash_receipt_requested?: boolean | null;
+    cash_receipt_type?: string | null;
+    cash_receipt_identity_type?: string | null;
+    cash_receipt_identity_value?: string | null;
+  }) {
+    const isRequested =
+      data.cash_receipt_requested === true &&
+      data.cash_receipt_type === 'EXPENSE_PROOF' &&
+      data.cash_receipt_identity_type === 'BUSINESS_NUMBER';
+
+    if (!isRequested) {
+      return null;
+    }
+
+    return {
+      requested: true,
+      businessNumber: data.cash_receipt_identity_value ?? null,
     };
   }
 

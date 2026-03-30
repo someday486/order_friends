@@ -1336,6 +1336,49 @@ describe('CustomerOrdersService', () => {
     expect(result.items).toEqual([]);
   });
 
+  it('getMyOrder should expose tax invoice request info when business expense proof was requested', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          customer_name: 'A',
+          customer_phone: '1',
+          delivery_address: 'addr',
+          delivery_memo: null,
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          cash_receipt_requested: true,
+          cash_receipt_type: 'EXPENSE_PROOF',
+          cash_receipt_identity_type: 'BUSINESS_NUMBER',
+          cash_receipt_identity_value: '1234567890',
+          items: [],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.taxInvoiceRequest).toEqual({
+      requested: true,
+      businessNumber: '1234567890',
+    });
+  });
+
   it('getMyOrder should throw when detail fetch fails', async () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })

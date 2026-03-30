@@ -8,6 +8,11 @@ export class OrderItemResponse {
   unitPrice: number;
 }
 
+export class TaxInvoiceRequestResponse {
+  requested: boolean;
+  businessNumber?: string | null;
+}
+
 export class OrderDetailResponse {
   id: string;
   orderedAt: string;
@@ -33,6 +38,7 @@ export class OrderDetailResponse {
     discount: number;
     total: number;
   };
+  taxInvoiceRequest?: TaxInvoiceRequestResponse | null;
 
   items: OrderItemResponse[];
 }

@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { formatWon } from "@/lib/format";
 import { saveCheckoutDraft, loadLastOrderRecord } from "@/lib/order-session";
-import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 import {
   ProductCard,
   type ProductCardProduct,
@@ -275,9 +274,6 @@ export default function OrderPageClient({
               )}
               <h1 className="text-lg font-bold text-foreground leading-tight">{branch?.name}</h1>
             </div>
-          </div>
-          <div className="px-4 pb-3">
-            <KakaoQuickLoginButton />
           </div>
         </header>
 

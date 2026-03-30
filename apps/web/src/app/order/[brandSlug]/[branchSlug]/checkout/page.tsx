@@ -20,7 +20,6 @@ import {
   saveLastOrderRecord,
 } from "@/lib/order-session";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { KakaoQuickLoginButton } from "@/components/auth/KakaoQuickLoginButton";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN";
 type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
@@ -542,39 +541,26 @@ export default function CheckoutPage() {
           <section className="py-4 border-b border-border">
             <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">고객 정보</h2>
 
-            <div className="mb-4">
-              <KakaoQuickLoginButton
-                beforeLogin={() =>
-                  saveCustomerInfoDraft({
-                    customerName,
-                    customerPhone,
-                    customerAddress1,
-                    customerAddress2,
-                    customerMemo,
-                  })
-                }
-              />
-              {status === "authenticated" && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadLastOrderInfo}
-                    disabled={loadingLastOrderInfo || loggingOut}
-                    className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                  >
-                    {loadingLastOrderInfo ? <><Spinner /> 불러오는 중...</> : "🔄 지난 정보 불러오기"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    disabled={loggingOut || loadingLastOrderInfo}
-                    className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {loggingOut ? "로그아웃 중..." : "로그아웃"}
-                  </button>
-                </div>
-              )}
-            </div>
+            {status === "authenticated" && (
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleLoadLastOrderInfo}
+                  disabled={loadingLastOrderInfo || loggingOut}
+                  className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  {loadingLastOrderInfo ? <><Spinner /> 불러오는 중...</> : "🔄 지난 정보 불러오기"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut || loadingLastOrderInfo}
+                  className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loggingOut ? "로그아웃 중..." : "로그아웃"}
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div>

@@ -6,7 +6,7 @@ export const ORDER_FULFILLMENT_TYPES = [
   'DINE_IN',
   'SHIPPING',
 ] as const;
-export const ORDER_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'CASH'] as const;
+export const ORDER_PAYMENT_METHODS = ['CARD', 'TRANSFER'] as const;
 
 export type OrderFulfillmentType = (typeof ORDER_FULFILLMENT_TYPES)[number];
 export type OrderPaymentMethod = (typeof ORDER_PAYMENT_METHODS)[number];

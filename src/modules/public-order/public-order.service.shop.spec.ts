@@ -101,7 +101,7 @@ describe('PublicOrderService - Shop Flow', () => {
       error: null,
     });
     adminChains.branches.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'branch-1', allowed_payment_methods: ['CARD', 'CASH'] },
+      data: { id: 'branch-1', allowed_payment_methods: ['CARD', 'TRANSFER'] },
       error: null,
     });
     adminChains.brand_products.limit.mockResolvedValueOnce({

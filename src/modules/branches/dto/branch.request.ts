@@ -20,7 +20,6 @@ export enum BranchFulfillmentType {
 export enum BranchPaymentMethod {
   CARD = 'CARD',
   TRANSFER = 'TRANSFER',
-  CASH = 'CASH',
 }
 
 export class TransferAccountRequest {

@@ -34,7 +34,7 @@ import {
 import { appendEuroRo } from '@/lib/korean-particles';
 
 type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
-type PaymentMethod = 'CARD' | 'TRANSFER' | 'CASH';
+type PaymentMethod = 'CARD' | 'TRANSFER';
 
 type ProductOption = {
   id: string;
@@ -88,7 +88,7 @@ type PublicBranchConfigResponse = {
 };
 
 const DEFAULT_FULFILLMENT_TYPES: FulfillmentType[] = ['PICKUP'];
-const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['CARD', 'TRANSFER', 'CASH'];
+const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['CARD', 'TRANSFER'];
 
 function isFulfillmentType(value: unknown): value is FulfillmentType {
   return (
@@ -100,7 +100,7 @@ function isFulfillmentType(value: unknown): value is FulfillmentType {
 }
 
 function isPaymentMethod(value: unknown): value is PaymentMethod {
-  return value === 'CARD' || value === 'TRANSFER' || value === 'CASH';
+  return value === 'CARD' || value === 'TRANSFER';
 }
 
 function getFulfillmentLabel(type: FulfillmentType) {
@@ -229,7 +229,7 @@ export default function CheckoutPage() {
     [taxInvoiceBusinessNumber],
   );
   const supportsReceiptRequest =
-    paymentMethod === 'TRANSFER' || paymentMethod === 'CASH';
+    paymentMethod === 'TRANSFER';
   const canRequestReceipt = cashReceiptEnabled && supportsReceiptRequest;
 
   useEffect(() => {

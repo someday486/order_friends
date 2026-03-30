@@ -212,7 +212,7 @@ describe('CashReceiptsService', () => {
       error: null,
     });
     paymentsQuery.maybeSingle.mockResolvedValueOnce({
-      data: { payment_method: 'CASH', status: 'SUCCESS' },
+      data: { payment_method: 'TRANSFER', status: 'SUCCESS' },
       error: null,
     });
     branchesQuery.maybeSingle.mockResolvedValueOnce({

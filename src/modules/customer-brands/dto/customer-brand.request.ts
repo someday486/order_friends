@@ -13,7 +13,6 @@ import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
 export enum ShopPaymentMethod {
   CARD = 'CARD',
   TRANSFER = 'TRANSFER',
-  CASH = 'CASH',
 }
 
 export class CreateCustomerBrandRequest {

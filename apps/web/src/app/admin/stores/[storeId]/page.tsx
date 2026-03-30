@@ -10,7 +10,7 @@ import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
 
 type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
-type PaymentMethod = "CARD" | "TRANSFER" | "CASH";
+type PaymentMethod = "CARD" | "TRANSFER";
 
 type Branch = {
   id: string;
@@ -51,7 +51,7 @@ type BranchMember = {
 };
 
 const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
-const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER", "CASH"];
+const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
@@ -63,7 +63,6 @@ const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   CARD: "카드",
   TRANSFER: "계좌이체",
-  CASH: "현금",
 };
 
 function isValidSlug(value: string) {
@@ -143,7 +142,7 @@ export default function StoreDetailPage() {
     if (!branch) return false;
 
     const branchFulfillment = branch.enabledFulfillmentTypes ?? ["PICKUP"];
-    const branchPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER", "CASH"];
+    const branchPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER"];
 
     const sameFulfillment =
       enabledFulfillmentTypes.length === branchFulfillment.length &&
@@ -223,7 +222,7 @@ export default function StoreDetailPage() {
         setAllowedPaymentMethods(
           data.allowedPaymentMethods && data.allowedPaymentMethods.length > 0
             ? data.allowedPaymentMethods
-            : ["CARD", "TRANSFER", "CASH"],
+            : ["CARD", "TRANSFER"],
         );
         setTransferBankName(data.transferAccount?.bankName ?? "");
         setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
@@ -295,7 +294,7 @@ export default function StoreDetailPage() {
     setAllowedPaymentMethods(
       branch.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
         ? branch.allowedPaymentMethods
-        : ["CARD", "TRANSFER", "CASH"],
+        : ["CARD", "TRANSFER"],
     );
     setTransferBankName(branch.transferAccount?.bankName ?? "");
     setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
@@ -402,7 +401,7 @@ export default function StoreDetailPage() {
       setAllowedPaymentMethods(
         updated.allowedPaymentMethods && updated.allowedPaymentMethods.length > 0
           ? updated.allowedPaymentMethods
-          : ["CARD", "TRANSFER", "CASH"],
+          : ["CARD", "TRANSFER"],
       );
       setTransferBankName(updated.transferAccount?.bankName ?? "");
       setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");

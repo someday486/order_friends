@@ -41,7 +41,7 @@ function makeDraft(partial?: Partial<CheckoutDraft>): CheckoutDraft {
     ],
     branchId: 'branch-1',
     enabledFulfillmentTypes: ['PICKUP', 'DELIVERY'],
-    allowedPaymentMethods: ['CARD', 'CASH'],
+    allowedPaymentMethods: ['CARD', 'TRANSFER'],
     selectedFulfillmentType: 'PICKUP',
     selectedPaymentMethod: 'CARD',
     savedAt: Date.now(),
@@ -59,7 +59,7 @@ async function mockBranchConfig(
       contentType: 'application/json',
       body: JSON.stringify({
         enabledFulfillmentTypes: ['PICKUP', 'DELIVERY'],
-        allowedPaymentMethods: ['CARD', 'CASH'],
+        allowedPaymentMethods: ['CARD', 'TRANSFER'],
         transferAccount: null,
         ...overrides,
       }),
@@ -94,7 +94,7 @@ test.describe('Order checkout config', () => {
     await page.goto('/order/branch/branch-1/checkout');
 
     await page.getByTestId('fulfillment-delivery').click();
-    await page.getByTestId('payment-cash').click();
+    await page.getByTestId('payment-transfer').click();
     await page.getByTestId('customer-name-input').fill('홍길동');
     await page.getByTestId('customer-address1-input').fill('서울시 강남구');
 
@@ -102,7 +102,7 @@ test.describe('Order checkout config', () => {
 
     await expect.poll(() => requestBody).not.toBeNull();
     expect(requestBody?.fulfillmentType).toBe('DELIVERY');
-    expect(requestBody?.paymentMethod).toBe('CASH');
+    expect(requestBody?.paymentMethod).toBe('TRANSFER');
     expect(requestBody?.branchId).toBe('branch-1');
   });
 
@@ -250,7 +250,7 @@ test.describe('Order checkout config', () => {
     await expect(page.getByTestId('fulfillment-pickup')).toBeVisible();
     await expect(page.getByTestId('payment-card')).toBeVisible();
     await expect(page.getByTestId('fulfillment-delivery')).toHaveCount(0);
-    await expect(page.getByTestId('payment-cash')).toHaveCount(0);
+    await expect(page.getByTestId('payment-transfer')).toHaveCount(0);
   });
 
   test('disables pickup time input when branch pickup schedule is not configured', async ({

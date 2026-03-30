@@ -321,7 +321,7 @@ export default function OrderPageClient({
   const allowedPaymentMethods =
     branch.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
       ? branch.allowedPaymentMethods
-      : ['CARD', 'TRANSFER', 'CASH'];
+      : ['CARD', 'TRANSFER'];
 
   const goToCheckout = () => {
     if (cart.length === 0) {

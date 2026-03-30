@@ -1,8 +1,19 @@
 import "./globals.css";
+import type { Metadata } from 'next';
 import type { User } from "@supabase/supabase-js";
 import { Toaster } from "react-hot-toast";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { DocumentTitleSync } from '@/components/DocumentTitleSync';
+
+export const metadata: Metadata = {
+  applicationName: '오더프렌즈',
+  title: {
+    default: '오더프렌즈',
+    template: '%s | 오더프렌즈',
+  },
+  description: '브랜드 운영과 주문 관리를 위한 오더프렌즈',
+};
 
 export default async function RootLayout({
   children,
@@ -23,6 +34,7 @@ export default async function RootLayout({
     <html lang="ko">
       <body>
         <AuthProvider initialUser={initialUser}>
+          <DocumentTitleSync />
           {children}
         </AuthProvider>
         <Toaster

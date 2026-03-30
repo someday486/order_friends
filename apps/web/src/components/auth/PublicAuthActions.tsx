@@ -10,12 +10,14 @@ type PublicAuthActionsProps = {
   className?: string;
   loginClassName?: string;
   beforeLogin?: () => void;
+  hideWhenLoggedOut?: boolean;
 };
 
 export function PublicAuthActions({
   className,
   loginClassName,
   beforeLogin,
+  hideWhenLoggedOut = false,
 }: PublicAuthActionsProps) {
   const { status } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -50,6 +52,10 @@ export function PublicAuthActions({
         </button>
       </div>
     );
+  }
+
+  if (hideWhenLoggedOut) {
+    return null;
   }
 
   return (

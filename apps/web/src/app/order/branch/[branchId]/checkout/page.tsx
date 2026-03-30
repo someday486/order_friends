@@ -20,7 +20,6 @@ import {
   saveLastOrderRecord,
 } from '@/lib/order-session';
 import { supabaseBrowser } from '@/lib/supabase/client';
-import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 import { AddressSearchFields } from '@/components/order/AddressSearchFields';
 import { PickupDateCalendar } from '@/components/order/PickupDateCalendar';
 import { type WeeklyBusinessHours } from '@/lib/business-hours';
@@ -89,6 +88,7 @@ type PublicBranchConfigResponse = {
 
 const DEFAULT_FULFILLMENT_TYPES: FulfillmentType[] = ['PICKUP'];
 const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['CARD', 'TRANSFER'];
+const REQUIRE_LOGIN_BEFORE_ORDER = false;
 
 function isFulfillmentType(value: unknown): value is FulfillmentType {
   return (
@@ -509,7 +509,7 @@ export default function CheckoutPage() {
   );
 
   const handleSubmit = async () => {
-    if (status !== 'authenticated') {
+    if (REQUIRE_LOGIN_BEFORE_ORDER && status !== 'authenticated') {
       toast('간편로그인 후 주문할 수 있어요.');
       const next = `${window.location.pathname}${window.location.search}`;
       router.push(`/login?next=${encodeURIComponent(next)}`);
@@ -618,10 +618,11 @@ export default function CheckoutPage() {
           : undefined,
       };
 
-      const result = await apiClient.post<CreateOrderResult>(
-        '/me/orders',
-        payload,
-      );
+      const orderPath =
+        status === 'authenticated' ? '/me/orders' : '/public/orders';
+      const result = await apiClient.post<CreateOrderResult>(orderPath, payload, {
+        auth: status === 'authenticated',
+      });
 
       clearCheckoutDraft();
       saveLastOrderRecord({
@@ -791,17 +792,6 @@ export default function CheckoutPage() {
 
           {/* 카카오 로그인 / 지난 주문 불러오기 */}
           <div className="mb-4">
-            <KakaoQuickLoginButton
-              beforeLogin={() =>
-                saveCustomerInfoDraft({
-                  customerName,
-                  customerPhone,
-                  customerAddress1,
-                  customerAddress2,
-                  customerMemo,
-                })
-              }
-            />
             {status === 'authenticated' && (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button

@@ -20,7 +20,6 @@ import {
   saveLastOrderRecord,
 } from '@/lib/order-session';
 import { supabaseBrowser } from '@/lib/supabase/client';
-import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 
 type ShopProduct = {
   id: string;
@@ -855,18 +854,6 @@ export default function ShopBrandPageClient({
           >
             <h2 className="text-base font-bold">배송 주문</h2>
 
-            <KakaoQuickLoginButton
-              className="mt-3"
-              beforeLogin={() =>
-                saveCustomerInfoDraft({
-                  customerName,
-                  customerPhone,
-                  customerAddress1,
-                  customerAddress2,
-                  customerMemo,
-                })
-              }
-            />
             {status === 'authenticated' ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button

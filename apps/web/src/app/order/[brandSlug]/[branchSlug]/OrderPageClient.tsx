@@ -387,7 +387,7 @@ export default function OrderPageClient({
             </div>
           </div>
           <div className="px-4 pb-3">
-            <PublicAuthActions />
+            <PublicAuthActions hideWhenLoggedOut />
           </div>
         </header>
 

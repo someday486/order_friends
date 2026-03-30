@@ -149,7 +149,7 @@ export default function BrandOrderPage() {
             </div>
           </div>
           <div className="px-4 pb-4">
-            <PublicAuthActions />
+            <PublicAuthActions hideWhenLoggedOut />
           </div>
         </header>
 

@@ -1,29 +1,29 @@
 ﻿'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { seedSessionCache } from '@/lib/auth/client';
-import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { supabaseBrowser } from '@/lib/supabase/client';
 
-type Props = {
-  redirectTo?: string;
-};
-
-export function LoginForm({ redirectTo = '/app' }: Props) {
-  const router = useRouter();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
+export function LoginForm() {
+  const { refresh } = useAuth();
+  const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const canSubmit = hydrated && !submitting;
 
-  const canSubmit =
-    email.trim().length > 0 && password.length > 0 && !submitting;
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
-  const submitLogin = async () => {
+  const submitLogin = async (form: HTMLFormElement) => {
     if (!canSubmit) return;
+
+    const formData = new FormData(form);
+    const emailField = formData.get('email');
+    const passwordField = formData.get('password');
+    const email = typeof emailField === 'string' ? emailField.trim() : '';
+    const password = typeof passwordField === 'string' ? passwordField : '';
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -40,21 +40,7 @@ export function LoginForm({ redirectTo = '/app' }: Props) {
       }
 
       seedSessionCache(data.session ?? null);
-
-      let nextPath = redirectTo;
-      if (redirectTo === '/app') {
-        try {
-          nextPath = await resolveAuthenticatedDestination();
-        } catch (resolveError) {
-          console.warn(
-            '[auth] failed to resolve post-login destination:',
-            resolveError,
-          );
-        }
-      }
-
-      router.replace(nextPath);
-      router.refresh(); // Next.js 라우터 캐시 무효화 (미들웨어가 새 세션 쿠키 인식)
+      await refresh();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -62,9 +48,9 @@ export function LoginForm({ redirectTo = '/app' }: Props) {
     }
   };
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    void submitLogin();
+    void submitLogin(e.currentTarget);
   };
 
   return (
@@ -73,8 +59,7 @@ export function LoginForm({ redirectTo = '/app' }: Props) {
         <span className="text-sm font-medium text-text-secondary">이메일</span>
         <input
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          name="email"
           autoComplete="email"
           placeholder="you@example.com"
           disabled={submitting}
@@ -89,8 +74,7 @@ export function LoginForm({ redirectTo = '/app' }: Props) {
         </span>
         <input
           type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          name="password"
           autoComplete="current-password"
           placeholder="••••••••"
           disabled={submitting}

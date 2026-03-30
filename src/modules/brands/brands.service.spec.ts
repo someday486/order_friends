@@ -55,6 +55,7 @@ describe('BrandsService', () => {
           slug: null,
           biz_name: null,
           biz_reg_no: null,
+          address: null,
           logo_url: null,
           created_at: null,
         },
@@ -66,7 +67,26 @@ describe('BrandsService', () => {
 
     expect(result[0].slug).toBeNull();
     expect(result[0].bizName).toBeNull();
+    expect(result[0].address).toBeNull();
     expect(result[0].createdAt).toBe('');
+  });
+
+  it('getMyBrands should map address for admin', async () => {
+    adminSb.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'b1',
+          name: 'Brand',
+          address: 'Seoul',
+          created_at: 't',
+        },
+      ],
+      error: null,
+    });
+
+    const result = await service.getMyBrands('token', true);
+
+    expect(result[0].address).toBe('Seoul');
   });
 
   it('getMyBrands should return empty list when admin data is null without error', async () => {

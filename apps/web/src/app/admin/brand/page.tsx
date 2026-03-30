@@ -37,6 +37,7 @@ type Brand = {
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
+  address?: string | null;
   logoUrl?: string | null;
   createdAt: string;
 };
@@ -91,6 +92,7 @@ export default function BrandPage() {
   const [editSlug, setEditSlug] = useState("");
   const [editBizName, setEditBizName] = useState("");
   const [editBizRegNo, setEditBizRegNo] = useState("");
+  const [editAddress, setEditAddress] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -100,6 +102,7 @@ export default function BrandPage() {
   const [newSlugTouched, setNewSlugTouched] = useState(false);
   const [newBizName, setNewBizName] = useState("");
   const [newBizRegNo, setNewBizRegNo] = useState("");
+  const [newAddress, setNewAddress] = useState("");
   const [newLogoUrl, setNewLogoUrl] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [autoKoreanSlug, setAutoKoreanSlug] = useState("");
@@ -171,6 +174,7 @@ export default function BrandPage() {
         slug: newSlug || null,
         bizName: newBizName || null,
         bizRegNo: newBizRegNo || null,
+        address: newAddress || null,
         logoUrl: newLogoUrl,
       });
 
@@ -183,6 +187,7 @@ export default function BrandPage() {
       setAutoKoreanSlug("");
       setNewBizName("");
       setNewBizRegNo("");
+      setNewAddress("");
       setNewLogoUrl(null);
       setShowAddForm(false);
     } catch (e: unknown) {
@@ -199,6 +204,7 @@ export default function BrandPage() {
     setEditSlug(brand.slug ?? "");
     setEditBizName(brand.bizName ?? "");
     setEditBizRegNo(brand.bizRegNo ?? "");
+    setEditAddress(brand.address ?? "");
     setEditLogoUrl(brand.logoUrl ?? null);
   };
 
@@ -213,6 +219,7 @@ export default function BrandPage() {
         slug: editSlug || null,
         bizName: editBizName || null,
         bizRegNo: editBizRegNo || null,
+        address: editAddress || null,
         logoUrl: editLogoUrl,
       });
 
@@ -373,6 +380,17 @@ export default function BrandPage() {
                 />
               </div>
 
+              <div className="mb-3">
+                <label className="mb-1 block text-xs text-text-secondary">사업장 주소</label>
+                <input
+                  type="text"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  placeholder="사업장 주소"
+                  className="input-field max-w-[320px]"
+                />
+              </div>
+
               <div className="flex gap-2">
                 <button
                   className="btn-primary h-9 px-4 text-[13px]"
@@ -458,6 +476,17 @@ export default function BrandPage() {
                         value={editBizRegNo}
                         onChange={(e) => setEditBizRegNo(e.target.value)}
                         className="input-field max-w-[320px]"
+                      />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="mb-1 block text-xs text-text-secondary">사업장 주소</label>
+                      <input
+                        type="text"
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        className="input-field max-w-[320px]"
+                        placeholder="사업장 주소"
                       />
                     </div>
 

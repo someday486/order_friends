@@ -1,14 +1,25 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+
+function formatAccessError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes('API Network Error: /me')) {
+    return '권한 확인 서버(http://localhost:4000)에 연결할 수 없습니다. 백엔드가 실행 중인지 확인한 뒤 다시 시도해 주세요.';
+  }
+
+  return message || '로그인 상태를 확인하지 못했습니다.';
+}
 
 export default function AppPage() {
   const router = useRouter();
-  const { status } = useAuth();
+  const { status, signOut } = useAuth();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -25,11 +36,7 @@ export default function AppPage() {
         router.refresh();
       } catch (error) {
         if (cancelled) return;
-        setErrorMsg(
-          error instanceof Error
-            ? error.message
-            : '로그인 상태를 확인하지 못했습니다.',
-        );
+        setErrorMsg(formatAccessError(error));
       }
     };
 
@@ -38,7 +45,7 @@ export default function AppPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, status]);
+  }, [retryKey, router, status]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -53,9 +60,27 @@ export default function AppPage() {
           로그인 정보와 연결된 권한을 확인한 뒤 맞는 화면으로 자동 이동합니다.
         </p>
         {errorMsg ? (
-          <div className="mt-4 rounded-md bg-danger-50 p-3 text-sm text-danger-500">
-            {errorMsg}
-          </div>
+          <>
+            <div className="mt-4 rounded-md bg-danger-50 p-3 text-sm text-danger-500">
+              {errorMsg}
+            </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setRetryKey((current) => current + 1)}
+                className="inline-flex flex-1 items-center justify-center rounded-md bg-primary-500 px-4 py-3 text-sm font-bold text-white"
+              >
+                다시 시도
+              </button>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="inline-flex flex-1 items-center justify-center rounded-md border border-border px-4 py-3 text-sm font-semibold text-foreground"
+              >
+                로그아웃
+              </button>
+            </div>
+          </>
         ) : (
           <div className="mt-4 rounded-md border border-border bg-bg-secondary p-3 text-sm text-text-tertiary">
             잠시만 기다려 주세요.

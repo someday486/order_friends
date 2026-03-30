@@ -105,6 +105,35 @@ describe('UploadService', () => {
       expect(mockStorageClient.upload).not.toHaveBeenCalled();
     });
 
+    it('should allow pdf upload for biz certificate folder', async () => {
+      const mockFile = createMockFile('application/pdf', 1024, 'document.pdf');
+      const mockUrl = 'https://example.com/biz-certs/uuid.pdf';
+
+      mockStorageClient.upload.mockResolvedValue({
+        data: { path: 'biz-certs/uuid.pdf' },
+        error: null,
+      });
+      mockStorageClient.getPublicUrl.mockReturnValue({
+        data: { publicUrl: mockUrl },
+      });
+
+      const result = await service.uploadImage(mockFile, 'biz-certs');
+
+      expect(result).toEqual({
+        url: mockUrl,
+        path: expect.stringMatching(/^biz-certs\/[a-f0-9-]+\.pdf$/),
+        bucket: 'product-images',
+      });
+      expect(mockStorageClient.upload).toHaveBeenCalledWith(
+        expect.stringMatching(/^biz-certs\/[a-f0-9-]+\.pdf$/),
+        mockFile.buffer,
+        {
+          contentType: 'application/pdf',
+          upsert: false,
+        },
+      );
+    });
+
     it('should throw BadRequestException for file exceeding size limit', async () => {
       const mockFile = createMockFile(
         'image/jpeg',
@@ -311,6 +340,43 @@ describe('UploadService', () => {
       await expect(
         service.uploadMultipleImages(mockFiles, 'batch'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should upload multiple pdf files for biz certificate folder', async () => {
+      const mockFiles = [
+        {
+          fieldname: 'files',
+          originalname: 'doc1.pdf',
+          encoding: '7bit',
+          mimetype: 'application/pdf',
+          size: 1024,
+          buffer: Buffer.from('test1'),
+        } as Express.Multer.File,
+        {
+          fieldname: 'files',
+          originalname: 'doc2.pdf',
+          encoding: '7bit',
+          mimetype: 'application/pdf',
+          size: 2048,
+          buffer: Buffer.from('test2'),
+        } as Express.Multer.File,
+      ];
+
+      mockStorageClient.upload.mockResolvedValue({
+        data: { path: 'biz-certs/test.pdf' },
+        error: null,
+      });
+      mockStorageClient.getPublicUrl.mockReturnValue({
+        data: { publicUrl: 'https://example.com/biz-certs/test.pdf' },
+      });
+
+      const results = await service.uploadMultipleImages(
+        mockFiles,
+        'biz-certs',
+      );
+
+      expect(results).toHaveLength(2);
+      expect(mockStorageClient.upload).toHaveBeenCalledTimes(2);
     });
   });
 

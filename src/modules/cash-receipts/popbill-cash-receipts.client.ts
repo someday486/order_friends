@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import popbill from 'popbill';
 
 type PopbillCashbillService = {
   checkIsMember(
@@ -53,6 +52,11 @@ type PopbillCashbillService = {
 type PopbillErrorLike = {
   code?: string | number;
   message?: string;
+};
+
+type PopbillSdkModule = {
+  config(options: { LinkID: string; SecretKey: string; IsTest: boolean }): void;
+  CashbillService(): PopbillCashbillService;
 };
 
 export type PopbillIssueRequest = {
@@ -221,7 +225,12 @@ export class PopbillCashReceiptsClient {
     );
   }
 
-  private configureSdk(): PopbillCashbillService {
+  private configureSdk(): PopbillCashbillService | null {
+    const popbill = this.loadSdkModule();
+    if (!popbill) {
+      return null;
+    }
+
     popbill.config({
       LinkID: this.linkId,
       SecretKey: this.secretKey,
@@ -229,6 +238,37 @@ export class PopbillCashReceiptsClient {
     });
 
     return popbill.CashbillService();
+  }
+
+  private loadSdkModule(): PopbillSdkModule | null {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const loaded = require('popbill') as
+        | PopbillSdkModule
+        | {
+            default?: PopbillSdkModule;
+          };
+      if ('default' in loaded && loaded.default) {
+        return loaded.default;
+      }
+
+      return loaded as PopbillSdkModule;
+    } catch (error) {
+      const isMissingModule =
+        error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND' &&
+        /Cannot find module ['"]popbill['"]/.test(error.message);
+
+      if (isMissingModule) {
+        this.logger.warn(
+          'Popbill cash receipt client is unavailable because the "popbill" package is not installed.',
+        );
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   private getService(): PopbillCashbillService {

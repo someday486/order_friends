@@ -248,6 +248,7 @@ describe('NotificationsService', () => {
         SOLAPI_API_SECRET: 'solapi-secret',
         SOLAPI_KAKAO_PF_ID: 'KA01PF0000000000000000000',
         SOLAPI_KAKAO_TEMPLATE_ID: 'KA01TP0000000000000000000',
+        SOLAPI_KAKAO_TRANSFER_BUTTON_NAME: '주문 확인',
         PUBLIC_WEB_BASE_URL: 'https://orderfriends.example.com',
       }),
     );
@@ -300,6 +301,13 @@ describe('NotificationsService', () => {
       expect(requestInit.body).toContain('"Shinhan"');
       expect(requestInit.body).toContain('"110-285-321233"');
       expect(requestInit.body).toContain('"Kim Jihoon"');
+      expect(requestInit.body).toContain('"buttonName":"주문확인"');
+      expect(requestInit.body).toContain(
+        '"linkMo":"https://orderfriends.example.com/#{LINK}"',
+      );
+      expect(requestInit.body).toContain(
+        '"linkPc":"https://orderfriends.example.com/#{LINK}"',
+      );
       expect(requestInit.body).toContain('"#{LINK}":"order/track/order-1"');
       expect(requestInit.body).toContain('"#{주문번호}":"ORD-001"');
       expect(requestInit.body).toContain(
@@ -356,6 +364,10 @@ describe('NotificationsService', () => {
       const [, requestInit] = fetchMock.mock.calls[0];
       expect(requestInit.body).toContain(
         '"templateId":"KA01TP260306080352858w6K1BS9FU2r"',
+      );
+      expect(requestInit.body).toContain('"buttonName":"주문 확인"');
+      expect(requestInit.body).toContain(
+        '"linkMo":"https://orderfriends.example.com/#{LINK}"',
       );
       expect(requestInit.body).toContain('"#{LINK}":"order/track/order-2"');
       expect(requestInit.body).toContain('"#{주문번호}":"ORD-002"');

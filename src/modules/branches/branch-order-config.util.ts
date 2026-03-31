@@ -230,8 +230,23 @@ export function normalizeFulfillmentTypes(
 }
 
 export function normalizePaymentMethods(value: unknown): OrderPaymentMethod[] {
+  const parsed = parseConfiguredPaymentMethods(value);
+  if (parsed) {
+    return parsed;
+  }
+
+  return [...ORDER_PAYMENT_METHODS];
+}
+
+function parseConfiguredPaymentMethods(
+  value: unknown,
+): OrderPaymentMethod[] | null {
   const set = new Set<OrderPaymentMethod>();
   const raw = normalizeStringArray(value);
+
+  if (raw.length === 0) {
+    return null;
+  }
 
   for (const item of raw) {
     const upper = item.toUpperCase();
@@ -241,7 +256,7 @@ export function normalizePaymentMethods(value: unknown): OrderPaymentMethod[] {
   }
 
   if (set.size === 0) {
-    return [...ORDER_PAYMENT_METHODS];
+    return null;
   }
 
   return [...set];
@@ -257,8 +272,8 @@ function getPaymentMethodsFromBranchRow(
   ];
 
   for (const candidate of directCandidates) {
-    const methods = normalizePaymentMethods(candidate);
-    if (methods.length > 0) {
+    const methods = parseConfiguredPaymentMethods(candidate);
+    if (methods) {
       return methods;
     }
   }
@@ -271,13 +286,13 @@ function getPaymentMethodsFromBranchRow(
 
   for (const candidate of objectCandidates) {
     if (!candidate) continue;
-    const methods = normalizePaymentMethods(
+    const methods = parseConfiguredPaymentMethods(
       candidate.allowedPaymentMethods ??
         candidate.allowed_payment_methods ??
         candidate.paymentMethods ??
         candidate.payment_methods,
     );
-    if (methods.length > 0) {
+    if (methods) {
       return methods;
     }
   }
@@ -593,19 +608,23 @@ async function persistPaymentMethodsToBranch(
   if (!branchRow) return;
 
   if ('allowed_payment_methods' in branchRow) {
-    await sb
+    const { error } = await sb
       .from('branches')
       .update({ allowed_payment_methods: methods })
       .eq('id', branchId);
-    return;
+    if (!error) {
+      return;
+    }
   }
 
   if ('payment_methods' in branchRow) {
-    await sb
+    const { error } = await sb
       .from('branches')
       .update({ payment_methods: methods })
       .eq('id', branchId);
-    return;
+    if (!error) {
+      return;
+    }
   }
 
   const objectColumns = ['order_settings', 'settings', 'metadata'] as const;

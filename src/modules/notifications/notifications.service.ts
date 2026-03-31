@@ -69,6 +69,10 @@ export class NotificationsService {
   private readonly solapiKakaoPfId: string;
   private readonly solapiKakaoTemplateId: string;
   private readonly solapiKakaoTransferTemplateId: string;
+  private readonly solapiKakaoButtonName: string;
+  private readonly solapiKakaoTransferButtonName: string;
+  private readonly solapiKakaoButtonLinkTemplate: string;
+  private readonly solapiKakaoButtonPcLinkTemplate: string;
   private readonly publicWebBaseUrl: string;
   private readonly solapiMessageApiUrl =
     'https://api.solapi.com/messages/v4/send-many/detail';
@@ -109,6 +113,17 @@ export class NotificationsService {
       this.configService.get<string>('PUBLIC_WEB_BASE_URL') ||
       'http://localhost:3000'
     ).replace(/\/+$/, '');
+    this.solapiKakaoButtonName =
+      this.configService.get<string>('SOLAPI_KAKAO_BUTTON_NAME') || '주문확인';
+    this.solapiKakaoTransferButtonName =
+      this.configService.get<string>('SOLAPI_KAKAO_TRANSFER_BUTTON_NAME') ||
+      '주문 확인';
+    this.solapiKakaoButtonLinkTemplate =
+      this.configService.get<string>('SOLAPI_KAKAO_BUTTON_LINK_TEMPLATE') ||
+      `${this.publicWebBaseUrl}/#{LINK}`;
+    this.solapiKakaoButtonPcLinkTemplate =
+      this.configService.get<string>('SOLAPI_KAKAO_BUTTON_PC_LINK_TEMPLATE') ||
+      this.solapiKakaoButtonLinkTemplate;
     this.kakaoTalkApiUrl =
       this.configService.get<string>('KAKAO_TALK_API_URL') || '';
     this.kakaoTalkAccessToken =
@@ -358,7 +373,7 @@ export class NotificationsService {
       message: '주문이 완료되었습니다.',
       templateCode: this.resolveOrderCompletionTemplateCode(data),
       variables: this.buildOrderCompletionVariables(orderId, data),
-      buttons: this.buildOrderCompletionButtons(orderId),
+      buttons: this.buildOrderCompletionButtons(data),
       disableSms: true,
     });
   }
@@ -484,22 +499,30 @@ export class NotificationsService {
     };
   }
 
-  private buildOrderCompletionButtons(orderId: string): Array<{
+  private buildOrderCompletionButtons(data: OrderCompletionKakaoData): Array<{
     buttonName: string;
     buttonType: string;
     linkMo: string;
     linkPc: string;
   }> {
-    const orderTrackingUrl = this.buildOrderTrackingUrl(orderId);
-
     return [
       {
-        buttonName: '주문확인',
+        buttonName: this.resolveOrderCompletionButtonName(data),
         buttonType: 'WL',
-        linkMo: orderTrackingUrl,
-        linkPc: orderTrackingUrl,
+        linkMo: this.solapiKakaoButtonLinkTemplate,
+        linkPc: this.solapiKakaoButtonPcLinkTemplate,
       },
     ];
+  }
+
+  private resolveOrderCompletionButtonName(
+    data: OrderCompletionKakaoData,
+  ): string {
+    if (String(data.paymentMethod ?? '').toUpperCase() === 'TRANSFER') {
+      return this.solapiKakaoTransferButtonName;
+    }
+
+    return this.solapiKakaoButtonName;
   }
 
   private buildOrderTrackingUrl(orderReference: string): string {

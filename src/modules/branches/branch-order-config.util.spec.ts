@@ -740,4 +740,98 @@ describe('branch-order-config.util', () => {
       },
     });
   });
+  it('should read payment methods from metadata when direct columns are empty', async () => {
+    const orderChannelsActiveEq = jest.fn().mockResolvedValue({
+      data: [{ id: 'ch-pickup', type: 'PICKUP', is_active: true }],
+      error: null,
+    });
+    const orderChannelsBranchEq = jest.fn().mockReturnValue({
+      eq: orderChannelsActiveEq,
+    });
+    const orderChannelsBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: orderChannelsBranchEq,
+      }),
+    };
+
+    const branchMaybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        allowed_payment_methods: null,
+        metadata: {
+          allowedPaymentMethods: ['TRANSFER'],
+        },
+      },
+      error: null,
+    });
+    const branchBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: branchMaybeSingle,
+        }),
+      }),
+    };
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(orderChannelsBuilder)
+        .mockReturnValueOnce(branchBuilder),
+    };
+
+    const result = await getBranchOrderConfig(sb, 'branch-1');
+
+    expect(result.allowedPaymentMethods).toEqual(['TRANSFER']);
+  });
+
+  it('should fallback to metadata when direct payment method update fails', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        allowed_payment_methods: null,
+        metadata: { existing: true },
+      },
+      error: null,
+    });
+
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle,
+        }),
+      }),
+    };
+
+    const directUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({
+        error: { message: 'write failed' },
+      }),
+    });
+    const metadataUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    });
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce({ update: directUpdate })
+        .mockReturnValueOnce({ update: metadataUpdate }),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      allowedPaymentMethods: ['TRANSFER'],
+    });
+
+    expect(directUpdate).toHaveBeenCalledWith({
+      allowed_payment_methods: ['TRANSFER'],
+    });
+    expect(metadataUpdate).toHaveBeenCalledWith({
+      metadata: {
+        existing: true,
+        allowedPaymentMethods: ['TRANSFER'],
+        allowed_payment_methods: ['TRANSFER'],
+      },
+    });
+  });
 });

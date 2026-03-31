@@ -64,6 +64,21 @@ export class OrdersService {
     return payload;
   }
 
+  private isMissingOrderStatusTimestampColumnError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    const isMissingColumn =
+      error?.code === '42703' ||
+      error?.code === 'PGRST204' ||
+      /column .* does not exist/i.test(message) ||
+      /schema cache/i.test(message);
+
+    if (!isMissingColumn) {
+      return false;
+    }
+
+    return /completed_at|cancelled_at/i.test(message);
+  }
+
   private async releaseInventoryForCancelledOrder(
     sb: any,
     orderId: string,
@@ -606,13 +621,26 @@ export class OrdersService {
       );
     }
 
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from('orders')
       .update(this.buildStatusUpdatePayload(status))
       .eq('id', resolvedId)
       .eq('branch_id', branchId)
       .select('id, order_no, status')
       .maybeSingle();
+
+    if (error && this.isMissingOrderStatusTimestampColumnError(error)) {
+      this.logger.warn(
+        `Order status timestamp columns missing for ${orderId}; retrying status-only update`,
+      );
+      ({ data, error } = await sb
+        .from('orders')
+        .update({ status })
+        .eq('id', resolvedId)
+        .eq('branch_id', branchId)
+        .select('id, order_no, status')
+        .maybeSingle());
+    }
 
     if (error) {
       this.logger.error(

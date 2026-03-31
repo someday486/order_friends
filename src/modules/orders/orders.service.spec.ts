@@ -881,6 +881,51 @@ describe('OrdersService', () => {
       ).toHaveBeenCalledWith('123');
     });
 
+    it('should retry status-only update when timestamp columns are missing', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: null,
+          error: {
+            code: '42703',
+            message: 'column orders.completed_at does not exist',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.COMPLETED,
+          },
+          error: null,
+        });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.COMPLETED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.COMPLETED);
+      expect(mockSupabaseClient.update).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          status: OrderStatus.COMPLETED,
+          completed_at: expect.any(String),
+        }),
+      );
+      expect(mockSupabaseClient.update).toHaveBeenNthCalledWith(2, {
+        status: OrderStatus.COMPLETED,
+      });
+      expect(
+        mockCashReceiptsService.issueForCompletedOrder,
+      ).toHaveBeenCalledWith('123');
+    });
+
     it('should throw OrderNotFoundException when order not found', async () => {
       mockSupabaseClient.maybeSingle.mockResolvedValue({
         data: null,

@@ -251,11 +251,7 @@ function OrderDetailPageContent() {
 
   const handleRefund = async () => {
     if (!order) return;
-    if (
-      !confirm(
-        "\uC644\uB8CC\uB41C \uC8FC\uBB38\uC744 \uD658\uBD88 \uCC98\uB9AC\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
-      )
-    )
+    if (!confirm("완료된 주문을 환불 처리하시겠습니까?"))
       return;
     await handleStatusChange("REFUNDED");
   };
@@ -377,7 +373,7 @@ function OrderDetailPageContent() {
               onClick={handleRefund}
               disabled={statusLoading}
             >
-              {"\uD658\uBD88"}
+              환불
             </button>
           )}
 

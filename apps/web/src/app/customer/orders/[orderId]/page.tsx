@@ -793,7 +793,7 @@ export default function CustomerOrderDetailPage() {
             상태 변경
           </h2>
           <p className="text-xs text-text-tertiary mb-3">
-            \uC8FC\uBB38\uC740 \uB2E4\uC74C \uB2E8\uACC4\uB85C \uC21C\uCC28 \uBCC0\uACBD\uB418\uBA70, \uC644\uB8CC \uD6C4\uC5D0\uB294 \uD658\uBD88 \uCC98\uB9AC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4
+            주문은 다음 단계로 순차 변경되며, 완료 후에는 환불 처리할 수 있습니다
           </p>
 
           <div className="grid grid-cols-2 gap-2">
@@ -825,7 +825,7 @@ export default function CustomerOrderDetailPage() {
                 disabled={statusLoading}
                 className="h-10 w-full rounded-md border border-danger-200 bg-danger-50 text-danger-600 text-sm font-medium cursor-pointer hover:bg-danger-100 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {"\uD658\uBD88"}
+                환불
               </button>
             )}
           </div>

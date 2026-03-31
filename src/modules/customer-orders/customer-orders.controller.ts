@@ -25,6 +25,7 @@ import { UpdateOrderStatusRequest } from '../../modules/orders/dto/update-order-
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { GetCustomerOrdersQueryDto } from './dto/get-customer-orders-query.dto';
 import { BulkUpdateOrderStatusRequest } from './dto/bulk-update-order-status.request';
+import { PaymentStatusResponse } from '../payments/dto/payment.dto';
 
 @ApiTags('customer-orders')
 @ApiBearerAuth()
@@ -156,6 +157,41 @@ export class CustomerOrdersController {
       req.user.id,
       orderId,
       body.status,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch(':orderId/payment/confirm-transfer')
+  @ApiOperation({
+    summary: '계좌이체 수동 입금확인',
+    description:
+      '계좌이체 주문의 결제 상태를 수동으로 SUCCESS로 변경합니다. OWNER, ADMIN, BRANCH_OWNER, BRANCH_ADMIN, STAFF 역할에서 사용할 수 있습니다.',
+  })
+  @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
+  @ApiResponse({
+    status: 200,
+    description: '입금확인 처리 성공',
+    type: PaymentStatusResponse,
+  })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  @ApiResponse({
+    status: 404,
+    description: '주문 또는 결제 정보를 찾을 수 없음',
+  })
+  async confirmTransferPayment(
+    @Req() req: AuthRequest,
+    @Param('orderId') orderId: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} manually confirming transfer payment for ${orderId}`,
+    );
+
+    return this.ordersService.confirmMyOrderTransferPayment(
+      req.user.id,
+      orderId,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

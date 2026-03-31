@@ -20,6 +20,7 @@ import { canModifyOrder } from '../../common/utils/role-permission.util';
 import { PaymentsService } from '../payments/payments.service';
 import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
+import { PaymentStatusResponse } from '../payments/dto/payment.dto';
 
 @Injectable()
 export class CustomerOrdersService {
@@ -1280,5 +1281,39 @@ export class CustomerOrdersService {
       status,
       orderIds: targetOrderIds,
     };
+  }
+
+  async confirmMyOrderTransferPayment(
+    userId: string,
+    orderId: string,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ): Promise<PaymentStatusResponse> {
+    this.logger.log(
+      `Confirming transfer payment for order ${orderId} by user ${userId}`,
+    );
+
+    const { role, order } = await this.checkOrderAccess(
+      orderId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    this.checkModificationPermission(role, 'confirm transfer payment', userId);
+
+    const payment = await this.paymentsService.confirmManualTransferPayment(
+      order.id,
+      order.branch_id,
+    );
+
+    if (order.status === OrderStatus.COMPLETED) {
+      await this.syncCashReceiptForStatusChange(
+        order.id,
+        OrderStatus.COMPLETED,
+      );
+    }
+
+    return payment;
   }
 }

@@ -11,6 +11,7 @@ describe('CustomerOrdersController', () => {
     getMyOrders: jest.fn(),
     getMyOrder: jest.fn(),
     updateMyOrderStatus: jest.fn(),
+    confirmMyOrderTransferPayment: jest.fn(),
     updateMyOrdersStatusBulk: jest.fn(),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
@@ -184,6 +185,44 @@ describe('CustomerOrdersController', () => {
         orderIds: ['order-1'],
         status: 'READY',
       } as any),
+    ).rejects.toThrow('Missing user');
+  });
+
+  it('confirmTransferPayment should call service and return result', async () => {
+    mockService.confirmMyOrderTransferPayment.mockResolvedValue({
+      id: 'payment-1',
+      orderId: 'order-1',
+      status: 'SUCCESS',
+      amount: 10000,
+      paidAt: '2026-03-31T09:30:00.000Z',
+    });
+
+    const result = await controller.confirmTransferPayment(
+      makeReq(),
+      'order-1',
+    );
+
+    expect(result).toEqual({
+      id: 'payment-1',
+      orderId: 'order-1',
+      status: 'SUCCESS',
+      amount: 10000,
+      paidAt: '2026-03-31T09:30:00.000Z',
+    });
+    expect(mockService.confirmMyOrderTransferPayment).toHaveBeenCalledWith(
+      'user-1',
+      'order-1',
+      [],
+      [],
+    );
+  });
+
+  it('confirmTransferPayment should throw when user is missing', async () => {
+    await expect(
+      controller.confirmTransferPayment(
+        makeReq({ user: undefined }),
+        'order-1',
+      ),
     ).rejects.toThrow('Missing user');
   });
 

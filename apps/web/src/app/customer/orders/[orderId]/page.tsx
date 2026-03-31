@@ -38,6 +38,7 @@ type OrderDetail = {
   orderNo: string | null;
   orderedAt: string;
   status: OrderStatus;
+  paymentStatus?: string | null;
   fulfillmentType?: FulfillmentType | null;
   customer: {
     name: string;
@@ -391,6 +392,7 @@ export default function CustomerOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
 
   const canUpdateStatus =
     order?.myRole === "OWNER" ||
@@ -403,28 +405,33 @@ export default function CustomerOrderDetailPage() {
     !!order &&
     !["COMPLETED", "CANCELLED", "REFUNDED"].includes(order.status);
   const nextStatusAction = order ? getNextStatus(order.status) : null;
+  const canConfirmTransferPayment =
+    !!order &&
+    canUpdateStatus &&
+    order.payment.method === "TRANSFER" &&
+    order.paymentStatus === "PENDING";
+
+  const loadOrder = async () => {
+    if (!orderId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiClient.get<OrderDetail>(`/customer/orders/${orderId}`);
+      setOrder(data);
+    } catch (e) {
+      console.error(e);
+      setError(
+        e instanceof Error ? e.message : "주문을 불러올 수 없습니다",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Load order detail
   useEffect(() => {
     if (!orderId) return;
-
-    const loadOrder = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await apiClient.get<OrderDetail>(
-          `/customer/orders/${orderId}`,
-        );
-        setOrder(data);
-      } catch (e) {
-        console.error(e);
-        setError(
-          e instanceof Error ? e.message : "주문을 불러올 수 없습니다",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
 
     loadOrder();
   }, [orderId]);
@@ -448,6 +455,27 @@ export default function CustomerOrderDetailPage() {
       );
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  const handleTransferPaymentConfirm = async () => {
+    if (!orderId || !canConfirmTransferPayment) return;
+
+    try {
+      setPaymentConfirmLoading(true);
+      setError(null);
+      await apiClient.patch(
+        `/customer/orders/${orderId}/payment/confirm-transfer`,
+        {},
+      );
+      await loadOrder();
+    } catch (e) {
+      console.error(e);
+      setError(
+        e instanceof Error ? e.message : "입금확인 처리에 실패했습니다",
+      );
+    } finally {
+      setPaymentConfirmLoading(false);
     }
   };
 
@@ -632,6 +660,22 @@ export default function CustomerOrderDetailPage() {
           label="결제 방법"
           value={PAYMENT_METHOD_LABEL[order.payment.method] || order.payment.method || "-"}
         />
+        <InfoRow label="결제 상태" value={order.paymentStatus || "-"} />
+        {canConfirmTransferPayment && (
+          <div className="pt-3">
+            <button
+              type="button"
+              onClick={() => void handleTransferPaymentConfirm()}
+              disabled={paymentConfirmLoading}
+              className="h-10 w-full rounded-md border border-border bg-bg-secondary text-foreground text-sm font-semibold cursor-pointer hover:bg-bg-tertiary active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {paymentConfirmLoading ? "입금확인 처리 중..." : "입금확인 처리"}
+            </button>
+            <p className="mt-2 text-xs text-text-tertiary">
+              계좌이체 주문의 결제 상태를 수동으로 완료 처리합니다.
+            </p>
+          </div>
+        )}
       </div>
 
       {order.cashReceiptRequest?.requested && (

@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { AddressSearchFields } from "@/components/order/AddressSearchFields";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { apiClient } from "@/lib/api-client";
+import { parseApiErrorMessage } from "@/lib/api-error";
 import {
   formatBusinessNumberInput,
   formatCashReceiptProvider,
@@ -180,9 +181,7 @@ export default function BrandDetailPage() {
       } catch (e) {
         console.error(e);
         setError(
-          e instanceof Error
-            ? e.message
-            : "브랜드 정보를 불러오지 못했습니다.",
+          parseApiErrorMessage(e, "브랜드 정보를 불러오지 못했습니다."),
         );
       } finally {
         setLoading(false);
@@ -257,11 +256,9 @@ export default function BrandDetailPage() {
       setFormData((prev) => ({ ...prev, bizCertUrl: uploaded.url }));
     } catch (e) {
       console.error(e);
-      setBizCertUploadError(
-        e instanceof Error
-          ? e.message
-          : "사업자등록증 업로드에 실패했습니다.",
-      );
+        setBizCertUploadError(
+          parseApiErrorMessage(e, "사업자등록증 업로드에 실패했습니다."),
+        );
     } finally {
       setBizCertUploading(false);
     }
@@ -305,9 +302,7 @@ export default function BrandDetailPage() {
       toast.success("브랜드 정보가 저장되었습니다.");
     } catch (e) {
       console.error(e);
-      toast.error(
-        e instanceof Error ? e.message : "브랜드 정보 저장에 실패했습니다.",
-      );
+      toast.error(parseApiErrorMessage(e, "브랜드 정보 저장에 실패했습니다."));
     } finally {
       setSaveLoading(false);
     }

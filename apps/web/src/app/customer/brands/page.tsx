@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
+import { parseApiErrorMessage } from "@/lib/api-error";
 import { formatBusinessNumberInput } from "@/lib/format";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -57,7 +58,7 @@ export default function CustomerBrandsPage() {
       setBrands(data);
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : 'Failed to load brands.');
+      setError(parseApiErrorMessage(e, "브랜드 목록을 불러오지 못했습니다."));
     } finally {
       setLoading(false);
     }
@@ -218,7 +219,7 @@ function AddBrandModal({
       onSuccess(createdBrand);
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : 'Failed to add brand.');
+      toast.error(parseApiErrorMessage(e, "브랜드 추가에 실패했습니다."));
     } finally {
       setSaving(false);
     }

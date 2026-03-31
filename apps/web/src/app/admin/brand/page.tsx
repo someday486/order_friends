@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { apiClient } from "@/lib/api-client";
+import { parseApiErrorMessage } from "@/lib/api-error";
 import { formatBusinessNumberInput } from "@/lib/format";
 import {
   getAdminBrands,
@@ -138,7 +139,7 @@ export default function BrandPage() {
       setBrands(data);
     } catch (e: unknown) {
       const err = e as Error;
-      setError(err?.message ?? "브랜드 목록을 불러오지 못했습니다.");
+      setError(parseApiErrorMessage(err, "브랜드 목록을 불러오지 못했습니다."));
     } finally {
       setLoading(false);
     }
@@ -193,7 +194,7 @@ export default function BrandPage() {
       setShowAddForm(false);
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "브랜드 추가에 실패했습니다.");
+      toast.error(parseApiErrorMessage(err, "브랜드 추가에 실패했습니다."));
     } finally {
       setAdding(false);
     }
@@ -229,7 +230,7 @@ export default function BrandPage() {
       setEditingId(null);
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "브랜드 수정에 실패했습니다.");
+      toast.error(parseApiErrorMessage(err, "브랜드 수정에 실패했습니다."));
     } finally {
       setSaving(false);
     }
@@ -251,7 +252,7 @@ export default function BrandPage() {
       setBrands((prev) => prev.filter((brand) => brand.id !== brandId));
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "브랜드 삭제에 실패했습니다.");
+      toast.error(parseApiErrorMessage(err, "브랜드 삭제에 실패했습니다."));
     }
   };
 

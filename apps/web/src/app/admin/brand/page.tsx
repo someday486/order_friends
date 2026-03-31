@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { apiClient } from "@/lib/api-client";
+import { formatBusinessNumberInput } from "@/lib/format";
 import {
   getAdminBrands,
   invalidateAdminBrands,
@@ -374,9 +375,13 @@ export default function BrandPage() {
                 <input
                   type="text"
                   value={newBizRegNo}
-                  onChange={(e) => setNewBizRegNo(e.target.value)}
+                  onChange={(e) =>
+                    setNewBizRegNo(formatBusinessNumberInput(e.target.value))
+                  }
                   placeholder="000-00-00000"
                   className="input-field max-w-[320px]"
+                  inputMode="numeric"
+                  maxLength={12}
                 />
               </div>
 
@@ -474,8 +479,14 @@ export default function BrandPage() {
                       <input
                         type="text"
                         value={editBizRegNo}
-                        onChange={(e) => setEditBizRegNo(e.target.value)}
+                        onChange={(e) =>
+                          setEditBizRegNo(
+                            formatBusinessNumberInput(e.target.value),
+                          )
+                        }
                         className="input-field max-w-[320px]"
+                        inputMode="numeric"
+                        maxLength={12}
                       />
                     </div>
 

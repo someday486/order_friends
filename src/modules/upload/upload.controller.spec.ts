@@ -8,6 +8,11 @@ describe('UploadController', () => {
   let controller: UploadController;
 
   const mockService = {
+    listBusinessOrderImportBatches: jest.fn(),
+    getBusinessOrderImportBatch: jest.fn(),
+    createBusinessOrderImportBatch: jest.fn(),
+    updateBusinessOrderImportBatchStatus: jest.fn(),
+    deleteBusinessOrderImportBatch: jest.fn(),
     uploadImage: jest.fn(),
     uploadMultipleImages: jest.fn(),
     deleteImage: jest.fn(),
@@ -29,6 +34,106 @@ describe('UploadController', () => {
 
     controller = module.get<UploadController>(UploadController);
     jest.clearAllMocks();
+  });
+
+  it('listBusinessOrderImports should return batches for current user', async () => {
+    mockService.listBusinessOrderImportBatches.mockResolvedValue([
+      { id: 'UP-1' },
+    ]);
+
+    const result = await controller.listBusinessOrderImports({
+      user: { id: 'user-1' },
+    } as any);
+
+    expect(result).toEqual([{ id: 'UP-1' }]);
+    expect(mockService.listBusinessOrderImportBatches).toHaveBeenCalledWith(
+      'user-1',
+    );
+  });
+
+  it('getBusinessOrderImport should return a batch for current user', async () => {
+    mockService.getBusinessOrderImportBatch.mockResolvedValue({ id: 'UP-1' });
+
+    const result = await controller.getBusinessOrderImport(
+      { user: { id: 'user-1' } } as any,
+      'UP-1',
+    );
+
+    expect(result).toEqual({ id: 'UP-1' });
+    expect(mockService.getBusinessOrderImportBatch).toHaveBeenCalledWith(
+      'user-1',
+      'UP-1',
+    );
+  });
+
+  it('createBusinessOrderImport should save a batch for current user', async () => {
+    const dto = {
+      supplierId: 'sup-1',
+      supplierName: '공급처',
+      orderDate: '2026-03-31',
+      fileName: 'sample.xlsx',
+      headerRowIndex: 0,
+      rows: [
+        {
+          merchantOrderNo: 'A-1',
+          productName: '사과',
+          quantity: 2,
+          recipientName: '홍길동',
+          recipientPhone: '010-0000-0000',
+          recipientAddress: '서울',
+        },
+      ],
+    };
+
+    mockService.createBusinessOrderImportBatch.mockResolvedValue({
+      id: 'UP-1',
+    });
+
+    const result = await controller.createBusinessOrderImport(
+      { user: { id: 'user-1' } } as any,
+      dto as any,
+    );
+
+    expect(result).toEqual({ id: 'UP-1' });
+    expect(mockService.createBusinessOrderImportBatch).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+    );
+  });
+
+  it('updateBusinessOrderImportStatus should update a batch status', async () => {
+    mockService.updateBusinessOrderImportBatchStatus.mockResolvedValue({
+      id: 'UP-1',
+      status: '승인대기',
+    });
+
+    const result = await controller.updateBusinessOrderImportStatus(
+      { user: { id: 'user-1' } } as any,
+      'UP-1',
+      { status: '승인대기' },
+    );
+
+    expect(result).toEqual({ id: 'UP-1', status: '승인대기' });
+    expect(
+      mockService.updateBusinessOrderImportBatchStatus,
+    ).toHaveBeenCalledWith('user-1', 'UP-1', '승인대기');
+  });
+
+  it('deleteBusinessOrderImport should delete a batch for current user', async () => {
+    mockService.deleteBusinessOrderImportBatch.mockResolvedValue(undefined);
+
+    const result = await controller.deleteBusinessOrderImport(
+      { user: { id: 'user-1' } } as any,
+      'UP-1',
+    );
+
+    expect(result).toEqual({
+      message: 'Business order import deleted successfully',
+    });
+    expect(mockService.deleteBusinessOrderImportBatch).toHaveBeenCalledWith(
+      'user-1',
+      'UP-1',
+    );
   });
 
   it('uploadImage should call service and return result', async () => {

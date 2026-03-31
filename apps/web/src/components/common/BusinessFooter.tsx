@@ -15,13 +15,15 @@ export function BusinessFooter() {
   return (
     <footer className="border-t border-border bg-bg-secondary/90">
       <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-3 px-6 py-10 text-center text-[13px] leading-6 text-text-secondary">
-        <div>
-          상호 : {BUSINESS_INFO.name} | 대표 : {BUSINESS_INFO.representative} | 사업자번호 :{' '}
-          {BUSINESS_INFO.registrationNumber}
-        </div>
-        <div>주소 : {BUSINESS_INFO.address}</div>
-        <div>
-          업태 : {BUSINESS_INFO.businessType} | 종목 : {BUSINESS_INFO.businessItems}
+        <div className="flex flex-col items-center gap-1 leading-5">
+          <div>
+            상호 : {BUSINESS_INFO.name} | 대표 : {BUSINESS_INFO.representative} | 사업자번호 :{' '}
+            {BUSINESS_INFO.registrationNumber}
+          </div>
+          <div>주소 : {BUSINESS_INFO.address}</div>
+          <div>
+            업태 : {BUSINESS_INFO.businessType} | 종목 : {BUSINESS_INFO.businessItems}
+          </div>
         </div>
         <div className="flex items-center gap-3 text-[13px] text-text-secondary">
           <Link className="underline underline-offset-2 hover:text-text-primary" href="/terms">

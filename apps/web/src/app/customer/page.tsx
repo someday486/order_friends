@@ -54,6 +54,8 @@ type LowStockAlert = {
   is_low_stock: boolean;
 };
 
+const NON_REVENUE_ORDER_STATUSES = new Set(['CANCELLED', 'REFUNDED']);
+
 function getStatusVariant(
   status: string,
 ): 'info' | 'success' | 'warning' | 'danger' | 'default' {
@@ -150,7 +152,10 @@ export default function CustomerDashboardPage() {
   const recentRevenue = useMemo(
     () =>
       (stats?.recentOrders ?? []).reduce(
-        (sum, order) => sum + (order.total_amount || 0),
+        (sum, order) =>
+          NON_REVENUE_ORDER_STATUSES.has(order.status)
+            ? sum
+            : sum + (order.total_amount || 0),
         0,
       ),
     [stats?.recentOrders],

@@ -1,6 +1,10 @@
 import {
   Controller,
   Post,
+  Get,
+  Patch,
+  Param,
+  Req,
   Delete,
   UseGuards,
   UseInterceptors,
@@ -8,6 +12,7 @@ import {
   UploadedFiles,
   Body,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
@@ -21,6 +26,11 @@ import {
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { UploadService } from './upload.service';
 import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
+import type { AuthRequest } from '../../common/types/auth-request';
+import {
+  CreateBusinessOrderImportBatchDto,
+  UpdateBusinessOrderImportBatchStatusDto,
+} from './dto/business-order-import.dto';
 
 @ApiTags('upload')
 @ApiBearerAuth()
@@ -28,6 +38,118 @@ import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator
 @UseGuards(AuthGuard)
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
+
+  @Get('business-order-imports')
+  @UserRateLimit({ points: 60, duration: 60 })
+  @ApiOperation({
+    summary: '업로드한 B2B 주문서 목록 조회',
+    description:
+      '현재 로그인한 사용자의 주문서 업로드 배치를 최신순으로 조회합니다.',
+  })
+  @ApiResponse({ status: 200, description: '주문서 목록 조회 성공' })
+  async listBusinessOrderImports(@Req() req: AuthRequest) {
+    const userId = req.user?.id ?? req.userId ?? req.profile?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.uploadService.listBusinessOrderImportBatches(userId);
+  }
+
+  @Get('business-order-imports/:batchId')
+  @UserRateLimit({ points: 60, duration: 60 })
+  @ApiOperation({
+    summary: '업로드한 B2B 주문서 상세 조회',
+    description: '현재 로그인한 사용자의 특정 주문서 업로드 배치를 조회합니다.',
+  })
+  @ApiResponse({ status: 200, description: '주문서 상세 조회 성공' })
+  async getBusinessOrderImport(
+    @Req() req: AuthRequest,
+    @Param('batchId') batchId: string,
+  ) {
+    const userId = req.user?.id ?? req.userId ?? req.profile?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    if (!batchId?.trim()) {
+      throw new BadRequestException('batchId is required');
+    }
+
+    return this.uploadService.getBusinessOrderImportBatch(userId, batchId);
+  }
+
+  @Post('business-order-imports')
+  @UserRateLimit({ points: 20, duration: 60 })
+  @ApiOperation({
+    summary: 'B2B 주문서 업로드 배치 저장',
+    description:
+      '엑셀/CSV 검증 완료 후 주문서 업로드 결과를 서버에 저장합니다.',
+  })
+  @ApiResponse({ status: 201, description: '주문서 업로드 저장 성공' })
+  async createBusinessOrderImport(
+    @Req() req: AuthRequest,
+    @Body() dto: CreateBusinessOrderImportBatchDto,
+  ) {
+    const userId = req.user?.id ?? req.userId ?? req.profile?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.uploadService.createBusinessOrderImportBatch(userId, dto);
+  }
+
+  @Patch('business-order-imports/:batchId/status')
+  @UserRateLimit({ points: 30, duration: 60 })
+  @ApiOperation({
+    summary: 'B2B 주문서 업로드 상태 변경',
+    description: '주문서 초안의 진행 상태를 변경합니다.',
+  })
+  @ApiResponse({ status: 200, description: '주문서 상태 변경 성공' })
+  async updateBusinessOrderImportStatus(
+    @Req() req: AuthRequest,
+    @Param('batchId') batchId: string,
+    @Body() dto: UpdateBusinessOrderImportBatchStatusDto,
+  ) {
+    const userId = req.user?.id ?? req.userId ?? req.profile?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    if (!batchId?.trim()) {
+      throw new BadRequestException('batchId is required');
+    }
+
+    return this.uploadService.updateBusinessOrderImportBatchStatus(
+      userId,
+      batchId,
+      dto.status,
+    );
+  }
+
+  @Delete('business-order-imports/:batchId')
+  @UserRateLimit({ points: 20, duration: 60 })
+  @ApiOperation({
+    summary: 'B2B 주문서 업로드 배치 삭제',
+    description: '현재 로그인한 사용자의 주문서 업로드 배치를 삭제합니다.',
+  })
+  @ApiResponse({ status: 200, description: '주문서 삭제 성공' })
+  async deleteBusinessOrderImport(
+    @Req() req: AuthRequest,
+    @Param('batchId') batchId: string,
+  ) {
+    const userId = req.user?.id ?? req.userId ?? req.profile?.id;
+    if (!userId) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    if (!batchId?.trim()) {
+      throw new BadRequestException('batchId is required');
+    }
+
+    await this.uploadService.deleteBusinessOrderImportBatch(userId, batchId);
+    return { message: 'Business order import deleted successfully' };
+  }
 
   @Post('image')
   @UserRateLimit({ points: 20, duration: 60 }) // 20 uploads per minute

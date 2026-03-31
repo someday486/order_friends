@@ -130,6 +130,21 @@ export class CustomerOrdersService {
     return payload;
   }
 
+  private isMissingOrderStatusTimestampColumnError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    const isMissingColumn =
+      error?.code === '42703' ||
+      error?.code === 'PGRST204' ||
+      /column .* does not exist/i.test(message) ||
+      /schema cache/i.test(message);
+
+    if (!isMissingColumn) {
+      return false;
+    }
+
+    return /completed_at|cancelled_at/i.test(message);
+  }
+
   /**
    * orderId가 uuid(id)일 수도, order_no일 수도 있음
    * 실제 orders.id(uuid)로 resolve
@@ -1097,12 +1112,27 @@ export class CustomerOrdersService {
       );
     }
 
-    const { data, error } = await sb
+    const selectClause =
+      'id, order_no, status, created_at, customer_name, total_amount';
+
+    let { data, error } = await sb
       .from('orders')
       .update(this.buildStatusUpdatePayload(status))
       .eq('id', order.id)
-      .select('id, order_no, status, created_at, customer_name, total_amount')
+      .select(selectClause)
       .single();
+
+    if (error && this.isMissingOrderStatusTimestampColumnError(error)) {
+      this.logger.warn(
+        `Order status timestamp columns missing for ${orderId}; retrying status-only update`,
+      );
+      ({ data, error } = await sb
+        .from('orders')
+        .update({ status })
+        .eq('id', order.id)
+        .select(selectClause)
+        .single());
+    }
 
     if (error || !data) {
       this.logger.error(`Failed to update order ${orderId} status`, error);

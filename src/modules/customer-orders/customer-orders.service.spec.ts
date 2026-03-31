@@ -1716,6 +1716,55 @@ describe('CustomerOrdersService', () => {
     ).rejects.toThrow('Failed to update order status');
   });
 
+  it('updateMyOrderStatus should retry without timestamp columns when schema is behind', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column orders.completed_at does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          status: OrderStatus.COMPLETED,
+          created_at: 't',
+          customer_name: 'A',
+          total_amount: 10,
+        },
+        error: null,
+      });
+
+    const result = await service.updateMyOrderStatus(
+      'user-1',
+      'o1',
+      OrderStatus.COMPLETED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.status).toBe(OrderStatus.COMPLETED);
+    expect(ordersChain.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        status: OrderStatus.COMPLETED,
+        completed_at: expect.any(String),
+      }),
+    );
+    expect(ordersChain.update).toHaveBeenNthCalledWith(2, {
+      status: OrderStatus.COMPLETED,
+    });
+  });
+
   it('updateMyOrdersStatusBulk should update selected orders', async () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })

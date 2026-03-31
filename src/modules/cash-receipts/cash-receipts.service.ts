@@ -693,11 +693,16 @@ export class CashReceiptsService {
     brand: BrandReceiptSettings,
   ): { corpNum: string; userId?: string } | null {
     const merchantId = brand.cash_receipt_merchant_id?.trim() ?? '';
-    const merchantDigits = this.normalizeDigits(merchantId);
     const bizRegNo = this.normalizeDigits(brand.biz_reg_no);
 
-    if (merchantDigits.length === 10) {
-      return { corpNum: merchantDigits };
+    if (/^\d{10}$/.test(merchantId)) {
+      return {
+        corpNum: merchantId,
+        userId:
+          bizRegNo === merchantId
+            ? this.buildMemberUserId(merchantId)
+            : undefined,
+      };
     }
 
     if (bizRegNo.length !== 10) {
@@ -708,6 +713,10 @@ export class CashReceiptsService {
       corpNum: bizRegNo,
       userId: merchantId || undefined,
     };
+  }
+
+  private buildMemberUserId(corpNum: string): string {
+    return `of${corpNum}`;
   }
 
   private calculateAmountBreakdown(totalAmount: number): {

@@ -133,7 +133,7 @@ describe('CashReceiptsService', () => {
         address: '서울시 강남구',
         cash_receipt_enabled: true,
         cash_receipt_provider: CashReceiptProvider.POPBILL,
-        cash_receipt_merchant_id: 'merchant-user',
+        cash_receipt_merchant_id: 'of1234567890',
         cash_receipt_issue_timing: 'ORDER_COMPLETED',
         cash_receipt_self_issue_enabled: false,
         cash_receipt_contact_phone: '02-111-2222',
@@ -179,7 +179,7 @@ describe('CashReceiptsService', () => {
     expect(mockPopbillClient.issueCashReceipt).toHaveBeenCalledWith(
       expect.objectContaining({
         corpNum: '1234567890',
-        userId: 'merchant-user',
+        userId: 'of1234567890',
         cashbill: expect.objectContaining({
           tradeUsage: '소득공제용',
           taxationType: '과세',
@@ -385,5 +385,17 @@ describe('CashReceiptsService', () => {
         status: CashReceiptStatus.CANCELLED,
       }),
     );
+  });
+
+  it('should derive a Popbill member userId for legacy numeric merchant ids', () => {
+    expect(
+      (service as any).resolveProviderAccount({
+        biz_reg_no: '123-45-67890',
+        cash_receipt_merchant_id: '1234567890',
+      }),
+    ).toEqual({
+      corpNum: '1234567890',
+      userId: 'of1234567890',
+    });
   });
 });

@@ -15,6 +15,15 @@ export class CashReceiptRequestResponse {
   identityValue?: string | null;
 }
 
+export class CashReceiptIssueResponse {
+  provider?: string | null;
+  status: string;
+  issuedAt?: string | null;
+  approvalNo?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
 export class OrderDetailResponse {
   id: string;
   orderedAt: string;
@@ -41,6 +50,7 @@ export class OrderDetailResponse {
     total: number;
   };
   cashReceiptRequest?: CashReceiptRequestResponse | null;
+  cashReceiptIssue?: CashReceiptIssueResponse | null;
 
   items: OrderItemResponse[];
 }

@@ -58,6 +58,7 @@ describe('OrdersService', () => {
     service = module.get<OrdersService>(OrdersService);
     // Clear mock call history only, preserve mockReturnThis() implementations
     jest.clearAllMocks();
+    jest.spyOn(service as any, 'getLatestCashReceipt').mockResolvedValue(null);
   });
 
   it('should be defined', () => {
@@ -402,7 +403,7 @@ describe('OrdersService', () => {
       expect(result.depositMatchStatus).toBeNull();
     });
 
-    it('should expose tax invoice request info when business expense proof was requested', async () => {
+    it('should expose cash receipt request info when business expense proof was requested', async () => {
       const mockOrder = {
         id: '123',
         order_no: 'ORD-001',
@@ -440,6 +441,53 @@ describe('OrdersService', () => {
         type: 'EXPENSE_PROOF',
         identityType: 'BUSINESS_NUMBER',
         identityValue: '1234567890',
+      });
+    });
+
+    it('should include latest cash receipt issue result when issuance succeeded', async () => {
+      jest.spyOn(service as any, 'getLatestCashReceipt').mockResolvedValueOnce({
+        provider: 'POPBILL',
+        status: 'ISSUED',
+        issuedAt: '2026-03-31T03:00:00.000Z',
+        approvalNo: 'PB-12345',
+        errorCode: null,
+        errorMessage: null,
+      });
+      const mockOrder = {
+        id: '123',
+        order_no: 'ORD-001',
+        status: OrderStatus.COMPLETED,
+        created_at: '2024-01-01',
+        customer_name: 'Test User',
+        customer_phone: '010-1234-5678',
+        delivery_address: 'Test Address',
+        delivery_memo: null,
+        subtotal: 10000,
+        delivery_fee: 0,
+        discount_total: 0,
+        total_amount: 10000,
+        items: [],
+      };
+
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockOrder,
+          error: null,
+        });
+
+      const result = await service.getOrder('token', '123', 'branch-123');
+
+      expect(result.cashReceiptIssue).toEqual({
+        provider: 'POPBILL',
+        status: 'ISSUED',
+        issuedAt: '2026-03-31T03:00:00.000Z',
+        approvalNo: 'PB-12345',
+        errorCode: null,
+        errorMessage: null,
       });
     });
 

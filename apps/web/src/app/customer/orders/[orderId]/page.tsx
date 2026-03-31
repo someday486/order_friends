@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import {
   formatBusinessNumber,
+  formatCashReceiptProvider,
   formatDateTime,
   formatPhone,
   formatWon,
@@ -58,6 +59,14 @@ type OrderDetail = {
     identityType?: string | null;
     identityValue?: string | null;
   } | null;
+  cashReceiptIssue?: {
+    provider?: string | null;
+    status: string;
+    issuedAt?: string | null;
+    approvalNo?: string | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  } | null;
   items: OrderItem[];
   myRole?: string;
 };
@@ -65,6 +74,14 @@ type OrderDetail = {
 const CASH_RECEIPT_TYPE_LABEL: Record<string, string> = {
   INCOME_DEDUCTION: "소득공제용",
   EXPENSE_PROOF: "지출증빙용",
+};
+
+const CASH_RECEIPT_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: "발행 요청됨",
+  ISSUED: "발행 완료",
+  FAILED: "발행 실패",
+  CANCEL_REQUESTED: "취소 요청됨",
+  CANCELLED: "취소 완료",
 };
 
 function getCashReceiptIdentityLabel(identityType?: string | null) {
@@ -83,6 +100,11 @@ function formatCashReceiptIdentityValue(
     return formatBusinessNumber(identityValue);
   }
   return identityValue;
+}
+
+function getCashReceiptStatusLabel(status?: string | null) {
+  if (!status) return "-";
+  return CASH_RECEIPT_STATUS_LABEL[status] ?? status;
 }
 
 // ============================================================
@@ -669,6 +691,44 @@ export default function CustomerOrderDetailPage() {
               order.cashReceiptRequest.identityValue,
             )}
           />
+        </div>
+      )}
+
+      {order.cashReceiptRequest?.requested && (
+        <div className="bg-card rounded-md border border-border p-4 mb-3">
+          <h2 className="text-sm font-extrabold text-foreground mb-3">
+            현금영수증 발행 결과
+          </h2>
+          {order.cashReceiptIssue ? (
+            <>
+              <InfoRow
+                label="발행 상태"
+                value={getCashReceiptStatusLabel(order.cashReceiptIssue.status)}
+              />
+              <InfoRow
+                label="발급사"
+                value={formatCashReceiptProvider(order.cashReceiptIssue.provider)}
+              />
+              <InfoRow
+                label="발행 시각"
+                value={formatDateTime(order.cashReceiptIssue.issuedAt ?? "")}
+              />
+              <InfoRow
+                label="승인번호"
+                value={order.cashReceiptIssue.approvalNo || "-"}
+              />
+              {order.cashReceiptIssue.errorMessage && (
+                <InfoRow
+                  label="실패 사유"
+                  value={order.cashReceiptIssue.errorMessage}
+                />
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-text-secondary">
+              아직 발행 결과가 없습니다. 주문 완료 후 발행 여부를 확인할 수 있습니다.
+            </p>
+          )}
         </div>
       )}
 

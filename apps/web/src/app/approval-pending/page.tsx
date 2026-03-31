@@ -37,7 +37,6 @@ export default function ApprovalPendingPage() {
 
       const destination = await resolveAuthenticatedDestination();
       router.replace(destination);
-      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error

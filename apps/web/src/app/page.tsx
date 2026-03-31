@@ -27,7 +27,6 @@ export default function LoginPage() {
 
       if (cancelled) return;
       router.replace(destination);
-      router.refresh();
     };
 
     void redirectAuthenticatedUser();

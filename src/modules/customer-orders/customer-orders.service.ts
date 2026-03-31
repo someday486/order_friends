@@ -304,6 +304,48 @@ export class CustomerOrdersService {
     return null;
   }
 
+  private async getLatestCashReceipt(
+    sb: any,
+    orderId: string,
+  ): Promise<{
+    provider?: string | null;
+    status: string;
+    issuedAt?: string | null;
+    approvalNo?: string | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  } | null> {
+    const { data, error } = await sb
+      .from('cash_receipts')
+      .select(
+        'provider, status, issued_at, approval_no, error_code, error_message',
+      )
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.warn(
+        `Failed to load cash receipt for customer order ${orderId}: ${error.message}`,
+      );
+      return null;
+    }
+
+    if (!data?.status) {
+      return null;
+    }
+
+    return {
+      provider: data.provider ?? null,
+      status: String(data.status),
+      issuedAt: data.issued_at ?? null,
+      approvalNo: data.approval_no ?? null,
+      errorCode: data.error_code ?? null,
+      errorMessage: data.error_message ?? null,
+    };
+  }
+
   /**
    * 브랜치에 대한 접근 권한 확인
    */
@@ -966,6 +1008,10 @@ export class CustomerOrdersService {
       String(data.id),
     ]);
     const cashReceiptRequest = this.mapCashReceiptRequest(data);
+    const cashReceiptIssue = await this.getLatestCashReceipt(
+      sb,
+      String(data.id),
+    );
 
     return {
       id: data.id,
@@ -994,6 +1040,7 @@ export class CustomerOrdersService {
         total: data.total_amount ?? 0,
       },
       cashReceiptRequest,
+      cashReceiptIssue,
       items,
     };
   }

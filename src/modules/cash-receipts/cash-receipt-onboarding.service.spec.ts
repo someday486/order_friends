@@ -52,6 +52,8 @@ describe('CashReceiptOnboardingService', () => {
       cash_receipt_enabled: false,
       cash_receipt_provider: null,
       cash_receipt_merchant_id: null,
+      cash_receipt_onboarding_status: 'SKIPPED',
+      cash_receipt_onboarding_message: null,
     });
     expect(mockPopbillClient.checkIsMember).not.toHaveBeenCalled();
   });
@@ -76,6 +78,9 @@ describe('CashReceiptOnboardingService', () => {
       cash_receipt_enabled: true,
       cash_receipt_provider: CashReceiptProvider.POPBILL,
       cash_receipt_merchant_id: '1234567890',
+      cash_receipt_onboarding_status: 'EXISTING',
+      cash_receipt_onboarding_message:
+        'Popbill 현금영수증 연동을 확인했습니다. 기존 가입 정보를 재사용합니다.',
     });
   });
 
@@ -105,7 +110,14 @@ describe('CashReceiptOnboardingService', () => {
         ContactEmail: 'owner@example.com',
       }),
     );
-    expect(result.cash_receipt_merchant_id).toBe('1234567890');
+    expect(result).toEqual({
+      cash_receipt_enabled: true,
+      cash_receipt_provider: CashReceiptProvider.POPBILL,
+      cash_receipt_merchant_id: '1234567890',
+      cash_receipt_onboarding_status: 'JOINED',
+      cash_receipt_onboarding_message:
+        'Popbill 현금영수증 연동이 완료되었습니다. 신규 가입이 처리되었습니다.',
+    });
   });
 
   it('should surface a clear message when required contact information is missing', async () => {

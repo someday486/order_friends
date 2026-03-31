@@ -54,9 +54,12 @@ export class BrandsService {
       cash_receipt_contact_name?: string | null;
       cash_receipt_contact_phone?: string | null;
     },
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{
+    config: Record<string, unknown>;
+    onboardingMessage: string | null;
+  }> {
     if (!this.cashReceiptOnboardingService) {
-      return {};
+      return { config: {}, onboardingMessage: null };
     }
 
     const resolved =
@@ -66,9 +69,12 @@ export class BrandsService {
       );
 
     return {
-      cash_receipt_enabled: resolved.cash_receipt_enabled ?? false,
-      cash_receipt_provider: resolved.cash_receipt_provider ?? null,
-      cash_receipt_merchant_id: resolved.cash_receipt_merchant_id ?? null,
+      config: {
+        cash_receipt_enabled: resolved.cash_receipt_enabled ?? false,
+        cash_receipt_provider: resolved.cash_receipt_provider ?? null,
+        cash_receipt_merchant_id: resolved.cash_receipt_merchant_id ?? null,
+      },
+      onboardingMessage: resolved.cash_receipt_onboarding_message ?? null,
     };
   }
 
@@ -238,20 +244,18 @@ export class BrandsService {
       logo_url: dto.logoUrl ?? null,
       cover_image_url: dto.coverImageUrl ?? null,
     };
-    Object.assign(
-      insertPayload,
-      await this.resolveCashReceiptConfig(userId, {
-        biz_name: dto.bizName ?? null,
-        biz_reg_no: dto.bizRegNo ?? null,
-        rep_name: dto.repName ?? null,
-        address: dto.address ?? null,
-        cash_receipt_enabled: dto.cashReceiptEnabled ?? false,
-        cash_receipt_provider: dto.cashReceiptProvider ?? null,
-        cash_receipt_merchant_id: dto.cashReceiptMerchantId ?? null,
-        cash_receipt_contact_name: dto.cashReceiptContactName ?? null,
-        cash_receipt_contact_phone: dto.cashReceiptContactPhone ?? null,
-      }),
-    );
+    const createOnboarding = await this.resolveCashReceiptConfig(userId, {
+      biz_name: dto.bizName ?? null,
+      biz_reg_no: dto.bizRegNo ?? null,
+      rep_name: dto.repName ?? null,
+      address: dto.address ?? null,
+      cash_receipt_enabled: dto.cashReceiptEnabled ?? false,
+      cash_receipt_provider: dto.cashReceiptProvider ?? null,
+      cash_receipt_merchant_id: dto.cashReceiptMerchantId ?? null,
+      cash_receipt_contact_name: dto.cashReceiptContactName ?? null,
+      cash_receipt_contact_phone: dto.cashReceiptContactPhone ?? null,
+    });
+    Object.assign(insertPayload, createOnboarding.config);
 
     // 2) brands insert (RLS bypass)
     const { data: brand, error: brandError } = await adminSb
@@ -301,6 +305,7 @@ export class BrandsService {
         brand.cash_receipt_self_issue_enabled ?? false,
       cashReceiptContactName: brand.cash_receipt_contact_name ?? null,
       cashReceiptContactPhone: brand.cash_receipt_contact_phone ?? null,
+      cashReceiptOnboardingMessage: createOnboarding.onboardingMessage,
       createdAt: brand.created_at ?? '',
     };
   }
@@ -350,6 +355,7 @@ export class BrandsService {
       updateData.cover_image_url = dto.coverImageUrl;
     const adminSb = this.supabase.adminClient();
     let existingBrand: any = null;
+    let onboardingMessage: string | null = null;
 
     if (!isAdmin) {
       const userSb = this.supabase.userClient(accessToken);
@@ -393,9 +399,9 @@ export class BrandsService {
       }
 
       existingBrand = existingBrandData;
-      Object.assign(
-        updateData,
-        await this.resolveCashReceiptConfig(existingBrand.owner_user_id, {
+      const resolvedOnboarding = await this.resolveCashReceiptConfig(
+        existingBrand.owner_user_id,
+        {
           biz_name: dto.bizName ?? existingBrand.biz_name,
           biz_reg_no: dto.bizRegNo ?? existingBrand.biz_reg_no,
           rep_name: dto.repName ?? existingBrand.rep_name,
@@ -412,8 +418,10 @@ export class BrandsService {
           cash_receipt_contact_phone:
             dto.cashReceiptContactPhone ??
             existingBrand.cash_receipt_contact_phone,
-        }),
+        },
       );
+      Object.assign(updateData, resolvedOnboarding.config);
+      onboardingMessage = resolvedOnboarding.onboardingMessage;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -457,6 +465,7 @@ export class BrandsService {
       cashReceiptContactPhone: data.cash_receipt_contact_phone ?? null,
       logoUrl: data.logo_url ?? null,
       coverImageUrl: data.cover_image_url ?? null,
+      cashReceiptOnboardingMessage: onboardingMessage,
       createdAt: data.created_at ?? '',
     };
   }

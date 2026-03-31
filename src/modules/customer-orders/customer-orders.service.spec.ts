@@ -68,6 +68,7 @@ describe('CustomerOrdersService', () => {
   beforeEach(() => {
     setup();
     jest.clearAllMocks();
+    jest.spyOn(service as any, 'getLatestCashReceipt').mockResolvedValue(null);
   });
 
   it('isUuid should validate uuid', () => {
@@ -1336,7 +1337,7 @@ describe('CustomerOrdersService', () => {
     expect(result.items).toEqual([]);
   });
 
-  it('getMyOrder should expose tax invoice request info when business expense proof was requested', async () => {
+  it('getMyOrder should expose cash receipt request info when business expense proof was requested', async () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
@@ -1378,6 +1379,57 @@ describe('CustomerOrdersService', () => {
       type: 'EXPENSE_PROOF',
       identityType: 'BUSINESS_NUMBER',
       identityValue: '1234567890',
+    });
+  });
+
+  it('getMyOrder should include latest cash receipt issue result when issuance failed', async () => {
+    jest.spyOn(service as any, 'getLatestCashReceipt').mockResolvedValueOnce({
+      provider: 'POPBILL',
+      status: 'FAILED',
+      issuedAt: null,
+      approvalNo: null,
+      errorCode: 'INVALID_AMOUNT',
+      errorMessage: 'INVALID_AMOUNT',
+    });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          status: OrderStatus.CREATED,
+          created_at: 't',
+          customer_name: 'A',
+          customer_phone: '1',
+          delivery_address: 'addr',
+          delivery_memo: null,
+          subtotal: 10,
+          delivery_fee: 0,
+          discount_total: 0,
+          total_amount: 10,
+          items: [],
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+      error: null,
+    });
+
+    const result = await service.getMyOrder(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.cashReceiptIssue).toEqual({
+      provider: 'POPBILL',
+      status: 'FAILED',
+      issuedAt: null,
+      approvalNo: null,
+      errorCode: 'INVALID_AMOUNT',
+      errorMessage: 'INVALID_AMOUNT',
     });
   });
 

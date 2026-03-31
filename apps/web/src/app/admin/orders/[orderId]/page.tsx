@@ -51,6 +51,14 @@ type OrderDetail = {
     identityType?: string | null;
     identityValue?: string | null;
   } | null;
+  cashReceiptIssue?: {
+    provider?: string | null;
+    status: string;
+    issuedAt?: string | null;
+    approvalNo?: string | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  } | null;
   items: OrderItem[];
 };
 
@@ -66,6 +74,14 @@ const STATUS_FLOW: OrderStatus[] = [
   "READY",
   "COMPLETED",
 ];
+
+const CASH_RECEIPT_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: "발행 요청됨",
+  ISSUED: "발행 완료",
+  FAILED: "발행 실패",
+  CANCEL_REQUESTED: "취소 요청됨",
+  CANCELLED: "취소 완료",
+};
 
 const RAW_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: "주문접수",
@@ -121,6 +137,16 @@ function formatCashReceiptIdentityValue(
     return formatBusinessNumber(identityValue);
   }
   return identityValue;
+}
+
+function formatCashReceiptProvider(value?: string | null) {
+  if (!value) return "-";
+  return value.trim().toUpperCase() === "POPBILL" ? "Popbill" : value;
+}
+
+function getCashReceiptStatusLabel(status?: string | null) {
+  if (!status) return "-";
+  return CASH_RECEIPT_STATUS_LABEL[status] ?? status;
 }
 
 function formatDateTime(iso: string) {
@@ -525,6 +551,55 @@ function OrderDetailPageContent() {
                   )}
                 </div>
               </div>
+            </section>
+          )}
+
+          {order.cashReceiptRequest?.requested && (
+            <section className="card p-3.5">
+              <div className="text-sm font-extrabold text-foreground">
+                현금영수증 발행 결과
+              </div>
+
+              {order.cashReceiptIssue ? (
+                <>
+                  <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                    <div className="text-[13px] text-text-secondary">발행 상태</div>
+                    <div className="text-[13px] text-foreground">
+                      {getCashReceiptStatusLabel(order.cashReceiptIssue.status)}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                    <div className="text-[13px] text-text-secondary">발급사</div>
+                    <div className="text-[13px] text-foreground">
+                      {formatCashReceiptProvider(order.cashReceiptIssue.provider)}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                    <div className="text-[13px] text-text-secondary">발행 시각</div>
+                    <div className="text-[13px] text-foreground">
+                      {formatDateTime(order.cashReceiptIssue.issuedAt ?? "")}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                    <div className="text-[13px] text-text-secondary">승인번호</div>
+                    <div className="text-[13px] text-foreground">
+                      {order.cashReceiptIssue.approvalNo || "-"}
+                    </div>
+                  </div>
+                  {order.cashReceiptIssue.errorMessage && (
+                    <div className="grid grid-cols-[90px_1fr] gap-2.5 py-2">
+                      <div className="text-[13px] text-text-secondary">실패 사유</div>
+                      <div className="text-[13px] text-foreground">
+                        {order.cashReceiptIssue.errorMessage}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="py-2 text-[13px] text-text-secondary">
+                  아직 발행 결과가 없습니다. 주문 완료 후 발행 여부를 확인할 수 있습니다.
+                </div>
+              )}
             </section>
           )}
         </div>

@@ -65,9 +65,12 @@ export class CustomerBrandsService {
   private async resolveCashReceiptConfig(
     ownerUserId: string,
     draft: Partial<CreateCustomerBrandRequest & UpdateCustomerBrandRequest>,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{
+    config: Record<string, unknown>;
+    onboardingMessage: string | null;
+  }> {
     if (!this.cashReceiptOnboardingService) {
-      return {};
+      return { config: {}, onboardingMessage: null };
     }
 
     const resolved =
@@ -77,9 +80,12 @@ export class CustomerBrandsService {
       );
 
     return {
-      cash_receipt_enabled: resolved.cash_receipt_enabled ?? false,
-      cash_receipt_provider: resolved.cash_receipt_provider ?? null,
-      cash_receipt_merchant_id: resolved.cash_receipt_merchant_id ?? null,
+      config: {
+        cash_receipt_enabled: resolved.cash_receipt_enabled ?? false,
+        cash_receipt_provider: resolved.cash_receipt_provider ?? null,
+        cash_receipt_merchant_id: resolved.cash_receipt_merchant_id ?? null,
+      },
+      onboardingMessage: resolved.cash_receipt_onboarding_message ?? null,
     };
   }
 
@@ -250,10 +256,11 @@ export class CustomerBrandsService {
         createData.shop_payment_methods,
       );
     }
-    Object.assign(
-      insertPayload,
-      await this.resolveCashReceiptConfig(userId, createData),
+    const createOnboarding = await this.resolveCashReceiptConfig(
+      userId,
+      createData,
     );
+    Object.assign(insertPayload, createOnboarding.config);
 
     const { data, error } = await sb
       .from('brands')
@@ -287,6 +294,7 @@ export class CustomerBrandsService {
     return {
       ...data,
       myRole: 'OWNER',
+      cash_receipt_onboarding_message: createOnboarding.onboardingMessage,
       slug: data.slug ?? null,
       shop_payment_methods: this.normalizeShopPaymentMethods(
         data.shop_payment_methods,
@@ -334,6 +342,7 @@ export class CustomerBrandsService {
     }
 
     let existingBrand: any = null;
+    let onboardingMessage: string | null = null;
 
     const {
       name,
@@ -415,9 +424,9 @@ export class CustomerBrandsService {
       }
 
       existingBrand = existingBrandData;
-      Object.assign(
-        updateFields,
-        await this.resolveCashReceiptConfig(existingBrand.owner_user_id, {
+      const resolvedOnboarding = await this.resolveCashReceiptConfig(
+        existingBrand.owner_user_id,
+        {
           biz_name: biz_name ?? existingBrand.biz_name,
           biz_reg_no: biz_reg_no ?? existingBrand.biz_reg_no,
           rep_name: rep_name ?? existingBrand.rep_name,
@@ -434,8 +443,10 @@ export class CustomerBrandsService {
           cash_receipt_contact_phone:
             cash_receipt_contact_phone ??
             existingBrand.cash_receipt_contact_phone,
-        }),
+        },
       );
+      Object.assign(updateFields, resolvedOnboarding.config);
+      onboardingMessage = resolvedOnboarding.onboardingMessage;
     }
 
     const { data, error } = await sb
@@ -456,6 +467,7 @@ export class CustomerBrandsService {
 
     return {
       ...data,
+      cash_receipt_onboarding_message: onboardingMessage,
       shop_payment_methods: this.normalizeShopPaymentMethods(
         data.shop_payment_methods,
       ),

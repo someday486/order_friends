@@ -15,10 +15,14 @@ type CashReceiptBrandDraft = {
   cash_receipt_contact_phone?: string | null;
 };
 
+export type CashReceiptOnboardingStatus = 'SKIPPED' | 'EXISTING' | 'JOINED';
+
 type ResolvedCashReceiptConfig = {
   cash_receipt_enabled?: boolean | null;
   cash_receipt_provider?: string | null;
   cash_receipt_merchant_id?: string | null;
+  cash_receipt_onboarding_status?: CashReceiptOnboardingStatus;
+  cash_receipt_onboarding_message?: string | null;
 };
 
 @Injectable()
@@ -44,6 +48,8 @@ export class CashReceiptOnboardingService {
         cash_receipt_enabled: draft.cash_receipt_enabled ?? false,
         cash_receipt_provider: draft.cash_receipt_provider ?? null,
         cash_receipt_merchant_id: draft.cash_receipt_merchant_id ?? null,
+        cash_receipt_onboarding_status: 'SKIPPED',
+        cash_receipt_onboarding_message: null,
       };
     }
 
@@ -101,9 +107,26 @@ export class CashReceiptOnboardingService {
           PWD: this.buildMemberPassword(corpNum),
         });
         this.logger.log(`Popbill member joined for corpNum ${corpNum}`);
-      } else {
-        this.logger.log(`Popbill member already exists for corpNum ${corpNum}`);
+
+        return {
+          cash_receipt_enabled: true,
+          cash_receipt_provider: CashReceiptProvider.POPBILL,
+          cash_receipt_merchant_id: corpNum,
+          cash_receipt_onboarding_status: 'JOINED',
+          cash_receipt_onboarding_message:
+            'Popbill 현금영수증 연동이 완료되었습니다. 신규 가입이 처리되었습니다.',
+        };
       }
+
+      this.logger.log(`Popbill member already exists for corpNum ${corpNum}`);
+      return {
+        cash_receipt_enabled: true,
+        cash_receipt_provider: CashReceiptProvider.POPBILL,
+        cash_receipt_merchant_id: corpNum,
+        cash_receipt_onboarding_status: 'EXISTING',
+        cash_receipt_onboarding_message:
+          'Popbill 현금영수증 연동을 확인했습니다. 기존 가입 정보를 재사용합니다.',
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -112,12 +135,6 @@ export class CashReceiptOnboardingService {
       );
       throw new Error(`현금영수증 자동 연동에 실패했습니다. ${message}`);
     }
-
-    return {
-      cash_receipt_enabled: true,
-      cash_receipt_provider: CashReceiptProvider.POPBILL,
-      cash_receipt_merchant_id: corpNum,
-    };
   }
 
   private async getOwnerEmail(ownerUserId: string): Promise<string> {

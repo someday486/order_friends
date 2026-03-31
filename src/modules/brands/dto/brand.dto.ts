@@ -30,6 +30,7 @@ export class BrandDetailResponse {
   cashReceiptSelfIssueEnabled?: boolean;
   cashReceiptContactName?: string | null;
   cashReceiptContactPhone?: string | null;
+  cashReceiptOnboardingMessage?: string | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   createdAt: string;

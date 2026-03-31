@@ -32,6 +32,7 @@ type Brand = {
   cash_receipt_self_issue_enabled: boolean | null;
   cash_receipt_contact_name: string | null;
   cash_receipt_contact_phone: string | null;
+  cash_receipt_onboarding_message?: string | null;
   myRole: string;
   created_at: string;
 };
@@ -299,7 +300,10 @@ export default function BrandDetailPage() {
 
       syncBrandForm(updatedBrand);
       setIsEditing(false);
-      toast.success("브랜드 정보가 저장되었습니다.");
+      toast.success(
+        updatedBrand.cash_receipt_onboarding_message ||
+          "브랜드 정보가 저장되었습니다.",
+      );
     } catch (e) {
       console.error(e);
       toast.error(parseApiErrorMessage(e, "브랜드 정보 저장에 실패했습니다."));

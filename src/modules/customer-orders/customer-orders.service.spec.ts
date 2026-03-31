@@ -15,7 +15,10 @@ describe('CustomerOrdersService', () => {
   let inventoryChain: any;
   let inventoryLogsChain: any;
   let mockSb: any;
-  let mockPaymentsService: { refundOrderPaymentForCancellation: jest.Mock };
+  let mockPaymentsService: {
+    refundOrderPaymentForCancellation: jest.Mock;
+    confirmManualTransferPayment: jest.Mock;
+  };
   let mockCashReceiptsService: {
     issueForCompletedOrder: jest.Mock;
     cancelForOrder: jest.Mock;
@@ -50,6 +53,13 @@ describe('CustomerOrdersService', () => {
     depositMatchesChain.eq.mockResolvedValue({ data: [], error: null });
     mockPaymentsService = {
       refundOrderPaymentForCancellation: jest.fn().mockResolvedValue(undefined),
+      confirmManualTransferPayment: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        orderId: 'o1',
+        status: 'SUCCESS',
+        amount: 10,
+        paidAt: 't',
+      }),
     };
     mockCashReceiptsService = {
       issueForCompletedOrder: jest.fn().mockResolvedValue(undefined),
@@ -1933,5 +1943,61 @@ describe('CustomerOrdersService', () => {
     expect(() =>
       (service as any).checkModificationPermission('ADMIN', 'update', 'user-1'),
     ).not.toThrow();
+  });
+
+  it('confirmMyOrderTransferPayment should confirm transfer payment and issue receipt for completed order', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        status: OrderStatus.COMPLETED,
+        branches: { brand_id: 'brand-1' },
+      },
+      error: null,
+    });
+
+    const result = await service.confirmMyOrderTransferPayment(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.status).toBe('SUCCESS');
+    expect(
+      mockPaymentsService.confirmManualTransferPayment,
+    ).toHaveBeenCalledWith('o1', 'b1');
+    expect(mockCashReceiptsService.issueForCompletedOrder).toHaveBeenCalledWith(
+      'o1',
+    );
+  });
+
+  it('confirmMyOrderTransferPayment should throw for insufficient role', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        status: OrderStatus.CREATED,
+        branches: { brand_id: 'brand-1' },
+      },
+      error: null,
+    });
+
+    await expect(
+      service.confirmMyOrderTransferPayment(
+        'user-1',
+        'o1',
+        [],
+        [{ branch_id: 'b1', role: 'VIEWER', status: 'ACTIVE' }],
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 });

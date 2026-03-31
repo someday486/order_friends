@@ -787,6 +787,135 @@ export class PaymentsService {
     };
   }
 
+  async confirmManualTransferPayment(
+    orderId: string,
+    branchId: string,
+  ): Promise<PaymentStatusResponse> {
+    this.logger.log(
+      `Manually confirming transfer payment for order: ${orderId}`,
+    );
+
+    const sb = this.supabase.adminClient();
+
+    const { data: order, error: orderError } = await sb
+      .from('orders')
+      .select('id, branch_id')
+      .eq('id', orderId)
+      .eq('branch_id', branchId)
+      .maybeSingle();
+
+    if (orderError) {
+      this.logger.error(
+        'Failed to fetch order for manual payment confirm',
+        orderError,
+      );
+      throw new BusinessException(
+        'Failed to fetch order',
+        'ORDER_FETCH_FAILED',
+        500,
+        { error: orderError.message, orderId, branchId },
+      );
+    }
+
+    if (!order) {
+      throw new OrderNotFoundException(orderId);
+    }
+
+    const { data: payment, error: paymentError } = await sb
+      .from('payments')
+      .select(
+        'id, order_id, status, amount, paid_at, failure_reason, payment_method, provider',
+      )
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (paymentError) {
+      this.logger.error(
+        'Failed to fetch payment for manual payment confirm',
+        paymentError,
+      );
+      throw new BusinessException(
+        'Failed to fetch payment',
+        'PAYMENT_FETCH_FAILED',
+        500,
+        { error: paymentError.message, orderId },
+      );
+    }
+
+    if (!payment) {
+      throw new PaymentNotFoundException(orderId);
+    }
+
+    if (payment.payment_method !== PaymentMethod.TRANSFER) {
+      throw new PaymentNotAllowedException(
+        `payment method is ${payment.payment_method ?? 'UNKNOWN'}`,
+      );
+    }
+
+    if (payment.provider && payment.provider !== PaymentProvider.MANUAL) {
+      throw new PaymentNotAllowedException(
+        `payment provider is ${payment.provider}`,
+      );
+    }
+
+    if (payment.status === PaymentStatus.SUCCESS) {
+      return {
+        id: payment.id,
+        orderId: payment.order_id,
+        status: PaymentStatus.SUCCESS,
+        amount: payment.amount ?? 0,
+        paidAt: payment.paid_at || undefined,
+        failureReason: payment.failure_reason || undefined,
+      };
+    }
+
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new PaymentNotAllowedException(
+        `payment status is ${payment.status}`,
+      );
+    }
+
+    const paidAt = new Date().toISOString();
+    const { data: updated, error: updateError } = await sb
+      .from('payments')
+      .update({
+        status: PaymentStatus.SUCCESS,
+        paid_at: paidAt,
+        failure_reason: null,
+      })
+      .eq('id', payment.id)
+      .select('id, order_id, status, amount, paid_at, failure_reason')
+      .maybeSingle();
+
+    if (updateError || !updated) {
+      this.logger.error('Failed to update manual payment status', updateError);
+      throw new BusinessException(
+        'Failed to confirm payment',
+        'PAYMENT_CONFIRM_FAILED',
+        500,
+        { error: updateError?.message, paymentId: payment.id },
+      );
+    }
+
+    await this.updateOrderPaymentStatus(
+      sb,
+      orderId,
+      'PAID',
+      'manual-transfer-confirm',
+    );
+
+    return {
+      id: updated.id,
+      orderId: updated.order_id,
+      status: updated.status as PaymentStatus,
+      amount: updated.amount ?? 0,
+      paidAt: updated.paid_at || undefined,
+      failureReason: updated.failure_reason || undefined,
+    };
+  }
+
   /**
    * 결제 목록 조회 (고객 영역 - branchId 필수)
    */

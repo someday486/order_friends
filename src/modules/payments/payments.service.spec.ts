@@ -27,6 +27,7 @@ describe('PaymentsService', () => {
     eq: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
     range: jest.fn().mockReturnThis(),
     maybeSingle: jest.fn(),
     single: jest.fn(),
@@ -1201,6 +1202,102 @@ describe('PaymentsService', () => {
     const result = await service.getPaymentStatus('o1');
     expect(result.paidAt).toBeUndefined();
     expect(result.failureReason).toBeUndefined();
+  });
+
+  it('confirmManualTransferPayment should update pending transfer payment to success', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1' },
+      error: null,
+    });
+    paymentsChain.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 'p1',
+          order_id: 'o1',
+          status: PaymentStatus.PENDING,
+          amount: 10,
+          paid_at: null,
+          failure_reason: null,
+          payment_method: 'TRANSFER',
+          provider: 'MANUAL',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'p1',
+          order_id: 'o1',
+          status: PaymentStatus.SUCCESS,
+          amount: 10,
+          paid_at: '2026-03-31T09:30:00.000Z',
+          failure_reason: null,
+        },
+        error: null,
+      });
+
+    const result = await service.confirmManualTransferPayment('o1', 'b1');
+
+    expect(result.status).toBe(PaymentStatus.SUCCESS);
+    expect(paymentsChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: PaymentStatus.SUCCESS,
+        paid_at: expect.any(String),
+        failure_reason: null,
+      }),
+    );
+    expect(ordersChain.update).toHaveBeenCalledWith({ payment_status: 'PAID' });
+  });
+
+  it('confirmManualTransferPayment should reject non-transfer payments', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1' },
+      error: null,
+    });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.PENDING,
+        amount: 10,
+        paid_at: null,
+        failure_reason: null,
+        payment_method: 'CARD',
+        provider: 'MANUAL',
+      },
+      error: null,
+    });
+
+    await expect(
+      service.confirmManualTransferPayment('o1', 'b1'),
+    ).rejects.toBeInstanceOf(PaymentNotAllowedException);
+  });
+
+  it('confirmManualTransferPayment should return existing success payment idempotently', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1', branch_id: 'b1' },
+      error: null,
+    });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        status: PaymentStatus.SUCCESS,
+        amount: 10,
+        paid_at: 't',
+        failure_reason: null,
+        payment_method: 'TRANSFER',
+        provider: 'MANUAL',
+      },
+      error: null,
+    });
+
+    const result = await service.confirmManualTransferPayment('o1', 'b1');
+
+    expect(result.status).toBe(PaymentStatus.SUCCESS);
+    expect(paymentsChain.update).not.toHaveBeenCalled();
   });
 
   it('getPayments should return paginated list', async () => {

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole, type UserRole } from '@/hooks/useUserRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { NotificationProvider } from '@/providers/NotificationProvider';
@@ -210,6 +210,10 @@ export default function CustomerLayout({
     },
     [prefetchRoute],
   );
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   return (
     <NotificationProvider>

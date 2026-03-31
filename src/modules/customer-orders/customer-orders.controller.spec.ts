@@ -12,6 +12,7 @@ describe('CustomerOrdersController', () => {
     getMyOrder: jest.fn(),
     updateMyOrderStatus: jest.fn(),
     confirmMyOrderTransferPayment: jest.fn(),
+    retryMyOrderCashReceiptIssue: jest.fn(),
     updateMyOrdersStatusBulk: jest.fn(),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
@@ -223,6 +224,32 @@ describe('CustomerOrdersController', () => {
         makeReq({ user: undefined }),
         'order-1',
       ),
+    ).rejects.toThrow('Missing user');
+  });
+
+  it('retryCashReceiptIssue should call service and return result', async () => {
+    mockService.retryMyOrderCashReceiptIssue.mockResolvedValue({
+      orderId: 'order-1',
+      requested: true,
+    });
+
+    const result = await controller.retryCashReceiptIssue(makeReq(), 'order-1');
+
+    expect(result).toEqual({
+      orderId: 'order-1',
+      requested: true,
+    });
+    expect(mockService.retryMyOrderCashReceiptIssue).toHaveBeenCalledWith(
+      'user-1',
+      'order-1',
+      [],
+      [],
+    );
+  });
+
+  it('retryCashReceiptIssue should throw when user is missing', async () => {
+    await expect(
+      controller.retryCashReceiptIssue(makeReq({ user: undefined }), 'order-1'),
     ).rejects.toThrow('Missing user');
   });
 

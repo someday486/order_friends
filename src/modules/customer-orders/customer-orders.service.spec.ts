@@ -2000,4 +2000,57 @@ describe('CustomerOrdersService', () => {
       ),
     ).rejects.toThrow(ForbiddenException);
   });
+
+  it('retryMyOrderCashReceiptIssue should request issuance again for completed orders', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        status: OrderStatus.COMPLETED,
+        branches: { brand_id: 'brand-1' },
+      },
+      error: null,
+    });
+
+    const result = await service.retryMyOrderCashReceiptIssue(
+      'user-1',
+      'o1',
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result).toEqual({ orderId: 'o1', requested: true });
+    expect(mockCashReceiptsService.issueForCompletedOrder).toHaveBeenCalledWith(
+      'o1',
+    );
+  });
+
+  it('retryMyOrderCashReceiptIssue should reject non-completed orders', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        status: OrderStatus.READY,
+        branches: { brand_id: 'brand-1' },
+      },
+      error: null,
+    });
+
+    await expect(
+      service.retryMyOrderCashReceiptIssue(
+        'user-1',
+        'o1',
+        [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+        [],
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
 });

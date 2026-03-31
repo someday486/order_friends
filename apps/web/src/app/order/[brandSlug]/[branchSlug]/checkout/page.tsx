@@ -194,6 +194,9 @@ export default function CheckoutPage() {
   const [customerMemo, setCustomerMemo] = useState('');
   const [cashReceiptEnabled, setCashReceiptEnabled] = useState(false);
   const [cashReceiptRequested, setCashReceiptRequested] = useState(false);
+  const [cashReceiptUseCustomerPhone, setCashReceiptUseCustomerPhone] =
+    useState(true);
+  const [cashReceiptPhone, setCashReceiptPhone] = useState('');
   const [selectedPickupDate, setSelectedPickupDate] = useState('');
   const [requestedPickupTime, setRequestedPickupTime] = useState('');
   const [pickupTimeConfig, setPickupTimeConfig] =
@@ -223,9 +226,24 @@ export default function CheckoutPage() {
     () => appendEuroRo(customerName, '주문자명'),
     [customerName],
   );
-  const normalizedCashReceiptPhone = useMemo(
+  const normalizedCustomerPhone = useMemo(
     () => normalizePhoneNumber(customerPhone),
     [customerPhone],
+  );
+  const normalizedManualCashReceiptPhone = useMemo(
+    () => normalizePhoneNumber(cashReceiptPhone),
+    [cashReceiptPhone],
+  );
+  const normalizedCashReceiptPhone = useMemo(
+    () =>
+      cashReceiptUseCustomerPhone
+        ? normalizedCustomerPhone
+        : normalizedManualCashReceiptPhone,
+    [
+      cashReceiptUseCustomerPhone,
+      normalizedCustomerPhone,
+      normalizedManualCashReceiptPhone,
+    ],
   );
   const supportsReceiptRequest =
     paymentMethod === 'TRANSFER';
@@ -273,6 +291,8 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (canRequestReceipt) return;
     setCashReceiptRequested(false);
+    setCashReceiptUseCustomerPhone(true);
+    setCashReceiptPhone('');
   }, [canRequestReceipt]);
 
   useEffect(() => {
@@ -698,7 +718,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-lg mx-auto lg:max-w-[760px]">
         {/* ── Header ── */}
         <header className="p-4 border-b border-border flex items-center gap-3">
           <Link
@@ -733,7 +753,7 @@ export default function CheckoutPage() {
           </span>
         </div>
 
-        <main className="p-4 pb-8">
+        <main className="p-4 pb-8 lg:px-6 lg:pb-10">
           {/* ── 주문 내역 ── */}
           <section className="py-4 border-b border-border">
             <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">
@@ -766,7 +786,7 @@ export default function CheckoutPage() {
             <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">
               주문 방식
             </h2>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 lg:max-w-[420px]">
               {enabledFulfillmentTypes.map((type) => {
                 const isSelected = fulfillmentType === type;
                 return (
@@ -774,7 +794,7 @@ export default function CheckoutPage() {
                     key={type}
                     data-testid={`fulfillment-${type.toLowerCase()}`}
                     onClick={() => setFulfillmentType(type)}
-                    className={`flex-1 p-3 rounded-xl border text-sm font-semibold cursor-pointer transition-all flex flex-col items-center gap-1 ${
+                    className={`min-h-[76px] rounded-xl border p-3 text-sm font-semibold cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
                       isSelected
                         ? 'bg-foreground text-background border-foreground'
                         : 'bg-transparent border-border text-text-secondary hover:bg-bg-tertiary'
@@ -810,7 +830,7 @@ export default function CheckoutPage() {
                 }
               />
               {status === 'authenticated' && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2 lg:max-w-[420px]">
                   <button
                     type="button"
                     onClick={handleLoadLastOrderInfo}
@@ -996,7 +1016,7 @@ export default function CheckoutPage() {
             <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">
               결제 수단
             </h2>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 lg:max-w-[420px]">
               {allowedPaymentMethods.map((method) => {
                 const isSelected = paymentMethod === method;
                 return (
@@ -1004,7 +1024,7 @@ export default function CheckoutPage() {
                     key={method}
                     data-testid={`payment-${method.toLowerCase()}`}
                     onClick={() => setPaymentMethod(method)}
-                    className={`flex-1 p-3 rounded-xl border text-sm font-semibold cursor-pointer transition-all flex flex-col items-center gap-1 ${
+                    className={`min-h-[76px] rounded-xl border p-3 text-sm font-semibold cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
                       isSelected
                         ? 'bg-foreground text-background border-foreground'
                         : 'bg-transparent border-border text-text-secondary hover:bg-bg-tertiary'
@@ -1067,9 +1087,30 @@ export default function CheckoutPage() {
                   주문자 휴대폰 번호로 소득공제용 현금영수증을 발급합니다.
                 </p>
                 {cashReceiptRequested && (
-                  <div className="mt-3">
+                  <div className="mt-3 space-y-3">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={cashReceiptUseCustomerPhone}
+                        onChange={(e) =>
+                          setCashReceiptUseCustomerPhone(e.target.checked)
+                        }
+                      />
+                      연락처와 동일
+                    </label>
                     <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
-                      발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}
+                      {cashReceiptUseCustomerPhone ? (
+                        <>발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}</>
+                      ) : (
+                        <input
+                          type="text"
+                          value={cashReceiptPhone}
+                          onChange={(e) => setCashReceiptPhone(e.target.value)}
+                          inputMode="tel"
+                          placeholder="현금영수증 발급 휴대폰 번호"
+                          className="input-field h-12 w-full"
+                        />
+                      )}
                     </div>
                   </div>
                 )}
@@ -1086,7 +1127,7 @@ export default function CheckoutPage() {
           {/* ── 주문 버튼 ── */}
           <button
             data-testid="submit-order-button"
-            className="w-full p-4 mt-6 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-none bg-foreground p-4 text-base font-bold text-background cursor-pointer transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:mx-auto lg:max-w-[420px]"
             onClick={handleSubmit}
             disabled={
               submitting || !customerName.trim() || !customerPhone.trim()

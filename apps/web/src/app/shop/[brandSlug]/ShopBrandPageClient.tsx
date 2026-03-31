@@ -269,6 +269,9 @@ export default function ShopBrandPageClient({
   const [customerAddress2, setCustomerAddress2] = useState('');
   const [customerMemo, setCustomerMemo] = useState('');
   const [cashReceiptRequested, setCashReceiptRequested] = useState(false);
+  const [cashReceiptUseCustomerPhone, setCashReceiptUseCustomerPhone] =
+    useState(true);
+  const [cashReceiptPhone, setCashReceiptPhone] = useState('');
   const [customerInfoReady, setCustomerInfoReady] = useState(false);
   const [authInfoLoaded, setAuthInfoLoaded] = useState(false);
   const authInfoRequestedRef = useRef(false);
@@ -280,9 +283,24 @@ export default function ShopBrandPageClient({
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const normalizedCashReceiptPhone = useMemo(
+  const normalizedCustomerPhone = useMemo(
     () => normalizePhoneNumber(customerPhone),
     [customerPhone],
+  );
+  const normalizedManualCashReceiptPhone = useMemo(
+    () => normalizePhoneNumber(cashReceiptPhone),
+    [cashReceiptPhone],
+  );
+  const normalizedCashReceiptPhone = useMemo(
+    () =>
+      cashReceiptUseCustomerPhone
+        ? normalizedCustomerPhone
+        : normalizedManualCashReceiptPhone,
+    [
+      cashReceiptUseCustomerPhone,
+      normalizedCustomerPhone,
+      normalizedManualCashReceiptPhone,
+    ],
   );
   const supportsReceiptRequest =
     paymentMethod === 'TRANSFER';
@@ -292,6 +310,8 @@ export default function ShopBrandPageClient({
   useEffect(() => {
     if (canRequestReceipt) return;
     setCashReceiptRequested(false);
+    setCashReceiptUseCustomerPhone(true);
+    setCashReceiptPhone('');
   }, [canRequestReceipt]);
 
   useEffect(() => {
@@ -973,13 +993,13 @@ export default function ShopBrandPageClient({
               />
 
               {/* 결제수단 */}
-              <div>
+              <div className="lg:max-w-[280px]">
                 <div className="text-sm font-semibold mb-2">결제수단</div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
                   {data.paymentMethods.map((method) => (
                     <label
                       key={method}
-                      className={`rounded-xl border px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                      className={`flex min-h-[52px] items-center rounded-xl border px-3 py-2.5 text-sm cursor-pointer transition-colors ${
                         paymentMethod === method
                           ? 'border-primary-500 bg-primary-500/10 text-primary-500 font-semibold'
                           : 'border-border bg-bg-tertiary'
@@ -1047,8 +1067,31 @@ export default function ShopBrandPageClient({
                       주문자 휴대폰 번호로 소득공제용 현금영수증을 발급합니다.
                     </p>
                     {cashReceiptRequested ? (
-                      <div className="mt-3 rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
-                        발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}
+                      <div className="mt-3 space-y-3">
+                        <label className="flex items-center gap-2 text-sm text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={cashReceiptUseCustomerPhone}
+                            onChange={(e) =>
+                              setCashReceiptUseCustomerPhone(e.target.checked)
+                            }
+                          />
+                          연락처와 동일
+                        </label>
+                        <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
+                          {cashReceiptUseCustomerPhone ? (
+                            <>발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}</>
+                          ) : (
+                            <input
+                              type="text"
+                              value={cashReceiptPhone}
+                              onChange={(e) => setCashReceiptPhone(e.target.value)}
+                              className="input-field h-11 w-full"
+                              placeholder="현금영수증 발급 휴대폰 번호"
+                              inputMode="tel"
+                            />
+                          )}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -1067,7 +1110,7 @@ export default function ShopBrandPageClient({
                   void submitOrder();
                 }}
                 disabled={submitting || cartItems.length === 0}
-                className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-none bg-foreground p-4 text-base font-bold text-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 lg:max-w-[280px]"
               >
                 {submitting ? (
                   <>

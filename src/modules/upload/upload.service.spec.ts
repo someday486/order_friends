@@ -2,9 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { UploadService } from './upload.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 describe('UploadService', () => {
   let service: UploadService;
+  let tempImportDir: string;
 
   const mockStorageClient = {
     upload: jest.fn(),
@@ -21,6 +25,11 @@ describe('UploadService', () => {
   const adminClientMock = jest.fn().mockReturnValue(mockSupabaseClient);
 
   beforeEach(async () => {
+    tempImportDir = await mkdtemp(
+      path.join(os.tmpdir(), 'orderfriends-upload-service-'),
+    );
+    process.env.BUSINESS_ORDER_IMPORTS_DIR = tempImportDir;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UploadService,
@@ -37,6 +46,11 @@ describe('UploadService', () => {
 
     // Reset mocks before each test
     jest.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    delete process.env.BUSINESS_ORDER_IMPORTS_DIR;
+    await rm(tempImportDir, { recursive: true, force: true });
   });
 
   describe('uploadImage', () => {
@@ -442,6 +456,142 @@ describe('UploadService', () => {
       await expect(service.deleteMultipleImages(filePaths)).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('business order imports', () => {
+    const createDto = () => ({
+      supplierId: 'sup-1',
+      supplierName: '공급처',
+      orderDate: '2026-03-31',
+      fileName: 'sample.xlsx',
+      headerRowIndex: 0,
+      rows: [
+        {
+          merchantOrderNo: 'OF-001',
+          productName: '제주 감귤',
+          quantity: 2,
+          recipientName: '홍길동',
+          recipientPhone: '010-1111-2222',
+          recipientAddress: '서울시 중구 1',
+          unitPrice: 15000,
+          lineAmount: 30000,
+        },
+      ],
+    });
+
+    it('should create and list business order import batches', async () => {
+      const created = await service.createBusinessOrderImportBatch(
+        'user-1',
+        createDto(),
+      );
+
+      const listed = await service.listBusinessOrderImportBatches('user-1');
+
+      expect(created.id).toMatch(/^UP-/);
+      expect(created.status).toBe('작성중');
+      expect(created.paymentStatus).toBe('후불 예정');
+      expect(created.totalQty).toBe(2);
+      expect(created.totalAmount).toBe(30000);
+      expect(listed).toHaveLength(1);
+      expect(listed[0].id).toBe(created.id);
+    });
+
+    it('should return a single business order import batch by id', async () => {
+      const created = await service.createBusinessOrderImportBatch(
+        'user-1',
+        createDto(),
+      );
+
+      const found = await service.getBusinessOrderImportBatch(
+        'user-1',
+        created.id,
+      );
+
+      expect(found.id).toBe(created.id);
+      expect(found.fileName).toBe('sample.xlsx');
+    });
+
+    it('should update business order import batch status', async () => {
+      const created = await service.createBusinessOrderImportBatch(
+        'user-1',
+        createDto(),
+      );
+
+      const updated = await service.updateBusinessOrderImportBatchStatus(
+        'user-1',
+        created.id,
+        '승인대기',
+      );
+
+      const found = await service.getBusinessOrderImportBatch(
+        'user-1',
+        created.id,
+      );
+
+      expect(updated.status).toBe('승인대기');
+      expect(found.status).toBe('승인대기');
+    });
+
+    it('should delete a business order import batch', async () => {
+      const created = await service.createBusinessOrderImportBatch(
+        'user-1',
+        createDto(),
+      );
+
+      await service.deleteBusinessOrderImportBatch('user-1', created.id);
+
+      await expect(
+        service.getBusinessOrderImportBatch('user-1', created.id),
+      ).rejects.toThrow();
+      await expect(
+        service.listBusinessOrderImportBatches('user-1'),
+      ).resolves.toHaveLength(0);
+    });
+
+    it('should reject duplicate merchant order numbers from previous uploads', async () => {
+      await service.createBusinessOrderImportBatch('user-1', createDto());
+
+      await expect(
+        service.createBusinessOrderImportBatch('user-1', createDto()),
+      ).rejects.toThrow(/중복된 업체주문번호/);
+    });
+
+    it('should reject duplicate merchant order numbers inside the same upload', async () => {
+      const duplicatedDto = {
+        ...createDto(),
+        rows: [
+          ...createDto().rows,
+          {
+            ...createDto().rows[0],
+            productName: '한라봉',
+          },
+        ],
+      };
+
+      await expect(
+        service.createBusinessOrderImportBatch('user-1', duplicatedDto as any),
+      ).rejects.toThrow(/중복된 업체주문번호/);
+    });
+
+    it('should reject invalid business order import rows', async () => {
+      const invalidDto = {
+        ...createDto(),
+        rows: [
+          {
+            merchantOrderNo: '',
+            productName: '제주 감귤',
+            quantity: 0,
+            recipientName: '홍길동',
+            recipientPhone: '010-1111-2222',
+            recipientAddress: '서울시 중구 1',
+          },
+        ],
+      };
+
+      await expect(
+        service.createBusinessOrderImportBatch('user-1', invalidDto as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

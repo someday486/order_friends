@@ -197,6 +197,37 @@ export class CustomerOrdersController {
     );
   }
 
+  @Patch(':orderId/cash-receipt/retry')
+  @ApiOperation({
+    summary: '현금영수증 재발행 시도',
+    description:
+      '현금영수증 발행에 실패했거나 결과가 없는 완료 주문에 대해 발행을 다시 시도합니다.',
+  })
+  @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
+  @ApiResponse({ status: 200, description: '현금영수증 재발행 시도 성공' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  @ApiResponse({
+    status: 404,
+    description: '주문을 찾을 수 없거나 현금영수증을 재시도할 수 없음',
+  })
+  async retryCashReceiptIssue(
+    @Req() req: AuthRequest,
+    @Param('orderId') orderId: string,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} retrying cash receipt issue for ${orderId}`,
+    );
+
+    return this.ordersService.retryMyOrderCashReceiptIssue(
+      req.user.id,
+      orderId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
   @Patch('bulk-status')
   @ApiOperation({
     summary: '주문 상태 일괄 변경',

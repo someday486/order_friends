@@ -393,6 +393,7 @@ export default function CustomerOrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
+  const [cashReceiptRetryLoading, setCashReceiptRetryLoading] = useState(false);
 
   const canUpdateStatus =
     order?.myRole === "OWNER" ||
@@ -410,6 +411,14 @@ export default function CustomerOrderDetailPage() {
     canUpdateStatus &&
     order.payment.method === "TRANSFER" &&
     order.paymentStatus === "PENDING";
+  const canRetryCashReceiptIssue =
+    !!order &&
+    canUpdateStatus &&
+    order.status === "COMPLETED" &&
+    order.payment.method === "TRANSFER" &&
+    order.paymentStatus === "SUCCESS" &&
+    order.cashReceiptRequest?.requested === true &&
+    (!order.cashReceiptIssue || order.cashReceiptIssue.status === "FAILED");
 
   const loadOrder = async () => {
     if (!orderId) return;
@@ -476,6 +485,24 @@ export default function CustomerOrderDetailPage() {
       );
     } finally {
       setPaymentConfirmLoading(false);
+    }
+  };
+
+  const handleCashReceiptRetry = async () => {
+    if (!orderId || !canRetryCashReceiptIssue) return;
+
+    try {
+      setCashReceiptRetryLoading(true);
+      setError(null);
+      await apiClient.patch(`/customer/orders/${orderId}/cash-receipt/retry`, {});
+      await loadOrder();
+    } catch (e) {
+      console.error(e);
+      setError(
+        e instanceof Error ? e.message : "현금영수증 재발행 시도에 실패했습니다",
+      );
+    } finally {
+      setCashReceiptRetryLoading(false);
     }
   };
 
@@ -736,6 +763,23 @@ export default function CustomerOrderDetailPage() {
             <p className="text-sm text-text-secondary">
               아직 발행 결과가 없습니다. 주문 완료 후 발행 여부를 확인할 수 있습니다.
             </p>
+          )}
+          {canRetryCashReceiptIssue && (
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={() => void handleCashReceiptRetry()}
+                disabled={cashReceiptRetryLoading}
+                className="h-10 w-full rounded-md border border-border bg-bg-secondary text-foreground text-sm font-semibold cursor-pointer hover:bg-bg-tertiary active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cashReceiptRetryLoading
+                  ? "현금영수증 재발행 시도 중..."
+                  : "현금영수증 다시 발행 시도"}
+              </button>
+              <p className="mt-2 text-xs text-text-tertiary">
+                브랜드 연동 정보를 수정한 뒤, 실패한 주문의 현금영수증 발행을 다시 시도할 수 있습니다.
+              </p>
+            </div>
           )}
         </div>
       )}

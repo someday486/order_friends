@@ -1316,4 +1316,37 @@ export class CustomerOrdersService {
 
     return payment;
   }
+
+  async retryMyOrderCashReceiptIssue(
+    userId: string,
+    orderId: string,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ): Promise<{ orderId: string; requested: true }> {
+    this.logger.log(
+      `Retrying cash receipt issue for order ${orderId} by user ${userId}`,
+    );
+
+    const { role, order } = await this.checkOrderAccess(
+      orderId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    this.checkModificationPermission(role, 'retry cash receipt issue', userId);
+
+    if (order.status !== OrderStatus.COMPLETED) {
+      throw new ForbiddenException(
+        'Cash receipt retry is only available for completed orders',
+      );
+    }
+
+    await this.cashReceiptsService.issueForCompletedOrder(order.id);
+
+    return {
+      orderId: order.id,
+      requested: true,
+    };
+  }
 }

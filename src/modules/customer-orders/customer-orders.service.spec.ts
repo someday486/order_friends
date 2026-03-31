@@ -3,6 +3,7 @@ import { CustomerOrdersService } from './customer-orders.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from '../../modules/orders/order-status.enum';
 import { PaymentsService } from '../payments/payments.service';
+import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 
 describe('CustomerOrdersService', () => {
   let service: CustomerOrdersService;
@@ -15,6 +16,10 @@ describe('CustomerOrdersService', () => {
   let inventoryLogsChain: any;
   let mockSb: any;
   let mockPaymentsService: { refundOrderPaymentForCancellation: jest.Mock };
+  let mockCashReceiptsService: {
+    issueForCompletedOrder: jest.Mock;
+    cancelForOrder: jest.Mock;
+  };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -46,6 +51,10 @@ describe('CustomerOrdersService', () => {
     mockPaymentsService = {
       refundOrderPaymentForCancellation: jest.fn().mockResolvedValue(undefined),
     };
+    mockCashReceiptsService = {
+      issueForCompletedOrder: jest.fn().mockResolvedValue(undefined),
+      cancelForOrder: jest.fn().mockResolvedValue(undefined),
+    };
     mockSb = {
       from: jest.fn((table: string) => {
         if (table === 'orders') return ordersChain;
@@ -62,6 +71,7 @@ describe('CustomerOrdersService', () => {
     service = new CustomerOrdersService(
       supabase as SupabaseService,
       mockPaymentsService as unknown as PaymentsService,
+      mockCashReceiptsService as unknown as CashReceiptsService,
     );
   };
 
@@ -1620,6 +1630,10 @@ describe('CustomerOrdersService', () => {
       }),
     );
     expect(inventoryLogsChain.insert).toHaveBeenCalled();
+    expect(mockCashReceiptsService.cancelForOrder).toHaveBeenCalledWith(
+      'o1',
+      'Order status changed to CANCELLED',
+    );
   });
 
   it('updateMyOrderStatus should map nullable fields', async () => {
@@ -1763,6 +1777,9 @@ describe('CustomerOrdersService', () => {
     expect(ordersChain.update).toHaveBeenNthCalledWith(2, {
       status: OrderStatus.COMPLETED,
     });
+    expect(mockCashReceiptsService.issueForCompletedOrder).toHaveBeenCalledWith(
+      'o1',
+    );
   });
 
   it('updateMyOrdersStatusBulk should update selected orders', async () => {
@@ -1791,6 +1808,9 @@ describe('CustomerOrdersService', () => {
     expect(result.updatedCount).toBe(2);
     expect(result.status).toBe(OrderStatus.READY);
     expect(result.orderIds).toEqual(['o1', 'o2']);
+    expect(
+      mockCashReceiptsService.issueForCompletedOrder,
+    ).not.toHaveBeenCalled();
   });
 
   it('updateMyOrdersStatusBulk should persist completed_at for completed updates', async () => {
@@ -1822,6 +1842,12 @@ describe('CustomerOrdersService', () => {
       }),
     );
     expect(result.status).toBe(OrderStatus.COMPLETED);
+    expect(
+      mockCashReceiptsService.issueForCompletedOrder,
+    ).toHaveBeenNthCalledWith(1, 'o1');
+    expect(
+      mockCashReceiptsService.issueForCompletedOrder,
+    ).toHaveBeenNthCalledWith(2, 'o2');
   });
 
   it('updateMyOrdersStatusBulk should route cancellations through single-order flow', async () => {

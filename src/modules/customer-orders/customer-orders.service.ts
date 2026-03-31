@@ -18,6 +18,7 @@ import {
 } from '../../modules/orders/dto/order-detail.response';
 import { canModifyOrder } from '../../common/utils/role-permission.util';
 import { PaymentsService } from '../payments/payments.service';
+import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
 
 @Injectable()
@@ -28,7 +29,32 @@ export class CustomerOrdersService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly paymentsService: PaymentsService,
+    private readonly cashReceiptsService: CashReceiptsService,
   ) {}
+
+  private async syncCashReceiptForStatusChange(
+    orderId: string,
+    status: OrderStatus,
+  ): Promise<void> {
+    try {
+      if (status === OrderStatus.COMPLETED) {
+        await this.cashReceiptsService.issueForCompletedOrder(orderId);
+        return;
+      }
+
+      if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
+        await this.cashReceiptsService.cancelForOrder(
+          orderId,
+          `Order status changed to ${status}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Cash receipt sync failed for order ${orderId} (${status})`,
+        error,
+      );
+    }
+  }
 
   private async releaseInventoryForCancelledOrder(
     sb: any,
@@ -1152,6 +1178,8 @@ export class CustomerOrdersService {
       );
     }
 
+    await this.syncCashReceiptForStatusChange(order.id, status);
+
     return {
       id: data.id,
       orderNo: data.order_no ?? null,
@@ -1240,6 +1268,12 @@ export class CustomerOrdersService {
 
     const updatedCount = data?.length ?? targetOrderIds.length;
     this.logger.log(`Bulk status update completed: ${updatedCount} orders`);
+
+    await Promise.all(
+      targetOrderIds.map((currentOrderId) =>
+        this.syncCashReceiptForStatusChange(currentOrderId, status),
+      ),
+    );
 
     return {
       updatedCount,

@@ -71,18 +71,19 @@ type BulkUpdateStatusResponse = {
 // ============================================================
 
 const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
-  { value: 'CREATED', label: '주문접수' },
+  { value: 'CONFIRMED', label: '주문확인' },
   { value: 'PREPARING', label: '준비중' },
   { value: 'READY', label: '준비완료' },
+  { value: 'COMPLETED', label: '주문완료' },
   { value: 'CANCELLED', label: '취소' },
 ];
 
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
-  CONFIRMED: '주문접수',
+  CONFIRMED: '주문확인',
   PREPARING: '준비중',
   READY: '준비완료',
-  COMPLETED: '준비완료',
+  COMPLETED: '주문완료',
   CANCELLED: '취소',
   REFUNDED: '취소',
 };
@@ -222,7 +223,7 @@ function formatYmdHm(iso: string) {
 const ORDER_FLOW: OrderStatus[] = ["CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"];
 
 function canTransition(from: OrderStatus, to: OrderStatus) {
-  if (from === to) return true;
+  if (from === to) return false;
 
   // terminal
   if (from === "COMPLETED" || from === "CANCELLED" || from === "REFUNDED") return false;
@@ -445,7 +446,7 @@ export default function CustomerOrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
-  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CREATED');
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('CONFIRMED');
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -462,16 +463,18 @@ export default function CustomerOrdersPage() {
       .filter(Boolean) as Order[];
   }, [orders, selectedOrderIds]);
 
-  const bulkAllowedSet = useMemo(() => {
+  const bulkAllowedOptions = useMemo(() => {
     if (selectedOrders.length === 0) {
-      return new Set(BULK_STATUS_OPTIONS.map(o => o.value));
+      return BULK_STATUS_OPTIONS;
     }
 
-    const allowed = getAllowedTargetsForSelection(selectedOrders)
-      .map(o => o.value);
-
-    return new Set(allowed);
+    return getAllowedTargetsForSelection(selectedOrders);
   }, [selectedOrders]);
+
+  const bulkAllowedSet = useMemo(
+    () => new Set(bulkAllowedOptions.map((option) => option.value)),
+    [bulkAllowedOptions],
+  );
 
   useEffect(() => {
     if (selectedOrders.length === 0) return;
@@ -479,11 +482,11 @@ export default function CustomerOrdersPage() {
     // bulkStatus가 불가면, 가능한 첫번째 상태로 자동 변경
     if (!bulkAllowedSet.has(bulkStatus)) {
       const firstAllowed =
-        BULK_STATUS_OPTIONS.find((o) => bulkAllowedSet.has(o.value))?.value ??
-        "CREATED";
+        bulkAllowedOptions[0]?.value ??
+        'CONFIRMED';
       setBulkStatus(firstAllowed);
     }
-  }, [selectedOrders.length, bulkAllowedSet, bulkStatus]);
+  }, [selectedOrders.length, bulkAllowedOptions, bulkAllowedSet, bulkStatus]);
 
 
   const validBranches = branches.filter((branch) => isUuidFormat(branch.id));
@@ -1625,27 +1628,26 @@ export default function CustomerOrdersPage() {
                   value={bulkStatus}
                   onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
                   className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[120px]"
-                  disabled={bulkUpdating}
+                  disabled={bulkUpdating || bulkAllowedOptions.length === 0}
                 >
-                  {BULK_STATUS_OPTIONS.map((opt) => {
-                    const ok = bulkAllowedSet.has(opt.value);
-
-                    return (
+                  {bulkAllowedOptions.length === 0 ? (
+                    <option value="">변경 가능한 상태 없음</option>
+                  ) : (
+                    bulkAllowedOptions.map((opt) => (
                       <option
                         key={opt.value}
                         value={opt.value}
-                        disabled={!ok}
                       >
-                        {opt.label}{!ok ? "" : ""}
+                        {opt.label}
                       </option>
-                    );
-                  })}
+                    ))
+                  )}
                 </select>
 
                 <button
                   type="button"
                   onClick={() => void handleBulkStatusUpdate()}
-                  disabled={bulkUpdating}
+                  disabled={bulkUpdating || bulkAllowedOptions.length === 0}
                   className="h-9 px-4 rounded-md bg-foreground text-background text-sm font-semibold disabled:opacity-50 whitespace-nowrap shrink-0 w-full sm:w-auto"
                 >
                   {bulkUpdating ? "변경 중..." : "일괄 변경"}

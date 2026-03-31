@@ -18,7 +18,6 @@ export default function ProtectedLayout({
       // ✅ searchParams 없이도 충분 (최소 next는 pathname만)
       const next = pathname || "/app";
       router.replace(`/login?next=${encodeURIComponent(next)}`);
-      router.refresh();
     }
   }, [status, router, pathname]);
 

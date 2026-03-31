@@ -41,7 +41,6 @@ export default function LoginClient({
 
       if (cancelled) return;
       router.replace(destination);
-      router.refresh();
     };
 
     void redirectAuthenticatedUser();

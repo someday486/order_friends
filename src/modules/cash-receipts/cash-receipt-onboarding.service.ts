@@ -49,7 +49,7 @@ export class CashReceiptOnboardingService {
 
     if (!this.popbillClient.isConfigured()) {
       throw new Error(
-        'Popbill auto-onboarding is unavailable. Configure POPBILL_LINK_ID and POPBILL_SECRET_KEY first.',
+        '현금영수증 자동 연동을 위해 POPBILL_LINK_ID와 POPBILL_SECRET_KEY 설정이 필요합니다.',
       );
     }
 
@@ -79,25 +79,38 @@ export class CashReceiptOnboardingService {
     const bizClass =
       process.env.POPBILL_DEFAULT_BIZ_CLASS?.trim() || '전자상거래업';
 
-    const isMember = await this.popbillClient.checkIsMember(corpNum);
-    if (!isMember) {
-      await this.popbillClient.joinMember({
-        LinkID: process.env.POPBILL_LINK_ID || '',
-        CorpNum: corpNum,
-        CEOName: ceoName,
-        CorpName: corpName,
-        Addr: addr,
-        BizType: bizType,
-        BizClass: bizClass,
-        ContactName: contactName,
-        ContactEmail: contactEmail,
-        ContactTEL: contactTel,
-        ID: this.buildMemberUserId(corpNum),
-        PWD: this.buildMemberPassword(corpNum),
-      });
-      this.logger.log(`Popbill member joined for corpNum ${corpNum}`);
-    } else {
-      this.logger.log(`Popbill member already exists for corpNum ${corpNum}`);
+    this.logger.log(
+      `Starting Popbill auto-onboarding check for corpNum ${corpNum}`,
+    );
+
+    try {
+      const isMember = await this.popbillClient.checkIsMember(corpNum);
+      if (!isMember) {
+        await this.popbillClient.joinMember({
+          LinkID: process.env.POPBILL_LINK_ID || '',
+          CorpNum: corpNum,
+          CEOName: ceoName,
+          CorpName: corpName,
+          Addr: addr,
+          BizType: bizType,
+          BizClass: bizClass,
+          ContactName: contactName,
+          ContactEmail: contactEmail,
+          ContactTEL: contactTel,
+          ID: this.buildMemberUserId(corpNum),
+          PWD: this.buildMemberPassword(corpNum),
+        });
+        this.logger.log(`Popbill member joined for corpNum ${corpNum}`);
+      } else {
+        this.logger.log(`Popbill member already exists for corpNum ${corpNum}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Popbill auto-onboarding failed for corpNum ${corpNum}: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new Error(`현금영수증 자동 연동에 실패했습니다. ${message}`);
     }
 
     return {
@@ -126,7 +139,7 @@ export class CashReceiptOnboardingService {
   ): string {
     const normalized = value?.trim() ?? '';
     if (!normalized) {
-      throw new Error(`현금영수증 자동 연동을 위해 ${label}이 필요합니다.`);
+      throw new Error(`현금영수증 자동 연동을 위해 ${label}이(가) 필요합니다.`);
     }
 
     return normalized;

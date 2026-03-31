@@ -108,7 +108,7 @@ describe('CashReceiptOnboardingService', () => {
     expect(result.cash_receipt_merchant_id).toBe('1234567890');
   });
 
-  it('should throw when required contact information is missing', async () => {
+  it('should surface a clear message when required contact information is missing', async () => {
     await expect(
       service.resolveBrandCashReceiptConfig('user-1', {
         biz_name: '테스트상호',
@@ -120,6 +120,30 @@ describe('CashReceiptOnboardingService', () => {
         cash_receipt_contact_name: '담당자',
         cash_receipt_contact_phone: null,
       }),
-    ).rejects.toThrow('담당자 연락처');
+    ).rejects.toThrow('담당자 연락처가 필요합니다');
+  });
+
+  it('should wrap popbill onboarding errors with context', async () => {
+    mockPopbillClient.checkIsMember.mockResolvedValueOnce(false);
+    mockPopbillClient.joinMember.mockRejectedValueOnce(
+      new Error(
+        '[-99003008] 연동회원으로 가입된 사업자 번호가 존재하지 않습니다. [POPBILL]',
+      ),
+    );
+
+    await expect(
+      service.resolveBrandCashReceiptConfig('user-1', {
+        biz_name: '테스트상호',
+        biz_reg_no: '1234567890',
+        rep_name: '대표자',
+        address: '서울시 강남구',
+        cash_receipt_enabled: true,
+        cash_receipt_provider: CashReceiptProvider.POPBILL,
+        cash_receipt_contact_name: '담당자',
+        cash_receipt_contact_phone: '01012345678',
+      }),
+    ).rejects.toThrow(
+      '현금영수증 자동 연동에 실패했습니다. [-99003008] 연동회원으로 가입된 사업자 번호가 존재하지 않습니다. [POPBILL]',
+    );
   });
 });

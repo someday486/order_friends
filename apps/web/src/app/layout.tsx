@@ -1,10 +1,11 @@
-import "./globals.css";
+import './globals.css';
 import type { Metadata } from 'next';
-import type { Session, User } from "@supabase/supabase-js";
-import { Toaster } from "react-hot-toast";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { AuthProvider } from "@/providers/AuthProvider";
+import type { Session, User } from '@supabase/supabase-js';
+import { Toaster } from 'react-hot-toast';
 import { DocumentTitleSync } from '@/components/DocumentTitleSync';
+import { BusinessFooter } from '@/components/common/BusinessFooter';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
   applicationName: '오더프렌즈',
@@ -37,30 +38,30 @@ export default async function RootLayout({
 
   return (
     <html lang="ko">
-      <body>
-        <AuthProvider
-          initialSession={initialSession}
-          initialUser={initialUser}
-        >
-          <DocumentTitleSync />
-          {children}
+      <body className="min-h-screen bg-bg-primary">
+        <AuthProvider initialSession={initialSession} initialUser={initialUser}>
+          <div className="flex min-h-screen flex-col">
+            <DocumentTitleSync />
+            <div className="flex-1">{children}</div>
+            <BusinessFooter />
+          </div>
         </AuthProvider>
         <Toaster
           position="top-center"
           toastOptions={{
             duration: 3000,
             style: {
-              background: "var(--color-bg-secondary)",
-              color: "var(--color-text-primary)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "12px",
-              fontSize: "14px",
+              background: 'var(--color-bg-secondary)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              fontSize: '14px',
             },
             success: {
-              iconTheme: { primary: "#34C759", secondary: "#fff" },
+              iconTheme: { primary: '#34C759', secondary: '#fff' },
             },
             error: {
-              iconTheme: { primary: "#FF3B30", secondary: "#fff" },
+              iconTheme: { primary: '#FF3B30', secondary: '#fff' },
             },
           }}
         />

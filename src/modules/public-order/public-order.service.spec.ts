@@ -30,6 +30,7 @@ describe('PublicOrderService - Inventory Integration', () => {
 
   beforeEach(async () => {
     anonChains = {
+      brands: makeChain(),
       branches: makeChain(),
       products: makeChain(),
       orders: makeChain(),
@@ -316,40 +317,45 @@ describe('PublicOrderService - Inventory Integration', () => {
   });
 
   it('getBrands should group brands and build order paths', async () => {
+    anonChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-1',
+          name: 'Test Cafe',
+          slug: 'test-cafe',
+          logo_url: 'logo-1',
+          cover_image_url: 'cover-1',
+        },
+        {
+          id: 'brand-2',
+          name: 'No Slug Brand',
+          slug: null,
+          logo_url: null,
+          cover_image_url: null,
+        },
+        {
+          id: 'brand-3',
+          name: 'Fresh Shop',
+          slug: 'fresh-shop',
+          logo_url: 'logo-3',
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
     anonChains.branches.limit.mockResolvedValueOnce({
       data: [
         {
           id: 'branch-1',
-          slug: 'gangnam',
-          brands: {
-            id: 'brand-1',
-            name: 'Test Cafe',
-            slug: 'test-cafe',
-            logo_url: 'logo-1',
-            cover_image_url: 'cover-1',
-          },
+          brand_id: 'brand-1',
         },
         {
           id: 'branch-2',
-          slug: 'hongdae',
-          brands: {
-            id: 'brand-1',
-            name: 'Test Cafe',
-            slug: 'test-cafe',
-            logo_url: 'logo-1',
-            cover_image_url: 'cover-1',
-          },
+          brand_id: 'brand-1',
         },
         {
           id: 'branch-3',
-          slug: 'only-branch',
-          brands: {
-            id: 'brand-2',
-            name: 'No Slug Brand',
-            slug: null,
-            logo_url: null,
-            cover_image_url: null,
-          },
+          brand_id: 'brand-2',
         },
       ],
       error: null,
@@ -358,6 +364,15 @@ describe('PublicOrderService - Inventory Integration', () => {
     const result = await service.getBrands();
 
     expect(result).toEqual([
+      {
+        id: 'brand-3',
+        name: 'Fresh Shop',
+        slug: 'fresh-shop',
+        logoUrl: 'logo-3',
+        coverImageUrl: null,
+        branchCount: 0,
+        orderPath: '/order/fresh-shop',
+      },
       {
         id: 'brand-2',
         name: 'No Slug Brand',
@@ -380,7 +395,7 @@ describe('PublicOrderService - Inventory Integration', () => {
   });
 
   it('getBrands should throw when query fails', async () => {
-    anonChains.branches.limit.mockResolvedValueOnce({
+    anonChains.brands.limit.mockResolvedValueOnce({
       data: null,
       error: { message: 'query failed' },
     });

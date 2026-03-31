@@ -7,7 +7,10 @@ import toast from "react-hot-toast";
 import { AddressSearchFields } from "@/components/order/AddressSearchFields";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { apiClient } from "@/lib/api-client";
-import { formatCashReceiptProvider } from "@/lib/format";
+import {
+  formatBusinessNumberInput,
+  formatCashReceiptProvider,
+} from "@/lib/format";
 
 type Brand = {
   id: string;
@@ -424,11 +427,13 @@ export default function BrandDetailPage() {
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    biz_reg_no: e.target.value,
+                    biz_reg_no: formatBusinessNumberInput(e.target.value),
                   }))
                 }
                 className="input-field w-full"
                 placeholder="000-00-00000"
+                inputMode="numeric"
+                maxLength={12}
               />
             </div>
 

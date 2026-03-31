@@ -44,6 +44,11 @@ function getBranchOrderUrl(
   return `/order/branch/${branchId}`;
 }
 
+function getBrandShopUrl(brandSlug: string | null) {
+  if (!brandSlug) return null;
+  return `/shop/${encodeURIComponent(brandSlug)}`;
+}
+
 export default function CustomerOrderLauncherPage() {
   const [sections, setSections] = useState<BrandSection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,7 +206,10 @@ export default function CustomerOrderLauncherPage() {
     }
 
     if (hideEmptyBrands) {
-      result = result.filter((section) => section.branches.length > 0);
+      result = result.filter(
+        (section) =>
+          section.branches.length > 0 || getBrandShopUrl(section.brand.slug),
+      );
     }
 
     return result;
@@ -373,7 +381,11 @@ export default function CustomerOrderLauncherPage() {
                       지점 {section.branches.length}개
                     </span>
                   </div>
-
+                  {section.brand.slug && (
+                    <div className="mt-1 text-xs text-text-tertiary">
+                      온라인샵: {getBrandShopUrl(section.brand.slug)}
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -392,12 +404,35 @@ export default function CustomerOrderLauncherPage() {
 
               {openBrands[section.brand.id] && (
                 <div className="p-3 transition-all duration-200">
-                  {section.branches.length === 0 ? (
+                  {section.branches.length === 0 &&
+                  !getBrandShopUrl(section.brand.slug) ? (
                     <div className="py-3 text-center text-sm text-text-tertiary">
                       등록된 지점이 없습니다.
                     </div>
                   ) : (
                     <>
+                      {getBrandShopUrl(section.brand.slug) && (
+                        <div className="mb-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                          <Link
+                            href={getBrandShopUrl(section.brand.slug)!}
+                            target="_blank"
+                            rel="noreferrer"
+                            prefetch={false}
+                            className="block rounded-md border border-primary-200 bg-primary-50/60 p-3 no-underline transition-all duration-200 hover:-translate-y-[1px] hover:bg-primary-50 hover:shadow-sm dark:border-primary-900/40 dark:bg-primary-950/20"
+                          >
+                            <div className="text-sm font-semibold text-foreground">
+                              온라인샵
+                            </div>
+                            <div className="mt-1 text-xs text-text-secondary">
+                              브랜드 단위 주문 링크
+                            </div>
+                            <div className="mt-2 truncate text-xs text-text-tertiary">
+                              {getBrandShopUrl(section.brand.slug)}
+                            </div>
+                          </Link>
+                        </div>
+                      )}
+
                       <div className="mb-3 flex flex-wrap items-center gap-1.5">
                         <span className="text-[11px] font-semibold text-text-tertiary">
                           바로 열기

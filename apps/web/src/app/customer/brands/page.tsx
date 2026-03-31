@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
+import { formatBusinessNumberInput } from "@/lib/format";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -279,10 +280,15 @@ function AddBrandModal({
               type="text"
               value={formData.biz_reg_no}
               onChange={(event) =>
-                setFormData((prev) => ({ ...prev, biz_reg_no: event.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  biz_reg_no: formatBusinessNumberInput(event.target.value),
+                }))
               }
               className="input-field"
               placeholder="000-00-00000"
+              inputMode="numeric"
+              maxLength={12}
             />
           </div>
 

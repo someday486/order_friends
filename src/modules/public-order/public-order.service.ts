@@ -109,57 +109,49 @@ export class PublicOrderService {
   async getBrands() {
     const sb = this.supabase.anonClient();
 
-    const { data, error } = await sb
-      .from('branches')
-      .select(
-        `
-        id,
-        slug,
-        created_at,
-        brands!inner (
-          id,
-          name,
-          slug,
-          logo_url,
-          cover_image_url
-        )
-      `,
-      )
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-      .limit(1000);
+    const [
+      { data: brandRows, error: brandError },
+      { data: branchRows, error: branchError },
+    ] = await Promise.all([
+      sb
+        .from('brands')
+        .select('id, name, slug, logo_url, cover_image_url')
+        .order('name', { ascending: true })
+        .limit(1000),
+      sb
+        .from('branches')
+        .select('id, brand_id, created_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+        .limit(2000),
+    ]);
 
-    if (error) {
-      throw new Error(`브랜드 목록 조회 실패: ${error.message}`);
+    if (brandError) {
+      throw new Error(`브랜드 목록 조회 실패: ${brandError.message}`);
     }
 
-    const grouped = new Map<
+    if (branchError) {
+      throw new Error(`브랜드 목록 조회 실패: ${branchError.message}`);
+    }
+
+    const branchSummaryByBrandId = new Map<
       string,
       {
-        id: string;
-        name: string;
-        slug?: string | null;
-        logoUrl?: string | null;
-        coverImageUrl?: string | null;
         branchCount: number;
         firstBranchId: string;
       }
     >();
 
-    for (const row of (data ?? []) as any[]) {
-      const brand = row?.brands;
-      if (!brand?.id) continue;
+    for (const row of (branchRows ?? []) as any[]) {
+      const brandId = String(row?.brand_id ?? '');
+      const branchId = String(row?.id ?? '');
+      if (!brandId || !branchId) continue;
 
-      const existing = grouped.get(brand.id);
+      const existing = branchSummaryByBrandId.get(brandId);
       if (!existing) {
-        grouped.set(brand.id, {
-          id: brand.id,
-          name: brand.name ?? '',
-          slug: brand.slug ?? null,
-          logoUrl: brand.logo_url ?? null,
-          coverImageUrl: brand.cover_image_url ?? null,
+        branchSummaryByBrandId.set(brandId, {
           branchCount: 1,
-          firstBranchId: row.id,
+          firstBranchId: branchId,
         });
         continue;
       }
@@ -167,19 +159,28 @@ export class PublicOrderService {
       existing.branchCount += 1;
     }
 
-    return Array.from(grouped.values())
-      .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'))
-      .map((brand) => ({
-        id: brand.id,
-        name: brand.name,
-        slug: brand.slug ?? null,
-        logoUrl: brand.logoUrl ?? null,
-        coverImageUrl: brand.coverImageUrl ?? null,
-        branchCount: brand.branchCount,
-        orderPath: brand.slug
-          ? `/order/${encodeURIComponent(brand.slug)}`
-          : `/order/branch/${brand.firstBranchId}`,
-      }));
+    return ((brandRows ?? []) as any[])
+      .filter((brand) => {
+        const summary = branchSummaryByBrandId.get(String(brand?.id ?? ''));
+        return Boolean(brand?.slug) || Boolean(summary?.branchCount);
+      })
+      .sort((a, b) =>
+        String(a?.name ?? '').localeCompare(String(b?.name ?? ''), 'ko-KR'),
+      )
+      .map((brand) => {
+        const summary = branchSummaryByBrandId.get(String(brand?.id ?? ''));
+        return {
+          id: brand.id,
+          name: brand.name ?? '',
+          slug: brand.slug ?? null,
+          logoUrl: brand.logo_url ?? null,
+          coverImageUrl: brand.cover_image_url ?? null,
+          branchCount: summary?.branchCount ?? 0,
+          orderPath: brand.slug
+            ? `/order/${encodeURIComponent(brand.slug)}`
+            : `/order/branch/${summary?.firstBranchId ?? ''}`,
+        };
+      });
   }
 
   private async resolveShopBrandContext(brandSlug: string): Promise<{

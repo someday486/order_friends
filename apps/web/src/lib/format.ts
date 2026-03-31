@@ -97,6 +97,20 @@ export function formatBusinessNumber(value: string): string {
   return value;
 }
 
+export function formatBusinessNumberInput(value: string): string {
+  const cleaned = value.replace(/\D/g, '').slice(0, 10);
+
+  if (cleaned.length <= 3) {
+    return cleaned;
+  }
+
+  if (cleaned.length <= 5) {
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+  }
+
+  return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 5)}-${cleaned.slice(5)}`;
+}
+
 export function formatCashReceiptProvider(
   value: string | null | undefined,
 ): string {

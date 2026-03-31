@@ -80,7 +80,7 @@ const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
 
 const BULK_STATUS_OPTIONS_WITH_REFUND: { value: OrderStatus; label: string }[] = [
   ...BULK_STATUS_OPTIONS.slice(0, 4),
-  { value: "REFUNDED", label: "\uD658\uBD88" },
+  { value: "REFUNDED", label: "환불" },
   ...BULK_STATUS_OPTIONS.slice(4),
 ];
 
@@ -94,7 +94,7 @@ const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   REFUNDED: '취소',
 };
 
-ORDER_STATUS_LABEL.REFUNDED = "\uD658\uBD88";
+ORDER_STATUS_LABEL.REFUNDED = "환불";
 
 // Active statuses: filled + ring (high visual weight)
 // Terminal statuses: muted (low visual weight)
@@ -1101,8 +1101,8 @@ export default function CustomerOrdersPage() {
                 }}
                 className="input-field h-9 text-sm w-full min-w-0 sm:flex-1"
                 placeholder="상품명/주문번호/고객명 검색"
-                aria-label="\uC8FC\uBB38 \uAC80\uC0C9"
-              />
+          aria-label="주문 검색"
+        />
 
               <button
                 type="button"

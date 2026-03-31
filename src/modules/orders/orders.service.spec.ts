@@ -847,6 +847,44 @@ describe('OrdersService', () => {
       );
     });
 
+    it('should refund paid order before marking it refunded', async () => {
+      mockSupabaseClient.maybeSingle
+        .mockResolvedValueOnce({
+          data: { id: '123' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: '123',
+            order_no: 'ORD-001',
+            status: OrderStatus.REFUNDED,
+          },
+          error: null,
+        });
+
+      const result = await service.updateStatus(
+        'token',
+        '123',
+        OrderStatus.REFUNDED,
+        'branch-123',
+      );
+
+      expect(result.status).toBe(OrderStatus.REFUNDED);
+      expect(
+        mockPaymentsService.refundOrderPaymentForCancellation,
+      ).toHaveBeenCalledWith('123', 'branch-123');
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: OrderStatus.REFUNDED,
+          cancelled_at: expect.any(String),
+        }),
+      );
+      expect(mockCashReceiptsService.cancelForOrder).toHaveBeenCalledWith(
+        '123',
+        'Order status changed to REFUNDED',
+      );
+    });
+
     it('should request cash receipt issuance when order is completed', async () => {
       mockSupabaseClient.maybeSingle
         .mockResolvedValueOnce({

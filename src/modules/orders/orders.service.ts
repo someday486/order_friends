@@ -614,7 +614,7 @@ export class OrdersService {
       throw new OrderNotFoundException(orderId);
     }
 
-    if (status === OrderStatus.CANCELLED) {
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
       await this.paymentsService.refundOrderPaymentForCancellation(
         resolvedId,
         branchId,

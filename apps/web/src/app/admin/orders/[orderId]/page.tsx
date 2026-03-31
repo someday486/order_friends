@@ -195,6 +195,7 @@ function OrderDetailPageContent() {
       order.status !== "REFUNDED"
     );
   }, [order]);
+  const isRefundable = useMemo(() => order?.status === "COMPLETED", [order]);
 
   useEffect(() => {
     if (!orderId || !branchId) return;
@@ -226,11 +227,14 @@ function OrderDetailPageContent() {
       setStatusLoading(true);
       setError(null);
 
-      const data = await apiClient.patch<{ id: string; status: OrderStatus }>(
+      await apiClient.patch<{ id: string; status: OrderStatus }>(
         `/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(branchId)}`,
         { status: newStatus },
       );
-      setOrder((prev) => (prev ? { ...prev, status: data.status } : null));
+      const refreshed = await apiClient.get<OrderDetail>(
+        `/admin/orders/${encodeURIComponent(order.id)}?branchId=${encodeURIComponent(branchId)}`,
+      );
+      setOrder(refreshed);
     } catch (e: unknown) {
       const err = e as Error;
       setError(err?.message ?? "상태 변경에 실패했습니다.");
@@ -243,6 +247,17 @@ function OrderDetailPageContent() {
     if (!order) return;
     if (!confirm("정말 주문을 취소하시겠습니까?")) return;
     await handleStatusChange("CANCELLED");
+  };
+
+  const handleRefund = async () => {
+    if (!order) return;
+    if (
+      !confirm(
+        "\uC644\uB8CC\uB41C \uC8FC\uBB38\uC744 \uD658\uBD88 \uCC98\uB9AC\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
+      )
+    )
+      return;
+    await handleStatusChange("REFUNDED");
   };
 
   if (!branchId) {
@@ -353,6 +368,16 @@ function OrderDetailPageContent() {
               disabled={statusLoading}
             >
               취소
+            </button>
+          )}
+
+          {isRefundable && (
+            <button
+              className="h-9 cursor-pointer rounded-lg border border-danger-200 bg-danger-50 px-4 font-bold text-danger-600 transition-colors hover:bg-danger-100"
+              onClick={handleRefund}
+              disabled={statusLoading}
+            >
+              {"\uD658\uBD88"}
             </button>
           )}
 

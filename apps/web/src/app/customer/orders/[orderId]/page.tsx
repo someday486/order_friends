@@ -117,19 +117,6 @@ const DISPLAY_STATUS_FLOW: OrderStatusDisplay[] = [
   "READY",
 ];
 
-const DISPLAY_STATUS_ACTIONS: OrderStatusDisplay[] = [
-  "RECEIVED",
-  "PREPARING",
-  "READY",
-];
-
-const DISPLAY_STATUS_TO_TARGET_STATUS: Record<OrderStatusDisplay, OrderStatus> = {
-  RECEIVED: "CREATED",
-  PREPARING: "PREPARING",
-  READY: "READY",
-  CANCELLED: "CANCELLED",
-};
-
 const displayStatusConfig: Record<
   OrderStatusDisplay,
   { label: string; bg: string; text: string; dot: string; icon: string }
@@ -211,6 +198,20 @@ const actionStatusConfig: Record<
     dot: "bg-pink-500",
   },
 };
+
+const ORDER_FLOW: OrderStatus[] = [
+  "CREATED",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+];
+
+function getNextStatus(current: OrderStatus): OrderStatus | null {
+  const idx = ORDER_FLOW.indexOf(current);
+  if (idx === -1) return null;
+  return ORDER_FLOW[idx + 1] ?? null;
+}
 
 // ============================================================
 // Helpers
@@ -378,44 +379,6 @@ function InfoRow({
   );
 }
 
-/** Status change button */
-function StatusActionButton({
-  displayStatus,
-  currentStatus,
-  loading,
-  onClick,
-}: {
-  displayStatus: OrderStatusDisplay;
-  currentStatus: OrderStatus;
-  loading: boolean;
-  onClick: () => void;
-}) {
-  const targetStatus = DISPLAY_STATUS_TO_TARGET_STATUS[displayStatus];
-  const cfg = actionStatusConfig[targetStatus];
-  const isCurrent = getOrderStatusDisplay(currentStatus) === displayStatus;
-
-  if (isCurrent) {
-    return (
-      <div
-        className={`flex items-center justify-center gap-2 h-10 rounded-md ${cfg.bg} ${cfg.text} text-sm font-bold`}
-      >
-        <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-        {cfg.label} (현재)
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className="h-10 w-full rounded-md border border-border bg-bg-secondary text-foreground text-sm font-medium cursor-pointer hover:bg-bg-tertiary active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {cfg.label}
-    </button>
-  );
-}
-
 // ============================================================
 // Main Component
 // ============================================================
@@ -439,6 +402,7 @@ export default function CustomerOrderDetailPage() {
   const canCancelOrder =
     !!order &&
     !["COMPLETED", "CANCELLED", "REFUNDED"].includes(order.status);
+  const nextStatusAction = order ? getNextStatus(order.status) : null;
 
   // Load order detail
   useEffect(() => {
@@ -739,23 +703,23 @@ export default function CustomerOrderDetailPage() {
             상태 변경
           </h2>
           <p className="text-xs text-text-tertiary mb-3">
-            주문 상태를 변경할 수 있습니다
+            주문은 다음 단계로만 순차적으로 변경할 수 있습니다
           </p>
 
           <div className="grid grid-cols-2 gap-2">
-            {DISPLAY_STATUS_ACTIONS.map((displayStatus) => (
-              <StatusActionButton
-                key={displayStatus}
-                displayStatus={displayStatus}
-                currentStatus={order.status}
-                loading={statusLoading}
-                onClick={() =>
-                  handleStatusUpdate(
-                    DISPLAY_STATUS_TO_TARGET_STATUS[displayStatus],
-                  )
-                }
-              />
-            ))}
+            {nextStatusAction ? (
+              <button
+                onClick={() => handleStatusUpdate(nextStatusAction)}
+                disabled={statusLoading}
+                className="h-10 w-full rounded-md border border-border bg-bg-secondary text-foreground text-sm font-medium cursor-pointer hover:bg-bg-tertiary active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionStatusConfig[nextStatusAction].label}
+              </button>
+            ) : (
+              <div className="col-span-2 flex items-center justify-center rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary">
+                더 이상 진행할 수 있는 다음 단계가 없습니다
+              </div>
+            )}
             {canCancelOrder && (
               <button
                 onClick={() => handleStatusUpdate("CANCELLED")}

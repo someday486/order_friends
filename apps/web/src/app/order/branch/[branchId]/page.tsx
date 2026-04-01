@@ -154,6 +154,13 @@ export default function OrderPage() {
   const [qty, setQty] = useState(1);
   const productDialogTitleId = 'branch-order-product-dialog-title';
 
+  useEffect(() => {
+    const branchName = branch?.name?.trim();
+    document.title = branchName
+      ? `${branchName} | 오더프렌즈`
+      : '오더프렌즈';
+  }, [branch?.name]);
+
   const categories = useMemo(() => {
     const names = products
       .map((product) => product.category_name ?? product.categoryName)

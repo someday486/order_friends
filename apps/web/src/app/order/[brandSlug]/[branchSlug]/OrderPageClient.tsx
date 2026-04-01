@@ -120,6 +120,13 @@ export default function OrderPageClient({
 }: OrderPageClientProps) {
   const router = useRouter();
 
+  useEffect(() => {
+    const branchName = branch?.name?.trim();
+    document.title = branchName
+      ? `${branchName} | 오더프렌즈`
+      : '오더프렌즈';
+  }, [branch?.name]);
+
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});

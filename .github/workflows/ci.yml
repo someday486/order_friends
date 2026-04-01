@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js 22.x
         uses: actions/setup-node@v4
@@ -20,6 +22,14 @@ jobs:
 
       - name: Check documentation rules
         run: npm run docs:check
+
+      - name: Check patch notes on pull request
+        if: github.event_name == 'pull_request'
+        run: node scripts/patch-note.js verify-range "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check patch notes on push
+        if: github.event_name == 'push'
+        run: node scripts/patch-note.js verify-range "${{ github.event.before }}" "${{ github.sha }}"
 
   test:
     name: Backend Test

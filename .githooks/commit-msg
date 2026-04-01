@@ -1,0 +1,2 @@
+#!/bin/sh
+node scripts/patch-note.js append-from-commit "$1"

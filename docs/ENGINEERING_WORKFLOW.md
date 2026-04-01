@@ -141,6 +141,12 @@ Start from:
 
 - `docs/patch-notes/TEMPLATE.md`
 
+Automation:
+
+- daily patch-note files are auto-created by repository git hooks
+- commit messages automatically append a draft line to today's patch note
+- push and PR checks fail when relevant product changes do not include a dated patch note
+
 ## 8. Quality Rules
 
 - Save source documents as UTF-8

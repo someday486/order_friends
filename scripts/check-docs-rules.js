@@ -23,6 +23,11 @@ const docsRootViolations = fs
   .map((entry) => entry.name);
 
 const requiredPaths = [
+  '.githooks/commit-msg',
+  '.githooks/post-checkout',
+  '.githooks/post-merge',
+  '.githooks/pre-push',
+  '.githooks/prepare-commit-msg',
   'AGENTS.md',
   'docs/README.md',
   'docs/DOCUMENT_REGISTRY.md',
@@ -30,6 +35,8 @@ const requiredPaths = [
   'docs/patch-notes/TEMPLATE.md',
   'CLAUDE.md',
   '.github/copilot-instructions.md',
+  'scripts/install-git-hooks.js',
+  'scripts/patch-note.js',
 ];
 
 const missingRequiredPaths = requiredPaths.filter((relativePath) => !fs.existsSync(path.join(repoRoot, relativePath)));

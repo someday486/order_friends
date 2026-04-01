@@ -8,6 +8,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepare": "node scripts/install-git-hooks.js",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
@@ -19,6 +20,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "docs:check": "node scripts/check-docs-rules.js",
+    "hooks:install": "node scripts/install-git-hooks.js",
+    "patch-note:ensure": "node scripts/patch-note.js ensure-today",
+    "patch-note:verify": "node scripts/patch-note.js verify-upstream",
     "web:lint": "npm run lint --prefix apps/web",
     "web:test:e2e": "npm run test:e2e --prefix apps/web",
     "web:build": "npm run build --prefix apps/web",

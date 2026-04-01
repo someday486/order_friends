@@ -831,7 +831,46 @@ describe('branch-order-config.util', () => {
         existing: true,
         allowedPaymentMethods: ['TRANSFER'],
         allowed_payment_methods: ['TRANSFER'],
+        availablePaymentMethods: ['TRANSFER'],
+        available_payment_methods: ['TRANSFER'],
       },
+    });
+  });
+
+  it('should persist payment methods to available_payment_methods when present', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 'branch-1',
+        available_payment_methods: ['CARD'],
+      },
+      error: null,
+    });
+
+    const selectBuilder = {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle,
+        }),
+      }),
+    };
+
+    const availableUpdate = jest.fn().mockReturnValue({
+      eq: jest.fn().mockResolvedValue({ error: null }),
+    });
+
+    const sb = {
+      from: jest
+        .fn()
+        .mockReturnValueOnce(selectBuilder)
+        .mockReturnValueOnce({ update: availableUpdate }),
+    };
+
+    await saveBranchOrderConfig(sb, 'branch-1', {
+      allowedPaymentMethods: ['TRANSFER'],
+    });
+
+    expect(availableUpdate).toHaveBeenCalledWith({
+      available_payment_methods: ['TRANSFER'],
     });
   });
 });

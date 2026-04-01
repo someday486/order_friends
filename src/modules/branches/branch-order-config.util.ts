@@ -627,6 +627,16 @@ async function persistPaymentMethodsToBranch(
     }
   }
 
+  if ('available_payment_methods' in branchRow) {
+    const { error } = await sb
+      .from('branches')
+      .update({ available_payment_methods: methods })
+      .eq('id', branchId);
+    if (!error) {
+      return;
+    }
+  }
+
   const objectColumns = ['order_settings', 'settings', 'metadata'] as const;
   for (const column of objectColumns) {
     if (!(column in branchRow)) continue;
@@ -636,13 +646,17 @@ async function persistPaymentMethodsToBranch(
       ...current,
       allowedPaymentMethods: methods,
       allowed_payment_methods: methods,
+      availablePaymentMethods: methods,
+      available_payment_methods: methods,
     };
 
-    await sb
+    const { error } = await sb
       .from('branches')
       .update({ [column]: next })
       .eq('id', branchId);
-    return;
+    if (!error) {
+      return;
+    }
   }
 }
 

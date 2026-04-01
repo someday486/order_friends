@@ -363,7 +363,7 @@ describe('NotificationsService', () => {
 
       const [, requestInit] = fetchMock.mock.calls[0];
       expect(requestInit.body).toContain(
-        '"templateId":"KA01TP260306080352858w6K1BS9FU2r"',
+        '"templateId":"KA01TP260317073814234Dy802kj2B57"',
       );
       expect(requestInit.body).toContain('"buttonName":"주문 확인"');
       expect(requestInit.body).toContain(

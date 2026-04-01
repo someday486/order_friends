@@ -143,6 +143,9 @@ const emptyFormData: BrandFormData = {
   cash_receipt_contact_phone: "",
 };
 
+const CASH_RECEIPT_PREPARING_MESSAGE =
+  "현금영수증 기능은 현재 준비중입니다.";
+
 export default function BrandDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -285,12 +288,12 @@ export default function BrandDetailPage() {
         rep_name: formData.rep_name || null,
         address:
           combineBusinessAddress(businessAddress1, businessAddress2) || null,
-        cash_receipt_provider:
-          formData.cash_receipt_enabled && formData.cash_receipt_provider
-            ? formData.cash_receipt_provider
-            : null,
-        cash_receipt_contact_name: formData.cash_receipt_contact_name || null,
-        cash_receipt_contact_phone: formData.cash_receipt_contact_phone || null,
+        cash_receipt_enabled: false,
+        cash_receipt_provider: null,
+        cash_receipt_issue_timing: "ORDER_COMPLETED",
+        cash_receipt_self_issue_enabled: false,
+        cash_receipt_contact_name: null,
+        cash_receipt_contact_phone: null,
       };
 
       const updatedBrand = await apiClient.patch<Brand>(
@@ -487,22 +490,19 @@ export default function BrandDetailPage() {
                 </div>
               </div>
 
-              <label className="mb-4 flex items-center gap-3 text-sm text-foreground">
+              <div className="mt-1 text-xs font-medium text-warning-500">
+                {CASH_RECEIPT_PREPARING_MESSAGE}
+              </div>
+              <div className="mt-2 text-xs text-text-secondary">
+                기능 오픈 전까지는 현금영수증 관련 설정을 변경할 수 없습니다.
+              </div>
+
+              <label className="mb-4 mt-4 flex items-center gap-3 text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={formData.cash_receipt_enabled}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      cash_receipt_enabled: e.target.checked,
-                      cash_receipt_provider: e.target.checked
-                        ? (prev.cash_receipt_provider ?? "POPBILL")
-                        : null,
-                      cash_receipt_self_issue_enabled: e.target.checked
-                        ? prev.cash_receipt_self_issue_enabled
-                        : false,
-                    }))
-                  }
+                  onChange={() => undefined}
+                  disabled
                 />
                 현금영수증 자동 발행 사용
               </label>
@@ -521,7 +521,7 @@ export default function BrandDetailPage() {
                       }))
                     }
                     className="input-field w-full"
-                    disabled={!formData.cash_receipt_enabled}
+                    disabled
                   >
                     <option value="">선택 안 함</option>
                     <option value="POPBILL">Popbill</option>
@@ -541,7 +541,7 @@ export default function BrandDetailPage() {
                       }))
                     }
                     className="input-field w-full"
-                    disabled={!formData.cash_receipt_enabled}
+                    disabled
                   >
                     <option value="ORDER_COMPLETED">주문 완료 후 발급</option>
                   </select>
@@ -562,7 +562,7 @@ export default function BrandDetailPage() {
                     }
                     className="input-field w-full"
                     placeholder="담당자 이름"
-                    disabled={!formData.cash_receipt_enabled}
+                    disabled
                   />
                 </div>
 
@@ -581,7 +581,7 @@ export default function BrandDetailPage() {
                     }
                     className="input-field w-full"
                     placeholder="010-0000-0000"
-                    disabled={!formData.cash_receipt_enabled}
+                    disabled
                   />
                 </div>
               </div>
@@ -596,7 +596,7 @@ export default function BrandDetailPage() {
                       cash_receipt_self_issue_enabled: e.target.checked,
                     }))
                   }
-                  disabled={!formData.cash_receipt_enabled}
+                  disabled
                 />
                 고객 식별정보가 없으면 자진발급 사용
               </label>

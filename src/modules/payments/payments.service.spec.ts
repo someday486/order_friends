@@ -2425,7 +2425,7 @@ describe('PaymentsService', () => {
 
     expect(ordersChain.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: 'CANCELLED',
+        status: 'REFUNDED',
         cancelled_at: expect.any(String),
       }),
     );
@@ -2467,7 +2467,7 @@ describe('PaymentsService', () => {
     expect(ordersChain.update).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        status: 'CANCELLED',
+        status: 'REFUNDED',
         cancelled_at: expect.any(String),
       }),
     );

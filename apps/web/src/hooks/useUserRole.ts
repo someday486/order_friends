@@ -144,16 +144,10 @@ async function fetchUserRoleData(userId: string): Promise<UserData | null> {
 export function useUserRole() {
   const { user, status } = useAuth();
   const userId = user?.id ?? null;
-  const [userData, setUserData] = useState<UserData | null>(() =>
-    getCachedUserRole(userId),
-  );
-  const [loading, setLoading] = useState(() => {
-    if (status === 'loading') return true;
-    if (status !== 'authenticated' || !userId) return false;
-    return !getCachedUserRole(userId);
-  });
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(status === 'loading');
   const [error, setError] = useState<Error | null>(null);
-  const hasFetchedRef = useRef(Boolean(getCachedUserRole(userId)));
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     if (status === 'loading') {

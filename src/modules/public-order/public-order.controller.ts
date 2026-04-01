@@ -180,6 +180,17 @@ export class PublicOrderController {
    * 二쇰Ц 議고쉶 (ID ?먮뒗 二쇰Ц踰덊샇)
    * GET /public/orders/:orderIdOrNo
    */
+  @Post('orders/:orderId/cancel')
+  @UseGuards(UserRateLimitGuard)
+  @UserRateLimit({ points: 5, duration: 60, blockDuration: 300 })
+  @ApiOperation({ summary: '怨듦컻 二쇰Ц 痍⑥냼' })
+  @ApiResponse({ status: 200, description: '二쇰Ц 痍⑥냼 ?깃났' })
+  @ApiResponse({ status: 400, description: '?섎せ???붿껌' })
+  @ApiResponse({ status: 404, description: '二쇰Ц??李얠쓣 ???놁뒿?덈떎.' })
+  async cancelOrder(@Param('orderId') orderId: string) {
+    return this.publicOrderService.cancelPublicOrder(orderId);
+  }
+
   @Get('orders/:orderIdOrNo')
   @ApiOperation({ summary: '二쇰Ц 議고쉶 (ID ?먮뒗 二쇰Ц踰덊샇)' })
   @ApiResponse({ status: 200, description: '二쇰Ц 議고쉶 ?깃났' })

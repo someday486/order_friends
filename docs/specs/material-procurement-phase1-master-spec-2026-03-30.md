@@ -5,8 +5,8 @@
 문서 성격: Phase 1 실행 기준서
 현재 유지 문서:
 
-- `docs/material-procurement-phase1-master-spec-2026-03-30.md`
-- `docs/material-procurement-all-phases-master-spec-2026-03-30.md`
+- `docs/specs/material-procurement-phase1-master-spec-2026-03-30.md`
+- `docs/specs/material-procurement-all-phases-master-spec-2026-03-30.md`
 
 ## 1. 문서 목적
 

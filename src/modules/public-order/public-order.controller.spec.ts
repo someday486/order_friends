@@ -18,6 +18,7 @@ describe('PublicOrderController', () => {
     getCategories: jest.fn(),
     getProducts: jest.fn(),
     createOrder: jest.fn(),
+    cancelPublicOrder: jest.fn(),
     getOrder: jest.fn(),
   };
   const mockGuard = { canActivate: jest.fn(() => true) };
@@ -240,5 +241,23 @@ describe('PublicOrderController', () => {
     mockService.getOrder.mockRejectedValue(new Error('boom'));
 
     await expect(controller.getOrder('order-1')).rejects.toThrow('boom');
+  });
+
+  it('cancelOrder should call service and return result', async () => {
+    mockService.cancelPublicOrder.mockResolvedValue({
+      id: 'order-1',
+      status: 'CANCELLED',
+    });
+
+    const result = await controller.cancelOrder('order-1');
+
+    expect(result).toEqual({ id: 'order-1', status: 'CANCELLED' });
+    expect(mockService.cancelPublicOrder).toHaveBeenCalledWith('order-1');
+  });
+
+  it('cancelOrder should propagate service error', async () => {
+    mockService.cancelPublicOrder.mockRejectedValue(new Error('boom'));
+
+    await expect(controller.cancelOrder('order-1')).rejects.toThrow('boom');
   });
 });

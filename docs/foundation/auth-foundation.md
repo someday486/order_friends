@@ -248,5 +248,5 @@ supabaseServer.auth.*
 
 ### 📎 참고
 
-* Architecture: `docs/02-architecture.md`
-* Authorization Decision: `docs/decisions/ADR-0001-authorization-model.md`
+* Architecture: `./02-architecture.md`
+* Authorization Decision: `../decisions/ADR-0001-authorization-model.md`

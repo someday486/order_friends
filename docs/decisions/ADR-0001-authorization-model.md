@@ -93,5 +93,5 @@ Branch 범위 요청 시 다음 규칙을 적용한다.
 ---
 
 ## References
-- docs/03-db-schema.md
-- docs/02-architecture.md
+- ../foundation/03-db-schema.md
+- ../foundation/02-architecture.md

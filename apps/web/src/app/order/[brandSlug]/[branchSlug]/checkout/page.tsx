@@ -1,12 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api-client';
-import { formatWon } from '@/lib/format';
+import {
+  formatOrderPhoneInput,
+  formatWon,
+  isValidOrderPhone,
+} from '@/lib/format';
 import { useAuth } from '@/hooks/useAuth';
+import { getVerifiedUser } from '@/lib/auth/client';
 import {
   loadCustomerInfoFromAuthenticatedUser,
   loadCustomerInfoFromLatestOrder,
@@ -14,14 +19,17 @@ import {
 } from '@/lib/customer-info-autofill';
 import {
   clearCheckoutDraft,
+  clearPendingPaymentRecord,
   loadCustomerInfoDraft,
   loadCheckoutDraft,
   saveCustomerInfoDraft,
   saveLastOrderRecord,
+  savePendingPaymentRecord,
 } from '@/lib/order-session';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import { AddressSearchFields } from '@/components/order/AddressSearchFields';
 import { PickupDateCalendar } from '@/components/order/PickupDateCalendar';
+import { TossPaymentWidget } from '@/components/order/TossPaymentWidget';
 import { type WeeklyBusinessHours } from '@/lib/business-hours';
 import {
   buildPickupDateOptions,
@@ -31,6 +39,11 @@ import {
   type PickupTimeConfig,
 } from '@/lib/pickup-time';
 import { appendEuroRo } from '@/lib/korean-particles';
+import {
+  getOrCreateTossCustomerKey,
+  getTossRedirectUrls,
+  normalizeMobilePhone,
+} from '@/lib/toss-payment';
 
 type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 type PaymentMethod = 'CARD' | 'TRANSFER';
@@ -69,6 +82,26 @@ type CreateOrderResult = {
     accountNumber?: string | null;
     accountHolder?: string | null;
   } | null;
+};
+
+type PreparePaymentResult = {
+  orderId: string;
+  orderNo?: string | null;
+  amount: number;
+  orderName: string;
+  customerName: string;
+  customerPhone: string;
+};
+
+type CardWidgetController = {
+  requestPayment: (request: {
+    orderId: string;
+    orderName: string;
+    customerName?: string | null;
+    customerMobilePhone?: string | null;
+    successUrl: string;
+    failUrl: string;
+  }) => Promise<void>;
 };
 
 type PublicBranchConfigResponse = {
@@ -206,6 +239,10 @@ export default function CheckoutPage() {
   const authInfoRequestedRef = useRef(false);
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [tossCustomerKey, setTossCustomerKey] = useState<string | null>(null);
+  const [cardWidgetReady, setCardWidgetReady] = useState(false);
+  const [cardWidgetError, setCardWidgetError] = useState<string | null>(null);
+  const cardWidgetControllerRef = useRef<CardWidgetController | null>(null);
   const pickupTimeOptions = useMemo(
     () => buildPickupTimeOptions(pickupTimeConfig, businessHours),
     [businessHours, pickupTimeConfig],
@@ -245,9 +282,13 @@ export default function CheckoutPage() {
       normalizedManualCashReceiptPhone,
     ],
   );
-  const supportsReceiptRequest =
-    paymentMethod === 'TRANSFER';
+  const isCustomerPhoneValid = useMemo(
+    () => isValidOrderPhone(customerPhone),
+    [customerPhone],
+  );
+  const supportsReceiptRequest = paymentMethod === 'TRANSFER';
   const canRequestReceipt = cashReceiptEnabled && supportsReceiptRequest;
+  const completePagePath = `/order/${brandSlug}/${branchSlug}/complete`;
 
   useEffect(() => {
     if (!hasScheduledPickupConfig) {
@@ -279,13 +320,13 @@ export default function CheckoutPage() {
       return;
     }
 
-      setRequestedPickupTime((current) =>
-        pickupTimeOptionsForSelectedDate.some(
-          (option) => option.value === current,
-        )
-          ? current
-          : pickupTimeOptionsForSelectedDate[0].value,
-      );
+    setRequestedPickupTime((current) =>
+      pickupTimeOptionsForSelectedDate.some(
+        (option) => option.value === current,
+      )
+        ? current
+        : pickupTimeOptionsForSelectedDate[0].value,
+    );
   }, [hasScheduledPickupConfig, pickupTimeOptionsForSelectedDate]);
 
   useEffect(() => {
@@ -299,7 +340,7 @@ export default function CheckoutPage() {
     const saved = loadCustomerInfoDraft();
     if (saved) {
       setCustomerName(saved.customerName);
-      setCustomerPhone(saved.customerPhone);
+      setCustomerPhone(formatOrderPhoneInput(saved.customerPhone));
       setCustomerAddress1(saved.customerAddress1);
       setCustomerAddress2(saved.customerAddress2);
       setCustomerMemo(saved.customerMemo);
@@ -332,6 +373,18 @@ export default function CheckoutPage() {
   }, [status]);
 
   useEffect(() => {
+    if (!brandSlug || !branchSlug) return;
+
+    void router.prefetch(completePagePath);
+    void router.prefetch('/order/payment/success');
+    void router.prefetch('/order/payment/fail');
+  }, [brandSlug, branchSlug, completePagePath, router]);
+
+  useEffect(() => {
+    setTossCustomerKey(getOrCreateTossCustomerKey(user?.id ?? null));
+  }, [user?.id]);
+
+  useEffect(() => {
     if (status !== 'authenticated') return;
     if (!customerInfoReady) return;
     if (authInfoRequestedRef.current) return;
@@ -346,7 +399,9 @@ export default function CheckoutPage() {
       if (cancelled) return;
 
       setCustomerName((prev) => prev || next.customerName || '');
-      setCustomerPhone((prev) => prev || next.customerPhone || '');
+      setCustomerPhone((prev) =>
+        formatOrderPhoneInput(prev || next.customerPhone || ''),
+      );
       setCustomerAddress1((prev) => prev || next.customerAddress1 || '');
       setCustomerAddress2((prev) => prev || next.customerAddress2 || '');
       setCustomerMemo((prev) => prev || next.customerMemo || '');
@@ -372,7 +427,9 @@ export default function CheckoutPage() {
     const draft = loadCustomerInfoDraft();
     const merged = {
       customerName: next.customerName || draft?.customerName || '',
-      customerPhone: next.customerPhone || draft?.customerPhone || '',
+      customerPhone: formatOrderPhoneInput(
+        next.customerPhone || draft?.customerPhone || '',
+      ),
       customerAddress1: next.customerAddress1 || draft?.customerAddress1 || '',
       customerAddress2: next.customerAddress2 || draft?.customerAddress2 || '',
       customerMemo: next.customerMemo || draft?.customerMemo || '',
@@ -392,7 +449,9 @@ export default function CheckoutPage() {
     }
 
     setCustomerName((prev) => merged.customerName || prev);
-    setCustomerPhone((prev) => merged.customerPhone || prev);
+    setCustomerPhone((prev) =>
+      formatOrderPhoneInput(merged.customerPhone || prev),
+    );
     setCustomerAddress1((prev) => merged.customerAddress1 || prev);
     setCustomerAddress2((prev) => merged.customerAddress2 || prev);
     setCustomerMemo((prev) => merged.customerMemo || prev);
@@ -517,7 +576,7 @@ export default function CheckoutPage() {
       setReady(true);
     };
 
-    initializeCheckout();
+    void initializeCheckout();
     return () => {
       cancelled = true;
     };
@@ -543,6 +602,11 @@ export default function CheckoutPage() {
 
     if (!customerPhone.trim()) {
       toast.error('연락처를 입력해 주세요.');
+      return;
+    }
+
+    if (!isCustomerPhoneValid) {
+      toast.error('연락처는 000-0000-0000 형식으로 입력해 주세요.');
       return;
     }
 
@@ -607,6 +671,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (paymentMethod === 'CARD' && !cardWidgetControllerRef.current) {
+      toast.error(cardWidgetError || '결제 위젯을 준비하는 중입니다.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
@@ -633,22 +702,77 @@ export default function CheckoutPage() {
           qty: item.qty,
           options: item.selectedOptions.map((opt) => ({ optionId: opt.id })),
         })),
-        cashReceipt: canRequestReceipt && cashReceiptRequested
-          ? {
-              requested: true,
-              type: 'INCOME_DEDUCTION',
-              identityType: 'PHONE',
-              identityValue: normalizedCashReceiptPhone,
-            }
-          : undefined,
+        cashReceipt:
+          canRequestReceipt && cashReceiptRequested
+            ? {
+                requested: true,
+                type: 'INCOME_DEDUCTION',
+                identityType: 'PHONE',
+                identityValue: normalizedCashReceiptPhone,
+              }
+            : undefined,
       };
 
-      const orderPath =
-        status === 'authenticated' ? '/me/orders' : '/public/orders';
-      const result = await apiClient.post<CreateOrderResult>(orderPath, payload, {
-        auth: status === 'authenticated',
-      });
+      const verifiedUser =
+        user ?? (status !== 'authenticated' ? await getVerifiedUser() : null);
+      const shouldCreateAuthenticatedOrder = Boolean(
+        verifiedUser?.id || status === 'authenticated',
+      );
+      const orderPath = shouldCreateAuthenticatedOrder
+        ? '/me/orders'
+        : '/public/orders';
+      const result = await apiClient.post<CreateOrderResult>(
+        orderPath,
+        payload,
+        {
+          auth: shouldCreateAuthenticatedOrder,
+        },
+      );
 
+      if (shouldCreateAuthenticatedOrder) {
+        void persistCustomerInfoToUserMetadata({
+          customerName,
+          customerPhone,
+          customerAddress1,
+          customerAddress2,
+          customerMemo,
+        });
+      }
+
+      if (paymentMethod === 'CARD') {
+        const preparePayment = await apiClient.post<PreparePaymentResult>(
+          '/payments/prepare',
+          {
+            orderId: result.id,
+            amount: result.totalAmount ?? totalAmount,
+            paymentMethod: 'CARD',
+          },
+          { auth: false },
+        );
+        const redirectUrls = getTossRedirectUrls();
+        savePendingPaymentRecord({
+          orderId: preparePayment.orderId,
+          branchId,
+          brandSlug,
+          branchSlug,
+          checkoutPath: `/order/${brandSlug}/${branchSlug}/checkout`,
+          completePath: completePagePath,
+          cartSnapshot: cart,
+        });
+        await cardWidgetControllerRef.current!.requestPayment({
+          orderId: preparePayment.orderId,
+          orderName: preparePayment.orderName,
+          customerName: preparePayment.customerName || customerName.trim(),
+          customerMobilePhone: normalizeMobilePhone(
+            preparePayment.customerPhone || customerPhone.trim(),
+          ),
+          successUrl: redirectUrls.successUrl,
+          failUrl: redirectUrls.failUrl,
+        });
+        return;
+      }
+
+      clearPendingPaymentRecord();
       clearCheckoutDraft();
       saveLastOrderRecord({
         order: {
@@ -671,20 +795,13 @@ export default function CheckoutPage() {
         brandSlug,
         branchSlug,
       });
-      if (status === 'authenticated') {
-        void persistCustomerInfoToUserMetadata({
-          customerName,
-          customerPhone,
-          customerAddress1,
-          customerAddress2,
-          customerMemo,
-        });
-      }
 
       const query = result?.id
         ? `?orderId=${encodeURIComponent(result.id)}`
         : '';
-      router.push(`/order/${brandSlug}/${branchSlug}/complete${query}`);
+      startTransition(() => {
+        router.push(`${completePagePath}${query}`);
+      });
     } catch (e: unknown) {
       setError((e as Error)?.message ?? '주문 처리 중 오류가 발생했습니다.');
     } finally {
@@ -823,7 +940,7 @@ export default function CheckoutPage() {
                 <div className="mt-2 grid grid-cols-2 gap-2 lg:max-w-[420px]">
                   <button
                     type="button"
-                    onClick={handleLoadLastOrderInfo}
+                    onClick={() => void handleLoadLastOrderInfo()}
                     disabled={loadingLastOrderInfo || loggingOut}
                     className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                   >
@@ -837,7 +954,7 @@ export default function CheckoutPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleLogout}
+                    onClick={() => void handleLogout()}
                     disabled={loggingOut || loadingLastOrderInfo}
                     className="h-10 rounded-xl border border-border bg-bg-secondary text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                   >
@@ -869,16 +986,23 @@ export default function CheckoutPage() {
                 <input
                   type="tel"
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  onChange={(e) =>
+                    setCustomerPhone(formatOrderPhoneInput(e.target.value))
+                  }
                   data-testid="customer-phone-input"
                   required
                   placeholder="010-1234-5678"
                   className="input-field w-full h-12"
                 />
+                {customerPhone.trim() && !isCustomerPhoneValid && (
+                  <p className="mt-1 text-xs text-danger-500">
+                    연락처는 000-0000-0000 형식으로 입력해 주세요.
+                  </p>
+                )}
               </div>
 
               {/* 배달일 때만 주소 표시 */}
-              {fulfillmentType === 'PICKUP' && (
+              {fulfillmentType === 'PICKUP' && hasScheduledPickupConfig && (
                 <div className="animate-fade-in">
                   <label className="block text-xs font-semibold text-text-secondary mb-1.5">
                     픽업 희망 시간
@@ -1027,6 +1151,19 @@ export default function CheckoutPage() {
               })}
             </div>
 
+            {paymentMethod === 'CARD' && (
+              <TossPaymentWidget
+                amount={totalAmount}
+                customerKey={tossCustomerKey}
+                active
+                onReadyChange={(controller) => {
+                  cardWidgetControllerRef.current = controller;
+                  setCardWidgetReady(Boolean(controller));
+                }}
+                onErrorChange={setCardWidgetError}
+              />
+            )}
+
             {/* 계좌이체 선택 시 즉시 계좌 정보 표시 */}
             {paymentMethod === 'TRANSFER' && (
               <div className="mt-3 rounded-xl border border-warning-200 bg-warning-50 p-4 animate-fade-in">
@@ -1090,7 +1227,11 @@ export default function CheckoutPage() {
                     </label>
                     <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
                       {cashReceiptUseCustomerPhone ? (
-                        <>발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}</>
+                        <>
+                          발급 번호:{' '}
+                          {customerPhone.trim() ||
+                            '휴대폰 번호를 먼저 입력해 주세요.'}
+                        </>
                       ) : (
                         <input
                           type="text"
@@ -1118,9 +1259,13 @@ export default function CheckoutPage() {
           <button
             data-testid="submit-order-button"
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-none bg-foreground p-4 text-base font-bold text-background cursor-pointer transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:mx-auto lg:max-w-[420px]"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={
-              submitting || !customerName.trim() || !customerPhone.trim()
+              submitting ||
+              !customerName.trim() ||
+              !customerPhone.trim() ||
+              !isCustomerPhoneValid ||
+              (paymentMethod === 'CARD' && !cardWidgetReady)
             }
           >
             {submitting ? (
@@ -1140,4 +1285,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-

@@ -213,6 +213,38 @@ describe('OrdersService', () => {
       expect(result.data[0].depositMatchStatus).toBe('PENDING');
     });
 
+    it('should treat successful transfer payments as confirmed even without auto-match rows', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: [
+          {
+            id: '125',
+            order_no: 'ORD-003',
+            status: OrderStatus.CREATED,
+            created_at: '2024-01-01',
+            total_amount: 7000,
+            customer_name: 'Manual Transfer User',
+          },
+        ],
+        count: 1,
+        error: null,
+      });
+      jest
+        .spyOn(service as any, 'getPaymentMethodMap')
+        .mockResolvedValueOnce(new Map([['125', 'TRANSFER']]));
+      jest
+        .spyOn(service as any, 'getPaymentStatusMap')
+        .mockResolvedValueOnce(new Map([['125', 'SUCCESS']]));
+      jest
+        .spyOn(service as any, 'getDepositMatchStatusMap')
+        .mockResolvedValueOnce(new Map());
+
+      const result = await service.getOrders('token', 'branch-123');
+
+      expect(result.data[0].paymentMethod).toBe('TRANSFER');
+      expect(result.data[0].paymentStatus).toBe('SUCCESS');
+      expect(result.data[0].depositMatchStatus).toBe('AUTO_MATCHED');
+    });
+
     it('should hide deposit match status for cash payments', async () => {
       mockSupabaseClient.range.mockResolvedValueOnce({
         data: [

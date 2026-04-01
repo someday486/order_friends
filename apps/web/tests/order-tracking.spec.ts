@@ -55,6 +55,12 @@ test.describe('Order tracking page', () => {
     });
     await expect(page.getByText('아메리카노')).toBeVisible();
     await expect(page.getByText('홍길동')).toBeVisible();
+    await expect(
+      page.getByText(
+        '빠른 확인이 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
+      ),
+    ).toBeVisible();
+    await expect(page.getByText('문의 안내')).toHaveCount(0);
   });
 
   test('shows cancelled state for CANCELLED order', async ({ page }) => {

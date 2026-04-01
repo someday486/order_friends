@@ -111,7 +111,7 @@ export class CashReceiptOnboardingService {
         return {
           cash_receipt_enabled: true,
           cash_receipt_provider: CashReceiptProvider.POPBILL,
-          cash_receipt_merchant_id: corpNum,
+          cash_receipt_merchant_id: this.buildMemberUserId(corpNum),
           cash_receipt_onboarding_status: 'JOINED',
           cash_receipt_onboarding_message:
             'Popbill 현금영수증 연동이 완료되었습니다. 신규 가입이 처리되었습니다.',
@@ -122,7 +122,7 @@ export class CashReceiptOnboardingService {
       return {
         cash_receipt_enabled: true,
         cash_receipt_provider: CashReceiptProvider.POPBILL,
-        cash_receipt_merchant_id: corpNum,
+        cash_receipt_merchant_id: this.buildMemberUserId(corpNum),
         cash_receipt_onboarding_status: 'EXISTING',
         cash_receipt_onboarding_message:
           'Popbill 현금영수증 연동을 확인했습니다. 기존 가입 정보를 재사용합니다.',

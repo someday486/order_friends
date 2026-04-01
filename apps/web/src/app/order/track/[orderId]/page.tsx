@@ -386,7 +386,15 @@ function paymentGuide(method: PaymentMethod | null): {
   };
 }
 
-function refundGuide(order: OrderInfo): {
+function hasSupportChannel(
+  order: Pick<OrderInfo, 'branchContactPhone' | 'branchKakaoChannelUrl'>,
+): boolean {
+  return Boolean(
+    order.branchContactPhone?.trim() || order.branchKakaoChannelUrl?.trim(),
+  );
+}
+
+function refundGuide(order: OrderInfo, supportAvailable: boolean): {
   title: string;
   summary: string;
   items: string[];
@@ -408,7 +416,9 @@ function refundGuide(order: OrderInfo): {
       items: [
         '준비 시작 전 주문은 자동 취소 또는 빠른 환불 대상이 될 수 있습니다.',
         settlementHint,
-        '환불이 지연되거나 확인이 필요하면 아래 문의 연락처로 바로 연락해 주세요.',
+        supportAvailable
+          ? '환불이 지연되거나 확인이 필요하면 아래 문의 연락처로 바로 연락해 주세요.'
+          : '환불이 지연되거나 확인이 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
       ],
     };
   }
@@ -421,7 +431,9 @@ function refundGuide(order: OrderInfo): {
       items: [
         '준비가 시작된 주문은 매장 확인 후 취소 또는 환불 가능 여부가 결정될 수 있습니다.',
         settlementHint,
-        '빠른 확인이 필요하면 아래 문의 연락처로 요청해 주세요.',
+        supportAvailable
+          ? '빠른 확인이 필요하면 아래 문의 연락처로 요청해 주세요.'
+          : '빠른 확인이 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
       ],
     };
   }
@@ -434,7 +446,9 @@ function refundGuide(order: OrderInfo): {
       items: [
         '준비 완료 이후에는 환불 가능 여부가 매장 정책과 진행 상황에 따라 달라집니다.',
         settlementHint,
-        '취소 또는 환불이 필요하면 바로 매장에 연락해 주세요.',
+        supportAvailable
+          ? '취소 또는 환불이 필요하면 바로 매장에 연락해 주세요.'
+          : '취소 또는 환불이 필요하면 주문하신 온라인샵의 판매자 안내에 따라 요청해 주세요.',
       ],
     };
   }
@@ -447,7 +461,9 @@ function refundGuide(order: OrderInfo): {
       items: [
         '상품 누락, 오배송, 결제 오류 등의 사유가 있으면 매장 확인 후 환불이 진행됩니다.',
         settlementHint,
-        '처리 기준은 매장 정책에 따라 달라질 수 있으니 문의 연락처를 이용해 주세요.',
+        supportAvailable
+          ? '처리 기준은 매장 정책에 따라 달라질 수 있으니 문의 연락처를 이용해 주세요.'
+          : '처리 기준은 판매자 정책에 따라 달라질 수 있으니 주문하신 온라인샵의 안내를 확인해 주세요.',
       ],
     };
   }
@@ -714,9 +730,10 @@ export default function TrackOrderPage() {
   const isRefunded = order.status === 'REFUNDED';
   const isCompleted = order.status === 'COMPLETED';
   const isReady = order.status === 'READY';
+  const supportAvailable = hasSupportChannel(order);
   const currentStepIndex = STATUS_STEPS.indexOf(displayStatus);
   const guide = paymentGuide(order.paymentMethod);
-  const refundNotice = refundGuide(order);
+  const refundNotice = refundGuide(order, supportAvailable);
   const showCancelAction =
     !usingCachedOrderFallback && !isCancelled && !isCompleted;
   const cancelActionLabel =
@@ -739,7 +756,9 @@ export default function TrackOrderPage() {
             tone: 'danger' as const,
             title: '주문이 취소되었어요.',
             description:
-              '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 매장에 연락해 주세요.',
+              supportAvailable
+                ? '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 매장에 연락해 주세요.'
+                : '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 문의가 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
           }
         : null;
 
@@ -1236,7 +1255,9 @@ export default function TrackOrderPage() {
               주문 취소가 필요하신가요?
             </div>
             <p className="mt-1 text-xs leading-5 text-text-secondary">
-              주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 매장 문의로 빠르게 도와드리고 있습니다.
+              {supportAvailable
+                ? '주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 매장 문의로 빠르게 도와드리고 있습니다.'
+                : '주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 주문하신 온라인샵의 판매자 안내를 확인해 주세요.'}
             </p>
             <button
               type="button"

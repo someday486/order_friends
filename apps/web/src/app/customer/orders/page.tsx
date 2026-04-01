@@ -78,6 +78,12 @@ const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'CANCELLED', label: '취소' },
 ];
 
+const BULK_STATUS_OPTIONS_WITH_REFUND: { value: OrderStatus; label: string }[] = [
+  ...BULK_STATUS_OPTIONS.slice(0, 4),
+  { value: "REFUNDED", label: "환불" },
+  ...BULK_STATUS_OPTIONS.slice(4),
+];
+
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CREATED: '주문접수',
   CONFIRMED: '주문확인',
@@ -87,6 +93,8 @@ const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CANCELLED: '취소',
   REFUNDED: '취소',
 };
+
+ORDER_STATUS_LABEL.REFUNDED = "환불";
 
 // Active statuses: filled + ring (high visual weight)
 // Terminal statuses: muted (low visual weight)
@@ -226,7 +234,8 @@ function canTransition(from: OrderStatus, to: OrderStatus) {
   if (from === to) return false;
 
   // terminal
-  if (from === "COMPLETED" || from === "CANCELLED" || from === "REFUNDED") return false;
+  if (from === "CANCELLED" || from === "REFUNDED") return false;
+  if (from === "COMPLETED") return to === "REFUNDED";
 
   // cancel allowed from non-terminal
   if (to === "CANCELLED") return true;
@@ -240,10 +249,10 @@ function canTransition(from: OrderStatus, to: OrderStatus) {
 }
 
 function getAllowedTargetsForSelection(selectedOrders: Order[]) {
-  if (selectedOrders.length === 0) return BULK_STATUS_OPTIONS;
+  if (selectedOrders.length === 0) return BULK_STATUS_OPTIONS_WITH_REFUND;
 
   const perOrderAllowed = selectedOrders.map((o) =>
-    BULK_STATUS_OPTIONS.map((opt) => opt.value).filter((target) => canTransition(o.status, target)),
+    BULK_STATUS_OPTIONS_WITH_REFUND.map((opt) => opt.value).filter((target) => canTransition(o.status, target)),
   );
 
   const intersection = perOrderAllowed.reduce<Set<OrderStatus> | null>((acc, cur) => {
@@ -253,7 +262,7 @@ function getAllowedTargetsForSelection(selectedOrders: Order[]) {
   }, null);
 
   const allowed = intersection ?? new Set<OrderStatus>();
-  return BULK_STATUS_OPTIONS.filter((opt) => allowed.has(opt.value));
+  return BULK_STATUS_OPTIONS_WITH_REFUND.filter((opt) => allowed.has(opt.value));
 }
 
 
@@ -465,7 +474,7 @@ export default function CustomerOrdersPage() {
 
   const bulkAllowedOptions = useMemo(() => {
     if (selectedOrders.length === 0) {
-      return BULK_STATUS_OPTIONS;
+      return BULK_STATUS_OPTIONS_WITH_REFUND;
     }
 
     return getAllowedTargetsForSelection(selectedOrders);
@@ -1092,8 +1101,8 @@ export default function CustomerOrdersPage() {
                 }}
                 className="input-field h-9 text-sm w-full min-w-0 sm:flex-1"
                 placeholder="상품명/주문번호/고객명 검색"
-                aria-label="\uC8FC\uBB38 \uAC80\uC0C9"
-              />
+          aria-label="주문 검색"
+        />
 
               <button
                 type="button"

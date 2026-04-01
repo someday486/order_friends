@@ -1682,6 +1682,52 @@ describe('CustomerOrdersService', () => {
     expect(result.totalAmount).toBe(0);
   });
 
+  it('updateMyOrderStatus should refund paid order before marking it refunded', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', branches: { brand_id: 'brand-1' } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'ORD-001',
+          status: OrderStatus.REFUNDED,
+          created_at: 't',
+          customer_name: 'A',
+          total_amount: 10,
+        },
+        error: null,
+      });
+
+    const result = await service.updateMyOrderStatus(
+      'user-1',
+      'o1',
+      OrderStatus.REFUNDED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result.status).toBe(OrderStatus.REFUNDED);
+    expect(
+      mockPaymentsService.refundOrderPaymentForCancellation,
+    ).toHaveBeenCalledWith('o1', 'b1');
+    expect(ordersChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: OrderStatus.REFUNDED,
+        cancelled_at: expect.any(String),
+      }),
+    );
+    expect(mockCashReceiptsService.cancelForOrder).toHaveBeenCalledWith(
+      'o1',
+      'Order status changed to REFUNDED',
+    );
+  });
+
   it('updateMyOrderStatus should throw when order not found', async () => {
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
@@ -1890,6 +1936,40 @@ describe('CustomerOrdersService', () => {
 
     expect(spy).toHaveBeenCalledTimes(2);
     expect(result.updatedCount).toBe(2);
+    expect(result.orderIds).toEqual(['o1', 'o2']);
+  });
+
+  it('updateMyOrdersStatusBulk should route refunds through single-order flow', async () => {
+    const spy = jest
+      .spyOn(service, 'updateMyOrderStatus')
+      .mockResolvedValueOnce({
+        id: 'o1',
+        orderNo: 'ORD-1',
+        orderedAt: 't',
+        customerName: 'A',
+        totalAmount: 10,
+        status: OrderStatus.REFUNDED,
+      })
+      .mockResolvedValueOnce({
+        id: 'o2',
+        orderNo: 'ORD-2',
+        orderedAt: 't',
+        customerName: 'B',
+        totalAmount: 20,
+        status: OrderStatus.REFUNDED,
+      });
+
+    const result = await service.updateMyOrdersStatusBulk(
+      'user-1',
+      ['o1', 'o2'],
+      OrderStatus.REFUNDED,
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(result.updatedCount).toBe(2);
+    expect(result.status).toBe(OrderStatus.REFUNDED);
     expect(result.orderIds).toEqual(['o1', 'o2']);
   });
 

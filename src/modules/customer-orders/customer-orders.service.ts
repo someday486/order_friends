@@ -1132,7 +1132,7 @@ export class CustomerOrdersService {
 
     const sb = this.supabase.adminClient();
 
-    if (status === OrderStatus.CANCELLED) {
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
       await this.paymentsService.refundOrderPaymentForCancellation(
         order.id,
         order.branch_id,
@@ -1213,7 +1213,7 @@ export class CustomerOrdersService {
       `Bulk updating ${uniqueOrderIds.length} orders to ${status} by user ${userId}`,
     );
 
-    if (status === OrderStatus.CANCELLED) {
+    if (status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED) {
       const results = [];
       for (const currentOrderId of uniqueOrderIds) {
         results.push(

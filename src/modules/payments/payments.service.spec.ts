@@ -2356,7 +2356,7 @@ describe('PaymentsService', () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
-        data: { id: 'o1', branch_id: 'b1' },
+        data: { id: 'o1', branch_id: 'b1', status: 'READY' },
         error: null,
       });
     paymentsChain.maybeSingle
@@ -2395,12 +2395,97 @@ describe('PaymentsService', () => {
     );
   });
 
+  it('refundOrderPaymentForCancellation should stage completed orders before refund', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', status: 'COMPLETED' },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        status: PaymentStatus.SUCCESS,
+        amount: 10,
+        refund_amount: 0,
+      },
+      error: null,
+    });
+    const refundPaymentSpy = jest
+      .spyOn(service, 'refundPayment')
+      .mockResolvedValueOnce({
+        paymentId: 'p1',
+        status: PaymentStatus.REFUNDED,
+        refundAmount: 10,
+        refundedAt: 't',
+      });
+
+    await service.refundOrderPaymentForCancellation('o1', 'b1');
+
+    expect(ordersChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'CANCELLED',
+        cancelled_at: expect.any(String),
+      }),
+    );
+    expect(refundPaymentSpy).toHaveBeenCalledWith(
+      'p1',
+      'b1',
+      expect.objectContaining({
+        amount: 10,
+      }),
+    );
+  });
+
+  it('refundOrderPaymentForCancellation should restore completed orders when refund fails', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: 'o1', branch_id: 'b1', status: 'COMPLETED' },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        status: PaymentStatus.SUCCESS,
+        amount: 10,
+        refund_amount: 0,
+      },
+      error: null,
+    });
+    const refundPaymentSpy = jest
+      .spyOn(service, 'refundPayment')
+      .mockRejectedValueOnce(new Error('refund failed'));
+
+    await expect(
+      service.refundOrderPaymentForCancellation('o1', 'b1'),
+    ).rejects.toThrow('refund failed');
+    expect(refundPaymentSpy).toHaveBeenCalled();
+
+    expect(ordersChain.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        status: 'CANCELLED',
+        cancelled_at: expect.any(String),
+      }),
+    );
+    expect(ordersChain.update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        status: 'COMPLETED',
+        completed_at: expect.any(String),
+      }),
+    );
+  });
+
   it('refundOrderPaymentForCancellation should skip unpaid orders', async () => {
     const service = setupService({ TOSS_MOCK_MODE: 'true' });
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
-        data: { id: 'o1', branch_id: 'b1' },
+        data: { id: 'o1', branch_id: 'b1', status: 'READY' },
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({
@@ -2418,7 +2503,7 @@ describe('PaymentsService', () => {
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
-        data: { id: 'o1', branch_id: 'b1' },
+        data: { id: 'o1', branch_id: 'b1', status: 'READY' },
         error: null,
       });
     paymentsChain.maybeSingle.mockResolvedValueOnce({

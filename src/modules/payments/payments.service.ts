@@ -1204,7 +1204,7 @@ export class PaymentsService {
 
     const { data: order, error: orderError } = await sb
       .from('orders')
-      .select('id, branch_id')
+      .select('id, branch_id, status')
       .eq('id', resolvedId)
       .eq('branch_id', branchId)
       .maybeSingle();
@@ -1224,6 +1224,19 @@ export class PaymentsService {
 
     if (!order) {
       throw new OrderNotFoundException(orderIdOrNo);
+    }
+
+    const shouldStageCompletedOrder =
+      String((order as { status?: string | null }).status ?? '') ===
+      'COMPLETED';
+    let stagedCompletedOrder = false;
+
+    if (shouldStageCompletedOrder) {
+      stagedCompletedOrder = await this.stageCompletedOrderForRefund(
+        sb,
+        resolvedId,
+        branchId,
+      );
     }
 
     const { data: payment, error: paymentError } = await sb
@@ -1282,10 +1295,77 @@ export class PaymentsService {
       return;
     }
 
-    await this.refundPayment(paymentRecord.id, branchId, {
-      reason,
-      amount: refundAmount,
-    });
+    try {
+      await this.refundPayment(paymentRecord.id, branchId, {
+        reason,
+        amount: refundAmount,
+      });
+    } catch (error) {
+      if (stagedCompletedOrder) {
+        await this.restoreRefundStagedOrderStatus(sb, resolvedId, branchId);
+      }
+      throw error;
+    }
+  }
+
+  private async stageCompletedOrderForRefund(
+    sb: SupabaseClient,
+    orderId: string,
+    branchId: string,
+  ): Promise<boolean> {
+    try {
+      const { error } = await sb
+        .from('orders')
+        .update({
+          status: 'CANCELLED',
+          cancelled_at: new Date().toISOString(),
+        })
+        .eq('id', orderId)
+        .eq('branch_id', branchId);
+
+      if (error) {
+        this.logger.warn(
+          `Failed to stage completed order ${orderId} for refund: ${error.message}`,
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Unexpected error while staging completed order ${orderId} for refund`,
+        error,
+      );
+      return false;
+    }
+  }
+
+  private async restoreRefundStagedOrderStatus(
+    sb: SupabaseClient,
+    orderId: string,
+    branchId: string,
+  ): Promise<void> {
+    try {
+      const { error } = await sb
+        .from('orders')
+        .update({
+          status: 'COMPLETED',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', orderId)
+        .eq('branch_id', branchId);
+
+      if (error) {
+        this.logger.warn(
+          `Failed to restore refund-staged order ${orderId}: ${error.message}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Unexpected error while restoring refund-staged order ${orderId}`,
+        error,
+      );
+    }
   }
 
   /**

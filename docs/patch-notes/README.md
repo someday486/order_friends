@@ -1,15 +1,15 @@
-# Patch Notes
+# 패치노트
 
-Use this folder for release notes that summarize user-facing and operator-facing changes.
+이 폴더에는 사용자나 운영자가 실제로 체감하는 변경 사항을 기록합니다.
 
-## Naming
-- Use `YYYY-MM-DD.md`
+## 파일명 규칙
+- `YYYY-MM-DD.md`
 
-## Include
-- new features
-- UX improvements
-- bug fixes users or operators will notice
-- operational notes only when they matter to support or rollout
+## 포함하면 좋은 내용
+- 신규 기능
+- UX 개선
+- 사용자나 운영자가 바로 느끼는 버그 수정
+- 배포나 운영 대응에 필요한 메모
 
-## Example
+## 예시
 - `2026-04-02.md`

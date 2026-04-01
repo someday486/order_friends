@@ -1,13 +1,13 @@
-# YYYY-MM-DD Patch Notes
+# YYYY-MM-DD 패치노트
 
-## New Features
+## 신규 기능
 - 
 
-## Improvements
+## 개선 사항
 - 
 
-## Bug Fixes
+## 버그 수정
 - 
 
-## Operator Notes
-- Add only when support or rollout teams need to know.
+## 운영 메모
+- 지원이나 배포 대응에 꼭 필요한 경우에만 작성합니다.

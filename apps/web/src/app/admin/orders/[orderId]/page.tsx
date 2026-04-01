@@ -62,6 +62,8 @@ type OrderDetail = {
   items: OrderItem[];
 };
 
+const ALL_BRANCHES_VALUE = "__ALL_BRANCHES__";
+
 const CASH_RECEIPT_TYPE_LABEL: Record<string, string> = {
   INCOME_DEDUCTION: "소득공제용",
   EXPENSE_PROOF: "지출증빙용",
@@ -177,6 +179,13 @@ function OrderDetailPageContent() {
     [searchParams],
   );
   const { branchId, selectBranch } = useSelectedBranch();
+  const branchIdFromQuery =
+    initialBranchId && initialBranchId !== ALL_BRANCHES_VALUE
+      ? initialBranchId
+      : "";
+  const selectedBranchId =
+    branchId && branchId !== ALL_BRANCHES_VALUE ? branchId : "";
+  const effectiveBranchId = branchIdFromQuery || selectedBranchId;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -184,8 +193,10 @@ function OrderDetailPageContent() {
   const [statusLoading, setStatusLoading] = useState(false);
 
   useEffect(() => {
-    if (initialBranchId) selectBranch(initialBranchId);
-  }, [initialBranchId, selectBranch]);
+    if (branchIdFromQuery && branchId !== branchIdFromQuery) {
+      selectBranch(branchIdFromQuery);
+    }
+  }, [branchId, branchIdFromQuery, selectBranch]);
 
   const isCancellable = useMemo(() => {
     if (!order) return false;
@@ -198,7 +209,7 @@ function OrderDetailPageContent() {
   const isRefundable = useMemo(() => order?.status === "COMPLETED", [order]);
 
   useEffect(() => {
-    if (!orderId || !branchId) return;
+    if (!orderId || !effectiveBranchId) return;
 
     const fetchOrder = async () => {
       try {
@@ -206,7 +217,7 @@ function OrderDetailPageContent() {
         setError(null);
 
         const data = await apiClient.get<OrderDetail>(
-          `/admin/orders/${encodeURIComponent(orderId)}?branchId=${encodeURIComponent(branchId)}`,
+          `/admin/orders/${encodeURIComponent(orderId)}?branchId=${encodeURIComponent(effectiveBranchId)}`,
         );
         setOrder(data);
       } catch (e: unknown) {
@@ -218,21 +229,21 @@ function OrderDetailPageContent() {
     };
 
     void fetchOrder();
-  }, [orderId, branchId]);
+  }, [effectiveBranchId, orderId]);
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
-    if (!order || !branchId) return;
+    if (!order || !effectiveBranchId) return;
 
     try {
       setStatusLoading(true);
       setError(null);
 
       await apiClient.patch<{ id: string; status: OrderStatus }>(
-        `/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(branchId)}`,
+        `/admin/orders/${encodeURIComponent(order.id)}/status?branchId=${encodeURIComponent(effectiveBranchId)}`,
         { status: newStatus },
       );
       const refreshed = await apiClient.get<OrderDetail>(
-        `/admin/orders/${encodeURIComponent(order.id)}?branchId=${encodeURIComponent(branchId)}`,
+        `/admin/orders/${encodeURIComponent(order.id)}?branchId=${encodeURIComponent(effectiveBranchId)}`,
       );
       setOrder(refreshed);
     } catch (e: unknown) {
@@ -256,7 +267,7 @@ function OrderDetailPageContent() {
     await handleStatusChange("REFUNDED");
   };
 
-  if (!branchId) {
+  if (!effectiveBranchId) {
     return (
       <div>
         <Link

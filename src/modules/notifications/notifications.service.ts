@@ -108,7 +108,7 @@ export class NotificationsService {
       this.configService.get<string>('SOLAPI_KAKAO_TEMPLATE_ID') || '';
     this.solapiKakaoTransferTemplateId =
       this.configService.get<string>('SOLAPI_KAKAO_TRANSFER_TEMPLATE_ID') ||
-      'KA01TP260306080352858w6K1BS9FU2r';
+      'KA01TP260317073814234Dy802kj2B57';
     this.publicWebBaseUrl = (
       this.configService.get<string>('PUBLIC_WEB_BASE_URL') ||
       'http://localhost:3000'

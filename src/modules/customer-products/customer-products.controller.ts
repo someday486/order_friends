@@ -38,6 +38,7 @@ import {
   ApplyBrandProductTemplateRequest,
   BulkUpdateBrandProductTemplateRequest,
   CreateBrandProductTemplateRequest,
+  ReorderBrandProductTemplatesRequest,
   UpdateBrandProductTemplateRequest,
 } from './dto/brand-product-template.request';
 
@@ -436,6 +437,35 @@ export class CustomerProductsController {
     return this.productsService.createBrandProductTemplate(
       req.user.id,
       dto,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch('brand-templates/reorder')
+  @ApiOperation({
+    summary: '브랜드 메뉴 순서 변경',
+    description:
+      '브랜드 메뉴 템플릿 순서를 변경하고 연결된 각 지점 상품 정렬도 함께 갱신합니다.',
+  })
+  @ApiBody({ type: ReorderBrandProductTemplatesRequest })
+  @ApiResponse({ status: 200, description: '브랜드 메뉴 순서 변경 성공' })
+  async reorderBrandTemplates(
+    @Req() req: AuthRequest,
+    @Body() dto: ReorderBrandProductTemplatesRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+    if (!dto.brandId) {
+      throw new BadRequestException('brandId is required');
+    }
+    if (!dto.items?.length) {
+      throw new BadRequestException('items is required');
+    }
+
+    return this.productsService.reorderBrandProductTemplates(
+      req.user.id,
+      dto.brandId,
+      dto.items,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

@@ -15,8 +15,15 @@ import {
   deleteBusinessOrderImportBatch,
   getBusinessOrderImportBatches,
   mapImportedBatchToBusinessOrder,
+  updateBusinessOrderImportBatch,
   type BusinessImportedOrderBatch,
 } from '@/lib/businessOrderImportStorage';
+import {
+  getBusinessOrderStatusSuccessMessage,
+  getBusinessOrderStatusTone,
+  getBusinessOrderWorkflowActions,
+  type BusinessOrderWorkflowAction,
+} from '@/lib/businessOrderWorkflow';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import toast from 'react-hot-toast';
@@ -32,6 +39,7 @@ const STATUS_FILTERS: Array<'전체' | BusinessOrder['status']> = [
 
 type DecoratedOrder = BusinessOrder & {
   source: 'mock' | 'upload';
+  displayId?: string;
   fileName?: string;
   rowCount?: number;
 };
@@ -41,6 +49,10 @@ export default function BusinessOrderHistoryPage() {
   const [activeFilter, setActiveFilter] = useState<(typeof STATUS_FILTERS)[number]>('전체');
   const [uploadedBatches, setUploadedBatches] = useState<BusinessImportedOrderBatch[]>([]);
   const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
+  const [updatingAction, setUpdatingAction] = useState<{
+    batchId: string;
+    nextStatus: BusinessOrder['status'];
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -77,10 +89,31 @@ export default function BusinessOrderHistoryPage() {
     }
   }
 
+  async function handleUpdateBatchStatus(
+    batchId: string,
+    nextStatus: BusinessOrder['status'],
+  ) {
+    try {
+      setUpdatingAction({ batchId, nextStatus });
+      const nextBatch = await updateBusinessOrderImportBatch(batchId, nextStatus);
+      setUploadedBatches((current) =>
+        current.map((batch) => (batch.id === batchId ? nextBatch : batch)),
+      );
+      toast.success(getBusinessOrderStatusSuccessMessage(nextStatus));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '주문 상태 변경에 실패했습니다.';
+      toast.error(message);
+    } finally {
+      setUpdatingAction(null);
+    }
+  }
+
   const mergedOrders = useMemo<DecoratedOrder[]>(() => {
     const importedOrders = uploadedBatches.map((batch) => ({
       ...mapImportedBatchToBusinessOrder(batch),
       source: 'upload' as const,
+      displayId: batch.displayId ?? batch.id,
       fileName: batch.fileName,
       rowCount: batch.rowCount,
     }));
@@ -191,7 +224,7 @@ export default function BusinessOrderHistoryPage() {
         <CardContent className="px-6 pb-6">
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-[13px] leading-5 text-text-secondary">
             <Filter size={16} />
-            업로드 저장분은 `작성중` 상태로 먼저 표시합니다. 승인/발주서 발행 API는 다음 단계에서 연결합니다.
+            업로드 저장분도 이 화면에서 바로 승인 요청, 발주서 발행, 부분출고, 정산대기까지 이어서 처리할 수 있습니다.
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-border">
@@ -242,7 +275,7 @@ export default function BusinessOrderHistoryPage() {
                           href={`/business/orders/${order.id}`}
                           className="underline decoration-transparent underline-offset-4 transition-colors hover:decoration-current"
                         >
-                          {order.id}
+                          {order.displayId ?? order.id}
                         </Link>
                       </td>
                       <td className="px-4 py-4 text-[13px]">
@@ -276,15 +309,44 @@ export default function BusinessOrderHistoryPage() {
                       <td className="px-4 py-4 text-[13px] text-text-secondary">{order.paymentStatus}</td>
                       <td className="px-4 py-4 text-right text-[13px]">
                         {order.source === 'upload' ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteBatch(order.id)}
-                            disabled={deletingBatchId === order.id}
-                            className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-[12px] font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Trash2 size={14} />
-                            {deletingBatchId === order.id ? '삭제 중...' : '삭제'}
-                          </button>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {getBusinessOrderWorkflowActions(order.status).map((action) => {
+                              const isProcessingAction =
+                                updatingAction?.batchId === order.id &&
+                                updatingAction.nextStatus === action.nextStatus;
+
+                              return (
+                                <WorkflowActionButton
+                                  key={`${order.id}-${action.nextStatus}`}
+                                  action={action}
+                                  disabled={
+                                    deletingBatchId === order.id ||
+                                    updatingAction?.batchId === order.id
+                                  }
+                                  loading={isProcessingAction}
+                                  onClick={() =>
+                                    void handleUpdateBatchStatus(
+                                      order.id,
+                                      action.nextStatus,
+                                    )
+                                  }
+                                />
+                              );
+                            })}
+
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteBatch(order.id)}
+                              disabled={
+                                deletingBatchId === order.id ||
+                                updatingAction?.batchId === order.id
+                              }
+                              className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-[12px] font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 size={14} />
+                              {deletingBatchId === order.id ? '삭제 중...' : '삭제'}
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-text-tertiary">-</span>
                         )}
@@ -344,19 +406,44 @@ function UploadInfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({ label }: { label: string }) {
-  const tone =
-    label === '출고준비'
-      ? 'bg-emerald-500/15 text-emerald-700'
-      : label === '승인대기'
-      ? 'bg-amber-500/15 text-amber-700'
-      : label === '부분출고'
-      ? 'bg-sky-500/15 text-sky-700'
-      : label === '작성중'
-      ? 'bg-violet-500/15 text-violet-700'
-      : 'bg-neutral-500/15 text-text-secondary';
+function WorkflowActionButton({
+  action,
+  disabled,
+  loading,
+  onClick,
+}: {
+  action: BusinessOrderWorkflowAction;
+  disabled: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  const toneClass =
+    action.tone === 'secondary'
+      ? 'border border-border bg-background text-text-secondary hover:bg-bg-tertiary hover:text-foreground'
+      : action.tone === 'success'
+      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+      : 'bg-foreground text-background hover:opacity-90';
 
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+    >
+      {loading ? '처리 중...' : action.label}
+    </button>
+  );
+}
+
+function StatusPill({ label }: { label: BusinessOrder['status'] }) {
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${getBusinessOrderStatusTone(label)}`}
+    >
+      {label}
+    </span>
+  );
 }
 
 function MemoCard({ title, body }: { title: string; body: string }) {

@@ -12,6 +12,7 @@ describe('CustomerProductsController', () => {
     getMyProducts: jest.fn(),
     getBrandProductTemplates: jest.fn(),
     createBrandProductTemplate: jest.fn(),
+    reorderBrandProductTemplates: jest.fn(),
     updateBrandProductTemplate: jest.fn(),
     bulkUpdateBrandProductTemplates: jest.fn(),
     deleteBrandProductTemplate: jest.fn(),
@@ -148,6 +149,32 @@ describe('CustomerProductsController', () => {
       'user-1',
       'tpl-1',
       dto,
+      [],
+      [],
+    );
+  });
+
+  it('reorderBrandTemplates should call service', async () => {
+    mockService.reorderBrandProductTemplates.mockResolvedValue([
+      { id: 'tpl-2' },
+      { id: 'tpl-1' },
+    ]);
+
+    const dto = {
+      brandId: 'brand-1',
+      items: [
+        { id: 'tpl-2', sortOrder: 0 },
+        { id: 'tpl-1', sortOrder: 1 },
+      ],
+    } as any;
+
+    const result = await controller.reorderBrandTemplates(makeReq(), dto);
+
+    expect(result).toEqual([{ id: 'tpl-2' }, { id: 'tpl-1' }]);
+    expect(mockService.reorderBrandProductTemplates).toHaveBeenCalledWith(
+      'user-1',
+      'brand-1',
+      dto.items,
       [],
       [],
     );

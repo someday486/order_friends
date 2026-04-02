@@ -8,12 +8,18 @@ export type BusinessImportedOrderRow = {
   recipientName: string;
   recipientPhone: string;
   recipientAddress: string;
+  recipientZipCode?: string | null;
+  deliveryMessage?: string | null;
+  productCode?: string | null;
+  customerOrderNo?: string | null;
   unitPrice: number | null;
   lineAmount: number | null;
 };
 
 export type BusinessImportedOrderBatch = {
   id: string;
+  brandId?: string;
+  displayId?: string;
   createdByUserId: string;
   supplierId: string;
   supplierName: string;
@@ -31,13 +37,16 @@ export type BusinessImportedOrderBatch = {
 };
 
 export type CreateBusinessImportedOrderBatchPayload = {
+  brandId?: string;
   supplierId: string;
   supplierName: string;
   orderDate: string;
   fileName: string;
   headerRowIndex: number;
+  sourceHeaders?: string[];
   rows: BusinessImportedOrderRow[];
   id?: string;
+  displayId?: string;
   uploadedAt?: string;
   rowCount?: number;
   totalQty?: number;

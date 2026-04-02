@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { formatWon } from "@/lib/format";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import Modal from "@/components/ui/Modal";
+import { DragHandle, SortableList } from "@/components/ui/SortableList";
 import { Switch } from "@/components/common/Switch";
 import { HelpCircle, Pencil, Search, X, ExternalLink, Star, ChevronDown } from "lucide-react";
 
@@ -557,6 +558,7 @@ export default function CustomerProductsPage() {
   const [editOnlineShopChecked, setEditOnlineShopChecked] = useState(true);
   const [editBranchCategoryIds, setEditBranchCategoryIds] = useState<Record<string, string>>({});
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [reorderTemplates, setReorderTemplates] = useState<BrandTemplate[] | null>(null);
   const [bulkBranchIds, setBulkBranchIds] = useState<Set<string>>(new Set());
   const [bulkOnlineShopChecked, setBulkOnlineShopChecked] = useState(true);
   const [bulkStatus, setBulkStatus] = useState<BulkStatus>("keep");
@@ -924,6 +926,10 @@ export default function CustomerProductsPage() {
     }
   }, [selectedTemplateIds.size]);
 
+  useEffect(() => {
+    setReorderTemplates(null);
+  }, [selectedBrandId, salesChannelFilter, categoryFilter, searchQuery]);
+
   // 드로어 닫기: ESC
   useEffect(() => {
     if (!appliedDrawerTemplateId) return;
@@ -938,13 +944,33 @@ export default function CustomerProductsPage() {
   }, [appliedDrawerTemplateId]);
 
   const canManage = canManageBrandTemplate(selectedBrand?.myRole);
+  const isReorderMode = reorderTemplates !== null;
+  const canEditSortOrder =
+    canManage &&
+    !!selectedBrandId &&
+    templates.length > 1 &&
+    salesChannelFilter === "ALL" &&
+    categoryFilter === "ALL" &&
+    !searchInput.trim() &&
+    !searchQuery.trim();
   const hasSelectedTemplates = selectedTemplateIds.size > 0;
+  const hasReorderChanges =
+    reorderTemplates !== null &&
+    (reorderTemplates.length !== templates.length ||
+      reorderTemplates.some((template, index) => template.id !== templates[index]?.id));
   const allTemplatesChecked =
     searchedTemplates.length > 0 &&
     searchedTemplates.every((template) => selectedTemplateIds.has(template.id));
   const createSelectedCount = createBranchIds.size + (createOnlineShopChecked ? 1 : 0);
   const createTotalCount = branches.length + 1;
   const hasCreateImage = createForm.imageUrls.length > 0;
+  const displayedTemplates = isReorderMode ? (reorderTemplates ?? []) : pagedTemplates;
+
+  useEffect(() => {
+    if (!canManage) {
+      setReorderTemplates(null);
+    }
+  }, [canManage]);
 
   const toggleSetValue = (source: Set<string>, id: string) => {
     const next = new Set(source);
@@ -1748,6 +1774,73 @@ export default function CustomerProductsPage() {
     }
   };
 
+  const startTemplateReorder = () => {
+    setReorderTemplates(templates.map((template, index) => ({ ...template, sortOrder: index })));
+    setSelectedTemplateIds(new Set());
+    setIsBulkOpen(false);
+    setPage(1);
+  };
+
+  const cancelTemplateReorder = () => {
+    setReorderTemplates(null);
+  };
+
+  const handleDragTemplateReorder = (nextTemplates: BrandTemplate[]) => {
+    setReorderTemplates(
+      nextTemplates.map((template, order) => ({
+        ...template,
+        sortOrder: order,
+      })),
+    );
+  };
+
+  const moveReorderTemplate = (index: number, direction: -1 | 1) => {
+    setReorderTemplates((prev) => {
+      if (!prev) return prev;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) {
+        return prev;
+      }
+
+      const next = [...prev];
+      const [target] = next.splice(index, 1);
+      next.splice(nextIndex, 0, target);
+
+      return next.map((template, order) => ({
+        ...template,
+        sortOrder: order,
+      }));
+    });
+  };
+
+  const saveTemplateReorder = async () => {
+    if (!selectedBrandId || !reorderTemplates) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const reordered = await apiClient.patch<BrandTemplate[]>(
+        "/customer/products/brand-templates/reorder",
+        {
+          brandId: selectedBrandId,
+          items: reorderTemplates.map((template, index) => ({
+            id: template.id,
+            sortOrder: index,
+          })),
+        },
+      );
+      setTemplates(reordered);
+      setReorderTemplates(null);
+      toast.success("상품 순서를 저장했습니다.");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "상품 순서 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-w-0 overflow-x-hidden">
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row">
@@ -1766,18 +1859,38 @@ export default function CustomerProductsPage() {
             </div>
           </div>
           {selectedBrandId && (
-            <div className="mt-1 text-sm text-text-secondary">
-              총 {searchedTemplates.length}개 상품
-            </div>
+            <>
+              <div className="mt-1 text-sm text-text-secondary">
+                총 {searchedTemplates.length}개 상품
+              </div>
+              {canManage && templates.length > 1 && !isReorderMode && !canEditSortOrder && (
+                <div className="mt-1 text-xs text-text-secondary">
+                  순서 편집은 판매채널/카테고리를 전체로 두고 검색어를 비운 상태에서 가능합니다.
+                </div>
+              )}
+            </>
           )}
         </div>
         {selectedBrandId && canManage && (
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors flex-shrink-0 w-full sm:w-auto"
-          >
-            + 상품등록
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {!isReorderMode && (
+              <button
+                type="button"
+                onClick={startTemplateReorder}
+                disabled={!canEditSortOrder || saving}
+                className="px-4 py-2 rounded-md border border-border bg-bg-secondary text-sm font-semibold text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+              >
+                순서편집
+              </button>
+            )}
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              disabled={saving || isReorderMode}
+              className="px-4 py-2 rounded-md bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors flex-shrink-0 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + 상품등록
+            </button>
+          </div>
         )}
       </div>
 
@@ -1963,6 +2076,41 @@ export default function CustomerProductsPage() {
             </div>
           ) : (
             <>
+              {isReorderMode ? (
+                <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground">상품 순서 편집</h3>
+                      <p className="mt-1 text-xs text-text-secondary">
+                        항목을 드래그해서 순서를 바꾼 뒤 저장하면 연결된 모든 지점에 같은 순서로 반영됩니다.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={cancelTemplateReorder}
+                        disabled={saving}
+                        className="px-3 py-1.5 rounded-md text-xs font-semibold border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveTemplateReorder}
+                        disabled={saving || !hasReorderChanges}
+                        className="px-3 py-1.5 rounded-md text-xs font-semibold bg-primary-500 text-white hover:bg-primary-600 transition-colors disabled:opacity-50"
+                      >
+                        순서 저장
+                      </button>
+                    </div>
+                  </div>
+                  {!hasReorderChanges && (
+                    <div className="mt-3 text-xs text-text-secondary">
+                      아직 변경된 순서가 없습니다.
+                    </div>
+                  )}
+                </div>
+              ) : (
               <div className="border border-border rounded-xl p-4 mb-4 bg-bg-secondary">
                 <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                   <div className="flex flex-wrap items-center gap-2">
@@ -2129,20 +2277,104 @@ export default function CustomerProductsPage() {
                   </>
                 )}
               </div>
+              )}
 
               <div className="pb-24">
+                {isReorderMode && (
+                  <div className="mb-4 rounded-xl border border-border bg-bg-secondary p-3 sm:p-4">
+                    <SortableList
+                      items={reorderTemplates ?? []}
+                      keyExtractor={(template) => template.id}
+                      onReorder={handleDragTemplateReorder}
+                      className="space-y-2"
+                      renderItem={(template, index, dragHandleProps) => {
+                        const thumbnailUrl =
+                          (template.imageUrls ?? []).find((url) => typeof url === "string" && url.trim()) ??
+                          template.imageUrl ??
+                          null;
+                        const appliedCount =
+                          template.appliedBranchCount ?? template.appliedBranchIds?.length ?? 0;
+                        const totalCount = template.totalBranchCount ?? branches.length;
+                        const visiblePrice =
+                          typeof template.discountPrice === "number" &&
+                          template.discountPrice >= 0 &&
+                          template.discountPrice < template.price
+                            ? template.discountPrice
+                            : template.price;
+
+                        return (
+                          <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3 shadow-sm">
+                            <DragHandle {...dragHandleProps} className="flex-shrink-0" />
+                            <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-bg-tertiary px-2 py-1 text-xs font-bold text-text-secondary">
+                              {index + 1}
+                            </span>
+                            {thumbnailUrl ? (
+                              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border border-border bg-bg-tertiary">
+                                <Image
+                                  src={thumbnailUrl}
+                                  alt={template.name}
+                                  fill
+                                  sizes="56px"
+                                  className="object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-bg-tertiary text-[11px] font-semibold text-text-tertiary">
+                                이미지
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-semibold text-foreground">
+                                {template.name}
+                              </div>
+                              {template.description && (
+                                <div className="mt-0.5 truncate text-xs text-text-secondary">
+                                  {template.description}
+                                </div>
+                              )}
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-text-secondary">
+                                <span className="font-semibold text-foreground">
+                                  {formatWon(visiblePrice)}
+                                </span>
+                                {visiblePrice !== template.price && (
+                                  <span className="line-through text-text-tertiary">
+                                    {formatWon(template.price)}
+                                  </span>
+                                )}
+                                <span>
+                                  매장 {appliedCount}/{totalCount}
+                                </span>
+                                <span>
+                                  {template.isOnlineShopVisible === false
+                                    ? "온라인샵 미노출"
+                                    : "온라인샵 노출"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                  </div>
+                )}
+                {!isReorderMode && (
+                  <>
                 <div className="w-full max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-border [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
                   <table className="min-w-[880px] w-full border-collapse">
                   <thead className="bg-white">
                     <tr>
                       <th className="w-12 py-3 px-3 text-left">
-                        <input
-                          type="checkbox"
-                          checked={allTemplatesChecked}
-                          onChange={(event) => toggleAllTemplateSelection(event.target.checked)}
-                          disabled={saving || searchedTemplates.length === 0}
-                          className="w-4 h-4 rounded accent-primary"
-                        />
+                        {isReorderMode ? (
+                          <span className="text-xs font-bold text-text-secondary">순서</span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={allTemplatesChecked}
+                            onChange={(event) => toggleAllTemplateSelection(event.target.checked)}
+                            disabled={saving || searchedTemplates.length === 0}
+                            className="w-4 h-4 rounded accent-primary"
+                          />
+                        )}
                       </th>
                       <th className="text-left py-3 px-3 text-xs font-bold text-text-secondary">메뉴</th>
                       <th className="text-right py-3 px-3 text-xs font-bold text-text-secondary">기본가</th>
@@ -2153,7 +2385,7 @@ export default function CustomerProductsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pagedTemplates.map((template) => {
+                    {displayedTemplates.map((template, index) => {
                       const isEditing = editingTemplateId === template.id;
                       const appliedCount =
                         template.appliedBranchCount ?? template.appliedBranchIds?.length ?? 0;
@@ -2166,15 +2398,41 @@ export default function CustomerProductsPage() {
                       return (
                           <tr key={template.id} className="border-t border-border hover:bg-bg-tertiary transition-colors">
                             <td className="py-2 px-3">
-                              <input
-                                type="checkbox"
-                                checked={selectedTemplateIds.has(template.id)}
-                                onClick={(e) => handleTemplateCheckboxClick(template.id, e)}
-                                onChange={() => toggleTemplateSelection(template.id)}
-                                disabled={saving}
-                                className="w-4 h-4 rounded accent-primary"
-                                title="Shift+클릭으로 범위 선택"
-                              />
+                              {isReorderMode ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-bg-tertiary px-2 py-1 text-xs font-bold text-text-secondary">
+                                    {index + 1}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => moveReorderTemplate(index, -1)}
+                                      disabled={saving || index === 0}
+                                      className="px-2 py-1 rounded-md border border-border bg-bg-secondary text-[11px] font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-40"
+                                    >
+                                      위
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => moveReorderTemplate(index, 1)}
+                                      disabled={saving || index === displayedTemplates.length - 1}
+                                      className="px-2 py-1 rounded-md border border-border bg-bg-secondary text-[11px] font-semibold text-text-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-40"
+                                    >
+                                      아래
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTemplateIds.has(template.id)}
+                                  onClick={(e) => handleTemplateCheckboxClick(template.id, e)}
+                                  onChange={() => toggleTemplateSelection(template.id)}
+                                  disabled={saving}
+                                  className="w-4 h-4 rounded accent-primary"
+                                  title="Shift+클릭으로 범위 선택"
+                                />
+                              )}
                             </td>
                             <td className="py-2 px-3 text-sm text-foreground">
                               <div className="font-semibold">{template.name}</div>
@@ -2234,7 +2492,7 @@ export default function CustomerProductsPage() {
                                 onChange={(nextChecked) =>
                                   handleToggleTemplateActive(template, nextChecked)
                                 }
-                                disabled={saving}
+                                disabled={saving || isReorderMode}
                                 ariaLabel={`${template.name} 판매 상태 토글`}
                               />
                             </td>
@@ -2253,7 +2511,7 @@ export default function CustomerProductsPage() {
                                 <Switch
                                   checked={template.inventoryMode !== "NONE"}
                                   onChange={(nextChecked) => handleToggleTemplateInventory(template, nextChecked)}
-                                  disabled={saving}
+                                  disabled={saving || isReorderMode}
                                   ariaLabel={`${template.name} 재고관리 토글`}
                                 />
                               )}
@@ -2264,7 +2522,7 @@ export default function CustomerProductsPage() {
                                 {salesChannelFilter !== "ALL" && (
                                   <button
                                     onClick={() => handleToggleTemplateForSalesChannel(template)}
-                                    disabled={saving}
+                                    disabled={saving || isReorderMode}
                                     className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-foreground text-xs hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                                   >
                                     {salesChannelFilter === "ONLINE_SHOP"
@@ -2279,7 +2537,7 @@ export default function CustomerProductsPage() {
                                 <div className="relative group">
                                   <button
                                     onClick={() => (isEditing ? cancelEditTemplate() : startEditTemplate(template))}
-                                    disabled={saving}
+                                    disabled={saving || isReorderMode}
                                     aria-label={isEditing ? "편집 닫기" : "수정"}
                                     className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border bg-bg-secondary text-text-secondary hover:text-foreground hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                                   >
@@ -2295,7 +2553,7 @@ export default function CustomerProductsPage() {
                           </tr>
                       );
                     })}
-                    {searchedTemplates.length === 0 && (
+                    {!isReorderMode && searchedTemplates.length === 0 && (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-sm text-text-secondary">
                           {searchQuery.trim()
@@ -2308,7 +2566,7 @@ export default function CustomerProductsPage() {
                   </table>
                 </div>
 
-                {totalPages > 1 && (
+                {!isReorderMode && totalPages > 1 && (
                   <div className="flex items-center justify-center gap-1 mt-8 mb-4">
                     <button
                       onClick={() => setPage(1)}
@@ -2372,6 +2630,8 @@ export default function CustomerProductsPage() {
                       &raquo;
                     </button>
                   </div>
+                )}
+                  </>
                 )}
               </div>
 
@@ -2601,6 +2861,12 @@ export default function CustomerProductsPage() {
                               folder="product-images"
                               label="이미지 추가"
                               aspectRatio="1/1"
+                              enableEditor
+                              editorTitle="메뉴 이미지 편집"
+                              outputWidth={1200}
+                              outputHeight={1200}
+                              multiple
+                              maxFiles={MAX_TEMPLATE_IMAGES - editForm.imageUrls.length}
                             />
                           )}
                         </div>
@@ -3124,6 +3390,12 @@ export default function CustomerProductsPage() {
                       folder="product-images"
                       label="이미지 추가"
                       aspectRatio="1/1"
+                      enableEditor
+                      editorTitle="메뉴 이미지 편집"
+                      outputWidth={1200}
+                      outputHeight={1200}
+                      multiple
+                      maxFiles={MAX_TEMPLATE_IMAGES - createForm.imageUrls.length}
                     />
                   )}
                 </div>

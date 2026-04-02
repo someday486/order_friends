@@ -30,27 +30,24 @@ export default function OrderPaymentSuccessPage() {
     () => loadPendingPaymentRecord({ orderId }),
     [orderId],
   );
-  const fallbackHref = useMemo(() => {
-    if (!orderId) {
-      return pendingPayment?.completePath ?? '/';
-    }
-
-    if (pendingPayment?.completePath) {
-      return `${pendingPayment.completePath}?orderId=${encodeURIComponent(orderId)}`;
-    }
-
-    return `/order/track/${orderId}`;
-  }, [orderId, pendingPayment?.completePath]);
+  const fallbackHref = !orderId
+    ? pendingPayment?.completePath ?? '/'
+    : pendingPayment?.completePath
+      ? `${pendingPayment.completePath}?orderId=${encodeURIComponent(orderId)}`
+      : `/order/track/${orderId}`;
+  const invalidPaymentResult =
+    !paymentKey || !orderId || !Number.isFinite(amount) || amount <= 0;
   const [error, setError] = useState<string | null>(null);
+  const displayedError = invalidPaymentResult
+    ? '결제 결과 정보가 올바르지 않습니다.'
+    : error;
 
   useEffect(() => {
-    const completeHref = fallbackHref;
-
-    if (!paymentKey || !orderId || !Number.isFinite(amount) || amount <= 0) {
-      setError('결제 결과 정보가 올바르지 않습니다.');
+    if (invalidPaymentResult) {
       return;
     }
 
+    const completeHref = fallbackHref;
     let cancelled = false;
 
     const confirmPayment = async () => {
@@ -95,9 +92,17 @@ export default function OrderPaymentSuccessPage() {
     return () => {
       cancelled = true;
     };
-  }, [amount, fallbackHref, orderId, paymentKey, pendingPayment, router]);
+  }, [
+    amount,
+    fallbackHref,
+    invalidPaymentResult,
+    orderId,
+    paymentKey,
+    pendingPayment,
+    router,
+  ]);
 
-  if (!error) {
+  if (!displayedError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
         <div className="flex max-w-sm flex-col items-center gap-3 text-center">
@@ -115,7 +120,7 @@ export default function OrderPaymentSuccessPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
       <div className="w-full max-w-sm rounded-3xl border border-border bg-bg-secondary p-6 text-center">
         <h1 className="text-lg font-bold">결제 확인에 실패했습니다.</h1>
-        <p className="mt-2 text-sm text-text-secondary">{error}</p>
+        <p className="mt-2 text-sm text-text-secondary">{displayedError}</p>
         <Link
           href={fallbackHref}
           className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-2xl bg-foreground px-4 text-sm font-semibold text-background no-underline"

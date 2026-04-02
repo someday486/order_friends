@@ -14,7 +14,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const BUSINESS_ORDER_IMPORT_STATUSES = [
   '작성중',
-  '승인대기',
+  '확인대기',
   '출고준비',
   '부분출고',
   '정산대기',
@@ -35,20 +35,52 @@ export class CreateBusinessOrderImportRowDto {
   @Min(1)
   quantity: number;
 
-  @ApiProperty({ description: '수령인 이름' })
+  @ApiProperty({ description: '받는분 성명' })
   @IsString()
   recipientName: string;
 
-  @ApiProperty({ description: '수령인 연락처' })
+  @ApiProperty({ description: '받는분 전화번호' })
   @IsString()
   recipientPhone: string;
 
-  @ApiProperty({ description: '수령인 주소' })
+  @ApiProperty({ description: '받는분 주소' })
   @IsString()
   recipientAddress: string;
 
   @ApiPropertyOptional({
-    description: '단가',
+    description: '받는분 우편번호',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  recipientZipCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: '배송 메시지',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  deliveryMessage?: string | null;
+
+  @ApiPropertyOptional({
+    description: '거래처 상품 코드',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  productCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: '고객 주문번호',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  customerOrderNo?: string | null;
+
+  @ApiPropertyOptional({
+    description: '공급가',
     nullable: true,
     minimum: 0,
   })
@@ -59,7 +91,7 @@ export class CreateBusinessOrderImportRowDto {
   unitPrice?: number | null;
 
   @ApiPropertyOptional({
-    description: '행 합계',
+    description: '라인 합계',
     nullable: true,
     minimum: 0,
   })
@@ -71,7 +103,12 @@ export class CreateBusinessOrderImportRowDto {
 }
 
 export class CreateBusinessOrderImportBatchDto {
-  @ApiProperty({ description: '공급처 ID' })
+  @ApiPropertyOptional({ description: '브랜드 ID', nullable: true })
+  @IsOptional()
+  @IsString()
+  brandId?: string;
+
+  @ApiProperty({ description: '공급처 ID 또는 임시 코드' })
   @IsString()
   supplierId: string;
 
@@ -79,7 +116,7 @@ export class CreateBusinessOrderImportBatchDto {
   @IsString()
   supplierName: string;
 
-  @ApiProperty({ description: '발주일', example: '2026-03-31' })
+  @ApiProperty({ description: '발주일자', example: '2026-03-31' })
   @IsString()
   orderDate: string;
 
@@ -92,6 +129,14 @@ export class CreateBusinessOrderImportBatchDto {
   @IsInt()
   @Min(0)
   headerRowIndex: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: '업로드 파일 헤더 목록',
+  })
+  @IsOptional()
+  @IsArray()
+  sourceHeaders?: string[];
 
   @ApiProperty({
     type: [CreateBusinessOrderImportRowDto],

@@ -247,6 +247,33 @@ export class ApplyBrandProductTemplateRequest {
   branchId: string;
 }
 
+export class ReorderBrandProductTemplateItemRequest {
+  @ApiProperty({ description: '브랜드 메뉴 템플릿 ID' })
+  @IsString()
+  id: string;
+
+  @ApiProperty({ description: '정렬 순서', minimum: 0 })
+  @IsNumber()
+  @Min(0)
+  sortOrder: number;
+}
+
+export class ReorderBrandProductTemplatesRequest {
+  @ApiProperty({ description: '브랜드 ID' })
+  @IsString()
+  brandId: string;
+
+  @ApiProperty({
+    description: '변경할 브랜드 메뉴 템플릿 순서 목록',
+    type: [ReorderBrandProductTemplateItemRequest],
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => ReorderBrandProductTemplateItemRequest)
+  items: ReorderBrandProductTemplateItemRequest[];
+}
+
 export class BulkUpdateBrandProductTemplateRequest {
   @ApiProperty({ description: '브랜드 ID' })
   @IsString()

@@ -1,11 +1,12 @@
 import {
   ExceptionFilter,
   Catch,
-  ArgumentsHost,
   HttpException,
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { SentryExceptionCaptured } from '@sentry/nestjs';
+import type { ArgumentsHost } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 interface ErrorResponse {
@@ -26,6 +27,7 @@ interface ErrorResponse {
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
+  @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();

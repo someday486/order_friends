@@ -42,6 +42,17 @@ function getSeoulDateString() {
   return formatter.format(new Date());
 }
 
+function getSeoulTimeString() {
+  const formatter = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  return formatter.format(new Date()).replace(/\./g, '').trim();
+}
+
 function getTodayPatchNoteRelativePath() {
   return `docs/patch-notes/${getSeoulDateString()}.md`;
 }
@@ -53,6 +64,8 @@ function getTodayPatchNoteAbsolutePath() {
 function getDefaultTemplate() {
   return [
     '# YYYY-MM-DD 패치노트',
+    '',
+    '> 자동 추가 항목 형식: `- HH:MM · 작업자 · 변경 내용`',
     '',
     '## 신규 기능',
     '- ',
@@ -138,6 +151,15 @@ function getCommitSubject(messageFilePath) {
     .filter((line) => line && !line.startsWith('#'));
 
   return lines[0] || '';
+}
+
+function getGitAuthorName() {
+  try {
+    const authorName = runGit('git config user.name');
+    return authorName || '알 수 없는 작업자';
+  } catch (error) {
+    return '알 수 없는 작업자';
+  }
 }
 
 function parseCommitSubject(subject) {
@@ -228,7 +250,7 @@ function appendFromCommitMessage(messageFilePath) {
 
   const { relativePath, absolutePath } = ensureTodayPatchNote();
   const sectionTitle = getSectionTitle(type);
-  const bullet = `- ${summary}`;
+  const bullet = `- ${getSeoulTimeString()} · ${getGitAuthorName()} · ${summary}`;
   const originalContents = fs.readFileSync(absolutePath, 'utf8');
   const updatedContents = insertBulletIntoSection(originalContents, sectionTitle, bullet);
 

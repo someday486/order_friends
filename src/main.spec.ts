@@ -49,7 +49,23 @@ jest.mock('@nestjs/swagger', () => {
 });
 
 jest.mock('helmet', () => jest.fn(() => 'helmet-middleware'));
-jest.mock('@sentry/nestjs', () => ({ init: jest.fn() }));
+jest.mock('@sentry/nestjs', () => ({
+  init: jest.fn(),
+  SentryExceptionCaptured:
+    () =>
+    (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor) =>
+      descriptor,
+}));
+jest.mock('@sentry/nestjs/setup', () => ({
+  SentryModule: {
+    forRoot: jest.fn(() => ({
+      module: class MockSentryModule {},
+    })),
+  },
+}));
+jest.mock('./app.module', () => ({
+  AppModule: class MockAppModule {},
+}));
 jest.mock('express', () => ({
   json: jest.fn(() => 'json-middleware'),
   urlencoded: jest.fn(() => 'urlencoded-middleware'),

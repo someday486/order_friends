@@ -150,6 +150,7 @@ export class CreateSomethingDto {
 - Use conventional commits: `feat`, `fix`, `chore`, `test`, `docs`
 - Always run `npm run lint` before committing
 - Always run `npm run test` to verify changes do not break existing tests
+- In existing clones, run `npm run hooks:install` once after pulling patch-note automation changes if local hooks are not already connected
 
 ## Text Encoding (Korean UI)
 - All source files must be saved as UTF-8.

@@ -146,6 +146,8 @@ Automation:
 - daily patch-note files are auto-created by repository git hooks
 - commit messages automatically append a draft line to today's patch note
 - push and PR checks fail when relevant product changes do not include a dated patch note
+- after pulling patch-note automation changes into an existing clone, run `npm run hooks:install` once or any standard validation command to reconnect the local git hooks
+- GitHub branch protection must require the `Docs Governance` check on `main` and `develop` if you want CI to block merges instead of only reporting failures after push
 
 ## 8. Quality Rules
 

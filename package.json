@@ -8,7 +8,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepare": "node scripts/install-git-hooks.js",
+    "prepare": "node -e \"const fs=require('fs'); if (fs.existsSync('scripts/install-git-hooks.js')) { require('./scripts/install-git-hooks.js'); } else { console.log('Skipping git hook installation: script not available.'); }\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",

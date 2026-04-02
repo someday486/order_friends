@@ -14,6 +14,8 @@ type PublicProductResponse = {
   name: string;
   description?: string | null;
   price: number;
+  sortOrder?: number | null;
+  sort_order?: number | null;
   discountPrice?: number | null;
   urgentDiscountEndAt?: string | null;
   imageUrl?: string | null;
@@ -140,6 +142,7 @@ export default async function OrderPage({ params }: PageProps) {
     name: p.name,
     description: p.description,
     price: p.price,
+    sortOrder: p.sortOrder ?? p.sort_order ?? null,
     discountPrice: p.discountPrice ?? undefined,
     urgentDiscountEndAt: p.urgentDiscountEndAt ?? undefined,
     imageUrl: p.imageUrl || p.image_url || null,

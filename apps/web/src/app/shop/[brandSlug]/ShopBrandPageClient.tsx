@@ -108,7 +108,7 @@ function parseApiErrorMessage(error: unknown, fallback: string): string {
 // ── 상품 이미지 폴백 아이콘 ──
 function ProductImageFallback() {
   return (
-    <div className="h-32 w-32 rounded-2xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0 md:h-44 md:w-44">
+    <div className="h-28 w-28 rounded-2xl border border-border bg-bg-tertiary flex items-center justify-center flex-shrink-0 sm:h-32 sm:w-32 md:h-44 md:w-44">
       <svg
         width="40"
         height="40"
@@ -183,7 +183,7 @@ function ShopProductImageCarousel({
   }
 
   return (
-    <div className="group relative h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-bg-tertiary md:h-44 md:w-44">
+    <div className="group relative h-28 w-28 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-bg-tertiary sm:h-32 sm:w-32 md:h-44 md:w-44">
       <button
         type="button"
         onClick={() => onOpenPreview(product, safeIndex)}
@@ -771,17 +771,17 @@ export default function ShopBrandPageClient({
                   return (
                     <article
                       key={product.id}
-                      className="rounded-2xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-4"
+                      className="min-w-0 rounded-2xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-3 sm:gap-4"
                     >
                       <ShopProductImageCarousel
                         product={product}
                         onOpenPreview={openProductPreview}
                       />
 
-                      <div className="flex min-h-32 flex-1 flex-col md:min-h-44">
-                        <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-h-28 min-w-0 flex-1 flex-col sm:min-h-32 md:min-h-44">
+                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
-                            <h3 className="text-base md:text-lg font-bold break-keep">
+                            <h3 className="text-base md:text-lg font-bold break-keep leading-snug">
                               {product.name}
                             </h3>
                             {hasDiscount && (
@@ -797,7 +797,7 @@ export default function ShopBrandPageClient({
                               </p>
                             ) : null}
                           </div>
-                          <div className="text-right whitespace-nowrap">
+                          <div className="self-start text-left whitespace-nowrap sm:self-auto sm:text-right flex-shrink-0">
                             {hasDiscount ? (
                               <>
                                 <div className="text-[11px] md:text-xs text-text-tertiary line-through">

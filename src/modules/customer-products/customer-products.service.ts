@@ -1983,6 +1983,102 @@ export class CustomerProductsService {
     });
   }
 
+  async reorderBrandProductTemplates(
+    userId: string,
+    brandId: string,
+    items: { id: string; sortOrder: number }[],
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ) {
+    if (items.length === 0) {
+      throw new BadRequestException('items is required');
+    }
+
+    const { role } = await this.checkBrandAccess(
+      brandId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    if (!this.canManageBrandTemplates(role)) {
+      throw new ForbiddenException(
+        'Only OWNER/ADMIN can manage brand templates',
+      );
+    }
+
+    const templateIds = [
+      ...new Set(items.map((item) => item.id).filter(Boolean)),
+    ];
+    if (templateIds.length !== items.length) {
+      throw new BadRequestException('template ids must be unique');
+    }
+
+    const sb = this.supabase.adminClient();
+    const { data: existingTemplates, error: existingError } = await sb
+      .from('brand_products')
+      .select('id')
+      .eq('brand_id', brandId)
+      .in('id', templateIds);
+
+    if (existingError) {
+      this.logger.error(
+        `Failed to validate brand templates for reorder ${brandId}`,
+        existingError,
+      );
+      throw new Error('Failed to reorder brand templates');
+    }
+
+    const existingIdSet = new Set(
+      (existingTemplates ?? [])
+        .map((row: any) => String(row.id ?? ''))
+        .filter(Boolean),
+    );
+    const missingIds = templateIds.filter((id) => !existingIdSet.has(id));
+    if (missingIds.length > 0) {
+      throw new BadRequestException(
+        `Some templateIds do not belong to this brand: ${missingIds.join(', ')}`,
+      );
+    }
+
+    for (const item of items) {
+      const { error: templateUpdateError } = await sb
+        .from('brand_products')
+        .update({ sort_order: item.sortOrder })
+        .eq('brand_id', brandId)
+        .in('id', [item.id]);
+
+      if (templateUpdateError) {
+        this.logger.error(
+          `Failed to update brand template sort_order ${item.id}`,
+          templateUpdateError,
+        );
+        throw new Error('Failed to reorder brand templates');
+      }
+
+      const { error: productUpdateError } = await sb
+        .from('products')
+        .update({ sort_order: item.sortOrder })
+        .eq('brand_product_id', item.id);
+
+      if (productUpdateError) {
+        this.logger.error(
+          `Failed to update linked product sort_order ${item.id}`,
+          productUpdateError,
+        );
+        throw new Error('Failed to reorder brand templates');
+      }
+    }
+
+    return this.getBrandProductTemplates(
+      userId,
+      brandId,
+      undefined,
+      brandMemberships,
+      branchMemberships,
+    );
+  }
+
   async getBrandProductTemplateUrgentDiscountHistories(
     userId: string,
     templateId: string,

@@ -1628,6 +1628,98 @@ describe('CustomerProductsService', () => {
     expect(chains.products.update).toHaveBeenCalledWith({ is_hidden: true });
   });
 
+  it('reorderBrandProductTemplates should sync linked branch product sort orders', async () => {
+    chains.brand_products.in
+      .mockResolvedValueOnce({
+        data: [{ id: 'tpl-1' }, { id: 'tpl-2' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null });
+    chains.products.eq
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null });
+    chains.branches.order.mockResolvedValueOnce({
+      data: [{ id: 'b1' }],
+      error: null,
+    });
+    chains.brand_products.order
+      .mockReturnValueOnce(chains.brand_products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'tpl-2',
+            brand_id: 'brand-1',
+            name: 'Latte',
+            base_price: 5000,
+            sort_order: 0,
+            is_active: true,
+          },
+          {
+            id: 'tpl-1',
+            brand_id: 'brand-1',
+            name: 'Americano',
+            base_price: 4500,
+            sort_order: 1,
+            is_active: true,
+          },
+        ],
+        error: null,
+      });
+    chains.products.in
+      .mockReturnValueOnce(chains.products)
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'p2',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-2',
+            is_hidden: false,
+            base_price: 5000,
+            category_id: null,
+          },
+          {
+            id: 'p1',
+            branch_id: 'b1',
+            brand_product_id: 'tpl-1',
+            is_hidden: false,
+            base_price: 4500,
+            category_id: null,
+          },
+        ],
+        error: null,
+      });
+    chains.product_inventory.in.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await service.reorderBrandProductTemplates(
+      'u1',
+      'brand-1',
+      [
+        { id: 'tpl-2', sortOrder: 0 },
+        { id: 'tpl-1', sortOrder: 1 },
+      ],
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      [],
+    );
+
+    expect(result.map((item) => item.id)).toEqual(['tpl-2', 'tpl-1']);
+    expect(chains.brand_products.update).toHaveBeenNthCalledWith(1, {
+      sort_order: 0,
+    });
+    expect(chains.brand_products.update).toHaveBeenNthCalledWith(2, {
+      sort_order: 1,
+    });
+    expect(chains.products.update).toHaveBeenNthCalledWith(1, {
+      sort_order: 0,
+    });
+    expect(chains.products.update).toHaveBeenNthCalledWith(2, {
+      sort_order: 1,
+    });
+  });
+
   it('bulkUpdateBrandProductTemplates should update status and hide linked products', async () => {
     chains.brand_products.in
       .mockResolvedValueOnce({

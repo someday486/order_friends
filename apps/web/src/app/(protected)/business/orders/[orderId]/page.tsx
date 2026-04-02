@@ -22,6 +22,12 @@ import {
   updateBusinessOrderImportBatch,
   type BusinessImportedOrderBatch,
 } from '@/lib/businessOrderImportStorage';
+import {
+  getBusinessOrderStatusSuccessMessage,
+  getBusinessOrderStatusTone,
+  getBusinessOrderWorkflowActions,
+  type BusinessOrderWorkflowAction,
+} from '@/lib/businessOrderWorkflow';
 import toast from 'react-hot-toast';
 
 export default function BusinessOrderDetailPage() {
@@ -68,6 +74,7 @@ export default function BusinessOrderDetailPage() {
     if (uploadedBatch) {
       return {
         id: uploadedBatch.id,
+        displayId: uploadedBatch.displayId ?? uploadedBatch.id,
         supplier: uploadedBatch.supplierName,
         merchant: '엑셀 업로드',
         itemSummary: uploadedBatch.itemSummary,
@@ -93,6 +100,11 @@ export default function BusinessOrderDetailPage() {
         nextStatus,
       );
       setUploadedBatch(nextBatch);
+      toast.success(getBusinessOrderStatusSuccessMessage(nextStatus));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '주문 상태 변경에 실패했습니다.';
+      toast.error(message);
     } finally {
       setIsPending(false);
     }
@@ -166,18 +178,14 @@ export default function BusinessOrderDetailPage() {
 
         {detailType === 'upload' ? (
           <div className="flex flex-wrap gap-2">
-            <StatusActionButton
-              active={summary.status === '작성중'}
-              label="작성중"
-              onClick={() => handleStatusChange('작성중')}
-              disabled={isPending}
-            />
-            <StatusActionButton
-              active={summary.status === '승인대기'}
-              label="승인대기"
-              onClick={() => handleStatusChange('승인대기')}
-              disabled={isPending}
-            />
+            {getBusinessOrderWorkflowActions(summary.status).map((action) => (
+              <WorkflowActionButton
+                key={action.nextStatus}
+                action={action}
+                disabled={isPending}
+                onClick={() => void handleStatusChange(action.nextStatus)}
+              />
+            ))}
             <button
               type="button"
               onClick={() => void handleDeleteBatch()}
@@ -201,7 +209,7 @@ export default function BusinessOrderDetailPage() {
                   <CardTitle className="mb-0">발주 요약</CardTitle>
                 </div>
                 <div className="text-xl font-black tracking-tight text-foreground md:text-[22px]">
-                  {summary.id}
+                  {'displayId' in summary ? summary.displayId : summary.id}
                 </div>
               </div>
 
@@ -367,44 +375,40 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusActionButton({
-  active,
-  label,
-  onClick,
+function WorkflowActionButton({
+  action,
   disabled,
+  onClick,
 }: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
+  action: BusinessOrderWorkflowAction;
   disabled: boolean;
+  onClick: () => void;
 }) {
+  const toneClass =
+    action.tone === 'secondary'
+      ? 'border border-border bg-background text-text-secondary hover:bg-bg-tertiary hover:text-foreground'
+      : action.tone === 'success'
+      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+      : 'bg-foreground text-background hover:opacity-90';
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-        active
-          ? 'bg-foreground text-background'
-          : 'border border-border bg-background text-text-secondary hover:bg-bg-tertiary hover:text-foreground'
-      }`}
+      className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
     >
-      {label}
+      {action.label}
     </button>
   );
 }
 
-function StatusPill({ label }: { label: string }) {
-  const tone =
-    label === '출고준비'
-      ? 'bg-emerald-500/15 text-emerald-700'
-      : label === '승인대기'
-      ? 'bg-amber-500/15 text-amber-700'
-      : label === '부분출고'
-      ? 'bg-sky-500/15 text-sky-700'
-      : label === '작성중'
-      ? 'bg-violet-500/15 text-violet-700'
-      : 'bg-neutral-500/15 text-text-secondary';
-
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
+function StatusPill({ label }: { label: BusinessOrder['status'] }) {
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${getBusinessOrderStatusTone(label)}`}
+    >
+      {label}
+    </span>
+  );
 }

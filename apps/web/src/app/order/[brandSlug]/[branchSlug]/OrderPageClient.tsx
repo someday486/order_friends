@@ -107,6 +107,21 @@ function formatUrgentDeadlineLabel(value: string) {
   return `${date.getMonth() + 1}/${date.getDate()} ${hh}:${mm} 마감`;
 }
 
+function readLastOrderCart(
+  brandSlug: string,
+  branchSlug: string,
+): CartItem[] | null {
+  const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
+  if (!lastRecord || typeof lastRecord !== 'object') {
+    return null;
+  }
+
+  const record = lastRecord as Record<string, unknown>;
+  return Array.isArray(record.cartSnapshot) && record.cartSnapshot.length > 0
+    ? (record.cartSnapshot as CartItem[])
+    : null;
+}
+
 // ============================================================
 // Component
 // ============================================================
@@ -136,12 +151,15 @@ export default function OrderPageClient({
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([]);
   const [qty, setQty] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
-  const [nowTs, setNowTs] = useState(0);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const productDialogTitleId = 'order-product-dialog-title';
 
   // 재주문 배너
-  const [lastOrderCart, setLastOrderCart] = useState<CartItem[] | null>(null);
   const [reorderDismissed, setReorderDismissed] = useState(false);
+  const lastOrderCart = useMemo(
+    () => readLastOrderCart(brandSlug, branchSlug),
+    [brandSlug, branchSlug],
+  );
 
   const handleReorder = () => {
     if (!lastOrderCart) return;
@@ -175,8 +193,6 @@ export default function OrderPageClient({
   }, [selectedProduct]);
 
   useEffect(() => {
-    setNowTs(Date.now());
-
     const timerId = window.setInterval(() => {
       setNowTs(Date.now());
     }, 1000);
@@ -185,21 +201,6 @@ export default function OrderPageClient({
       window.clearInterval(timerId);
     };
   }, []);
-
-  useEffect(() => {
-    const lastRecord = loadLastOrderRecord({ brandSlug, branchSlug });
-    if (!lastRecord || typeof lastRecord !== 'object') {
-      setLastOrderCart(null);
-      return;
-    }
-
-    const rec = lastRecord as Record<string, unknown>;
-    setLastOrderCart(
-      Array.isArray(rec.cartSnapshot) && rec.cartSnapshot.length > 0
-        ? (rec.cartSnapshot as CartItem[])
-        : null,
-    );
-  }, [brandSlug, branchSlug]);
 
   const filteredProducts = useMemo(() => {
     const base = !selectedCategory

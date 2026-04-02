@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDarkMode } from '@/hooks/useDarkMode';
@@ -103,10 +103,6 @@ export default function AdminLayout({
     [prefetchRoute],
   );
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
-
   return (
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">
       <div className="md:hidden sticky top-0 z-40 bg-bg-secondary border-b border-border px-4 py-3 flex items-center justify-between">
@@ -186,7 +182,6 @@ export default function AdminLayout({
                     href={item.href}
                     onMouseEnter={() => warmMenuRoute(item.href)}
                     onFocus={() => warmMenuRoute(item.href)}
-                    onPointerDown={() => warmMenuRoute(item.href)}
                     onClick={() => setSidebarOpen(false)}
                     className={`
                       flex items-center px-3 py-2.5 rounded-md text-sm no-underline

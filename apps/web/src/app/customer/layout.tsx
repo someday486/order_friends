@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole, type UserRole } from '@/hooks/useUserRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { NotificationProvider } from '@/providers/NotificationProvider';
@@ -211,10 +211,6 @@ export default function CustomerLayout({
     [prefetchRoute],
   );
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
-
   return (
     <NotificationProvider>
       <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">
@@ -305,22 +301,17 @@ export default function CustomerLayout({
                     <Link
                       key={item.href}
                       href={item.href}
-                       onMouseEnter={() => {
-                         if (!isOnboardingItemDisabled(item.href)) {
-                           warmMenuRoute(item.href);
-                         }
-                       }}
-                       onFocus={() => {
-                         if (!isOnboardingItemDisabled(item.href)) {
-                           warmMenuRoute(item.href);
-                         }
-                       }}
-                       onPointerDown={() => {
-                         if (!isOnboardingItemDisabled(item.href)) {
-                           warmMenuRoute(item.href);
-                         }
-                       }}
-                       onClick={(event) => {
+                      onMouseEnter={() => {
+                        if (!isOnboardingItemDisabled(item.href)) {
+                          warmMenuRoute(item.href);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!isOnboardingItemDisabled(item.href)) {
+                          warmMenuRoute(item.href);
+                        }
+                      }}
+                      onClick={(event) => {
                         const disabledMessage = getOnboardingDisabledMessage(
                           item.href,
                         );
@@ -372,7 +363,6 @@ export default function CustomerLayout({
                href="/customer/mypage"
                onMouseEnter={() => warmMenuRoute('/customer/mypage')}
                onFocus={() => warmMenuRoute('/customer/mypage')}
-               onPointerDown={() => warmMenuRoute('/customer/mypage')}
                onClick={() => setSidebarOpen(false)}
                className={`
                 flex items-center justify-center px-3 py-2.5 rounded-md text-sm no-underline

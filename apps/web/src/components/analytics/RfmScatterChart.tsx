@@ -7,6 +7,7 @@ import {
   Scatter,
   ScatterChart as RechartsScatterChart,
   Tooltip,
+  type TooltipContentProps,
   XAxis,
   YAxis,
   ZAxis,
@@ -49,7 +50,13 @@ const LEGEND_ORDER = ["Champions", "Loyal", "Potential", "New", "At Risk", "Lost
 
 
 // ✅ 여기에 추가
-function RfmTooltip({ active, payload }: any) {
+function RfmTooltip({
+  active,
+  payload,
+}: TooltipContentProps<
+  number | string | ReadonlyArray<number | string>,
+  number | string
+>) {
   if (!active || !payload || payload.length === 0) return null;
 
   const p = payload[0].payload as RfmPoint;
@@ -113,7 +120,7 @@ export default function RfmScatterChart({ data, height = 320 }: RfmScatterChartP
           />
           <ZAxis dataKey="monetary" name="금액" range={[20, 120]} />
           
-          <Tooltip content={<RfmTooltip />} />
+          <Tooltip content={(props) => <RfmTooltip {...props} />} />
           <Legend wrapperStyle={{ paddingTop: 13, fontSize: 14 }} />
           {LEGEND_ORDER
             .filter((segment) => grouped[segment]?.length)

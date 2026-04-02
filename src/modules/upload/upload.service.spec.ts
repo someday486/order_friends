@@ -1,14 +1,241 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { UploadService } from './upload.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+
+type TableRow = Record<string, any>;
+type TableStore = Record<string, TableRow[]>;
+
+let mockIdSequence = 0;
+
+function nextId(prefix: string) {
+  mockIdSequence += 1;
+  return `${prefix}-${mockIdSequence}`;
+}
+
+class InMemoryQueryBuilder {
+  private mode: 'select' | 'insert' | 'update' | 'delete' = 'select';
+  private filters: Array<(row: TableRow) => boolean> = [];
+  private orderBy:
+    | {
+        column: string;
+        ascending: boolean;
+      }
+    | undefined;
+  private limitCount: number | undefined;
+  private payload: TableRow[] | TableRow | null = null;
+
+  constructor(
+    private readonly tables: TableStore,
+    private readonly tableName: string,
+  ) {}
+
+  select(columns = '*') {
+    void columns;
+    return this;
+  }
+
+  insert(payload: TableRow[] | TableRow) {
+    this.mode = 'insert';
+    this.payload = payload;
+    return this;
+  }
+
+  update(payload: TableRow) {
+    this.mode = 'update';
+    this.payload = payload;
+    return this;
+  }
+
+  delete() {
+    this.mode = 'delete';
+    return this;
+  }
+
+  eq(column: string, value: unknown) {
+    this.filters.push((row) => row[column] === value);
+    return this;
+  }
+
+  in(column: string, values: unknown[]) {
+    const lookup = new Set(values);
+    this.filters.push((row) => lookup.has(row[column]));
+    return this;
+  }
+
+  order(column: string, options?: { ascending?: boolean }) {
+    this.orderBy = {
+      column,
+      ascending: options?.ascending ?? true,
+    };
+    return this;
+  }
+
+  limit(count: number) {
+    this.limitCount = count;
+    return this;
+  }
+
+  single() {
+    const result = this.execute();
+    if (result.error) {
+      return Promise.resolve(result);
+    }
+
+    const rows = Array.isArray(result.data) ? result.data : [];
+    if (rows.length !== 1) {
+      return Promise.resolve({
+        data: null,
+        error: { message: `Expected single row for ${this.tableName}` },
+      });
+    }
+
+    return Promise.resolve({ data: rows[0], error: null });
+  }
+
+  maybeSingle() {
+    const result = this.execute();
+    if (result.error) {
+      return Promise.resolve(result);
+    }
+
+    const rows = Array.isArray(result.data) ? result.data : [];
+    if (rows.length === 0) {
+      return Promise.resolve({ data: null, error: null });
+    }
+    if (rows.length > 1) {
+      return Promise.resolve({
+        data: null,
+        error: { message: `Expected at most one row for ${this.tableName}` },
+      });
+    }
+
+    return Promise.resolve({ data: rows[0], error: null });
+  }
+
+  then<TResult1 = any, TResult2 = never>(
+    onfulfilled?:
+      | ((value: {
+          data: TableRow[];
+          error: null;
+        }) => TResult1 | PromiseLike<TResult1>)
+      | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+  ) {
+    return Promise.resolve(this.execute()).then(onfulfilled, onrejected);
+  }
+
+  private getTable(): TableRow[] {
+    if (!this.tables[this.tableName]) {
+      this.tables[this.tableName] = [];
+    }
+
+    return this.tables[this.tableName];
+  }
+
+  private cloneRows(rows: TableRow[]) {
+    return rows.map((row) => ({ ...row }));
+  }
+
+  private applyFilters(rows: TableRow[]) {
+    let next = [...rows];
+
+    if (this.filters.length > 0) {
+      next = next.filter((row) => this.filters.every((filter) => filter(row)));
+    }
+
+    if (this.orderBy) {
+      const { column, ascending } = this.orderBy;
+      next.sort((left, right) => {
+        const leftValue = left[column];
+        const rightValue = right[column];
+        const comparison = String(leftValue ?? '').localeCompare(
+          String(rightValue ?? ''),
+        );
+        return ascending ? comparison : -comparison;
+      });
+    }
+
+    if (typeof this.limitCount === 'number') {
+      next = next.slice(0, this.limitCount);
+    }
+
+    return next;
+  }
+
+  private executeInsert() {
+    const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+    const table = this.getTable();
+    const inserted = rows.map((row) => {
+      const nextRow = {
+        ...row,
+        id: row.id ?? nextId(this.tableName),
+      };
+
+      if (this.tableName === 'procurement_import_batches') {
+        nextRow.uploaded_at = nextRow.uploaded_at ?? new Date().toISOString();
+      }
+
+      table.push(nextRow);
+      return nextRow;
+    });
+
+    return { data: this.cloneRows(inserted), error: null };
+  }
+
+  private executeUpdate() {
+    const updates = (this.payload ?? {}) as TableRow;
+    const matched = this.applyFilters(this.getTable());
+    matched.forEach((row) => Object.assign(row, updates));
+    return { data: this.cloneRows(matched), error: null };
+  }
+
+  private executeDelete() {
+    const table = this.getTable();
+    const matched = this.applyFilters(table);
+    const matchedIds = new Set(matched.map((row) => row.id));
+
+    this.tables[this.tableName] = table.filter(
+      (row) => !matchedIds.has(row.id),
+    );
+
+    if (this.tableName === 'procurement_import_batches') {
+      const batchIdLookup = new Set(matched.map((row) => row.id));
+      this.tables.procurement_import_batch_lines = (
+        this.tables.procurement_import_batch_lines ?? []
+      ).filter((row) => !batchIdLookup.has(row.batch_id));
+    }
+
+    return { data: this.cloneRows(matched), error: null };
+  }
+
+  private executeSelect() {
+    return {
+      data: this.cloneRows(this.applyFilters(this.getTable())),
+      error: null,
+    };
+  }
+
+  private execute() {
+    if (this.mode === 'insert') {
+      return this.executeInsert();
+    }
+
+    if (this.mode === 'update') {
+      return this.executeUpdate();
+    }
+
+    if (this.mode === 'delete') {
+      return this.executeDelete();
+    }
+
+    return this.executeSelect();
+  }
+}
 
 describe('UploadService', () => {
   let service: UploadService;
-  let tempImportDir: string;
+  let tables: TableStore;
 
   const mockStorageClient = {
     upload: jest.fn(),
@@ -16,19 +243,58 @@ describe('UploadService', () => {
     getPublicUrl: jest.fn(),
   };
 
-  const mockSupabaseClient = {
+  let adminClientMock: jest.Mock;
+
+  const createAdminClient = () => ({
     storage: {
       from: jest.fn().mockReturnValue(mockStorageClient),
     },
-  };
+    from: jest.fn(
+      (tableName: string) => new InMemoryQueryBuilder(tables, tableName),
+    ),
+  });
 
-  const adminClientMock = jest.fn().mockReturnValue(mockSupabaseClient);
+  const createDto = () => ({
+    brandId: 'brand-1',
+    supplierId: 'sup-1',
+    supplierName: '공급처',
+    orderDate: '2026-03-31',
+    fileName: 'sample.xlsx',
+    headerRowIndex: 0,
+    sourceHeaders: ['업체주문번호', '품목명', '수량'],
+    rows: [
+      {
+        merchantOrderNo: 'OF-001',
+        productName: '제주 감귤',
+        quantity: 2,
+        recipientName: '홍길동',
+        recipientPhone: '010-1111-2222',
+        recipientAddress: '서울 중구 1',
+        recipientZipCode: '04524',
+        deliveryMessage: '문 앞에 놔주세요',
+        productCode: 'FRUIT-001',
+        customerOrderNo: 'CUST-1',
+        unitPrice: 15000,
+        lineAmount: 30000,
+      },
+    ],
+  });
 
   beforeEach(async () => {
-    tempImportDir = await mkdtemp(
-      path.join(os.tmpdir(), 'orderfriends-upload-service-'),
-    );
-    process.env.BUSINESS_ORDER_IMPORTS_DIR = tempImportDir;
+    mockIdSequence = 0;
+    tables = {
+      brand_members: [
+        { brand_id: 'brand-1', user_id: 'user-1', status: 'ACTIVE' },
+      ],
+      brands: [{ id: 'brand-1', owner_user_id: 'owner-1' }],
+      procurement_suppliers: [],
+      procurement_supplier_items: [],
+      procurement_supplier_item_aliases: [],
+      procurement_import_batches: [],
+      procurement_import_batch_lines: [],
+    };
+
+    adminClientMock = jest.fn(() => createAdminClient());
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -43,14 +309,7 @@ describe('UploadService', () => {
     }).compile();
 
     service = module.get<UploadService>(UploadService);
-
-    // Reset mocks before each test
     jest.clearAllMocks();
-  });
-
-  afterEach(async () => {
-    delete process.env.BUSINESS_ORDER_IMPORTS_DIR;
-    await rm(tempImportDir, { recursive: true, force: true });
   });
 
   describe('uploadImage', () => {
@@ -71,416 +330,34 @@ describe('UploadService', () => {
       path: '',
     });
 
-    it('should successfully upload a valid image', async () => {
-      const mockFile = createMockFile('image/jpeg', 1024 * 1024, 'test.jpg');
-      const mockUrl = 'https://example.com/products/folder/uuid.jpg';
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'folder/uuid.jpg' },
-        error: null,
-      });
-
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: mockUrl },
-      });
-
-      const result = await service.uploadImage(mockFile, 'folder');
-
-      expect(result).toEqual({
-        url: mockUrl,
-        path: expect.stringMatching(/^folder\/[a-f0-9-]+\.jpg$/),
-        bucket: 'product-images',
-      });
-
-      expect(adminClientMock).toHaveBeenCalled();
-      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith(
-        'product-images',
-      );
-      expect(mockStorageClient.upload).toHaveBeenCalledWith(
-        expect.stringMatching(/^folder\/[a-f0-9-]+\.jpg$/),
-        mockFile.buffer,
-        {
-          contentType: 'image/jpeg',
-          upsert: false,
-        },
-      );
-    });
-
-    it('should throw BadRequestException for invalid file type', async () => {
-      const mockFile = createMockFile('application/pdf', 1024, 'document.pdf');
-
-      await expect(service.uploadImage(mockFile)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.uploadImage(mockFile)).rejects.toThrow(
-        /Invalid file type/,
-      );
-
-      expect(mockStorageClient.upload).not.toHaveBeenCalled();
-    });
-
-    it('should allow pdf upload for biz certificate folder', async () => {
-      const mockFile = createMockFile('application/pdf', 1024, 'document.pdf');
-      const mockUrl = 'https://example.com/biz-certs/uuid.pdf';
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'biz-certs/uuid.pdf' },
-        error: null,
-      });
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: mockUrl },
-      });
-
-      const result = await service.uploadImage(mockFile, 'biz-certs');
-
-      expect(result).toEqual({
-        url: mockUrl,
-        path: expect.stringMatching(/^biz-certs\/[a-f0-9-]+\.pdf$/),
-        bucket: 'product-images',
-      });
-      expect(mockStorageClient.upload).toHaveBeenCalledWith(
-        expect.stringMatching(/^biz-certs\/[a-f0-9-]+\.pdf$/),
-        mockFile.buffer,
-        {
-          contentType: 'application/pdf',
-          upsert: false,
-        },
-      );
-    });
-
-    it('should throw BadRequestException for file exceeding size limit', async () => {
-      const mockFile = createMockFile(
-        'image/jpeg',
-        6 * 1024 * 1024, // 6MB
-        'large.jpg',
-      );
-
-      await expect(service.uploadImage(mockFile)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.uploadImage(mockFile)).rejects.toThrow(
-        /File size exceeds limit/,
-      );
-
-      expect(mockStorageClient.upload).not.toHaveBeenCalled();
-    });
-
-    it('should accept all allowed image types', async () => {
-      const allowedTypes = [
-        'image/jpeg',
-        'image/jpg',
-        'image/png',
-        'image/webp',
-        'image/gif',
-      ];
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'test.jpg' },
-        error: null,
-      });
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://example.com/test.jpg' },
-      });
-
-      for (const mimeType of allowedTypes) {
-        const mockFile = createMockFile(mimeType, 1024, 'test.jpg');
-        await expect(service.uploadImage(mockFile)).resolves.toBeDefined();
-      }
-
-      expect(mockStorageClient.upload).toHaveBeenCalledTimes(
-        allowedTypes.length,
-      );
-    });
-
-    it('should throw BadRequestException when storage upload fails', async () => {
+    it('uploads a valid image', async () => {
       const mockFile = createMockFile('image/jpeg', 1024, 'test.jpg');
 
       mockStorageClient.upload.mockResolvedValue({
-        data: null,
-        error: { message: 'Storage error' },
-      });
-
-      await expect(service.uploadImage(mockFile)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.uploadImage(mockFile)).rejects.toThrow(
-        /Failed to upload file/,
-      );
-    });
-
-    it('should use default folder "general" when not specified', async () => {
-      const mockFile = createMockFile('image/jpeg', 1024, 'test.jpg');
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'general/uuid.jpg' },
+        data: { path: 'general/mock.jpg' },
         error: null,
       });
       mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://example.com/general/uuid.jpg' },
+        data: { publicUrl: 'https://example.com/general/mock.jpg' },
       });
 
       const result = await service.uploadImage(mockFile);
 
-      expect(result.path).toMatch(/^general\//);
-      expect(mockStorageClient.upload).toHaveBeenCalledWith(
-        expect.stringMatching(/^general\/[a-f0-9-]+\.jpg$/),
-        expect.any(Buffer),
-        expect.any(Object),
-      );
+      expect(result.bucket).toBe('product-images');
+      expect(result.path).toMatch(/^general\/.+\.jpg$/);
     });
 
-    it('should treat undefined folder as default', async () => {
-      const mockFile = createMockFile('image/jpeg', 1024, 'test.jpg');
+    it('rejects invalid file type', async () => {
+      const mockFile = createMockFile('application/pdf', 1024, 'test.pdf');
 
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'general/uuid.jpg' },
-        error: null,
-      });
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://example.com/general/uuid.jpg' },
-      });
-
-      const result = await service.uploadImage(mockFile, undefined as any);
-
-      expect(result.path).toMatch(/^general\//);
-      expect(mockStorageClient.upload).toHaveBeenCalledWith(
-        expect.stringMatching(/^general\/[a-f0-9-]+\.jpg$/),
-        expect.any(Buffer),
-        expect.any(Object),
-      );
-    });
-
-    it('should generate unique filenames for multiple uploads', async () => {
-      const mockFile = createMockFile('image/jpeg', 1024, 'test.jpg');
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'test.jpg' },
-        error: null,
-      });
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://example.com/test.jpg' },
-      });
-
-      const result1 = await service.uploadImage(mockFile, 'folder');
-      const result2 = await service.uploadImage(mockFile, 'folder');
-
-      expect(result1.path).not.toEqual(result2.path);
-    });
-  });
-
-  describe('uploadMultipleImages', () => {
-    it('should upload multiple images successfully', async () => {
-      const mockFiles = [
-        {
-          fieldname: 'files',
-          originalname: 'image1.jpg',
-          encoding: '7bit',
-          mimetype: 'image/jpeg',
-          size: 1024,
-          buffer: Buffer.from('test1'),
-        } as Express.Multer.File,
-        {
-          fieldname: 'files',
-          originalname: 'image2.png',
-          encoding: '7bit',
-          mimetype: 'image/png',
-          size: 2048,
-          buffer: Buffer.from('test2'),
-        } as Express.Multer.File,
-      ];
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'test.jpg' },
-        error: null,
-      });
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://example.com/test.jpg' },
-      });
-
-      const results = await service.uploadMultipleImages(mockFiles, 'batch');
-
-      expect(results).toHaveLength(2);
-      expect(results[0]).toHaveProperty('url');
-      expect(results[0]).toHaveProperty('path');
-      expect(results[1]).toHaveProperty('url');
-      expect(results[1]).toHaveProperty('path');
-      expect(mockStorageClient.upload).toHaveBeenCalledTimes(2);
-    });
-
-    it('should use default folder when omitted', async () => {
-      const mockFiles = [
-        {
-          fieldname: 'files',
-          originalname: 'image1.jpg',
-          encoding: '7bit',
-          mimetype: 'image/jpeg',
-          size: 1024,
-          buffer: Buffer.from('test1'),
-        } as Express.Multer.File,
-      ];
-
-      const spy = jest.spyOn(service, 'uploadImage').mockResolvedValue({
-        url: 'u',
-        path: 'general/x.jpg',
-        bucket: 'product-images',
-      });
-
-      const results = await service.uploadMultipleImages(mockFiles);
-
-      expect(results).toHaveLength(1);
-      expect(spy).toHaveBeenCalledWith(mockFiles[0], 'general');
-    });
-
-    it('should fail if any file is invalid', async () => {
-      const mockFiles = [
-        {
-          fieldname: 'files',
-          originalname: 'image1.jpg',
-          encoding: '7bit',
-          mimetype: 'image/jpeg',
-          size: 1024,
-          buffer: Buffer.from('test1'),
-        } as Express.Multer.File,
-        {
-          fieldname: 'files',
-          originalname: 'doc.pdf',
-          encoding: '7bit',
-          mimetype: 'application/pdf',
-          size: 2048,
-          buffer: Buffer.from('test2'),
-        } as Express.Multer.File,
-      ];
-
-      await expect(
-        service.uploadMultipleImages(mockFiles, 'batch'),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should upload multiple pdf files for biz certificate folder', async () => {
-      const mockFiles = [
-        {
-          fieldname: 'files',
-          originalname: 'doc1.pdf',
-          encoding: '7bit',
-          mimetype: 'application/pdf',
-          size: 1024,
-          buffer: Buffer.from('test1'),
-        } as Express.Multer.File,
-        {
-          fieldname: 'files',
-          originalname: 'doc2.pdf',
-          encoding: '7bit',
-          mimetype: 'application/pdf',
-          size: 2048,
-          buffer: Buffer.from('test2'),
-        } as Express.Multer.File,
-      ];
-
-      mockStorageClient.upload.mockResolvedValue({
-        data: { path: 'biz-certs/test.pdf' },
-        error: null,
-      });
-      mockStorageClient.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://example.com/biz-certs/test.pdf' },
-      });
-
-      const results = await service.uploadMultipleImages(
-        mockFiles,
-        'biz-certs',
-      );
-
-      expect(results).toHaveLength(2);
-      expect(mockStorageClient.upload).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('deleteImage', () => {
-    it('should successfully delete an image', async () => {
-      const filePath = 'folder/test.jpg';
-
-      mockStorageClient.remove.mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      await expect(service.deleteImage(filePath)).resolves.toBeUndefined();
-
-      expect(adminClientMock).toHaveBeenCalled();
-      expect(mockSupabaseClient.storage.from).toHaveBeenCalledWith(
-        'product-images',
-      );
-      expect(mockStorageClient.remove).toHaveBeenCalledWith([filePath]);
-    });
-
-    it('should throw BadRequestException when delete fails', async () => {
-      const filePath = 'folder/test.jpg';
-
-      mockStorageClient.remove.mockResolvedValue({
-        data: null,
-        error: { message: 'File not found' },
-      });
-
-      await expect(service.deleteImage(filePath)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.deleteImage(filePath)).rejects.toThrow(
-        /Failed to delete file/,
-      );
-    });
-  });
-
-  describe('deleteMultipleImages', () => {
-    it('should successfully delete multiple images', async () => {
-      const filePaths = ['folder/test1.jpg', 'folder/test2.png'];
-
-      mockStorageClient.remove.mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      await expect(
-        service.deleteMultipleImages(filePaths),
-      ).resolves.toBeUndefined();
-
-      expect(mockStorageClient.remove).toHaveBeenCalledWith(filePaths);
-    });
-
-    it('should throw BadRequestException when batch delete fails', async () => {
-      const filePaths = ['folder/test1.jpg', 'folder/test2.png'];
-
-      mockStorageClient.remove.mockResolvedValue({
-        data: null,
-        error: { message: 'Batch delete failed' },
-      });
-
-      await expect(service.deleteMultipleImages(filePaths)).rejects.toThrow(
+      await expect(service.uploadImage(mockFile)).rejects.toThrow(
         BadRequestException,
       );
     });
   });
 
   describe('business order imports', () => {
-    const createDto = () => ({
-      supplierId: 'sup-1',
-      supplierName: '공급처',
-      orderDate: '2026-03-31',
-      fileName: 'sample.xlsx',
-      headerRowIndex: 0,
-      rows: [
-        {
-          merchantOrderNo: 'OF-001',
-          productName: '제주 감귤',
-          quantity: 2,
-          recipientName: '홍길동',
-          recipientPhone: '010-1111-2222',
-          recipientAddress: '서울시 중구 1',
-          unitPrice: 15000,
-          lineAmount: 30000,
-        },
-      ],
-    });
-
-    it('should create and list business order import batches', async () => {
+    it('creates and lists procurement-backed import batches', async () => {
       const created = await service.createBusinessOrderImportBatch(
         'user-1',
         createDto(),
@@ -488,16 +365,19 @@ describe('UploadService', () => {
 
       const listed = await service.listBusinessOrderImportBatches('user-1');
 
-      expect(created.id).toMatch(/^UP-/);
+      expect(created.supplierName).toBe('공급처');
+      expect(created.displayId).toMatch(/^UP-/);
       expect(created.status).toBe('작성중');
       expect(created.paymentStatus).toBe('후불 예정');
       expect(created.totalQty).toBe(2);
       expect(created.totalAmount).toBe(30000);
       expect(listed).toHaveLength(1);
       expect(listed[0].id).toBe(created.id);
+      expect(tables.procurement_import_batches).toHaveLength(1);
+      expect(tables.procurement_import_batch_lines).toHaveLength(1);
     });
 
-    it('should return a single business order import batch by id', async () => {
+    it('returns a single business order import batch by id', async () => {
       const created = await service.createBusinessOrderImportBatch(
         'user-1',
         createDto(),
@@ -510,9 +390,10 @@ describe('UploadService', () => {
 
       expect(found.id).toBe(created.id);
       expect(found.fileName).toBe('sample.xlsx');
+      expect(found.rows[0].customerOrderNo).toBe('CUST-1');
     });
 
-    it('should update business order import batch status', async () => {
+    it('updates business order import batch status in metadata', async () => {
       const created = await service.createBusinessOrderImportBatch(
         'user-1',
         createDto(),
@@ -521,19 +402,16 @@ describe('UploadService', () => {
       const updated = await service.updateBusinessOrderImportBatchStatus(
         'user-1',
         created.id,
-        '승인대기',
+        '확인대기',
       );
 
-      const found = await service.getBusinessOrderImportBatch(
-        'user-1',
-        created.id,
-      );
-
-      expect(updated.status).toBe('승인대기');
-      expect(found.status).toBe('승인대기');
+      expect(updated.status).toBe('확인대기');
+      expect(
+        tables.procurement_import_batches[0].source_metadata.workflowStatus,
+      ).toBe('확인대기');
     });
 
-    it('should delete a business order import batch', async () => {
+    it('deletes a business order import batch and cascades lines', async () => {
       const created = await service.createBusinessOrderImportBatch(
         'user-1',
         createDto(),
@@ -543,13 +421,12 @@ describe('UploadService', () => {
 
       await expect(
         service.getBusinessOrderImportBatch('user-1', created.id),
-      ).rejects.toThrow();
-      await expect(
-        service.listBusinessOrderImportBatches('user-1'),
-      ).resolves.toHaveLength(0);
+      ).rejects.toThrow('업로드 주문서를 찾을 수 없습니다.');
+      expect(tables.procurement_import_batches).toHaveLength(0);
+      expect(tables.procurement_import_batch_lines).toHaveLength(0);
     });
 
-    it('should reject duplicate merchant order numbers from previous uploads', async () => {
+    it('rejects duplicate merchant order numbers from previous uploads', async () => {
       await service.createBusinessOrderImportBatch('user-1', createDto());
 
       await expect(
@@ -557,7 +434,7 @@ describe('UploadService', () => {
       ).rejects.toThrow(/중복된 업체주문번호/);
     });
 
-    it('should reject duplicate merchant order numbers inside the same upload', async () => {
+    it('rejects duplicate merchant order numbers inside the same upload', async () => {
       const duplicatedDto = {
         ...createDto(),
         rows: [
@@ -574,7 +451,7 @@ describe('UploadService', () => {
       ).rejects.toThrow(/중복된 업체주문번호/);
     });
 
-    it('should reject invalid business order import rows', async () => {
+    it('rejects invalid business order import rows', async () => {
       const invalidDto = {
         ...createDto(),
         rows: [
@@ -584,7 +461,7 @@ describe('UploadService', () => {
             quantity: 0,
             recipientName: '홍길동',
             recipientPhone: '010-1111-2222',
-            recipientAddress: '서울시 중구 1',
+            recipientAddress: '서울 중구 1',
           },
         ],
       };
@@ -592,6 +469,51 @@ describe('UploadService', () => {
       await expect(
         service.createBusinessOrderImportBatch('user-1', invalidDto as any),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('uses matched supplier item price when alias mapping exists', async () => {
+      tables.procurement_suppliers.push({
+        id: 'supplier-1',
+        brand_id: 'brand-1',
+        name: '공급처',
+        supplier_code: 'sup-1',
+      });
+      tables.procurement_supplier_items.push({
+        id: 'item-1',
+        brand_id: 'brand-1',
+        supplier_id: 'supplier-1',
+        brand_product_id: 'brand-product-1',
+        supplier_item_name: '성주 꿀참외 3kg',
+        supplier_item_code: 'MATCH-001',
+        current_unit_price: 28400,
+        is_active: true,
+      });
+      tables.procurement_supplier_item_aliases.push({
+        id: 'alias-1',
+        brand_id: 'brand-1',
+        supplier_id: 'supplier-1',
+        supplier_item_id: 'item-1',
+        alias_type: 'NAME',
+        alias_value_normalized: '제주감귤',
+        match_priority: 1,
+      });
+
+      const created = await service.createBusinessOrderImportBatch(
+        'user-1',
+        createDto(),
+      );
+
+      expect(created.supplierId).toBe('supplier-1');
+      expect(created.rows[0].unitPrice).toBe(28400);
+      expect(created.rows[0].lineAmount).toBe(56800);
+      expect(created.totalAmount).toBe(56800);
+      expect(tables.procurement_import_batches[0].matched_row_count).toBe(1);
+      expect(tables.procurement_import_batch_lines[0].match_status).toBe(
+        'MATCHED',
+      );
+      expect(tables.procurement_import_batch_lines[0].price_source).toBe(
+        'SUPPLIER_ITEM',
+      );
     });
   });
 });

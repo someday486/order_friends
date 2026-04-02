@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { useSelectedBrand } from '@/hooks/useSelectedBrand';
 import { saveBusinessOrderImportBatch } from '@/lib/businessOrderImportStorage';
 
 type FileKind = 'csv' | 'xlsx';
@@ -582,6 +583,7 @@ function extractApiErrorMessage(error: unknown): string {
 
 export default function BusinessUploadScreen() {
   const router = useRouter();
+  const { brandId } = useSelectedBrand();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadMode, setUploadMode] = useState<UploadMode>('common');
   const [supplierId, setSupplierId] = useState<string>(SUPPLIER_OPTIONS[0]?.id ?? '');
@@ -672,10 +674,7 @@ export default function BusinessUploadScreen() {
 
       toast.success(`${file.name} 파일을 불러왔습니다.`);
     } catch (error) {
-      const message = extractApiErrorMessage(error);
-      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        error instanceof Error ? error.message : '파일을 읽는 중 오류가 발생했습니다.';
-      toast.error(message);
+      toast.error(extractApiErrorMessage(error));
     } finally {
       setIsParsing(false);
       setIsDragging(false);
@@ -707,71 +706,8 @@ export default function BusinessUploadScreen() {
   }
 
   function handlePrimaryAction() {
-    if (uploadReady && parsedFile && selectedSupplier) {
-      void handleServerSave();
-      return;
-    }
-
-    if (!uploadReady || !parsedFile || !selectedSupplier) return;
-
-    const importedRows = validRows.map((row) => {
-      const unitPriceText = getMappedValue(
-        dataRows[row.rowIndex - (headerRowIndex + 2)] || [],
-        effectiveMapping,
-        'unitPrice',
-      );
-      const normalizedUnitPrice = unitPriceText
-        ? Number(unitPriceText.replace(/[^\d.-]/g, ''))
-        : Number.NaN;
-      const unitPrice = Number.isNaN(normalizedUnitPrice) ? null : normalizedUnitPrice;
-
-      return {
-        merchantOrderNo: row.merchantOrderNo,
-        productName: row.productName,
-        quantity: Number(row.quantity.replace(/,/g, '')),
-        recipientName: row.recipientName,
-        recipientPhone: row.recipientPhone,
-        recipientAddress: row.recipientAddress,
-        unitPrice,
-        lineAmount: unitPrice == null ? null : unitPrice * Number(row.quantity.replace(/,/g, '')),
-      };
-    });
-
-    const totalQty = importedRows.reduce((sum, row) => sum + row.quantity, 0);
-    const totalAmount = importedRows.reduce((sum, row) => sum + (row.lineAmount ?? 0), 0);
-    const itemSummary =
-      importedRows.length === 1
-        ? importedRows[0].productName
-        : `${importedRows[0]?.productName || '업로드 주문'} 외 ${importedRows.length - 1}건`;
-    const now = new Date();
-    const batchId = `UP-${now
-      .toISOString()
-      .replaceAll('-', '')
-      .replaceAll(':', '')
-      .replaceAll('T', '')
-      .replaceAll('Z', '')
-      .replaceAll('.', '')
-      .slice(2, 14)}`;
-
-    saveBusinessOrderImportBatch({
-      id: batchId,
-      supplierId,
-      supplierName: selectedSupplier.name,
-      orderDate,
-      fileName: parsedFile.fileName,
-      headerRowIndex,
-      uploadedAt: now.toISOString().slice(0, 16).replace('T', ' '),
-      rowCount: importedRows.length,
-      totalQty,
-      totalAmount,
-      itemSummary,
-      rows: importedRows,
-      status: '작성중',
-      paymentStatus: '후불 예정',
-    });
-
-    toast.success(`${validRows.length}건 주문서를 저장했고 주문내역으로 이동합니다.`);
-    router.push('/business/orders/history?source=upload');
+    if (!uploadReady || !parsedFile || !selectedSupplier || isSubmitting) return;
+    void handleServerSave();
   }
 
   async function handleServerSave() {
@@ -781,8 +717,9 @@ export default function BusinessUploadScreen() {
       setIsSubmitting(true);
 
       const importedRows = validRows.map((row) => {
+        const sourceRow = dataRows[row.rowIndex - (headerRowIndex + 2)] || [];
         const unitPriceText = getMappedValue(
-          dataRows[row.rowIndex - (headerRowIndex + 2)] || [],
+          sourceRow,
           effectiveMapping,
           'unitPrice',
         );
@@ -800,6 +737,17 @@ export default function BusinessUploadScreen() {
           recipientName: row.recipientName,
           recipientPhone: row.recipientPhone,
           recipientAddress: row.recipientAddress,
+          recipientZipCode:
+            getMappedValue(sourceRow, effectiveMapping, 'recipientZipCode') ||
+            null,
+          deliveryMessage:
+            getMappedValue(sourceRow, effectiveMapping, 'deliveryMessage') ||
+            null,
+          productCode:
+            getMappedValue(sourceRow, effectiveMapping, 'productCode') || null,
+          customerOrderNo:
+            getMappedValue(sourceRow, effectiveMapping, 'customerOrderNo') ||
+            null,
           unitPrice,
           lineAmount:
             unitPrice == null
@@ -809,11 +757,15 @@ export default function BusinessUploadScreen() {
       });
 
       await saveBusinessOrderImportBatch({
+        brandId: brandId ?? undefined,
         supplierId,
         supplierName: selectedSupplier.name,
         orderDate,
         fileName: parsedFile.fileName,
         headerRowIndex,
+        sourceHeaders: parsedFile.rows[headerRowIndex]?.map((cell) =>
+          String(cell || '').trim(),
+        ),
         rows: importedRows,
       });
 
@@ -1292,7 +1244,7 @@ export default function BusinessUploadScreen() {
                   disabled={!uploadReady || isSubmitting}
                   className="btn-primary h-12 px-6 text-[13px] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  주문서 검증 완료
+                  {isSubmitting ? '저장 중...' : '주문서 저장'}
                 </button>
               </div>
             </CardContent>

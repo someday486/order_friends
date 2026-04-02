@@ -1,6 +1,7 @@
 const CHECKOUT_DRAFT_KEY = 'order:checkout-draft:v1';
 const LAST_ORDER_KEY = 'order:last-order:v1';
 const CUSTOMER_INFO_KEY = 'order:customer-info:v1';
+const PENDING_PAYMENT_KEY = 'order:pending-payment:v1';
 const LEGACY_CART_KEY = 'orderCart';
 const LEGACY_BRANCH_ID_KEY = 'orderBranchId';
 const LEGACY_BRAND_SLUG_KEY = 'orderBrandSlug';
@@ -36,6 +37,17 @@ type CustomerInfoDraft = {
   customerAddress1?: string | null;
   customerAddress2?: string | null;
   customerMemo?: string | null;
+  savedAt: number;
+};
+
+type PendingPaymentRecord = {
+  orderId: string;
+  checkoutPath: string;
+  completePath: string;
+  branchId?: string | null;
+  brandSlug?: string | null;
+  branchSlug?: string | null;
+  cartSnapshot?: unknown[] | null;
   savedAt: number;
 };
 
@@ -93,6 +105,27 @@ function isCustomerInfoDraft(value: unknown): value is CustomerInfoDraft {
     isStringOrNullOrUndefined(value.customerAddress2) &&
     isStringOrNullOrUndefined(value.customerMemo)
   );
+}
+
+function isPendingPaymentRecord(value: unknown): value is PendingPaymentRecord {
+  if (!isObject(value)) return false;
+  if (typeof value.savedAt !== 'number') return false;
+  if (typeof value.orderId !== 'string') return false;
+  if (typeof value.checkoutPath !== 'string') return false;
+  if (typeof value.completePath !== 'string') return false;
+  if (!isStringOrNullOrUndefined(value.branchId)) return false;
+  if (!isStringOrNullOrUndefined(value.brandSlug)) return false;
+  if (!isStringOrNullOrUndefined(value.branchSlug)) return false;
+  if (
+    'cartSnapshot' in value &&
+    value.cartSnapshot !== null &&
+    value.cartSnapshot !== undefined &&
+    !Array.isArray(value.cartSnapshot)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function normalizeText(value?: string | null) {
@@ -335,4 +368,55 @@ export function loadCustomerInfoDraft() {
     customerAddress2: parsed.customerAddress2 ?? '',
     customerMemo: parsed.customerMemo ?? '',
   };
+}
+
+export function savePendingPaymentRecord(input: {
+  orderId: string;
+  checkoutPath: string;
+  completePath: string;
+  branchId?: string | null;
+  brandSlug?: string | null;
+  branchSlug?: string | null;
+  cartSnapshot?: unknown[] | null;
+}) {
+  if (typeof window === 'undefined') return;
+
+  const record: PendingPaymentRecord = {
+    orderId: input.orderId,
+    checkoutPath: input.checkoutPath,
+    completePath: input.completePath,
+    branchId: input.branchId ?? null,
+    brandSlug: input.brandSlug ?? null,
+    branchSlug: input.branchSlug ?? null,
+    cartSnapshot: input.cartSnapshot ?? null,
+    savedAt: now(),
+  };
+
+  localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(record));
+}
+
+export function loadPendingPaymentRecord(context?: {
+  orderId?: string | null;
+  branchId?: string;
+  brandSlug?: string;
+  branchSlug?: string;
+}) {
+  if (typeof window === 'undefined') return null;
+
+  const parsed = safeJsonParse<unknown>(
+    localStorage.getItem(PENDING_PAYMENT_KEY),
+  );
+  if (!isPendingPaymentRecord(parsed)) return null;
+  if (isExpired(parsed.savedAt)) return null;
+  if (context?.orderId && parsed.orderId !== context.orderId) return null;
+  if (context?.branchId && parsed.branchId !== context.branchId) return null;
+  if (context?.brandSlug && parsed.brandSlug !== context.brandSlug) return null;
+  if (context?.branchSlug && parsed.branchSlug !== context.branchSlug)
+    return null;
+  return parsed;
+}
+
+export function clearPendingPaymentRecord() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(PENDING_PAYMENT_KEY);
 }

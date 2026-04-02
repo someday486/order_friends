@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -62,11 +62,7 @@ function toTelHref(phone: string) {
   return normalized ? `tel:${normalized}` : null;
 }
 
-const STATUS_STEPS: OrderStatusDisplay[] = [
-  'RECEIVED',
-  'PREPARING',
-  'READY',
-];
+const STATUS_STEPS: OrderStatusDisplay[] = ['RECEIVED', 'PREPARING', 'READY'];
 
 const POLL_INTERVAL_MS = 10000; // 10초 (30초에서 단축)
 
@@ -302,16 +298,13 @@ function parseApiErrorMessage(error: unknown, fallback: string): string {
   return raw || fallback;
 }
 
-function parseCancelErrorMessage(error: unknown): string {
+function legacyParseCancelErrorMessage(error: unknown): string {
   const message = parseApiErrorMessage(
     error,
     '주문 취소 처리 중 오류가 발생했어요.',
   );
 
-  if (
-    message.includes('주문을 찾을 수 없습니다') ||
-    message.includes('404')
-  ) {
+  if (message.includes('주문을 찾을 수 없습니다') || message.includes('404')) {
     return '이 주문은 현재 로그인한 계정으로 취소할 수 없어요. 주문한 계정으로 다시 로그인해 주세요.';
   }
 
@@ -319,11 +312,39 @@ function parseCancelErrorMessage(error: unknown): string {
     return '이 주문은 직접 취소를 지원하기 전 주문이에요. 매장에 문의해 주세요.';
   }
 
-  if (message.includes('현재 상태에서는 구매자가 직접 주문을 취소할 수 없습니다')) {
+  if (
+    message.includes('현재 상태에서는 구매자가 직접 주문을 취소할 수 없습니다')
+  ) {
     return '현재 상태에서는 구매자가 직접 주문을 취소할 수 없어요. 매장 문의로 도와드릴게요.';
   }
 
   return message;
+}
+
+function parseCancelErrorMessage(error: unknown): string {
+  const message = parseApiErrorMessage(
+    error,
+    '주문 취소 처리 중 오류가 발생했어요.',
+  );
+
+  if (message.includes('주문을 찾을 수 없습니다') || message.includes('404')) {
+    return '주문을 찾을 수 없어요. 주문 링크를 다시 확인해 주세요.';
+  }
+
+  if (
+    message.includes('로그인 연동 이전 주문') ||
+    message.includes('직접 취소를 지원하기 전 주문')
+  ) {
+    return '이 주문은 직접 취소를 지원하기 전 주문이에요. 매장에 문의해 주세요.';
+  }
+
+  if (
+    message.includes('현재 상태에서는 구매자가 직접 주문을 취소할 수 없습니다')
+  ) {
+    return '현재 상태에서는 직접 취소가 어려워요. 매장에 문의해 주세요.';
+  }
+
+  return legacyParseCancelErrorMessage(error);
 }
 
 function paymentMethodLabel(method: PaymentMethod | null): string {
@@ -394,7 +415,10 @@ function hasSupportChannel(
   );
 }
 
-function refundGuide(order: OrderInfo, supportAvailable: boolean): {
+function refundGuide(
+  order: OrderInfo,
+  supportAvailable: boolean,
+): {
   title: string;
   summary: string;
   items: string[];
@@ -417,7 +441,7 @@ function refundGuide(order: OrderInfo, supportAvailable: boolean): {
         '준비 시작 전 주문은 자동 취소 또는 빠른 환불 대상이 될 수 있습니다.',
         settlementHint,
         supportAvailable
-          ? '환불이 지연되거나 확인이 필요하면 아래 문의 연락처로 바로 연락해 주세요.'
+          ? '환불이 지연되거나 확인이 필요하면 문의 연락처로 바로 연락해 주세요.'
           : '환불이 지연되거나 확인이 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
       ],
     };
@@ -432,7 +456,7 @@ function refundGuide(order: OrderInfo, supportAvailable: boolean): {
         '준비가 시작된 주문은 매장 확인 후 취소 또는 환불 가능 여부가 결정될 수 있습니다.',
         settlementHint,
         supportAvailable
-          ? '빠른 확인이 필요하면 아래 문의 연락처로 요청해 주세요.'
+          ? '빠른 확인이 필요하면 문의 연락처로 요청해 주세요.'
           : '빠른 확인이 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
       ],
     };
@@ -611,7 +635,10 @@ export default function TrackOrderPage() {
 
   useEffect(() => {
     if (!order?.branchId) return;
-    if (order.branchContactPhone?.trim() || order.branchKakaoChannelUrl?.trim()) {
+    if (
+      order.branchContactPhone?.trim() ||
+      order.branchKakaoChannelUrl?.trim()
+    ) {
       return;
     }
 
@@ -648,7 +675,11 @@ export default function TrackOrderPage() {
     return () => {
       cancelled = true;
     };
-  }, [order?.branchContactPhone, order?.branchId, order?.branchKakaoChannelUrl]);
+  }, [
+    order?.branchContactPhone,
+    order?.branchId,
+    order?.branchKakaoChannelUrl,
+  ]);
 
   // 10초 polling (완료/취소 상태면 중단)
   useEffect(() => {
@@ -755,26 +786,30 @@ export default function TrackOrderPage() {
         ? {
             tone: 'danger' as const,
             title: '주문이 취소되었어요.',
-            description:
-              supportAvailable
-                ? '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 매장에 연락해 주세요.'
-                : '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 문의가 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
+            description: supportAvailable
+              ? '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 매장에 연락해 주세요.'
+              : '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 문의가 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
           }
         : null;
 
   const handleCancelAction = async () => {
     if (order.status === 'CREATED') {
-      if (status !== 'authenticated') {
+      if (!order.id) {
         toast('로그인 후 주문을 취소할 수 있어요.');
         const next = `${window.location.pathname}${window.location.search}`;
         window.location.assign(`/login?next=${encodeURIComponent(next)}`);
         return;
       }
 
+      const cancelPath = `/public/orders/${encodeURIComponent(order.id)}/cancel`;
+
       try {
         await apiClient.post(
-          `/me/orders/${encodeURIComponent(order.id)}/cancel`,
+          cancelPath,
           {},
+          {
+            auth: false,
+          },
         );
         const cancelledOrder: OrderInfo = {
           ...order,
@@ -845,11 +880,12 @@ export default function TrackOrderPage() {
             : step === 'PREPARING'
               ? statusHint('PREPARING')
               : statusHint('READY'),
-        state: (idx < currentStepIndex
-          ? 'done'
-          : idx === currentStepIndex
-            ? 'current'
-            : 'upcoming') as 'done' | 'current' | 'upcoming',
+        state:
+          idx < currentStepIndex
+            ? 'done'
+            : idx === currentStepIndex
+              ? 'current'
+              : 'upcoming',
       }));
 
   return (
@@ -1080,8 +1116,8 @@ export default function TrackOrderPage() {
                           : isRefundedStep
                             ? 'border-pink-500/40 bg-pink-500/10'
                             : step.id === 'READY'
-                           ? 'border-success-500/50 bg-success-500/10'
-                           : 'border-primary-500/50 bg-primary-500/10'
+                              ? 'border-success-500/50 bg-success-500/10'
+                              : 'border-primary-500/50 bg-primary-500/10'
                         : isDone
                           ? 'border-success-500/30 bg-success-500/5'
                           : 'border-border bg-background'
@@ -1261,7 +1297,7 @@ export default function TrackOrderPage() {
             </p>
             <button
               type="button"
-              onClick={handleCancelAction}
+              onClick={() => void handleCancelAction()}
               className="mt-3 w-full rounded-xl border-none bg-danger-500 px-4 py-3 text-sm font-bold text-white cursor-pointer hover:opacity-90 transition-opacity"
             >
               {cancelActionLabel}

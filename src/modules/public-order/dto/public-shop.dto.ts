@@ -4,12 +4,17 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CashReceiptRequestDto, PaymentMethod } from './public-order.dto';
+import {
+  formatOrderPhone,
+  ORDER_PHONE_REGEX,
+} from '../../../common/utils/order-phone.util';
 
 export class PublicShopBrandProductResponse {
   id: string;
@@ -71,6 +76,11 @@ export class CreatePublicShopOrderRequest {
 
   @ApiProperty({ description: '주문자 연락처', example: '010-1234-5678' })
   @IsString()
+  @Transform(({ value }) => formatOrderPhone(value))
+  @Matches(ORDER_PHONE_REGEX, {
+    message:
+      '올바른 형식의 연락처가 아닙니다. 010-1234-5678 형식으로 입력해 주세요.',
+  })
   customerPhone: string;
 
   @ApiProperty({

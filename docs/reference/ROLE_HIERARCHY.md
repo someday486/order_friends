@@ -206,7 +206,7 @@ VALUES ('branch-uuid', 'user-uuid', 'STAFF', 'ACTIVE');
 
 ## 관련 문서
 
-- [System Admin Setup Guide](./SYSTEM_ADMIN_SETUP.md)
+- [System Admin Setup Guide](../guides/SYSTEM_ADMIN_SETUP.md)
 - [Members VIEW Documentation](./DATABASE_MEMBERS_VIEW.md)
 - [Database Schema](../supabase/migration/20260114_0000_core_tables.sql)
 

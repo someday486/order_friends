@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { apiClient } from '@/lib/api-client';
+import { recoverFromAuthError } from '@/lib/auth/client';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import { invalidateSessionCache } from '@/lib/auth/client';
 import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
@@ -29,7 +30,19 @@ export default function ApprovalPendingPage() {
       invalidateSessionCache();
       apiClient.clearCache();
 
-      await supabaseBrowser.auth.refreshSession();
+      const { error: refreshSessionError } =
+        await supabaseBrowser.auth.refreshSession();
+
+      if (refreshSessionError) {
+        if (await recoverFromAuthError(refreshSessionError)) {
+          await refresh();
+          router.replace('/login?reason=session-expired');
+          return;
+        }
+
+        throw refreshSessionError;
+      }
+
       await refresh();
 
       invalidateSessionCache();
@@ -38,6 +51,12 @@ export default function ApprovalPendingPage() {
       const destination = await resolveAuthenticatedDestination();
       router.replace(destination);
     } catch (err) {
+      if (await recoverFromAuthError(err)) {
+        await refresh();
+        router.replace('/login?reason=session-expired');
+        return;
+      }
+
       setError(
         err instanceof Error
           ? err.message

@@ -87,6 +87,24 @@ export function formatPhone(phone: string): string {
   return phone;
 }
 
+export function formatOrderPhoneInput(value: string): string {
+  const cleaned = value.replace(/\D/g, '').slice(0, 11);
+
+  if (cleaned.length <= 3) {
+    return cleaned;
+  }
+
+  if (cleaned.length <= 7) {
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+  }
+
+  return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
+}
+
+export function isValidOrderPhone(value: string): boolean {
+  return /^\d{3}-\d{4}-\d{4}$/.test(value.trim());
+}
+
 /** 사업자등록번호 형식화 (예: 123-45-67890) */
 export function formatBusinessNumber(value: string): string {
   if (!value) return '-';

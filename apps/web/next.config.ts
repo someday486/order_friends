@@ -26,6 +26,20 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
 const nextConfig: NextConfig = {
   reactCompiler: true,
   allowedDevOrigins: ['127.0.0.1'],
+  env: {
+    NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY:
+      process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY ??
+      process.env.TOSS_CLIENT_KEY ??
+      '',
+    NEXT_PUBLIC_TOSS_WIDGET_PAYMENT_METHOD_VARIANT_KEY:
+      process.env.NEXT_PUBLIC_TOSS_WIDGET_PAYMENT_METHOD_VARIANT_KEY ??
+      process.env.TOSS_WIDGET_PAYMENT_METHOD_VARIANT_KEY ??
+      '',
+    NEXT_PUBLIC_TOSS_WIDGET_AGREEMENT_VARIANT_KEY:
+      process.env.NEXT_PUBLIC_TOSS_WIDGET_AGREEMENT_VARIANT_KEY ??
+      process.env.TOSS_WIDGET_AGREEMENT_VARIANT_KEY ??
+      '',
+  },
   images: {
     remotePatterns,
   },

@@ -32,6 +32,7 @@ type RecentVisit = {
 
 const RECENT_VISITS_KEY = 'customer-order-recent-visits';
 const MAX_RECENT_VISITS = 3;
+const ONLINE_SHOP_SUFFIX = '\uC628\uB77C\uC778\uC0F5';
 
 function getBranchOrderUrl(
   brandSlug: string | null,
@@ -47,6 +48,51 @@ function getBranchOrderUrl(
 function getBrandShopUrl(brandSlug: string | null) {
   if (!brandSlug) return null;
   return `/shop/${encodeURIComponent(brandSlug)}`;
+}
+
+function shouldHideInternalOnlineShopBranch(
+  branch: Branch,
+  brandName?: string | null,
+): boolean {
+  if (branch.slug) return false;
+
+  const branchName = (branch.name ?? '').trim();
+  if (!branchName) return false;
+
+  const normalizedBranchName = branchName.toLowerCase();
+  const normalizedBrandName = (brandName ?? '').trim().toLowerCase();
+
+  if (
+    normalizedBrandName &&
+    normalizedBranchName === `${normalizedBrandName} ${ONLINE_SHOP_SUFFIX}`
+  ) {
+    return true;
+  }
+
+  return normalizedBranchName.endsWith(ONLINE_SHOP_SUFFIX);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function isInternalOnlineShopBranch(
+  branch: Branch,
+  brandName?: string | null,
+): boolean {
+  if (branch.slug) return false;
+
+  const branchName = (branch.name ?? '').trim();
+  if (!branchName) return false;
+
+  const normalizedBranchName = branchName.toLowerCase();
+  const normalizedBrandName = (brandName ?? '').trim().toLowerCase();
+
+  if (
+    normalizedBrandName &&
+    normalizedBranchName === `${normalizedBrandName} 온라인샵`
+  ) {
+    return true;
+  }
+
+  return normalizedBranchName.endsWith('온라인샵');
 }
 
 export default function CustomerOrderLauncherPage() {
@@ -70,7 +116,9 @@ export default function CustomerOrderLauncherPage() {
         apiClient.get<Branch[]>('/customer/branches').catch(() => []),
       ]);
 
-      const sortedBrands = brands.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      const sortedBrands = brands.sort((a, b) =>
+        a.name.localeCompare(b.name, 'ko'),
+      );
       setProgress({ done: 1, total: 2 });
 
       const branchesByBrand: Record<string, Branch[]> = {};
@@ -88,7 +136,9 @@ export default function CustomerOrderLauncherPage() {
 
       const result = sortedBrands.map((brand) => ({
         brand: { id: brand.id, name: brand.name, slug: brand.slug ?? null },
-        branches: branchesByBrand[brand.id] ?? [],
+        branches: (branchesByBrand[brand.id] ?? []).filter(
+          (branch) => !shouldHideInternalOnlineShopBranch(branch, brand.name),
+        ),
       }));
 
       setSections(result);
@@ -105,7 +155,11 @@ export default function CustomerOrderLauncherPage() {
       });
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : '주문 페이지 정보를 불러오지 못했습니다.');
+      setError(
+        e instanceof Error
+          ? e.message
+          : '주문 페이지 정보를 불러오지 못했습니다.',
+      );
     } finally {
       setLoading(false);
     }
@@ -161,7 +215,10 @@ export default function CustomerOrderLauncherPage() {
     setRecentVisits(nextVisits);
 
     try {
-      window.localStorage.setItem(RECENT_VISITS_KEY, JSON.stringify(nextVisits));
+      window.localStorage.setItem(
+        RECENT_VISITS_KEY,
+        JSON.stringify(nextVisits),
+      );
     } catch (e) {
       console.error(e);
     }
@@ -260,7 +317,9 @@ export default function CustomerOrderLauncherPage() {
 
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-extrabold text-foreground">주문 페이지 바로가기</h1>
+          <h1 className="text-2xl font-extrabold text-foreground">
+            주문 페이지 바로가기
+          </h1>
           <p className="mt-2 text-text-secondary">
             원하는 브랜드와 매장을 선택해 주문 페이지로 바로 이동하세요.
           </p>
@@ -303,7 +362,9 @@ export default function CustomerOrderLauncherPage() {
 
       {showContent && recentVisits.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg-secondary/60 px-3 py-2">
-          <span className="text-xs font-semibold text-text-tertiary">최근 방문</span>
+          <span className="text-xs font-semibold text-text-tertiary">
+            최근 방문
+          </span>
           {recentVisits.map((visit) => (
             <Link
               key={visit.branchId}
@@ -359,7 +420,9 @@ export default function CustomerOrderLauncherPage() {
       {showContent && sections.length > 0 && filteredSections.length === 0 && (
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base">
-            {searchQuery ? '검색 결과가 없습니다.' : '표시할 브랜드가 없습니다.'}
+            {searchQuery
+              ? '검색 결과가 없습니다.'
+              : '표시할 브랜드가 없습니다.'}
           </div>
         </div>
       )}
@@ -392,7 +455,11 @@ export default function CustomerOrderLauncherPage() {
                   type="button"
                   onClick={() => toggleBrand(section.brand.id)}
                   className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-border bg-background text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-foreground"
-                  aria-label={openBrands[section.brand.id] ? '브랜드 접기' : '브랜드 펼치기'}
+                  aria-label={
+                    openBrands[section.brand.id]
+                      ? '브랜드 접기'
+                      : '브랜드 펼치기'
+                  }
                 >
                   {openBrands[section.brand.id] ? (
                     <ChevronDown size={16} className="text-current" />
@@ -530,7 +597,10 @@ export default function CustomerOrderLauncherPage() {
       {showContent && searchQuery && filteredSections.length > 0 && (
         <div className="mt-3 text-center text-xs text-text-tertiary">
           {filteredSections.length}개 브랜드, 총{' '}
-          {filteredSections.reduce((sum, section) => sum + section.branches.length, 0)}
+          {filteredSections.reduce(
+            (sum, section) => sum + section.branches.length,
+            0,
+          )}
           개 지점
         </div>
       )}

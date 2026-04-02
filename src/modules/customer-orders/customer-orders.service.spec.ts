@@ -906,6 +906,64 @@ describe('CustomerOrdersService', () => {
     ]);
   });
 
+  it('getMyOrders should treat manually confirmed transfer payments as AUTO_MATCHED in filters', async () => {
+    branchesChain.single.mockResolvedValueOnce({
+      data: { id: 'b1', brand_id: 'brand-1' },
+      error: null,
+    });
+
+    ordersChain.order.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'o-manual',
+          status: OrderStatus.CREATED,
+          created_at: '2026-02-18T10:00:00.000Z',
+          total_amount: 10,
+          customer_name: 'Manual User',
+          branch_id: 'b1',
+        },
+      ],
+      error: null,
+    });
+    paymentsChain.in
+      .mockResolvedValueOnce({
+        data: [{ order_id: 'o-manual', payment_method: 'TRANSFER' }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ order_id: 'o-manual', status: 'SUCCESS' }],
+        error: null,
+      });
+    depositMatchesChain.in.mockReturnValueOnce(depositMatchesChain);
+    depositMatchesChain.eq.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await service.getMyOrders(
+      'user-1',
+      'b1',
+      [],
+      [{ branch_id: 'b1', role: 'OWNER', status: 'ACTIVE' }],
+      { page: 1, limit: 10 },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'AUTO_MATCHED',
+    );
+
+    expect(result.pagination?.total).toBe(1);
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        id: 'o-manual',
+        paymentMethod: 'TRANSFER',
+        paymentStatus: 'SUCCESS',
+        depositMatchStatus: 'AUTO_MATCHED',
+      }),
+    ]);
+  });
+
   it('getMyOrders should filter by search across order number, customer name, and product name', async () => {
     branchesChain.single.mockResolvedValueOnce({
       data: { id: 'b1', brand_id: 'brand-1' },

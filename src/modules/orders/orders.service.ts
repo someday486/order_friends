@@ -12,6 +12,7 @@ import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 import { PaymentsService } from '../payments/payments.service';
+import { PaymentStatus } from '../payments/dto/payment.dto';
 import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
 import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 
@@ -286,6 +287,30 @@ export class OrdersService {
     return null;
   }
 
+  private resolveDepositMatchStatus(
+    paymentMethod: 'CARD' | 'TRANSFER' | 'CASH' | null,
+    paymentStatus: string | null | undefined,
+    matchedStatus: DepositMatchStatus | undefined,
+  ): DepositMatchStatus | null {
+    if (paymentMethod !== 'TRANSFER') {
+      return null;
+    }
+
+    if (matchedStatus === 'AUTO_MATCHED') {
+      return 'AUTO_MATCHED';
+    }
+
+    if (
+      paymentStatus === PaymentStatus.SUCCESS ||
+      paymentStatus === PaymentStatus.PARTIAL_REFUNDED ||
+      paymentStatus === PaymentStatus.REFUNDED
+    ) {
+      return 'AUTO_MATCHED';
+    }
+
+    return 'PENDING';
+  }
+
   private async getLatestCashReceipt(
     sb: any,
     orderId: string,
@@ -426,6 +451,7 @@ export class OrdersService {
         orderPaymentMethodMap.get(String(row.id)) ??
         paymentMethodMap.get(String(row.id)) ??
         null;
+      const paymentStatus = paymentStatusMap.get(String(row.id)) ?? null;
 
       return {
         id: row.id,
@@ -435,11 +461,12 @@ export class OrdersService {
         totalAmount: row.total_amount ?? 0,
         status: row.status as OrderStatus,
         paymentMethod,
-        paymentStatus: paymentStatusMap.get(String(row.id)) ?? null,
-        depositMatchStatus:
-          paymentMethod === 'TRANSFER'
-            ? (depositMatchStatusMap.get(String(row.id)) ?? 'PENDING')
-            : null,
+        paymentStatus,
+        depositMatchStatus: this.resolveDepositMatchStatus(
+          paymentMethod,
+          paymentStatus,
+          depositMatchStatusMap.get(String(row.id)),
+        ),
         fulfillmentType: row.fulfillment_type ?? null,
 
         // ✅ 새 필드들: admin 목록에서는 아직 데이터가 없으니 기본값
@@ -545,16 +572,19 @@ export class OrdersService {
       String(data.id),
     );
 
+    const paymentStatus = paymentStatusMap.get(String(data.id)) ?? null;
+
     return {
       id: data.id,
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
-      paymentStatus: paymentStatusMap.get(String(data.id)) ?? null,
-      depositMatchStatus:
-        paymentMethod === 'TRANSFER'
-          ? (depositMatchStatusMap.get(String(data.id)) ?? 'PENDING')
-          : null,
+      paymentStatus,
+      depositMatchStatus: this.resolveDepositMatchStatus(
+        paymentMethod,
+        paymentStatus,
+        depositMatchStatusMap.get(String(data.id)),
+      ),
       fulfillmentType: data.fulfillment_type ?? null,
       customer: {
         name: data.customer_name ?? '',

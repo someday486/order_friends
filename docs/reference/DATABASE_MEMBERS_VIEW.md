@@ -276,7 +276,7 @@ Got: 'BRANCH_ADMIN'
 
 ## Related Documentation
 
-- [System Admin Setup](./SYSTEM_ADMIN_SETUP.md)
+- [System Admin Setup](../guides/SYSTEM_ADMIN_SETUP.md)
 - [Database Schema](../supabase/migration/20260114_0000_core_tables.sql)
 - [Authorization Enums](../supabase/migration/20260114_0001_authorization.sql)
 

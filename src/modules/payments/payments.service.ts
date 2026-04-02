@@ -1317,7 +1317,7 @@ export class PaymentsService {
       const { error } = await sb
         .from('orders')
         .update({
-          status: 'CANCELLED',
+          status: 'REFUNDED',
           cancelled_at: new Date().toISOString(),
         })
         .eq('id', orderId)

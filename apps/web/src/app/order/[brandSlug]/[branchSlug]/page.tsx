@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import OrderPageClient from "./OrderPageClient";
 import type { ProductCardProduct } from "@/components/ui/ProductCard";
@@ -73,6 +74,31 @@ async function fetchBranch(
   }
 
   return (await fallbackResponse.json()) as PublicBranchResponse;
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { brandSlug, branchSlug } = await params;
+
+  try {
+    const branch = await fetchBranch(brandSlug, branchSlug);
+
+    if (!branch) {
+      return {
+        title: "주문하기",
+      };
+    }
+
+    return {
+      title: branch.name,
+      description: `${branch.name} 주문 페이지`,
+    };
+  } catch {
+    return {
+      title: "주문하기",
+    };
+  }
 }
 
 export default async function OrderPage({ params }: PageProps) {

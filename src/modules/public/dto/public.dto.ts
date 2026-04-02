@@ -7,12 +7,17 @@ import {
   ValidateNested,
   Min,
   IsEnum,
+  Matches,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   CashReceiptIdentityType,
   CashReceiptType,
 } from '../../cash-receipts/cash-receipt.types';
+import {
+  formatOrderPhone,
+  ORDER_PHONE_REGEX,
+} from '../../../common/utils/order-phone.util';
 
 // ============================================================
 // Response DTOs
@@ -102,6 +107,11 @@ export class CreatePublicOrderRequest {
 
   @IsString()
   @IsOptional()
+  @Transform(({ value }) => formatOrderPhone(value))
+  @Matches(ORDER_PHONE_REGEX, {
+    message:
+      '올바른 형식의 연락처가 아닙니다. 010-1234-5678 형식으로 입력해 주세요.',
+  })
   customerPhone?: string;
 
   @IsString()

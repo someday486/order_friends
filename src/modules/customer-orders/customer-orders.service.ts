@@ -20,7 +20,10 @@ import { canModifyOrder } from '../../common/utils/role-permission.util';
 import { PaymentsService } from '../payments/payments.service';
 import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
 import type { DepositMatchStatus } from '../deposit-sync/deposit-sync.util';
-import { PaymentStatusResponse } from '../payments/dto/payment.dto';
+import {
+  PaymentStatus,
+  PaymentStatusResponse,
+} from '../payments/dto/payment.dto';
 
 @Injectable()
 export class CustomerOrdersService {
@@ -346,6 +349,30 @@ export class CustomerOrdersService {
     return null;
   }
 
+  private resolveDepositMatchStatus(
+    paymentMethod: 'CARD' | 'TRANSFER' | 'CASH' | null,
+    paymentStatus: string | null | undefined,
+    matchedStatus: DepositMatchStatus | undefined,
+  ): DepositMatchStatus | null {
+    if (paymentMethod !== 'TRANSFER') {
+      return null;
+    }
+
+    if (matchedStatus === 'AUTO_MATCHED') {
+      return 'AUTO_MATCHED';
+    }
+
+    if (
+      paymentStatus === PaymentStatus.SUCCESS ||
+      paymentStatus === PaymentStatus.PARTIAL_REFUNDED ||
+      paymentStatus === PaymentStatus.REFUNDED
+    ) {
+      return 'AUTO_MATCHED';
+    }
+
+    return 'PENDING';
+  }
+
   private async getLatestCashReceipt(
     sb: any,
     orderId: string,
@@ -636,6 +663,10 @@ export class CustomerOrdersService {
         sb,
         candidateOrderIds,
       );
+      const paymentStatusMap = await this.getPaymentStatusMap(
+        sb,
+        candidateOrderIds,
+      );
       const itemSummaryMap = new Map<
         string,
         {
@@ -726,8 +757,11 @@ export class CustomerOrdersService {
             return false;
           }
 
-          const resolvedDepositStatus =
-            depositMatchStatusMap.get(orderId) ?? 'PENDING';
+          const resolvedDepositStatus = this.resolveDepositMatchStatus(
+            paymentMethod,
+            paymentStatusMap.get(orderId) ?? null,
+            depositMatchStatusMap.get(orderId),
+          );
           return resolvedDepositStatus === depositStatus;
         }
 
@@ -735,7 +769,6 @@ export class CustomerOrdersService {
       });
 
       const pagedRows = filteredRows.slice(from, to + 1);
-      const orderIds = pagedRows.map((row: any) => row.id);
       const branchNameMap = await this.getBranchNameMap(
         sb,
         Array.from(
@@ -746,7 +779,6 @@ export class CustomerOrdersService {
           ),
         ),
       );
-      const paymentStatusMap = await this.getPaymentStatusMap(sb, orderIds);
 
       const orders = pagedRows.map((row: any) => {
         const orderId = String(row.id);
@@ -754,6 +786,7 @@ export class CustomerOrdersService {
           orderPaymentMethodMap.get(orderId) ??
           paymentMethodMap.get(orderId) ??
           null;
+        const paymentStatus = paymentStatusMap.get(orderId) ?? null;
 
         return {
           id: row.id,
@@ -773,8 +806,12 @@ export class CustomerOrdersService {
           itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
           status: row.status as OrderStatus,
           paymentMethod,
-          paymentStatus: paymentStatusMap.get(orderId) ?? null,
-          depositMatchStatus: depositMatchStatusMap.get(orderId) ?? 'PENDING',
+          paymentStatus,
+          depositMatchStatus: this.resolveDepositMatchStatus(
+            paymentMethod,
+            paymentStatus,
+            depositMatchStatusMap.get(orderId),
+          ),
         };
       });
 
@@ -943,6 +980,7 @@ export class CustomerOrdersService {
         orderPaymentMethodMap.get(String(row.id)) ??
         paymentMethodMap.get(String(row.id)) ??
         null;
+      const paymentStatus = paymentStatusMap.get(String(row.id)) ?? null;
 
       return {
         id: row.id,
@@ -962,11 +1000,12 @@ export class CustomerOrdersService {
         itemsSummary: itemSummaryMap.get(row.id)?.itemsSummary ?? '',
         status: row.status as OrderStatus,
         paymentMethod,
-        paymentStatus: paymentStatusMap.get(String(row.id)) ?? null,
-        depositMatchStatus:
-          paymentMethod === 'TRANSFER'
-            ? (depositMatchStatusMap.get(String(row.id)) ?? 'PENDING')
-            : null,
+        paymentStatus,
+        depositMatchStatus: this.resolveDepositMatchStatus(
+          paymentMethod,
+          paymentStatus,
+          depositMatchStatusMap.get(String(row.id)),
+        ),
       };
     });
 
@@ -1055,16 +1094,19 @@ export class CustomerOrdersService {
       String(data.id),
     );
 
+    const paymentStatus = paymentStatusMap.get(String(data.id)) ?? null;
+
     return {
       id: data.id,
       orderNo: data.order_no ?? null,
       orderedAt: data.created_at ?? '',
       status: data.status as OrderStatus,
-      paymentStatus: paymentStatusMap.get(String(data.id)) ?? null,
-      depositMatchStatus:
-        paymentMethod === 'TRANSFER'
-          ? (depositMatchStatusMap.get(String(data.id)) ?? 'PENDING')
-          : null,
+      paymentStatus,
+      depositMatchStatus: this.resolveDepositMatchStatus(
+        paymentMethod,
+        paymentStatus,
+        depositMatchStatusMap.get(String(data.id)),
+      ),
       fulfillmentType: data.fulfillment_type ?? null,
       myRole: role,
       customer: {

@@ -1,4 +1,4 @@
-﻿"use client";
+﻿'use client';
 
 import React, {
   createContext,
@@ -8,17 +8,17 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from "react";
-import type { AuthState } from "@/lib/auth/types";
+} from 'react';
+import type { AuthState } from '@/lib/auth/types';
 import {
   getInitialSession,
   getVerifiedUser,
   seedSessionCache,
   seedVerifiedUserCache,
+  signOutClientSession,
   subscribeAuth,
-} from "@/lib/auth/client";
-import { supabaseBrowser } from "@/lib/supabase/client";
-import type { Session, User } from "@supabase/supabase-js";
+} from '@/lib/auth/client';
+import type { Session, User } from '@supabase/supabase-js';
 
 type AuthContextValue = AuthState & {
   /** 기존 코드 호환용 로딩 상태 */
@@ -32,15 +32,15 @@ type AuthContextValue = AuthState & {
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 function derive(
-  session: AuthState["session"],
-  user: AuthState["user"],
+  session: AuthState['session'],
+  user: AuthState['user'],
 ): AuthState {
   if (!session && !user) {
-    return { status: "unauthenticated", session: null, user: null };
+    return { status: 'unauthenticated', session: null, user: null };
   }
 
   return {
-    status: "authenticated",
+    status: 'authenticated',
     session: session ?? null,
     user: user ?? null,
   };
@@ -51,7 +51,7 @@ function getInitialState(
   user: User | null,
 ): AuthState {
   if (!session && !user) {
-    return { status: "loading", session: null, user: null };
+    return { status: 'loading', session: null, user: null };
   }
 
   return derive(session, user);
@@ -81,60 +81,63 @@ export function AuthProvider({
     }
   }, [initialSession, initialUser]);
 
-  const syncAuthState = useCallback(async (sessionOverride?: Session | null) => {
-    const syncId = ++syncIdRef.current;
-    const session =
-      sessionOverride === undefined
-        ? await getInitialSession()
-        : sessionOverride;
+  const syncAuthState = useCallback(
+    async (sessionOverride?: Session | null) => {
+      const syncId = ++syncIdRef.current;
+      const session =
+        sessionOverride === undefined
+          ? await getInitialSession()
+          : sessionOverride;
 
-    if (!session) {
+      if (!session) {
+        if (syncId !== syncIdRef.current) return;
+        setState((prev) => {
+          const next = derive(null, null);
+          if (
+            prev.status === next.status &&
+            prev.session === next.session &&
+            prev.user === next.user
+          ) {
+            return prev;
+          }
+          return next;
+        });
+        return;
+      }
+
+      const user = await getVerifiedUser();
       if (syncId !== syncIdRef.current) return;
+
       setState((prev) => {
-        const next = derive(null, null);
+        const next = derive(session, user);
         if (
-          prev.status === next.status &&
-          prev.session === next.session &&
-          prev.user === next.user
+          prev.session?.access_token === next.session?.access_token &&
+          prev.user?.id === next.user?.id &&
+          prev.status === next.status
         ) {
           return prev;
         }
         return next;
       });
-      return;
-    }
-
-    const user = await getVerifiedUser();
-    if (syncId !== syncIdRef.current) return;
-
-    setState((prev) => {
-      const next = derive(session, user);
-      if (
-        prev.session?.access_token === next.session?.access_token &&
-        prev.user?.id === next.user?.id &&
-        prev.status === next.status
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, []);
+    },
+    [],
+  );
 
   const refresh = useCallback(async () => {
     await syncAuthState();
   }, [syncAuthState]);
 
   const signOut = useCallback(async () => {
-    await supabaseBrowser.auth.signOut();
+    await signOutClientSession();
     await refresh();
-    window.location.assign("/login");
+    window.location.assign('/login');
   }, [refresh]);
 
   useEffect(() => {
     let mounted = true;
 
     if (!initialSession || !initialUser) {
-      (async () => {
+      void (async () => {
         if (!mounted) return;
         await syncAuthState();
       })();
@@ -154,7 +157,7 @@ export function AuthProvider({
   const value = useMemo<AuthContextValue>(() => {
     return {
       ...state,
-      loading: state.status === "loading",
+      loading: state.status === 'loading',
       refresh,
       signOut,
     };
@@ -164,6 +167,6 @@ export function AuthProvider({
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }

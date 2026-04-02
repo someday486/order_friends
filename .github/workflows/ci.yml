@@ -7,6 +7,30 @@ on:
     branches: [main, develop]
 
 jobs:
+  docs-governance:
+    name: Docs Governance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Check documentation rules
+        run: npm run docs:check
+
+      - name: Check patch notes on pull request
+        if: github.event_name == 'pull_request'
+        run: node scripts/patch-note.js verify-range "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check patch notes on push
+        if: github.event_name == 'push'
+        run: node scripts/patch-note.js verify-range "${{ github.event.before }}" "${{ github.sha }}"
+
   test:
     name: Backend Test
     runs-on: ubuntu-latest
@@ -91,7 +115,7 @@ jobs:
   build:
     name: Backend Build
     runs-on: ubuntu-latest
-    needs: test
+    needs: [docs-governance, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -163,7 +187,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [build, security, web]
+    needs: [docs-governance, build, security, web]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     outputs:
       tags: ${{ steps.meta.outputs.tags }}
@@ -202,7 +226,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [test, build, security, web, docker]
+    needs: [docs-governance, test, build, security, web, docker]
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     environment:
       name: staging
@@ -243,7 +267,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [test, build, security, web, docker]
+    needs: [docs-governance, test, build, security, web, docker]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production

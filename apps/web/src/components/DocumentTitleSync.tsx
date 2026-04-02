@@ -163,6 +163,14 @@ function getDocumentTitle(pathname: string | null): string {
     return APP_NAME;
   }
 
+  const isDynamicOrderPage =
+    /^\/order\/[^/]+\/[^/]+$/.test(pathname) ||
+    /^\/order\/branch\/[^/]+$/.test(pathname);
+
+  if (isDynamicOrderPage) {
+    return document.title;
+  }
+
   const matchedRule = routeTitleRules.find((rule) => rule.match(pathname));
   if (!matchedRule) {
     return APP_NAME;

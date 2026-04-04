@@ -46,6 +46,7 @@ Future-feature or draft specifications. These are planning documents, not guaran
 ### `research/`
 Research snapshots and backlog inputs. These help planning but do not define current behavior by themselves.
 
+- `research/order-friends-diagnostic-2026-04-03.md`
 - `research/ux-competitive-audit-2026-03-02.md`
 - `research/ux-improvement-backlog-2026-03-02.md`
 

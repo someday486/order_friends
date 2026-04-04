@@ -52,6 +52,7 @@ This file records the current status of the documentation set after the cleanup.
 
 | Path | Status | Purpose |
 | --- | --- | --- |
+| `research/order-friends-diagnostic-2026-04-03.md` | research | codebase risk audit and execution backlog snapshot |
 | `research/ux-competitive-audit-2026-03-02.md` | research | UX audit snapshot |
 | `research/ux-improvement-backlog-2026-03-02.md` | research | UX backlog input |
 

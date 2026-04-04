@@ -515,6 +515,18 @@ function refundGuide(
   };
 }
 
+function cancelConfirmationNotice(order: OrderInfo): string {
+  if (order.paymentMethod === 'TRANSFER') {
+    return '계좌이체 주문은 환불 계좌 확인이 필요할 수 있어요.';
+  }
+
+  if (order.paymentMethod === 'CASH') {
+    return '현장결제 주문은 매장 확인 후 취소가 마무리될 수 있어요.';
+  }
+
+  return '카드 결제 취소 후 실제 환불 반영까지는 카드사 사정에 따라 3~5영업일 정도 걸릴 수 있습니다.';
+}
+
 function playReadySound() {
   try {
     const ctx = new (
@@ -561,6 +573,8 @@ export default function TrackOrderPage() {
   const [cancelSuccessNotice, setCancelSuccessNotice] = useState<string | null>(
     null,
   );
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
   const prevStatusRef = useRef<OrderStatus | null>(null);
 
@@ -632,6 +646,19 @@ export default function TrackOrderPage() {
     if (!orderId || status === 'loading') return;
     void fetchOrder(false);
   }, [fetchOrder, orderId, status]);
+
+  useEffect(() => {
+    if (!cancelConfirmOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !cancelSubmitting) {
+        setCancelConfirmOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [cancelConfirmOpen, cancelSubmitting]);
 
   useEffect(() => {
     if (!order?.branchId) return;
@@ -800,33 +827,7 @@ export default function TrackOrderPage() {
         window.location.assign(`/login?next=${encodeURIComponent(next)}`);
         return;
       }
-
-      const cancelPath = `/public/orders/${encodeURIComponent(order.id)}/cancel`;
-
-      try {
-        await apiClient.post(
-          cancelPath,
-          {},
-          {
-            auth: false,
-          },
-        );
-        const cancelledOrder: OrderInfo = {
-          ...order,
-          status: 'CANCELLED',
-        };
-        setOrder(cancelledOrder);
-        setLastUpdatedAt(new Date());
-        setCancelSuccessNotice('주문이 취소되었어요.');
-        saveLastOrderRecord({
-          order: cancelledOrder,
-          branchId: cancelledOrder.branchId ?? null,
-        });
-        toast.success('주문이 취소되었어요.');
-        void fetchOrder(true);
-      } catch (error) {
-        toast.error(parseCancelErrorMessage(error));
-      }
+      setCancelConfirmOpen(true);
       return;
     }
 
@@ -849,6 +850,43 @@ export default function TrackOrderPage() {
     }
 
     toast('주문 취소는 매장 문의로 도와드리고 있어요.');
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!order || order.status !== 'CREATED' || !order.id || cancelSubmitting) {
+      return;
+    }
+
+    const cancelPath = `/public/orders/${encodeURIComponent(order.id)}/cancel`;
+
+    try {
+      setCancelSubmitting(true);
+      await apiClient.post(
+        cancelPath,
+        {},
+        {
+          auth: false,
+        },
+      );
+      const cancelledOrder: OrderInfo = {
+        ...order,
+        status: 'CANCELLED',
+      };
+      setOrder(cancelledOrder);
+      setLastUpdatedAt(new Date());
+      setCancelSuccessNotice('주문이 취소되었어요.');
+      saveLastOrderRecord({
+        order: cancelledOrder,
+        branchId: cancelledOrder.branchId ?? null,
+      });
+      setCancelConfirmOpen(false);
+      toast.success('주문이 취소되었어요.');
+      void fetchOrder(true);
+    } catch (error) {
+      toast.error(parseCancelErrorMessage(error));
+    } finally {
+      setCancelSubmitting(false);
+    }
   };
 
   const timeline = isCancelled
@@ -1305,6 +1343,92 @@ export default function TrackOrderPage() {
           </section>
         )}
       </div>
+      {cancelConfirmOpen && order.status === 'CREATED' && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-4 pb-4 pt-10 sm:items-center sm:p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-order-dialog-title"
+            className="w-full max-w-sm rounded-[28px] border border-danger-200/70 bg-background p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
+          >
+            <div className="inline-flex rounded-full bg-danger-500/10 px-3 py-1 text-[11px] font-bold tracking-[0.18em] text-danger-600">
+              CANCEL ORDER
+            </div>
+            <h2
+              id="cancel-order-dialog-title"
+              className="mt-3 text-xl font-extrabold text-foreground"
+            >
+              주문을 취소할까요?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-text-secondary">
+              주문을 취소하면 되돌릴 수 없어요. 아래 내용을 확인한 뒤 진행해 주세요.
+            </p>
+            <div className="mt-4 rounded-2xl border border-border bg-bg-secondary p-4">
+              <div className="text-sm font-semibold text-foreground">
+                주문번호 {order.orderNo}
+              </div>
+              <div className="mt-1 text-sm font-bold text-foreground">
+                {formatWon(order.totalAmount)}
+              </div>
+              <div className="mt-3 rounded-xl border border-border bg-background px-3 py-3">
+                <div className="text-[11px] font-semibold tracking-[0.08em] text-text-tertiary">
+                  주문 내역
+                </div>
+                <div className="mt-2 space-y-2">
+                  {order.items.slice(0, 3).map((item, idx) => (
+                    <div
+                      key={`${item.name}-${idx}`}
+                      className="flex items-start justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-foreground">
+                          {item.name}
+                        </div>
+                        {item.options.length > 0 ? (
+                          <div className="mt-0.5 text-[11px] leading-4 text-text-tertiary">
+                            {item.options.join(', ')}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 text-xs font-semibold text-text-secondary">
+                        {item.qty}개
+                      </div>
+                    </div>
+                  ))}
+                  {order.items.length > 3 ? (
+                    <div className="text-[11px] text-text-tertiary">
+                      외 {order.items.length - 3}개 메뉴
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 rounded-xl bg-background px-3 py-3 text-xs leading-5 text-text-secondary">
+                {cancelConfirmationNotice(order)}
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!cancelSubmitting) setCancelConfirmOpen(false);
+                }}
+                disabled={cancelSubmitting}
+                className="h-12 flex-1 rounded-2xl border border-border bg-bg-secondary text-sm font-semibold text-foreground transition-colors hover:bg-bg-tertiary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                계속 주문할게요
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmCancelOrder()}
+                disabled={cancelSubmitting}
+                className="h-12 flex-1 rounded-2xl border-none bg-danger-500 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancelSubmitting ? '취소 처리 중...' : '주문 취소하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

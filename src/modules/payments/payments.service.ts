@@ -741,52 +741,6 @@ export class PaymentsService {
     };
   }
 
-  /**
-   * 결제 상태 조회
-   * PUBLIC (인증 불필요)
-   */
-  async getPaymentStatus(orderIdOrNo: string): Promise<PaymentStatusResponse> {
-    this.logger.log(`Fetching payment status for order: ${orderIdOrNo}`);
-
-    const sb = this.supabase.adminClient();
-
-    // orderId 해석
-    const resolvedId = await this.resolveOrderId(sb, orderIdOrNo);
-    if (!resolvedId) {
-      throw new OrderNotFoundException(orderIdOrNo);
-    }
-
-    // 결제 정보 조회
-    const { data, error } = await sb
-      .from('payments')
-      .select('id, order_id, status, amount, paid_at, failure_reason')
-      .eq('order_id', resolvedId)
-      .maybeSingle();
-
-    if (error) {
-      this.logger.error('Failed to fetch payment status', error);
-      throw new BusinessException(
-        'Failed to fetch payment status',
-        'PAYMENT_STATUS_FETCH_FAILED',
-        500,
-        { error: error.message },
-      );
-    }
-
-    if (!data) {
-      throw new PaymentNotFoundException(orderIdOrNo);
-    }
-
-    return {
-      id: data.id,
-      orderId: data.order_id,
-      status: data.status as PaymentStatus,
-      amount: data.amount,
-      paidAt: data.paid_at || undefined,
-      failureReason: data.failure_reason || undefined,
-    };
-  }
-
   async confirmManualTransferPayment(
     orderId: string,
     branchId: string,

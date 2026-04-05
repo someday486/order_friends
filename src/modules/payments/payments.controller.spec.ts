@@ -10,7 +10,6 @@ describe('PaymentsController', () => {
   const mockService = {
     preparePayment: jest.fn(),
     confirmPayment: jest.fn(),
-    getPaymentStatus: jest.fn(),
     handleTossWebhook: jest.fn(),
     getPayments: jest.fn(),
     getPaymentDetail: jest.fn(),
@@ -74,23 +73,6 @@ describe('PaymentsController', () => {
       mockService.confirmPayment.mockRejectedValue(new Error('boom'));
 
       await expect(controller.confirmPayment({} as any)).rejects.toThrow(
-        'boom',
-      );
-    });
-
-    it('getPaymentStatus should call service and return result', async () => {
-      mockService.getPaymentStatus.mockResolvedValue({ status: 'DONE' });
-
-      const result = await controller.getPaymentStatus('order-1');
-
-      expect(result).toEqual({ status: 'DONE' });
-      expect(mockService.getPaymentStatus).toHaveBeenCalledWith('order-1');
-    });
-
-    it('getPaymentStatus should propagate service error', async () => {
-      mockService.getPaymentStatus.mockRejectedValue(new Error('boom'));
-
-      await expect(controller.getPaymentStatus('order-1')).rejects.toThrow(
         'boom',
       );
     });

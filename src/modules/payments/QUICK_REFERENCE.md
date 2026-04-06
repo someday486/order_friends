@@ -26,12 +26,7 @@ Content-Type: application/json
 }
 ```
 
-### 3. Get Payment Status
-```http
-GET /payments/:orderId/status
-```
-
-### 4. Webhook Handler
+### 3. Webhook Handler
 ```http
 POST /payments/webhook/toss
 Content-Type: application/json
@@ -50,7 +45,7 @@ Content-Type: application/json
 
 ## Customer Endpoints (Auth Required)
 
-### 5. List Payments
+### 4. List Payments
 ```http
 GET /customer/payments?branchId=xxx&page=1&limit=20
 Authorization: Bearer {token}

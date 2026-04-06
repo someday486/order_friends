@@ -29,7 +29,6 @@ import {
   PreparePaymentResponse,
   ConfirmPaymentRequest,
   ConfirmPaymentResponse,
-  PaymentStatusResponse,
   PaymentListItemResponse,
   PaymentDetailResponse,
   RefundPaymentRequest,
@@ -90,24 +89,6 @@ export class PaymentsPublicController {
     @Body() dto: ConfirmPaymentRequest,
   ): Promise<ConfirmPaymentResponse> {
     return this.paymentsService.confirmPayment(dto);
-  }
-
-  @Get(':orderId/status')
-  @ApiOperation({
-    summary: '결제 상태 조회',
-    description: '주문 결제 상태를 조회합니다. (인증 불필요)',
-  })
-  @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
-  @ApiResponse({
-    status: 200,
-    description: '결제 상태 조회 성공',
-    type: PaymentStatusResponse,
-  })
-  @ApiResponse({ status: 404, description: '결제 정보를 찾을 수 없음' })
-  async getPaymentStatus(
-    @Param('orderId') orderId: string,
-  ): Promise<PaymentStatusResponse> {
-    return this.paymentsService.getPaymentStatus(orderId);
   }
 
   @Post('webhook/toss')

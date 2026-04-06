@@ -12,8 +12,9 @@
   - `deposit_match_rows`, `cash_receipts` RLS 및 멤버 정책 적용
   - `update_order_payment_status()`의 mutable `search_path` 경고 수정
   - `brand_products`, `order_channels`, `procurement_*` 테이블의 기본 조회 정책 추가
-- 진행 중:
-  - 공개 주문 조회/공개 결제 조회 경로 재검증
+- 완료:
+  - 공개 주문/공개 결제 경로 맵 작성 및 실사용 경로 확인
+  - 사용처 없는 공개 결제 상태 조회 엔드포인트 제거
 - 미착수:
   - 레이아웃 역할 검증 재점검
   - Toss webhook timestamp 검증
@@ -21,6 +22,87 @@
   - `public` / `public-order` 통합 방향 정리
   - OpenAPI 기반 타입 공유
   - CI/CD와 마이그레이션 운영 정리
+
+## 공개 주문 경로 맵 (2026-04-05 확인)
+
+### 백엔드 활성 경로
+- 상태: `확인 완료`
+- 실제 앱 모듈에는 [PublicOrderModule](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.module.ts)만 등록되어 있고, [AppModule](C:/Users/user/Documents/projects/order_friends/src/app.module.ts) 기준으로 [PublicModule](C:/Users/user/Documents/projects/order_friends/src/modules/public/public.module.ts)은 import되지 않습니다.
+- 즉 현재 실행 중인 공개 주문 API의 실사용 구현은 [public-order.controller.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.controller.ts) + [public-order.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)입니다.
+- [public.controller.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public/public.controller.ts), [public.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public/public.service.ts)는 레거시 코드이지만 현재 서버 부팅 기준으로는 비활성 상태입니다.
+
+### 활성 공개 주문 엔드포인트
+- `GET /public/brands`:
+  - 브랜드 주문 진입 목록
+- `GET /public/shop/brands/:brandSlug`:
+  - 온라인샵 브랜드 상세
+- `POST /public/shop/brands/:brandSlug/orders`:
+  - 온라인샵 비인증 주문 생성
+  - 내부적으로 [createShopOrderByBrandSlug](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 일반 공개 주문 생성 로직으로 연결
+- `GET /public/brands/:brandSlug/branches`:
+  - 브랜드별 지점 선택 화면
+- `GET /public/brands/:brandSlug/branches/:branchSlug`:
+  - 슬러그 기반 주문 지점 상세
+- `GET /public/branches/slug/:slug`:
+  - 브랜드 슬러그가 바뀌어도 기존 주문 URL을 살리기 위한 fallback
+- `GET /public/branches/:branchId`, `GET /public/branch/:branchId`:
+  - 지점 상세 현재/레거시 alias
+- `GET /public/branches/:branchId/products`, `GET /public/branch/:branchId/products`:
+  - 상품 목록 현재/레거시 alias
+- `GET /public/branches/:branchId/categories`:
+  - 카테고리 목록
+- `POST /public/orders`:
+  - 비인증 일반 주문 생성
+- `GET /public/orders/:orderIdOrNo`:
+  - 공개 주문 추적
+  - [getOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 `anonClient()` 조회 후 실패 시 `adminClient()` fallback
+- `POST /public/orders/:orderId/cancel`:
+  - 공개 주문 취소
+  - [cancelPublicOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 `adminClient()`로 직접 처리
+  - 취소는 path 이름 그대로 `id` 기준이며, 조회처럼 `order_no` fallback을 갖고 있지 않음
+
+### 로그인 구매자 전용 경로
+- `POST /me/orders`:
+  - 로그인 구매자 주문 생성
+  - [me-orders.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/me-orders.service.ts)에서 [PublicOrderService.createOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)로 위임
+- `GET /me/orders/:orderId`:
+  - 본인 주문 조회
+- `POST /me/orders/:orderId/cancel`:
+  - 본인 주문 취소
+
+### 프론트 실사용 경로
+- [apps/web/src/app/order/[brandSlug]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/[brandSlug]/page.tsx):
+  - 브랜드 주문 진입 화면
+  - `GET /public/brands/:brandSlug/branches`
+- [apps/web/src/app/order/[brandSlug]/[branchSlug]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/[brandSlug]/[branchSlug]/page.tsx):
+  - 슬러그 기반 주문 페이지
+  - `GET /public/brands/:brandSlug/branches/:branchSlug`
+  - fallback `GET /public/branches/slug/:branchSlug`
+  - 상품/카테고리 `GET /public/branches/:branchId/products`, `GET /public/branches/:branchId/categories`
+- [apps/web/src/app/order/branch/[branchId]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/branch/[branchId]/page.tsx):
+  - ID 기반 레거시 주문 페이지
+  - `GET /public/branches/:branchId`, `GET /public/branches/:branchId/products`
+- [apps/web/src/app/order/[brandSlug]/[branchSlug]/checkout/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/[brandSlug]/[branchSlug]/checkout/page.tsx), [apps/web/src/app/order/branch/[branchId]/checkout/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/branch/[branchId]/checkout/page.tsx):
+  - 로그인 상태면 `POST /me/orders`
+  - 비로그인이면 `POST /public/orders`
+  - 카드 결제면 이어서 `POST /payments/prepare`
+- [apps/web/src/app/order/payment/success/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/payment/success/page.tsx):
+  - `POST /payments/confirm` 후 `GET /public/orders/:orderId`
+- [apps/web/src/app/shop/[brandSlug]/ShopBrandPageClient.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/shop/[brandSlug]/ShopBrandPageClient.tsx):
+  - `GET /public/shop/brands/:brandSlug`
+  - `POST /public/shop/brands/:brandSlug/orders`
+  - 완료 후 `/order/track/:id`로 이동
+- [apps/web/src/app/order/track/[orderId]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/track/[orderId]/page.tsx):
+  - 로그인 상태면 먼저 `GET /me/orders/:orderId`
+  - 실패 시 `GET /public/orders/:orderId`
+  - 비로그인이면 곧바로 `GET /public/orders/:orderId`
+  - 취소는 현재 항상 `POST /public/orders/:id/cancel`
+
+### 지금 바로 쓸 수 있는 결론
+- 공개 주문 실사용 흐름은 사실상 `public-order` 단일 축으로 수렴해 있습니다.
+- `public` 모듈은 현재 앱에 붙지 않으므로 “동작 중인 공개 API”로 보지 말고 레거시 정리 후보로 다루는 편이 정확합니다.
+- `orders` RLS를 더 조일 때는 프론트가 Supabase를 직접 읽는 게 아니라 백엔드의 `GET /public/orders/:orderIdOrNo`에 의존한다는 점을 기준으로 보면 됩니다.
+- 다만 공개 조회가 [PublicOrderService.getOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 `anonClient()` 후 `adminClient()` fallback을 허용하고 있으므로, 다음 배치에서는 “정책 tightening”보다 먼저 이 fallback이 정말 필요한 범위를 줄일지 검토해야 합니다.
 
 ## 진단 범위
 - 백엔드: NestJS 11, 약 25개 모듈
@@ -112,12 +194,21 @@
   - 아직 서비스별 축소 계획은 미작성
 
 ### 6. 공개 결제 상태 조회 엔드포인트
-- 상태: `미착수`
+- 상태: `완료`
 - 위치:
-  - `src/modules/payments/payments.controller.ts`
-- 내용:
-  - 비인증 주문에서 `prepare`, `confirm`은 설계상 허용될 수 있음
-  - 다만 `GET /payments/:orderId/status`는 조회 키만으로 타인 결제 상태를 확인할 수 없는지 별도 검토 필요
+  - [payments.controller.ts](C:/Users/user/Documents/projects/order_friends/src/modules/payments/payments.controller.ts)
+  - [payments.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/payments/payments.service.ts)
+- 확인 결과:
+  - `POST /payments/prepare`
+    - 비인증 주문 체크아웃에서 카드 결제 직전 호출되는 공개 엔드포인트
+  - `POST /payments/confirm`
+    - Toss 승인 완료 후 주문 완료 화면에서 호출되는 공개 엔드포인트
+  - `GET /payments/:orderId/status`
+    - `resolveOrderId()`에서 `id`와 `order_no` 둘 다 허용한 뒤 `adminClient()`로 결제 상태를 읽던 공개 상태 조회 엔드포인트
+    - 현재 `apps/web` 기준 직접 사용처가 확인되지 않아 제거 완료
+- 판단:
+  - `prepare` / `confirm`은 비인증 주문 설계상 공개가 맞음
+  - 사용처 없는 공개 상태 조회 API를 정리해 결제 상태 노출 표면을 축소함
 
 ### 7. Toss 웹훅 타임스탬프 검증
 - 상태: `미착수`
@@ -205,19 +296,17 @@
 ## 즉시 실행 순서
 
 ### 배치 1
-- 상태: `부분 완료`
+- 상태: `완료`
 - 완료:
   - `deposit_match_rows`, `cash_receipts` RLS 긴급 패치
   - `brand_products`, `order_channels`, `procurement_*` 기본 조회 정책 추가
-- 진행 중:
   - 공개 주문 조회 정책 실제 상태 확인
-  - 공개 주문 조회 경로 맵 작성
+  - 공개 주문/공개 결제 경로 맵 작성
 
 ### 배치 2
 - 상태: `미착수`
 - 항목:
   - `/admin` 및 보호 레이아웃 역할 검증 재점검
-  - 공개 결제 상태 조회 엔드포인트 접근 제어 확인
   - Toss 웹훅 타임스탬프 검증 도입 여부 확정
 
 ### 배치 3
@@ -242,3 +331,4 @@
 
 ## 한 줄 결론
 이 진단은 단순 아이디어 메모가 아니라, 다음 수정 스프린트에서 그대로 실행 백로그로 변환할 수 있는 연구 스냅샷이다. 다만 일부 항목은 "확정 취약점"과 "재검증 필요"를 계속 분리해서 다뤄야 불필요한 과잉 수정 없이 정확하게 우선순위를 잡을 수 있다.
+

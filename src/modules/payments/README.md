@@ -79,23 +79,7 @@ Confirms payment with Toss Payments and creates payment record.
 3. Creates or updates payment record
 4. Updates order status via database trigger
 
-#### 3. Get Payment Status
-**GET** `/payments/:orderId/status`
-
-Retrieves payment status for an order.
-
-**Response:**
-```json
-{
-  "id": "payment-uuid",
-  "orderId": "order-uuid",
-  "status": "SUCCESS",
-  "amount": 50000,
-  "paidAt": "2026-02-06T10:30:00Z"
-}
-```
-
-#### 4. Toss Payments Webhook
+#### 3. Toss Payments Webhook
 **POST** `/payments/webhook/toss`
 
 Handles webhook events from Toss Payments.
@@ -433,11 +417,6 @@ To enable actual Toss Payments API calls, implement:
        "paymentKey": "test_payment_key",
        "amount": 50000
      }'
-   ```
-
-3. **Get Payment Status:**
-   ```bash
-   curl http://localhost:3000/payments/order-uuid/status
    ```
 
 ### Integration Testing

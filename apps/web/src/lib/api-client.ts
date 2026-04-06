@@ -22,6 +22,18 @@ function isLocalHostname(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1';
 }
 
+function isPrivateNetworkHostname(hostname: string): boolean {
+  if (hostname.startsWith('10.') || hostname.startsWith('192.168.')) {
+    return true;
+  }
+
+  if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname)) {
+    return true;
+  }
+
+  return hostname.endsWith('.local');
+}
+
 export function resolveApiBase(): string {
   if (typeof window === 'undefined') {
     if (!API_BASE) {
@@ -41,6 +53,18 @@ export function resolveApiBase(): string {
     const configured = new URL(API_BASE);
     const isConfiguredLocal = isLocalHostname(configured.hostname);
     const isCurrentLocal = isLocalHostname(window.location.hostname);
+
+    // On private-network hosts, reuse the configured backend port but swap in
+    // the host the browser actually connected to.
+    if (
+      isConfiguredLocal &&
+      !isCurrentLocal &&
+      isPrivateNetworkHostname(window.location.hostname)
+    ) {
+      const resolved = new URL(configured.origin);
+      resolved.hostname = window.location.hostname;
+      return trimTrailingSlashes(resolved.origin);
+    }
 
     // On deployed hosts, ignore a localhost API base and stay on same-origin.
     if (isConfiguredLocal && !isCurrentLocal) {

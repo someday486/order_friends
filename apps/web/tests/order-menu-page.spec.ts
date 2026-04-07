@@ -135,6 +135,32 @@ test.describe('Order menu page (branch ID route)', () => {
       '포장은 20분 전에 미리 주문해 주세요.',
     );
   });
+  test('shows kakao quick login entry on the public order page', async ({
+    page,
+  }) => {
+    await page.route(`${API_BASE}/public/branches/branch-1`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_BRANCH),
+      });
+    });
+
+    await page.route(
+      `${API_BASE}/public/branches/branch-1/products`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(MOCK_PRODUCTS),
+        });
+      },
+    );
+
+    await page.goto('/order/branch/branch-1');
+
+    await expect(page.getByTestId('kakao-quick-login-button')).toBeVisible();
+  });
 });
 
 test.describe('Order menu page (brand/branch slug route)', () => {

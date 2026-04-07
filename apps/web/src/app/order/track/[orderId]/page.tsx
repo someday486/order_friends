@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { formatDateTimeFull, formatPhone, formatWon } from '@/lib/format';
-import { useAuth } from '@/hooks/useAuth';
 import {
   ORDER_STATUS_LABEL_LONG,
   getOrderStatusDisplay,
@@ -554,7 +553,6 @@ function playReadySound() {
 export default function TrackOrderPage() {
   const params = useParams();
   const orderId = params?.orderId as string;
-  const { status } = useAuth();
   const cachedOrder = useMemo(
     () => normalizeOrder(loadLastOrderRecord({})),
     [],
@@ -588,24 +586,12 @@ export default function TrackOrderPage() {
         }
         setError(null);
 
-        const data =
-          status === 'authenticated'
-            ? await apiClient
-                .get<unknown>(`/me/orders/${encodeURIComponent(orderId)}`)
-                .catch(() =>
-                  apiClient.get<unknown>(
-                    `/public/orders/${encodeURIComponent(orderId)}`,
-                    {
-                      auth: false,
-                    },
-                  ),
-                )
-            : await apiClient.get<unknown>(
-                `/public/orders/${encodeURIComponent(orderId)}`,
-                {
-                  auth: false,
-                },
-              );
+        const data = await apiClient.get<unknown>(
+          `/public/orders/${encodeURIComponent(orderId)}`,
+          {
+            auth: false,
+          },
+        );
         const normalized = normalizeOrder(data);
         if (!normalized) {
           throw new Error('주문 정보를 확인할 수 없습니다.');
@@ -639,13 +625,13 @@ export default function TrackOrderPage() {
         setIsRefreshing(false);
       }
     },
-    [cachedOrder, orderId, status],
+    [cachedOrder, orderId],
   );
 
   useEffect(() => {
-    if (!orderId || status === 'loading') return;
+    if (!orderId) return;
     void fetchOrder(false);
-  }, [fetchOrder, orderId, status]);
+  }, [fetchOrder, orderId]);
 
   useEffect(() => {
     if (!cancelConfirmOpen) return;
@@ -710,7 +696,7 @@ export default function TrackOrderPage() {
 
   // 10초 polling (완료/취소 상태면 중단)
   useEffect(() => {
-    if (!orderId || status === 'loading') return;
+    if (!orderId) return;
     const terminal =
       order?.status === 'COMPLETED' ||
       order?.status === 'CANCELLED' ||
@@ -721,7 +707,7 @@ export default function TrackOrderPage() {
       void fetchOrder(true);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchOrder, orderId, order?.status, status]);
+  }, [fetchOrder, orderId, order?.status]);
 
   // ── 로딩 ──
   if (loading && !order) {

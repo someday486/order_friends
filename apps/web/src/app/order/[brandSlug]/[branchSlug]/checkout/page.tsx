@@ -10,6 +10,7 @@ import {
   formatWon,
   isValidOrderPhone,
 } from '@/lib/format';
+import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 import { useAuth } from '@/hooks/useAuth';
 import { getVerifiedUser } from '@/lib/auth/client';
 import {
@@ -456,6 +457,16 @@ export default function CheckoutPage() {
     setCustomerAddress2((prev) => merged.customerAddress2 || prev);
     setCustomerMemo((prev) => merged.customerMemo || prev);
     toast.success('지난 주문 정보를 불러왔습니다.');
+  };
+
+  const handleBeforeLogin = () => {
+    saveCustomerInfoDraft({
+      customerName,
+      customerPhone,
+      customerAddress1,
+      customerAddress2,
+      customerMemo,
+    });
   };
 
   const handleLogout = async () => {
@@ -936,7 +947,7 @@ export default function CheckoutPage() {
             </h2>
 
             <div className="mb-4">
-              {status === 'authenticated' && (
+              {status === 'authenticated' ? (
                 <div className="mt-2 grid grid-cols-2 gap-2 lg:max-w-[420px]">
                   <button
                     type="button"
@@ -960,6 +971,13 @@ export default function CheckoutPage() {
                   >
                     {loggingOut ? '로그아웃 중...' : '로그아웃'}
                   </button>
+                </div>
+              ) : (
+                <div className="lg:max-w-[420px]">
+                  <KakaoQuickLoginButton
+                    beforeLogin={handleBeforeLogin}
+                    className="w-full"
+                  />
                 </div>
               )}
             </div>

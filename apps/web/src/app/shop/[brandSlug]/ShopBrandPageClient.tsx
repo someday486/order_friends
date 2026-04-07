@@ -4,7 +4,10 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
+import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
 import { AddressSearchFields } from '@/components/order/AddressSearchFields';
+import { TossPaymentWidget } from '@/components/order/TossPaymentWidget';
 import Modal from '@/components/ui/Modal';
 import { apiClient } from '@/lib/api-client';
 import { formatWon } from '@/lib/format';
@@ -15,11 +18,18 @@ import {
   persistCustomerInfoToUserMetadata,
 } from '@/lib/customer-info-autofill';
 import {
+  clearPendingPaymentRecord,
   loadCustomerInfoDraft,
   saveCustomerInfoDraft,
   saveLastOrderRecord,
+  savePendingPaymentRecord,
 } from '@/lib/order-session';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import {
+  getOrCreateTossCustomerKey,
+  getTossRedirectUrls,
+  normalizeMobilePhone,
+} from '@/lib/toss-payment';
 
 type ShopProduct = {
   id: string;
@@ -70,6 +80,26 @@ type CreatedOrder = {
     unitPrice: number;
     options?: string[];
   }[];
+};
+
+type PreparePaymentResult = {
+  orderId: string;
+  orderNo?: string | null;
+  amount: number;
+  orderName: string;
+  customerName: string;
+  customerPhone: string;
+};
+
+type CardWidgetController = {
+  requestPayment: (request: {
+    orderId: string;
+    orderName: string;
+    customerName?: string | null;
+    customerMobilePhone?: string | null;
+    successUrl: string;
+    failUrl: string;
+  }) => Promise<void>;
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -276,6 +306,10 @@ export default function ShopBrandPageClient({
   const authInfoRequestedRef = useRef(false);
   const [loadingLastOrderInfo, setLoadingLastOrderInfo] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [tossCustomerKey, setTossCustomerKey] = useState<string | null>(null);
+  const [cardWidgetReady, setCardWidgetReady] = useState(false);
+  const [cardWidgetError, setCardWidgetError] = useState<string | null>(null);
+  const cardWidgetControllerRef = useRef<CardWidgetController | null>(null);
   const [previewProduct, setPreviewProduct] = useState<ShopProduct | null>(
     null,
   );
@@ -351,6 +385,10 @@ export default function ShopBrandPageClient({
   }, [status]);
 
   useEffect(() => {
+    setTossCustomerKey(getOrCreateTossCustomerKey(user?.id ?? null));
+  }, [user?.id]);
+
+  useEffect(() => {
     if (status !== 'authenticated') return;
     if (!customerInfoReady) return;
     if (authInfoRequestedRef.current) return;
@@ -418,6 +456,16 @@ export default function ShopBrandPageClient({
     setCustomerMemo((prev) => merged.customerMemo || prev);
     setAuthInfoLoaded(true);
     toast.success('지난 주문 정보를 불러왔습니다.');
+  };
+
+  const handleBeforeLogin = () => {
+    saveCustomerInfoDraft({
+      customerName,
+      customerPhone,
+      customerAddress1,
+      customerAddress2,
+      customerMemo,
+    });
   };
 
   const handleLogout = async () => {
@@ -567,6 +615,11 @@ export default function ShopBrandPageClient({
       return;
     }
 
+    if (paymentMethod === 'CARD' && !cardWidgetControllerRef.current) {
+      setSubmitError(cardWidgetError || '결제 위젯을 준비하는 중입니다.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setSubmitError(null);
@@ -618,6 +671,41 @@ export default function ShopBrandPageClient({
         },
         brandSlug: data.brandSlug,
       });
+
+      if (paymentMethod === 'CARD') {
+        const preparePayment = await apiClient.post<PreparePaymentResult>(
+          '/payments/prepare',
+          {
+            orderId: response.id,
+            amount: response.totalAmount,
+            paymentMethod: 'CARD',
+          },
+          { auth: false },
+        );
+        const redirectUrls = getTossRedirectUrls();
+        savePendingPaymentRecord({
+          orderId: preparePayment.orderId,
+          checkoutPath: `/shop/${encodeURIComponent(data.brandSlug)}`,
+          completePath: `/order/track/${encodeURIComponent(
+            preparePayment.orderId,
+          )}`,
+          brandSlug: data.brandSlug,
+          cartSnapshot: cartItems,
+        });
+        await cardWidgetControllerRef.current!.requestPayment({
+          orderId: preparePayment.orderId,
+          orderName: preparePayment.orderName,
+          customerName: preparePayment.customerName || customerName.trim(),
+          customerMobilePhone: normalizeMobilePhone(
+            preparePayment.customerPhone || customerPhone.trim(),
+          ),
+          successUrl: redirectUrls.successUrl,
+          failUrl: redirectUrls.failUrl,
+        });
+        return;
+      }
+
+      clearPendingPaymentRecord();
       if (status === 'authenticated') {
         void persistCustomerInfoToUserMetadata({
           customerName,
@@ -668,7 +756,14 @@ export default function ShopBrandPageClient({
                 브랜드 관리자에서 지점을 1개 이상 등록하고 주문 설정에서 배송
                 주문을 활성화해주세요.
               </div>
-            ) : null}
+            ) : (
+              <div className="mt-2">
+                <KakaoQuickLoginButton
+                  beforeLogin={handleBeforeLogin}
+                  className="w-full"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -718,6 +813,9 @@ export default function ShopBrandPageClient({
                 온라인으로 간편하게 배송 주문하세요.
               </p>
             </div>
+          </div>
+          <div className="px-4 pb-4 md:px-5 md:pb-5">
+            <PublicAuthActions hideWhenLoggedOut className="max-w-sm" />
           </div>
         </header>
 
@@ -1004,6 +1102,18 @@ export default function ShopBrandPageClient({
                     </label>
                   ))}
                 </div>
+                {paymentMethod === 'CARD' ? (
+                  <TossPaymentWidget
+                    amount={totalAmount}
+                    customerKey={tossCustomerKey}
+                    active
+                    onReadyChange={(controller) => {
+                      cardWidgetControllerRef.current = controller;
+                      setCardWidgetReady(Boolean(controller));
+                    }}
+                    onErrorChange={setCardWidgetError}
+                  />
+                ) : null}
                 {paymentMethod === 'TRANSFER' && data.transferAccount ? (
                   <div className="mt-2 rounded-xl border border-warning-200 bg-warning-50 p-3">
                     <div className="flex items-center gap-1.5 mb-2">
@@ -1091,14 +1201,18 @@ export default function ShopBrandPageClient({
                 </p>
               ) : null}
 
-              <button
-                type="button"
-                onClick={() => {
-                  void submitOrder();
-                }}
-                disabled={submitting || cartItems.length === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border-none bg-foreground p-4 text-base font-bold text-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 lg:max-w-[280px]"
-              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    void submitOrder();
+                  }}
+                  disabled={
+                    submitting ||
+                    cartItems.length === 0 ||
+                    (paymentMethod === 'CARD' && !cardWidgetReady)
+                  }
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border-none bg-foreground p-4 text-base font-bold text-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 lg:max-w-[280px]"
+                >
                 {submitting ? (
                   <>
                     <svg

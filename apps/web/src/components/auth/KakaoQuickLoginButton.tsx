@@ -79,6 +79,7 @@ export function KakaoQuickLoginButton({
         onClick={() => {
           void onKakaoLogin();
         }}
+        data-testid="kakao-quick-login-button"
         disabled={submitting}
         className="w-full h-11 rounded-lg bg-[#FEE500] text-[#191919] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
       >

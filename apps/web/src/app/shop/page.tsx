@@ -76,7 +76,7 @@ export default function ShopPage() {
             브랜드를 선택하고 배송 주문을 시작하세요.
           </p>
           <div className="mt-4 max-w-sm">
-            <PublicAuthActions hideWhenLoggedOut />
+            <PublicAuthActions />
           </div>
         </header>
 

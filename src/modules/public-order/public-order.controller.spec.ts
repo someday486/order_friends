@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PublicOrderController } from './public-order.controller';
 import { PublicOrderService } from './public-order.service';
+import { AuthGuard } from '../../common/guards/auth.guard';
 import { UserRateLimitGuard } from '../../common/guards/user-rate-limit.guard';
 import { StampsService } from '../stamps/stamps.service';
 
@@ -32,9 +33,12 @@ describe('PublicOrderController', () => {
       providers: [
         { provide: PublicOrderService, useValue: mockService },
         { provide: StampsService, useValue: mockStampsService },
+        { provide: AuthGuard, useValue: mockGuard },
         { provide: UserRateLimitGuard, useValue: mockGuard },
       ],
     })
+      .overrideGuard(AuthGuard)
+      .useValue(mockGuard)
       .overrideGuard(UserRateLimitGuard)
       .useValue(mockGuard)
       .compile();
@@ -86,21 +90,26 @@ describe('PublicOrderController', () => {
     const dto = { customerName: 'Lee' } as any;
     mockService.createShopOrderByBrandSlug.mockResolvedValue({ id: 'order-2' });
 
-    const result = await controller.createShopOrder('test', dto);
+    const result = await controller.createShopOrder(
+      { id: 'user-1' } as any,
+      'test',
+      dto,
+    );
 
     expect(result).toEqual({ id: 'order-2' });
     expect(mockService.createShopOrderByBrandSlug).toHaveBeenCalledWith(
       'test',
       dto,
+      'user-1',
     );
   });
 
   it('createShopOrder should propagate service error', async () => {
     mockService.createShopOrderByBrandSlug.mockRejectedValue(new Error('boom'));
 
-    await expect(controller.createShopOrder('test', {} as any)).rejects.toThrow(
-      'boom',
-    );
+    await expect(
+      controller.createShopOrder({ id: 'user-1' } as any, 'test', {} as any),
+    ).rejects.toThrow('boom');
   });
 
   it('getBranch should propagate service error', async () => {
@@ -216,16 +225,18 @@ describe('PublicOrderController', () => {
     mockService.createOrder.mockResolvedValue({ id: 'order-1' });
 
     const dto = { customerName: 'Lee' } as any;
-    const result = await controller.createOrder(dto);
+    const result = await controller.createOrder({ id: 'user-1' } as any, dto);
 
     expect(result).toEqual({ id: 'order-1' });
-    expect(mockService.createOrder).toHaveBeenCalledWith(dto);
+    expect(mockService.createOrder).toHaveBeenCalledWith(dto, 'user-1');
   });
 
   it('createOrder should propagate service error', async () => {
     mockService.createOrder.mockRejectedValue(new Error('boom'));
 
-    await expect(controller.createOrder({} as any)).rejects.toThrow('boom');
+    await expect(
+      controller.createOrder({ id: 'user-1' } as any, {} as any),
+    ).rejects.toThrow('boom');
   });
 
   it('getOrder should call service and return result', async () => {

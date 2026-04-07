@@ -122,7 +122,7 @@ type PublicBranchConfigResponse = {
 
 const DEFAULT_FULFILLMENT_TYPES: FulfillmentType[] = ['PICKUP'];
 const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = ['CARD', 'TRANSFER'];
-const REQUIRE_LOGIN_BEFORE_ORDER = false;
+const REQUIRE_LOGIN_BEFORE_ORDER = true;
 
 function isFulfillmentType(value: unknown): value is FulfillmentType {
   return (

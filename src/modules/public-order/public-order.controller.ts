@@ -13,6 +13,11 @@ import { CreatePublicOrderRequest } from './dto/public-order.dto';
 import { CreatePublicShopOrderRequest } from './dto/public-shop.dto';
 import { UserRateLimit } from '../../common/decorators/user-rate-limit.decorator';
 import { UserRateLimitGuard } from '../../common/guards/user-rate-limit.guard';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import {
+  CurrentUser,
+  type RequestUser,
+} from '../../common/decorators/current-user.decorator';
 import { StampsService } from '../stamps/stamps.service';
 
 @ApiTags('public-order')
@@ -41,17 +46,22 @@ export class PublicOrderController {
   }
 
   @Post('shop/brands/:brandSlug/orders')
-  @UseGuards(UserRateLimitGuard)
+  @UseGuards(AuthGuard, UserRateLimitGuard)
   @UserRateLimit({ points: 10, duration: 60, blockDuration: 300 })
   @ApiOperation({ summary: '브랜드 온라인샵 주문 생성' })
   @ApiResponse({ status: 201, description: '온라인샵 주문 생성 성공' })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
   @ApiResponse({ status: 429, description: '요청 제한 초과' })
   async createShopOrder(
+    @CurrentUser() user: RequestUser,
     @Param('brandSlug') brandSlug: string,
     @Body() dto: CreatePublicShopOrderRequest,
   ) {
-    return this.publicOrderService.createShopOrderByBrandSlug(brandSlug, dto);
+    return this.publicOrderService.createShopOrderByBrandSlug(
+      brandSlug,
+      dto,
+      user.id,
+    );
   }
 
   /**
@@ -166,14 +176,17 @@ export class PublicOrderController {
   }
 
   @Post('orders')
-  @UseGuards(UserRateLimitGuard)
+  @UseGuards(AuthGuard, UserRateLimitGuard)
   @UserRateLimit({ points: 10, duration: 60, blockDuration: 300 })
   @ApiOperation({ summary: '怨듦컻 二쇰Ц ?앹꽦' })
   @ApiResponse({ status: 201, description: '二쇰Ц ?앹꽦 ?깃났' })
   @ApiResponse({ status: 400, description: '?섎せ???붿껌' })
   @ApiResponse({ status: 429, description: '?붿껌 ?쒗븳 珥덇낵' })
-  async createOrder(@Body() dto: CreatePublicOrderRequest) {
-    return this.publicOrderService.createOrder(dto);
+  async createOrder(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreatePublicOrderRequest,
+  ) {
+    return this.publicOrderService.createOrder(dto, user.id);
   }
 
   /**

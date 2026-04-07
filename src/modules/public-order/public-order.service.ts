@@ -998,6 +998,7 @@ export class PublicOrderService {
   async createShopOrderByBrandSlug(
     brandSlug: string,
     dto: CreatePublicShopOrderRequest,
+    userId?: string,
   ): Promise<PublicOrderResponse> {
     const adminSb = this.supabase.adminClient();
     const context = await this.resolveShopBrandContext(brandSlug);
@@ -1131,10 +1132,13 @@ export class PublicOrderService {
       items: mappedItems,
     };
 
-    return this.createOrder({
-      ...(orderDto as any),
-      __allowDeliveryOverride: !branchSelection.supportsDelivery,
-    });
+    return this.createOrder(
+      {
+        ...(orderDto as any),
+        __allowDeliveryOverride: !branchSelection.supportsDelivery,
+      },
+      userId,
+    );
   }
 
   private getPriceFromRow(row: any): number {

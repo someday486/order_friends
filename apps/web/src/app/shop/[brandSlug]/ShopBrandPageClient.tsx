@@ -589,6 +589,12 @@ export default function ShopBrandPageClient({
 
   const submitOrder = async () => {
     if (!data) return;
+    if (status !== 'authenticated') {
+      setSubmitError('로그인 후 주문할 수 있어요.');
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
     if (cartItems.length === 0) {
       setSubmitError('상품을 1개 이상 선택해주세요.');
       return;
@@ -653,7 +659,7 @@ export default function ShopBrandPageClient({
             qty: item.qty,
           })),
         },
-        { auth: false },
+        { auth: true },
       );
 
       saveLastOrderRecord({

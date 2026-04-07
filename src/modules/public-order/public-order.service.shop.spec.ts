@@ -365,6 +365,7 @@ describe('PublicOrderService - Shop Flow', () => {
         },
         items: [{ productId: 'prod-1', qty: 1 }],
       }),
+      undefined,
     );
   });
 
@@ -443,6 +444,7 @@ describe('PublicOrderService - Shop Flow', () => {
         fulfillmentType: 'DELIVERY',
         __allowDeliveryOverride: true,
       }),
+      undefined,
     );
   });
 
@@ -647,6 +649,7 @@ describe('PublicOrderService - Shop Flow', () => {
         fulfillmentType: 'DELIVERY',
         items: [{ productId: 'prod-shop-1', qty: 1 }],
       }),
+      undefined,
     );
   });
 });

@@ -1,6 +1,13 @@
 'use client';
 
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -244,6 +251,13 @@ export default function CheckoutPage() {
   const [cardWidgetReady, setCardWidgetReady] = useState(false);
   const [cardWidgetError, setCardWidgetError] = useState<string | null>(null);
   const cardWidgetControllerRef = useRef<CardWidgetController | null>(null);
+  const handleCardWidgetReadyChange = useCallback(
+    (controller: CardWidgetController | null) => {
+      cardWidgetControllerRef.current = controller;
+      setCardWidgetReady(Boolean(controller));
+    },
+    [],
+  );
   const pickupTimeOptions = useMemo(
     () => buildPickupTimeOptions(pickupTimeConfig, businessHours),
     [businessHours, pickupTimeConfig],
@@ -1174,10 +1188,7 @@ export default function CheckoutPage() {
                 amount={totalAmount}
                 customerKey={tossCustomerKey}
                 active
-                onReadyChange={(controller) => {
-                  cardWidgetControllerRef.current = controller;
-                  setCardWidgetReady(Boolean(controller));
-                }}
+                onReadyChange={handleCardWidgetReadyChange}
                 onErrorChange={setCardWidgetError}
               />
             )}

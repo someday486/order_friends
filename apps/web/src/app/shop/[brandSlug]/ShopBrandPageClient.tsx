@@ -981,7 +981,7 @@ export default function ShopBrandPageClient({
           {/* ── 주문 사이드바 ── */}
           <aside
             ref={checkoutRef}
-            className="card p-4 h-fit lg:sticky lg:top-4 lg:w-[320px]"
+            className="card h-fit p-3 sm:p-4 lg:sticky lg:top-4 lg:w-[320px]"
           >
             <h2 className="text-base font-bold">배송 주문</h2>
 

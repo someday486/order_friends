@@ -787,7 +787,7 @@ export default function ShopBrandPageClient({
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1180px] px-4 py-6 pb-28 lg:pb-6">
         {/* ── 브랜드 헤더 ── */}
-        <header className="overflow-hidden rounded-2xl border border-border bg-bg-secondary lg:mx-auto lg:max-w-[1012px]">
+        <header className="overflow-hidden rounded-2xl border border-border bg-bg-secondary lg:mx-auto lg:max-w-[680px]">
           <div className="relative h-36 md:h-44">
             {data.coverImageUrl ? (
               <Image

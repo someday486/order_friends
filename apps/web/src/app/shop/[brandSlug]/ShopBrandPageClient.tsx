@@ -832,9 +832,9 @@ export default function ShopBrandPageClient({
           </div>
         </header>
 
-        <main className="mt-4 grid grid-cols-1 gap-4 lg:mx-auto lg:max-w-[1012px] lg:grid-cols-[680px_320px] lg:gap-3">
+        <main className="mt-4 space-y-4 lg:mx-auto lg:max-w-[680px]">
           {/* ── 상품 목록 ── */}
-          <section className="card p-4 lg:max-w-[680px]">
+          <section className="card p-4">
             <div className="flex items-center justify-between gap-3 mb-4">
               <h2 className="text-base font-bold whitespace-nowrap">
                 상품 선택
@@ -979,10 +979,7 @@ export default function ShopBrandPageClient({
           </section>
 
           {/* ── 주문 사이드바 ── */}
-          <aside
-            ref={checkoutRef}
-            className="card h-fit p-3 sm:p-4 lg:sticky lg:top-4 lg:w-[320px]"
-          >
+          <aside ref={checkoutRef} className="card h-fit p-3 sm:p-4">
             <h2 className="text-base font-bold">배송 주문</h2>
 
             {status === 'authenticated' ? (
@@ -1091,7 +1088,7 @@ export default function ShopBrandPageClient({
               />
 
               {/* 결제수단 */}
-              <div className="-mx-3 px-3 sm:mx-0 sm:px-0 lg:max-w-[280px]">
+              <div className="-mx-3 px-3 sm:mx-0 sm:px-0">
                 <div className="text-sm font-semibold mb-2">결제수단</div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
                   {data.paymentMethods.map((method) => (

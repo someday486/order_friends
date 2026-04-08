@@ -363,6 +363,7 @@ export class PaymentsService {
     paymentId: string,
     orderId: string,
     paymentMetadata: unknown,
+    orderForNotification?: OrderForPayment,
   ): Promise<void> {
     if (
       !this.notificationsService ||
@@ -371,21 +372,22 @@ export class PaymentsService {
       return;
     }
 
-    const order = await this.getOrderForPayment(orderId);
-    if (!order.customer_phone) {
-      return;
-    }
-
-    const branchName = await this.getBranchNameForNotification(
-      sb,
-      order.branch_id,
-    );
-    const deliveryAddress = [order.customer_address1, order.customer_address2]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-
     try {
+      const order =
+        orderForNotification ?? (await this.getOrderForPayment(orderId));
+      if (!order.customer_phone) {
+        return;
+      }
+
+      const branchName = await this.getBranchNameForNotification(
+        sb,
+        order.branch_id,
+      );
+      const deliveryAddress = [order.customer_address1, order.customer_address2]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
       const result = await this.notificationsService.sendOrderCompletionKakao(
         order.id,
         {
@@ -419,7 +421,7 @@ export class PaymentsService {
       );
     } catch (error) {
       this.logger.warn(
-        `Failed to send order completion KakaoTalk for order ${order.id}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to send order completion KakaoTalk for order ${orderId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -696,6 +698,7 @@ export class PaymentsService {
             idempotentPayment.id,
             resolvedId,
             idempotentPayment.metadata,
+            order,
           );
           this.logMetric('payment.confirm.idempotent_hit', {
             orderId: resolvedId,
@@ -745,6 +748,7 @@ export class PaymentsService {
           paymentByOrder.id,
           resolvedId,
           paymentByOrder.metadata,
+          order,
         );
         this.logMetric('payment.confirm.existing_hit', {
           orderId: resolvedId,
@@ -913,6 +917,7 @@ export class PaymentsService {
               idempotentPayment.id,
               idempotentPayment.order_id,
               idempotentPayment.metadata,
+              order,
             );
             this.logMetric('payment.confirm.idempotency_race', {
               orderId: idempotentPayment.order_id,
@@ -952,6 +957,7 @@ export class PaymentsService {
       payment.id,
       resolvedId,
       payment.metadata,
+      order,
     );
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
     this.logMetric('payment.confirm.success', {

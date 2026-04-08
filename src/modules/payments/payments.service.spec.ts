@@ -196,6 +196,27 @@ describe('PaymentsService', () => {
     expect(ordersChain.maybeSingle).toHaveBeenCalledTimes(2);
   });
 
+  it('sendCardOrderCompletionNotification should swallow order lookup failures', async () => {
+    const service = setupService({}, { withNotifications: true });
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'relation "order_items" does not exist' },
+    });
+
+    await expect(
+      (service as any).sendCardOrderCompletionNotification(
+        mockSb,
+        'pay1',
+        'o1',
+        {},
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(
+      notificationsService.sendOrderCompletionKakao,
+    ).not.toHaveBeenCalled();
+  });
+
   it('preparePayment should throw when order not found', async () => {
     const service = setupService();
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
@@ -527,6 +548,56 @@ describe('PaymentsService', () => {
         }),
       }),
     );
+  });
+
+  it('confirmPayment should still succeed when KakaoTalk send fails', async () => {
+    const service = setupService(
+      { TOSS_MOCK_MODE: 'true' },
+      { withNotifications: true },
+    );
+    notificationsService.sendOrderCompletionKakao.mockRejectedValueOnce(
+      new Error('kakao unavailable'),
+    );
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          branch_id: 'b1',
+          total_amount: 10,
+          customer_name: 'A',
+          customer_phone: '010',
+          customer_address1: 'Seoul',
+          customer_address2: '101',
+          fulfillment_type: 'DELIVERY',
+          status: 'CREATED',
+          payment_status: 'PENDING',
+          items: [{ product_name_snapshot: 'Americano', qty: 1 }],
+        },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    paymentsChain.single.mockResolvedValueOnce({
+      data: { id: 'pay1', amount: 10, metadata: {} },
+      error: null,
+    });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { name: '테스트 매장' },
+      error: null,
+    });
+
+    const result = await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
+
+    expect(result.status).toBe(PaymentStatus.SUCCESS);
+    expect(notificationsService.sendOrderCompletionKakao).toHaveBeenCalled();
   });
 
   it('confirmPayment should return existing payment when already paid', async () => {

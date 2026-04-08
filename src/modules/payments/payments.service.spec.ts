@@ -161,7 +161,7 @@ describe('PaymentsService', () => {
     ).rejects.toBeInstanceOf(OrderNotFoundException);
   });
 
-  it('getOrderForPayment should retry without optional columns when schema is behind', async () => {
+  it('getOrderForPaymentNotification should retry without optional columns when schema is behind', async () => {
     const service = setupService();
     ordersChain.maybeSingle
       .mockResolvedValueOnce({
@@ -188,7 +188,7 @@ describe('PaymentsService', () => {
         error: null,
       });
 
-    const result = await (service as any).getOrderForPayment('o1');
+    const result = await (service as any).getOrderForPaymentNotification('o1');
 
     expect(result.customer_address1).toBeNull();
     expect(result.customer_address2).toBeNull();
@@ -560,6 +560,20 @@ describe('PaymentsService', () => {
     );
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          branch_id: 'b1',
+          total_amount: 10,
+          customer_name: 'A',
+          customer_phone: '010',
+          status: 'CREATED',
+          payment_status: 'PENDING',
+          items: [{ product_name_snapshot: 'Americano', qty: 1 }],
+        },
+        error: null,
+      })
       .mockResolvedValueOnce({
         data: {
           id: 'o1',

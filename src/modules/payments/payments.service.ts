@@ -16,9 +16,6 @@ interface OrderForPayment {
   total_amount: number;
   customer_name: string | null;
   customer_phone: string | null;
-  customer_address1: string | null;
-  customer_address2: string | null;
-  fulfillment_type: string | null;
   status: string;
   payment_status: string | null;
   items: Array<{
@@ -26,6 +23,13 @@ interface OrderForPayment {
     product_name_snapshot: string | null;
     qty: number;
   }>;
+}
+
+/** Additional fields only needed for post-payment notifications */
+interface OrderForPaymentNotification extends OrderForPayment {
+  customer_address1: string | null;
+  customer_address2: string | null;
+  fulfillment_type: string | null;
 }
 
 /** Minimal payment record fetched during confirmation flow */
@@ -216,6 +220,52 @@ export class PaymentsService {
    */
   private async getOrderForPayment(orderId: string): Promise<OrderForPayment> {
     const sb = this.supabase.adminClient();
+    const { data, error } = await sb
+      .from('orders')
+      .select(
+        `
+          id,
+          order_no,
+          branch_id,
+          total_amount,
+          customer_name,
+          customer_phone,
+          status,
+          payment_status,
+          items:order_items(
+            id,
+            product_name_snapshot,
+            qty
+          )
+        `,
+      )
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        `Failed to fetch order for payment: ${error.message}`,
+        error,
+      );
+      throw new BusinessException(
+        'Failed to fetch order',
+        'ORDER_FETCH_FAILED',
+        500,
+        { orderId, error: error.message },
+      );
+    }
+
+    if (!data) {
+      throw new OrderNotFoundException(orderId);
+    }
+
+    return data;
+  }
+
+  private async getOrderForPaymentNotification(
+    orderId: string,
+  ): Promise<OrderForPaymentNotification> {
+    const sb = this.supabase.adminClient();
     const optionalColumns = new Set([
       'customer_address1',
       'customer_address2',
@@ -235,7 +285,7 @@ export class PaymentsService {
       'payment_status',
     ];
 
-    let data: OrderForPayment | null = null;
+    let data: OrderForPaymentNotification | null = null;
     let error: any = null;
 
     for (let attempts = 0; attempts < optionalColumns.size + 1; attempts += 1) {
@@ -363,7 +413,7 @@ export class PaymentsService {
     paymentId: string,
     orderId: string,
     paymentMetadata: unknown,
-    orderForNotification?: OrderForPayment,
+    orderForNotification?: OrderForPaymentNotification,
   ): Promise<void> {
     if (
       !this.notificationsService ||
@@ -374,7 +424,8 @@ export class PaymentsService {
 
     try {
       const order =
-        orderForNotification ?? (await this.getOrderForPayment(orderId));
+        orderForNotification ??
+        (await this.getOrderForPaymentNotification(orderId));
       if (!order.customer_phone) {
         return;
       }
@@ -698,7 +749,6 @@ export class PaymentsService {
             idempotentPayment.id,
             resolvedId,
             idempotentPayment.metadata,
-            order,
           );
           this.logMetric('payment.confirm.idempotent_hit', {
             orderId: resolvedId,
@@ -748,7 +798,6 @@ export class PaymentsService {
           paymentByOrder.id,
           resolvedId,
           paymentByOrder.metadata,
-          order,
         );
         this.logMetric('payment.confirm.existing_hit', {
           orderId: resolvedId,
@@ -917,7 +966,6 @@ export class PaymentsService {
               idempotentPayment.id,
               idempotentPayment.order_id,
               idempotentPayment.metadata,
-              order,
             );
             this.logMetric('payment.confirm.idempotency_race', {
               orderId: idempotentPayment.order_id,
@@ -957,7 +1005,6 @@ export class PaymentsService {
       payment.id,
       resolvedId,
       payment.metadata,
-      order,
     );
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
     this.logMetric('payment.confirm.success', {

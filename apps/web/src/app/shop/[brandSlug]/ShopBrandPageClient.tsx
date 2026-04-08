@@ -1091,7 +1091,7 @@ export default function ShopBrandPageClient({
               />
 
               {/* 결제수단 */}
-              <div className="lg:max-w-[280px]">
+              <div className="-mx-3 px-3 sm:mx-0 sm:px-0 lg:max-w-[280px]">
                 <div className="text-sm font-semibold mb-2">결제수단</div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
                   {data.paymentMethods.map((method) => (

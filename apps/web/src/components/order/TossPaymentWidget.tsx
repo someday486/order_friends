@@ -205,21 +205,25 @@ export function TossPaymentWidget({
 
   return (
     <div className="mt-4 space-y-3">
-      <div className="rounded-2xl border border-border bg-bg-secondary p-4">
-        <div className="mb-3 text-sm font-semibold text-foreground">
+      <div className="overflow-hidden rounded-2xl border border-border bg-bg-secondary">
+        <div className="px-4 pt-4 text-sm font-semibold text-foreground">
           카드 결제
         </div>
-        <div
-          id={paymentMethodId}
-          className={loading ? 'min-h-[140px] opacity-60' : 'min-h-[140px]'}
-        />
+        <div className="px-2 pb-2 pt-3 sm:px-4 sm:pb-4">
+          <div
+            id={paymentMethodId}
+            className={loading ? 'min-h-[140px] opacity-60' : 'min-h-[140px]'}
+          />
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-bg-secondary p-4">
-        <div className="mb-3 text-sm font-semibold text-foreground">
+      <div className="overflow-hidden rounded-2xl border border-border bg-bg-secondary">
+        <div className="px-4 pt-4 text-sm font-semibold text-foreground">
           약관 동의
         </div>
-        <div id={agreementId} className="min-h-[96px]" />
+        <div className="px-2 pb-2 pt-3 sm:px-4 sm:pb-4">
+          <div id={agreementId} className="min-h-[96px]" />
+        </div>
       </div>
 
       {loading && (

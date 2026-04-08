@@ -161,6 +161,41 @@ describe('PaymentsService', () => {
     ).rejects.toBeInstanceOf(OrderNotFoundException);
   });
 
+  it('getOrderForPayment should retry without optional columns when schema is behind', async () => {
+    const service = setupService();
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column "customer_address1" does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          branch_id: 'b1',
+          total_amount: 10,
+          customer_name: 'A',
+          customer_phone: '010',
+          customer_address2: null,
+          fulfillment_type: null,
+          status: 'CREATED',
+          payment_status: 'PENDING',
+          items: [],
+        },
+        error: null,
+      });
+
+    const result = await (service as any).getOrderForPayment('o1');
+
+    expect(result.customer_address1).toBeNull();
+    expect(result.customer_address2).toBeNull();
+    expect(result.fulfillment_type).toBeNull();
+    expect(ordersChain.maybeSingle).toHaveBeenCalledTimes(2);
+  });
+
   it('preparePayment should throw when order not found', async () => {
     const service = setupService();
     ordersChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });

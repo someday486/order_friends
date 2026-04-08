@@ -186,36 +186,94 @@ export class PaymentsService {
     return null;
   }
 
+  private isMissingColumnError(error: any): boolean {
+    const message = String(error?.message ?? '');
+    return (
+      error?.code === '42703' ||
+      /^PGRST/i.test(String(error?.code ?? '')) ||
+      /column .* does not exist/i.test(message) ||
+      /schema cache/i.test(message)
+    );
+  }
+
+  private getMissingColumnName(error: any): string | null {
+    const message = String(error?.message ?? '');
+    const pgMatch = message.match(
+      /column\s+"?([a-zA-Z0-9_.]+)"?\s+does not exist/i,
+    );
+    if (pgMatch?.[1]) {
+      return pgMatch[1].split('.').pop() ?? pgMatch[1];
+    }
+
+    const pgrstMatch = message.match(
+      /could not find the\s+'?([a-zA-Z0-9_]+)'?\s+column\s+of/i,
+    );
+    return pgrstMatch?.[1] ?? null;
+  }
+
   /**
    * 주문 정보 조회 (결제 준비용)
    */
   private async getOrderForPayment(orderId: string): Promise<OrderForPayment> {
     const sb = this.supabase.adminClient();
+    const optionalColumns = new Set([
+      'customer_address1',
+      'customer_address2',
+      'fulfillment_type',
+    ]);
+    const selectedColumns = [
+      'id',
+      'order_no',
+      'branch_id',
+      'total_amount',
+      'customer_name',
+      'customer_phone',
+      'customer_address1',
+      'customer_address2',
+      'fulfillment_type',
+      'status',
+      'payment_status',
+    ];
 
-    const { data, error } = await sb
-      .from('orders')
-      .select(
-        `
-        id,
-        order_no,
-        branch_id,
-        total_amount,
-        customer_name,
-        customer_phone,
-        customer_address1,
-        customer_address2,
-        fulfillment_type,
-        status,
-        payment_status,
-        items:order_items(
-          id,
-          product_name_snapshot,
-          qty
+    let data: OrderForPayment | null = null;
+    let error: any = null;
+
+    for (let attempts = 0; attempts < optionalColumns.size + 1; attempts += 1) {
+      ({ data, error } = await sb
+        .from('orders')
+        .select(
+          `
+          ${selectedColumns.join(',\n          ')},
+          items:order_items(
+            id,
+            product_name_snapshot,
+            qty
+          )
+        `,
         )
-      `,
-      )
-      .eq('id', orderId)
-      .maybeSingle();
+        .eq('id', orderId)
+        .maybeSingle());
+
+      if (!error) {
+        break;
+      }
+
+      const missingColumn = this.getMissingColumnName(error);
+      if (
+        !this.isMissingColumnError(error) ||
+        !missingColumn ||
+        !optionalColumns.has(missingColumn)
+      ) {
+        break;
+      }
+
+      optionalColumns.delete(missingColumn);
+      const nextSelectedColumns = selectedColumns.filter(
+        (column) => column !== missingColumn,
+      );
+      selectedColumns.length = 0;
+      selectedColumns.push(...nextSelectedColumns);
+    }
 
     if (error) {
       this.logger.error(
@@ -234,7 +292,12 @@ export class PaymentsService {
       throw new OrderNotFoundException(orderId);
     }
 
-    return data;
+    return {
+      ...data,
+      customer_address1: data.customer_address1 ?? null,
+      customer_address2: data.customer_address2 ?? null,
+      fulfillment_type: data.fulfillment_type ?? null,
+    };
   }
 
   private getPaymentMetadata(metadata: unknown): Record<string, unknown> {

@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { PublicOrderService } from './public-order.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
@@ -161,21 +161,9 @@ describe('PublicOrderService - Inventory Integration', () => {
         ],
       },
     );
-    expect(notificationsService.sendOrderCompletionKakao).toHaveBeenCalledWith(
-      'order-123',
-      expect.objectContaining({
-        customerName: 'Customer',
-        totalAmount: 35000,
-        paymentMethod: 'CARD',
-        transferAccount: {
-          bankName: 'Shinhan',
-          accountNumber: '110-285-321233',
-          accountHolder: 'Kim Jihoon',
-        },
-        branchName: '테스트매장',
-      }),
-      '010-1234-5678',
-    );
+    expect(
+      notificationsService.sendOrderCompletionKakao,
+    ).not.toHaveBeenCalled();
     expect(adminChains.payments.insert).not.toHaveBeenCalled();
   });
 
@@ -248,6 +236,15 @@ describe('PublicOrderService - Inventory Integration', () => {
         payment_method: 'TRANSFER',
       }),
     );
+    expect(notificationsService.sendOrderCompletionKakao).toHaveBeenCalledWith(
+      'order-124',
+      expect.objectContaining({
+        customerName: 'Customer',
+        totalAmount: 32000,
+        paymentMethod: 'TRANSFER',
+      }),
+      '010-1234-5678',
+    );
   });
 
   it('should log a warning when order completion KakaoTalk sending fails', async () => {
@@ -255,9 +252,9 @@ describe('PublicOrderService - Inventory Integration', () => {
       branchId: 'branch-123',
       customerName: 'Customer',
       customerPhone: '010-1234-5678',
+      paymentMethod: 'TRANSFER',
       items: [{ productId: 'product-1', qty: 1, unitPrice: 10000 }],
     };
-
     notificationsService.sendOrderCompletionKakao.mockResolvedValueOnce({
       success: false,
       errorMessage: 'KakaoTalk API error: 400 invalid template',

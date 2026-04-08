@@ -3150,20 +3150,22 @@ export class PublicOrderService {
         .catch((err) => this.logger.warn('earnStamps error', err));
     }
 
-    this.sendOrderCompletionNotification(createdOrder, {
-      customerPhone,
-      customerName,
-      customerAddress1,
-      customerAddress2,
-      paymentMethod,
-      transferAccount: branchOrderConfig.transferAccount ?? null,
-      fulfillmentType,
-      items: orderItemResults.map((item) => ({
-        productName: item.productName,
-        qty: item.qty,
-      })),
-      branchName,
-    });
+    if (paymentMethod !== PaymentMethod.CARD) {
+      this.sendOrderCompletionNotification(createdOrder, {
+        customerPhone,
+        customerName,
+        customerAddress1,
+        customerAddress2,
+        paymentMethod,
+        transferAccount: branchOrderConfig.transferAccount ?? null,
+        fulfillmentType,
+        items: orderItemResults.map((item) => ({
+          productName: item.productName,
+          qty: item.qty,
+        })),
+        branchName,
+      });
+    }
 
     return {
       id: createdOrder.id,

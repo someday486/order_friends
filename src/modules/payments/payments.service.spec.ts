@@ -14,13 +14,16 @@ import {
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { PaymentStatus } from './dto/payment.dto';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PaymentsService', () => {
   const originalEnv = process.env;
   let ordersChain: any;
   let paymentsChain: any;
+  let branchesChain: any;
   let webhookChain: any;
   let mockSb: any;
+  let notificationsService: { sendOrderCompletionKakao: jest.Mock };
 
   const makeChain = () => ({
     select: jest.fn().mockReturnThis(),
@@ -35,23 +38,36 @@ describe('PaymentsService', () => {
     update: jest.fn().mockReturnThis(),
   });
 
-  const setupService = (env: Record<string, string | undefined> = {}) => {
+  const setupService = (
+    env: Record<string, string | undefined> = {},
+    options: { withNotifications?: boolean } = {},
+  ) => {
     process.env = { ...originalEnv, ...env };
     ordersChain = makeChain();
     paymentsChain = makeChain();
+    branchesChain = makeChain();
     webhookChain = makeChain();
+    notificationsService = {
+      sendOrderCompletionKakao: jest.fn().mockResolvedValue({ success: true }),
+    };
 
     mockSb = {
       from: jest.fn((table: string) => {
         if (table === 'orders') return ordersChain;
         if (table === 'payments') return paymentsChain;
+        if (table === 'branches') return branchesChain;
         if (table === 'payment_webhook_logs') return webhookChain;
         return ordersChain;
       }),
     };
 
     const supabase = { adminClient: jest.fn(() => mockSb) };
-    return new PaymentsService(supabase as SupabaseService);
+    return new PaymentsService(
+      supabase as SupabaseService,
+      options.withNotifications
+        ? (notificationsService as unknown as NotificationsService)
+        : undefined,
+    );
   };
 
   beforeEach(() => {
@@ -395,6 +411,87 @@ describe('PaymentsService', () => {
       paymentKey: 'pk',
     } as any);
     expect(result.status).toBe(PaymentStatus.SUCCESS);
+  });
+
+  it('confirmPayment should send order completion KakaoTalk after card payment success', async () => {
+    const service = setupService(
+      { TOSS_MOCK_MODE: 'true' },
+      { withNotifications: true },
+    );
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          branch_id: 'b1',
+          total_amount: 10,
+          customer_name: 'A',
+          customer_phone: '010',
+          customer_address1: 'Seoul',
+          customer_address2: '101',
+          fulfillment_type: 'DELIVERY',
+          status: 'CREATED',
+          payment_status: 'PENDING',
+          items: [{ product_name_snapshot: 'Americano', qty: 1 }],
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          branch_id: 'b1',
+          total_amount: 10,
+          customer_name: 'A',
+          customer_phone: '010',
+          customer_address1: 'Seoul',
+          customer_address2: '101',
+          fulfillment_type: 'DELIVERY',
+          status: 'CREATED',
+          payment_status: 'PAID',
+          items: [{ product_name_snapshot: 'Americano', qty: 1 }],
+        },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    paymentsChain.single.mockResolvedValueOnce({
+      data: { id: 'pay1', amount: 10, metadata: {} },
+      error: null,
+    });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { name: '테스트 매장' },
+      error: null,
+    });
+
+    await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10,
+      paymentKey: 'pk',
+    } as any);
+
+    expect(notificationsService.sendOrderCompletionKakao).toHaveBeenCalledWith(
+      'o1',
+      expect.objectContaining({
+        orderNo: 'O-1',
+        customerName: 'A',
+        totalAmount: 10,
+        paymentMethod: 'CARD',
+        branchName: '테스트 매장',
+        deliveryAddress: 'Seoul 101',
+      }),
+      '010',
+    );
+    expect(paymentsChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          orderCompletionNotificationSentAt: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it('confirmPayment should return existing payment when already paid', async () => {

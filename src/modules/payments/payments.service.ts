@@ -1,6 +1,8 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { FulfillmentType } from '../public-order/dto/public-order.dto';
 import {
   TossPaymentsClient,
   TossConfirmResponse,
@@ -14,6 +16,9 @@ interface OrderForPayment {
   total_amount: number;
   customer_name: string | null;
   customer_phone: string | null;
+  customer_address1: string | null;
+  customer_address2: string | null;
+  fulfillment_type: string | null;
   status: string;
   payment_status: string | null;
   items: Array<{
@@ -31,6 +36,7 @@ interface ExistingPaymentRecord {
   amount: number | null;
   paid_at: string | null;
   idempotency_key: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Minimal payment record fetched during webhook processing */
@@ -41,6 +47,7 @@ interface WebhookPaymentRecord {
   amount: number | null;
   provider_payment_key: string | null;
   refund_amount: number;
+  metadata?: Record<string, unknown> | null;
 }
 
 interface CancellationPaymentRecord {
@@ -99,6 +106,8 @@ import { PaginationUtil } from '../../common/utils/pagination.util';
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
+  private readonly orderCompletionNotificationSentAtKey =
+    'orderCompletionNotificationSentAt';
 
   private readonly tossSecretKey = process.env.TOSS_SECRET_KEY || '';
   private readonly tossClientKey = process.env.TOSS_CLIENT_KEY || '';
@@ -109,7 +118,11 @@ export class PaymentsService {
   private readonly tossMockMode: boolean;
   private readonly tossClient: TossPaymentsClient;
 
-  constructor(private readonly supabase: SupabaseService) {
+  constructor(
+    private readonly supabase: SupabaseService,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
+  ) {
     const rawTimeout = Number(process.env.TOSS_TIMEOUT_MS);
     this.tossTimeoutMs =
       Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 15000;
@@ -189,6 +202,9 @@ export class PaymentsService {
         total_amount,
         customer_name,
         customer_phone,
+        customer_address1,
+        customer_address2,
+        fulfillment_type,
         status,
         payment_status,
         items:order_items(
@@ -219,6 +235,130 @@ export class PaymentsService {
     }
 
     return data;
+  }
+
+  private getPaymentMetadata(metadata: unknown): Record<string, unknown> {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return {};
+    }
+
+    return { ...(metadata as Record<string, unknown>) };
+  }
+
+  private hasOrderCompletionNotificationSent(metadata: unknown): boolean {
+    const sentAt =
+      this.getPaymentMetadata(metadata)[
+        this.orderCompletionNotificationSentAtKey
+      ];
+    return typeof sentAt === 'string' && sentAt.trim().length > 0;
+  }
+
+  private async markOrderCompletionNotificationSent(
+    sb: SupabaseClient,
+    paymentId: string,
+    metadata: unknown,
+  ): Promise<void> {
+    const nextMetadata = {
+      ...this.getPaymentMetadata(metadata),
+      [this.orderCompletionNotificationSentAtKey]: new Date().toISOString(),
+    };
+
+    const { error } = await sb
+      .from('payments')
+      .update({ metadata: nextMetadata })
+      .eq('id', paymentId);
+
+    if (error) {
+      this.logger.warn(
+        `Failed to mark order completion notification as sent for payment ${paymentId}: ${error.message}`,
+      );
+    }
+  }
+
+  private async getBranchNameForNotification(
+    sb: SupabaseClient,
+    branchId: string,
+  ): Promise<string> {
+    const { data, error } = await sb
+      .from('branches')
+      .select('name')
+      .eq('id', branchId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.warn(
+        `Failed to resolve branch name for notification: ${branchId} (${error.message})`,
+      );
+      return '매장';
+    }
+
+    return data?.name ?? '매장';
+  }
+
+  private async sendCardOrderCompletionNotification(
+    sb: SupabaseClient,
+    paymentId: string,
+    orderId: string,
+    paymentMetadata: unknown,
+  ): Promise<void> {
+    if (
+      !this.notificationsService ||
+      this.hasOrderCompletionNotificationSent(paymentMetadata)
+    ) {
+      return;
+    }
+
+    const order = await this.getOrderForPayment(orderId);
+    if (!order.customer_phone) {
+      return;
+    }
+
+    const branchName = await this.getBranchNameForNotification(
+      sb,
+      order.branch_id,
+    );
+    const deliveryAddress = [order.customer_address1, order.customer_address2]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    try {
+      const result = await this.notificationsService.sendOrderCompletionKakao(
+        order.id,
+        {
+          orderNo: order.order_no ?? order.id,
+          customerName: order.customer_name ?? '고객',
+          items: order.items.map((item) => ({
+            name: item.product_name_snapshot ?? '상품',
+            qty: item.qty,
+          })),
+          totalAmount: order.total_amount,
+          paymentMethod: PaymentMethod.CARD,
+          transferAccount: null,
+          fulfillmentType: order.fulfillment_type ?? FulfillmentType.PICKUP,
+          deliveryAddress: deliveryAddress || null,
+          branchName,
+        },
+        order.customer_phone,
+      );
+
+      if (!result.success) {
+        this.logger.warn(
+          `Failed to send order completion KakaoTalk for order ${order.id}: ${result.errorMessage ?? 'unknown error'}`,
+        );
+        return;
+      }
+
+      await this.markOrderCompletionNotificationSent(
+        sb,
+        paymentId,
+        paymentMetadata,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to send order completion KakaoTalk for order ${order.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   private async updateOrderPaymentStatus(
@@ -457,7 +597,9 @@ export class PaymentsService {
     if (idempotencyKey) {
       const { data: idempotentPayment } = await sb
         .from('payments')
-        .select('id, order_id, status, amount, paid_at, idempotency_key')
+        .select(
+          'id, order_id, status, amount, paid_at, idempotency_key, metadata',
+        )
         .eq('idempotency_key', idempotencyKey)
         .maybeSingle();
 
@@ -486,6 +628,12 @@ export class PaymentsService {
             'PAID',
             'confirm-idempotency',
           );
+          await this.sendCardOrderCompletionNotification(
+            sb,
+            idempotentPayment.id,
+            resolvedId,
+            idempotentPayment.metadata,
+          );
           this.logMetric('payment.confirm.idempotent_hit', {
             orderId: resolvedId,
             paymentId: idempotentPayment.id,
@@ -507,7 +655,7 @@ export class PaymentsService {
     if (!existingPayment) {
       const { data: paymentByOrder } = await sb
         .from('payments')
-        .select('id, status, amount, paid_at, idempotency_key')
+        .select('id, status, amount, paid_at, idempotency_key, metadata')
         .eq('order_id', resolvedId)
         .maybeSingle();
 
@@ -528,6 +676,12 @@ export class PaymentsService {
           resolvedId,
           'PAID',
           'confirm-existing',
+        );
+        await this.sendCardOrderCompletionNotification(
+          sb,
+          paymentByOrder.id,
+          resolvedId,
+          paymentByOrder.metadata,
         );
         this.logMetric('payment.confirm.existing_hit', {
           orderId: resolvedId,
@@ -677,7 +831,7 @@ export class PaymentsService {
         if (insertError.code === '23505' && idempotencyKey) {
           const { data: idempotentPayment } = await sb
             .from('payments')
-            .select('id, status, amount, paid_at, order_id')
+            .select('id, status, amount, paid_at, order_id, metadata')
             .eq('idempotency_key', idempotencyKey)
             .maybeSingle();
 
@@ -690,6 +844,12 @@ export class PaymentsService {
               idempotentPayment.order_id,
               'PAID',
               'confirm-idempotency-race',
+            );
+            await this.sendCardOrderCompletionNotification(
+              sb,
+              idempotentPayment.id,
+              idempotentPayment.order_id,
+              idempotentPayment.metadata,
             );
             this.logMetric('payment.confirm.idempotency_race', {
               orderId: idempotentPayment.order_id,
@@ -723,6 +883,12 @@ export class PaymentsService {
       resolvedId,
       'PAID',
       'confirm-success',
+    );
+    await this.sendCardOrderCompletionNotification(
+      sb,
+      payment.id,
+      resolvedId,
+      payment.metadata,
     );
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
     this.logMetric('payment.confirm.success', {
@@ -1353,7 +1519,9 @@ export class PaymentsService {
     // 결제 정보 조회
     const { data: payment } = await sb
       .from('payments')
-      .select('id, order_id, status, amount')
+      .select(
+        'id, order_id, status, amount, provider_payment_key, refund_amount, metadata',
+      )
       .eq('provider_payment_key', paymentKey)
       .maybeSingle();
 
@@ -1427,6 +1595,8 @@ export class PaymentsService {
     const { orderId, paymentKey, amount } = webhookData.data;
 
     const sb = this.supabase.adminClient();
+    let confirmedPaymentId: string | null = payment?.id ?? null;
+    let confirmedPaymentMetadata: unknown = payment?.metadata ?? null;
 
     // orderId 해석
     const resolvedId = await this.resolveOrderId(sb, orderId);
@@ -1487,6 +1657,12 @@ export class PaymentsService {
 
       if (payment.status === PaymentStatus.SUCCESS) {
         this.logger.log(`Payment already confirmed via webhook: ${orderId}`);
+        await this.sendCardOrderCompletionNotification(
+          sb,
+          payment.id,
+          resolvedId,
+          payment.metadata,
+        );
         return;
       }
 
@@ -1520,6 +1696,8 @@ export class PaymentsService {
           { error: error.message },
         );
       }
+
+      confirmedPaymentMetadata = webhookData.data;
     } else {
       const { error } = await sb.from('payments').insert({
         order_id: resolvedId,
@@ -1541,6 +1719,18 @@ export class PaymentsService {
           { error: error.message },
         );
       }
+
+      confirmedPaymentMetadata = webhookData.data;
+      if (this.notificationsService) {
+        const { data: createdPayment } = await sb
+          .from('payments')
+          .select('id, metadata')
+          .eq('provider_payment_key', paymentKey)
+          .maybeSingle();
+        confirmedPaymentId = createdPayment?.id ?? null;
+        confirmedPaymentMetadata =
+          createdPayment?.metadata ?? confirmedPaymentMetadata;
+      }
     }
 
     await this.updateOrderPaymentStatus(
@@ -1549,6 +1739,14 @@ export class PaymentsService {
       'PAID',
       'webhook-confirmed',
     );
+    if (confirmedPaymentId) {
+      await this.sendCardOrderCompletionNotification(
+        sb,
+        confirmedPaymentId,
+        resolvedId,
+        confirmedPaymentMetadata,
+      );
+    }
     this.logger.log(`Payment confirmed via webhook: ${orderId}`);
   }
 

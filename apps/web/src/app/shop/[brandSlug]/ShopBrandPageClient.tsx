@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
@@ -316,6 +316,13 @@ export default function ShopBrandPageClient({
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const handleCardWidgetReadyChange = useCallback(
+    (controller: CardWidgetController | null) => {
+      cardWidgetControllerRef.current = controller;
+      setCardWidgetReady(Boolean(controller));
+    },
+    [],
+  );
   const normalizedCustomerPhone = useMemo(
     () => normalizePhoneNumber(customerPhone),
     [customerPhone],
@@ -1113,10 +1120,7 @@ export default function ShopBrandPageClient({
                     amount={totalAmount}
                     customerKey={tossCustomerKey}
                     active
-                    onReadyChange={(controller) => {
-                      cardWidgetControllerRef.current = controller;
-                      setCardWidgetReady(Boolean(controller));
-                    }}
+                    onReadyChange={handleCardWidgetReadyChange}
                     onErrorChange={setCardWidgetError}
                   />
                 ) : null}

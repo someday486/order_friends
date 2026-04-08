@@ -9,7 +9,7 @@ import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { useAuth } from '@/hooks/useAuth';
 
 function isOrderLoginPath(value: string) {
-  return value.startsWith('/order/');
+  return value.startsWith('/order/') || value.startsWith('/shop/');
 }
 
 export default function LoginClient({

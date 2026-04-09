@@ -14,6 +14,7 @@ type CacheEntry<T> = {
 export type AdminBrandSummary = {
   id: string;
   name: string;
+  isActive: boolean;
   slug: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;

@@ -36,6 +36,7 @@ function BrandSelectButton({ brandId }: { brandId: string }) {
 type Brand = {
   id: string;
   name: string;
+  isActive: boolean;
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
@@ -108,6 +109,7 @@ export default function BrandPage() {
   const [newLogoUrl, setNewLogoUrl] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [autoKoreanSlug, setAutoKoreanSlug] = useState("");
+  const [togglingBrandId, setTogglingBrandId] = useState<string | null>(null);
 
   const filteredBrands = useMemo(() => {
     const query = searchInput.trim().toLowerCase();
@@ -236,23 +238,50 @@ export default function BrandPage() {
     }
   };
 
-  const handleDelete = async (brandId: string, brandName: string) => {
+  const handleToggleActive = async (
+    brandId: string,
+    brandName: string,
+    nextIsActive: boolean,
+  ) => {
     if (
       !confirm(
-        `"${brandName}" 브랜드를 삭제하시겠습니까?\n관련 매장, 상품, 주문도 함께 삭제됩니다.`,
+        nextIsActive
+          ? `"${brandName}" 브랜드를 다시 활성화하시겠습니까?\n활성화하면 고객 주문 페이지에 다시 노출됩니다.`
+          : `"${brandName}" 브랜드를 비활성화하시겠습니까?\n비활성화하면 고객 주문 페이지에서 숨겨지지만 기존 주문 이력은 유지됩니다.`,
       )
     ) {
       return;
     }
 
     try {
-      await apiClient.delete(`/admin/brands/${brandId}`);
+      setTogglingBrandId(brandId);
+      await apiClient.patch(`/admin/brands/${brandId}`, {
+        isActive: nextIsActive,
+      });
       invalidateAdminBrands();
       invalidateAdminBranches(brandId);
-      setBrands((prev) => prev.filter((brand) => brand.id !== brandId));
+      setBrands((prev) =>
+        prev.map((brand) =>
+          brand.id === brandId ? { ...brand, isActive: nextIsActive } : brand,
+        ),
+      );
+      toast.success(
+        nextIsActive
+          ? "브랜드를 다시 활성화했습니다."
+          : "브랜드를 비활성화했습니다.",
+      );
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(parseApiErrorMessage(err, "브랜드 삭제에 실패했습니다."));
+      toast.error(
+        parseApiErrorMessage(
+          err,
+          nextIsActive
+            ? "브랜드 활성화에 실패했습니다."
+            : "브랜드 비활성화에 실패했습니다.",
+        ),
+      );
+    } finally {
+      setTogglingBrandId(null);
     }
   };
 
@@ -537,9 +566,20 @@ export default function BrandPage() {
                     )}
 
                     <div>
-                      <div className="text-base font-bold text-foreground">{brand.name}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-base font-bold text-foreground">{brand.name}</div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            brand.isActive
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {brand.isActive ? "활성" : "비활성"}
+                        </span>
+                      </div>
 
-                      {brand.slug && (
+                      {brand.slug && brand.isActive && (
                         <div className="mt-2">
                           <div className="mb-1 text-xs text-text-secondary">고객 주문 URL</div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -554,6 +594,12 @@ export default function BrandPage() {
                               URL 복사
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {!brand.isActive && (
+                        <div className="mt-2 text-[12px] text-text-secondary">
+                          비활성화된 브랜드는 고객 주문 페이지에 노출되지 않습니다.
                         </div>
                       )}
 
@@ -579,10 +625,21 @@ export default function BrandPage() {
                       수정
                     </button>
                     <button
-                      className="rounded-md border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-danger-500 transition-colors hover:bg-bg-tertiary"
-                      onClick={() => handleDelete(brand.id, brand.name)}
+                      className={`rounded-md border border-border bg-transparent px-2.5 py-1 text-xs font-medium transition-colors hover:bg-bg-tertiary ${
+                        brand.isActive ? "text-danger-500" : "text-foreground"
+                      }`}
+                      onClick={() =>
+                        handleToggleActive(brand.id, brand.name, !brand.isActive)
+                      }
+                      disabled={togglingBrandId === brand.id}
                     >
-                      삭제
+                      {togglingBrandId === brand.id
+                        ? brand.isActive
+                          ? "비활성화 중..."
+                          : "활성화 중..."
+                        : brand.isActive
+                          ? "비활성화"
+                          : "재활성화"}
                     </button>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
 export class BrandListItemResponse {
   id: string;
   name: string;
+  isActive: boolean;
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
@@ -16,6 +17,7 @@ export class BrandListItemResponse {
 export class BrandDetailResponse {
   id: string;
   name: string;
+  isActive: boolean;
   slug?: string | null;
   ownerUserId?: string | null;
   bizName?: string | null;
@@ -103,6 +105,10 @@ export class CreateBrandRequest {
 }
 
 export class UpdateBrandRequest {
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @IsString()
   @IsOptional()
   name?: string;

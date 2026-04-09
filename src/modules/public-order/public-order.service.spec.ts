@@ -360,6 +360,8 @@ describe('PublicOrderService - Inventory Integration', () => {
 
     const result = await service.getBrands();
 
+    expect(anonChains.brands.eq).toHaveBeenCalledWith('is_active', true);
+
     expect(result).toEqual([
       {
         id: 'brand-3',

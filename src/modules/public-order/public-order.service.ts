@@ -120,6 +120,7 @@ export class PublicOrderService {
       sb
         .from('brands')
         .select('id, name, slug, logo_url, cover_image_url')
+        .eq('is_active', true)
         .order('name', { ascending: true })
         .limit(1000),
       sb
@@ -216,6 +217,7 @@ export class PublicOrderService {
         'id, name, slug, logo_url, cover_image_url, shop_payment_methods, cash_receipt_enabled',
       )
       .eq('slug', brandSlug)
+      .eq('is_active', true)
       .limit(2));
     if (
       brandError &&
@@ -228,6 +230,7 @@ export class PublicOrderService {
           'id, name, slug, logo_url, cover_image_url, cash_receipt_enabled',
         )
         .eq('slug', brandSlug)
+        .eq('is_active', true)
         .limit(2));
     }
 
@@ -1508,7 +1511,7 @@ export class PublicOrderService {
         kakao_channel_url,
         logo_url,
         cover_image_url,
-        brands (
+        brands!inner (
           name,
           logo_url,
           cover_image_url,
@@ -1571,6 +1574,7 @@ export class PublicOrderService {
       )
       .eq('slug', slug)
       .eq('is_active', true)
+      .eq('brands.is_active', true)
       .limit(2);
 
     if (error) {
@@ -1637,6 +1641,7 @@ export class PublicOrderService {
       )
       .eq('slug', branchSlug)
       .eq('is_active', true)
+      .eq('brands.is_active', true)
       .eq('brands.slug', brandSlug)
       .limit(2);
 
@@ -1698,6 +1703,7 @@ export class PublicOrderService {
       `,
       )
       .eq('brands.slug', brandSlug)
+      .eq('brands.is_active', true)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
 

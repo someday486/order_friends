@@ -36,7 +36,7 @@ describe('BrandsService', () => {
 
   it('getMyBrands should return admin brands', async () => {
     adminSb.order.mockResolvedValueOnce({
-      data: [{ id: 'b1', name: 'Brand', created_at: 't' }],
+      data: [{ id: 'b1', name: 'Brand', is_active: true, created_at: 't' }],
       error: null,
     });
 
@@ -44,6 +44,7 @@ describe('BrandsService', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('b1');
+    expect(result[0].isActive).toBe(true);
   });
 
   it('getMyBrands should map null fields for admin', async () => {
@@ -52,6 +53,7 @@ describe('BrandsService', () => {
         {
           id: 'b1',
           name: 'Brand',
+          is_active: false,
           slug: null,
           biz_name: null,
           biz_reg_no: null,
@@ -66,6 +68,7 @@ describe('BrandsService', () => {
     const result = await service.getMyBrands('token', true);
 
     expect(result[0].slug).toBeNull();
+    expect(result[0].isActive).toBe(false);
     expect(result[0].bizName).toBeNull();
     expect(result[0].address).toBeNull();
     expect(result[0].createdAt).toBe('');
@@ -113,7 +116,16 @@ describe('BrandsService', () => {
 
   it('getMyBrands should return user brand memberships', async () => {
     userSb.eq.mockResolvedValueOnce({
-      data: [{ brands: { id: 'b2', name: 'Brand2', created_at: 't' } }],
+      data: [
+        {
+          brands: {
+            id: 'b2',
+            name: 'Brand2',
+            is_active: true,
+            created_at: 't',
+          },
+        },
+      ],
       error: null,
     });
 
@@ -121,6 +133,7 @@ describe('BrandsService', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('b2');
+    expect(result[0].isActive).toBe(true);
   });
 
   it('getMyBrands should skip rows without brands for user', async () => {
@@ -174,7 +187,13 @@ describe('BrandsService', () => {
 
   it('getBrand should return detail', async () => {
     adminSb.single.mockResolvedValueOnce({
-      data: { id: 'b1', name: 'Brand', owner_user_id: 'u1', created_at: 't' },
+      data: {
+        id: 'b1',
+        name: 'Brand',
+        is_active: true,
+        owner_user_id: 'u1',
+        created_at: 't',
+      },
       error: null,
     });
 
@@ -182,6 +201,7 @@ describe('BrandsService', () => {
 
     expect(result.id).toBe('b1');
     expect(result.ownerUserId).toBe('u1');
+    expect(result.isActive).toBe(true);
   });
 
   it('getBrand should map null fields for non-admin', async () => {
@@ -189,6 +209,7 @@ describe('BrandsService', () => {
       data: {
         id: 'b1',
         name: 'Brand',
+        is_active: false,
         owner_user_id: null,
         created_at: null,
         slug: null,
@@ -197,6 +218,7 @@ describe('BrandsService', () => {
     });
 
     const result = await service.getBrand('token', 'b1', false);
+    expect(result.isActive).toBe(false);
     expect(result.ownerUserId).toBeNull();
     expect(result.createdAt).toBe('');
   });
@@ -219,13 +241,20 @@ describe('BrandsService', () => {
       .mockReturnValueOnce(adminSb) // brand insert chain
       .mockResolvedValueOnce({ error: null }); // member insert
     adminSb.single.mockResolvedValueOnce({
-      data: { id: 'b1', name: 'Brand', owner_user_id: 'u1', created_at: 't' },
+      data: {
+        id: 'b1',
+        name: 'Brand',
+        is_active: true,
+        owner_user_id: 'u1',
+        created_at: 't',
+      },
       error: null,
     });
 
     const result = await service.createBrand('token', { name: 'Brand' } as any);
 
     expect(result.id).toBe('b1');
+    expect(result.isActive).toBe(true);
   });
 
   it('createBrand should map null fields on response', async () => {
@@ -241,6 +270,7 @@ describe('BrandsService', () => {
       data: {
         id: 'b1',
         name: 'Brand',
+        is_active: false,
         owner_user_id: null,
         biz_name: null,
         biz_reg_no: null,
@@ -251,6 +281,7 @@ describe('BrandsService', () => {
 
     const result = await service.createBrand('token', { name: 'Brand' } as any);
 
+    expect(result.isActive).toBe(false);
     expect(result.ownerUserId).toBeNull();
     expect(result.bizName).toBeNull();
     expect(result.bizRegNo).toBeNull();
@@ -316,7 +347,13 @@ describe('BrandsService', () => {
     });
     adminSb.upsert.mockResolvedValueOnce({ error: null });
     adminSb.single.mockResolvedValueOnce({
-      data: { id: 'b1', name: 'Brand', owner_user_id: 'u1', created_at: 't' },
+      data: {
+        id: 'b1',
+        name: 'Brand',
+        is_active: true,
+        owner_user_id: 'u1',
+        created_at: 't',
+      },
       error: null,
     });
     adminSb.insert
@@ -345,6 +382,7 @@ describe('BrandsService', () => {
       data: {
         id: 'b1',
         name: 'Brand',
+        is_active: false,
         owner_user_id: 'u1',
         created_at: 't',
         slug: 's',
@@ -361,6 +399,7 @@ describe('BrandsService', () => {
       slug: 's',
       bizName: 'biz',
       bizRegNo: 'reg',
+      isActive: false,
       logoUrl: 'l',
       coverImageUrl: 'c',
     } as any;
@@ -373,10 +412,12 @@ describe('BrandsService', () => {
         slug: 's',
         biz_name: 'biz',
         biz_reg_no: 'reg',
+        is_active: false,
         logo_url: 'l',
         cover_image_url: 'c',
       }),
     );
+    expect(result.isActive).toBe(false);
   });
 
   it('updateBrand should update when membership valid', async () => {
@@ -390,7 +431,13 @@ describe('BrandsService', () => {
         error: null,
       })
       .mockResolvedValueOnce({
-        data: { id: 'b1', name: 'Brand', owner_user_id: 'u1', created_at: 't' },
+        data: {
+          id: 'b1',
+          name: 'Brand',
+          is_active: true,
+          owner_user_id: 'u1',
+          created_at: 't',
+        },
         error: null,
       });
 
@@ -420,6 +467,7 @@ describe('BrandsService', () => {
       data: {
         id: 'b1',
         name: 'Brand',
+        is_active: false,
         owner_user_id: null,
         biz_name: null,
         biz_reg_no: null,
@@ -439,6 +487,7 @@ describe('BrandsService', () => {
     );
 
     expect(result.ownerUserId).toBeNull();
+    expect(result.isActive).toBe(false);
     expect(result.createdAt).toBe('');
     expect(result.logoUrl).toBeNull();
     expect(result.coverImageUrl).toBeNull();
@@ -490,12 +539,13 @@ describe('BrandsService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('deleteBrand should delete when admin', async () => {
+  it('deleteBrand should deactivate when admin', async () => {
     adminSb.eq.mockResolvedValueOnce({ error: null });
 
     const result = await service.deleteBrand('token', 'b1', true);
 
     expect(result.deleted).toBe(true);
+    expect(adminSb.update).toHaveBeenCalledWith({ is_active: false });
   });
 
   it('deleteBrand should allow non-admin with active membership', async () => {
@@ -511,7 +561,7 @@ describe('BrandsService', () => {
     adminSb.eq.mockImplementation(() => {
       eqCount += 1;
       if (eqCount <= 2) return adminSb; // membership check
-      return Promise.resolve({ error: null }); // delete
+      return Promise.resolve({ error: null }); // deactivate
     });
 
     const result = await service.deleteBrand('token', 'b1', false);

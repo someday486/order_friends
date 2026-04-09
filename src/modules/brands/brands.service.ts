@@ -90,7 +90,7 @@ export class BrandsService {
       const { data, error } = await sb
         .from('brands')
         .select(
-          'id, name, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at',
+          'id, name, is_active, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at',
         )
         .order('created_at', { ascending: false });
 
@@ -101,6 +101,7 @@ export class BrandsService {
       return (data ?? []).map((row: any) => ({
         id: row.id,
         name: row.name,
+        isActive: row.is_active ?? true,
         slug: row.slug ?? null,
         bizName: row.biz_name ?? null,
         bizRegNo: row.biz_reg_no ?? null,
@@ -118,7 +119,7 @@ export class BrandsService {
         `
         brand_id,
         brands (
-          id, name, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at
+          id, name, is_active, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at
         )
       `,
       )
@@ -133,6 +134,7 @@ export class BrandsService {
       .map((row: any) => ({
         id: row.brands.id,
         name: row.brands.name,
+        isActive: row.brands.is_active ?? true,
         slug: row.brands.slug ?? null,
         bizName: row.brands.biz_name ?? null,
         bizRegNo: row.brands.biz_reg_no ?? null,
@@ -155,7 +157,7 @@ export class BrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, is_active, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -171,6 +173,7 @@ export class BrandsService {
     return {
       id: data.id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug ?? null,
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
@@ -227,6 +230,7 @@ export class BrandsService {
 
     const insertPayload: Record<string, unknown> = {
       name: dto.name,
+      is_active: true,
       slug: dto.slug ?? null,
       owner_user_id: userId,
       biz_name: dto.bizName ?? null,
@@ -262,7 +266,7 @@ export class BrandsService {
       .from('brands')
       .insert(insertPayload)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, is_active, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -290,6 +294,7 @@ export class BrandsService {
     return {
       id: brand.id,
       name: brand.name,
+      isActive: brand.is_active ?? true,
       slug: brand.slug ?? null,
       ownerUserId: brand.owner_user_id ?? null,
       bizName: brand.biz_name ?? null,
@@ -321,6 +326,7 @@ export class BrandsService {
   ): Promise<BrandDetailResponse> {
     // 1) update payload 구성
     const updateData: any = {};
+    if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.slug !== undefined) updateData.slug = dto.slug;
     if (dto.bizName !== undefined) updateData.biz_name = dto.bizName;
@@ -433,7 +439,7 @@ export class BrandsService {
       .update(updateData)
       .eq('id', brandId)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, is_active, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .maybeSingle();
 
@@ -448,6 +454,7 @@ export class BrandsService {
     return {
       id: data.id,
       name: data.name,
+      isActive: data.is_active ?? true,
       slug: data.slug ?? null,
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
@@ -471,7 +478,7 @@ export class BrandsService {
   }
 
   /**
-   * 브랜드 삭제
+   * 브랜드 비활성화
    */
   async deleteBrand(
     accessToken: string,
@@ -500,11 +507,14 @@ export class BrandsService {
         );
       }
       if (!membership || membership.status !== 'ACTIVE') {
-        throw new ForbiddenException('브랜드 삭제 권한이 없습니다.');
+        throw new ForbiddenException('브랜드 비활성화 권한이 없습니다.');
       }
     }
 
-    const { error } = await adminSb.from('brands').delete().eq('id', brandId);
+    const { error } = await adminSb
+      .from('brands')
+      .update({ is_active: false })
+      .eq('id', brandId);
 
     if (error) {
       throw new Error(`[brands.deleteBrand] ${error.message}`);

@@ -7,6 +7,7 @@ import {
   RefundNotAllowedException,
   RefundAmountExceededException,
   WebhookSignatureVerificationException,
+  WebhookTimestampVerificationException,
   PaymentNotAllowedException,
   OrderAlreadyPaidException,
   PaymentAmountMismatchException,
@@ -21,6 +22,10 @@ describe('PaymentsService', () => {
   let ordersChain: any;
   let paymentsChain: any;
   let branchesChain: any;
+  let brandsChain: any;
+  let settlementPeriodsChain: any;
+  let settlementLineItemsChain: any;
+  let commissionTiersChain: any;
   let webhookChain: any;
   let mockSb: any;
   let notificationsService: { sendOrderCompletionKakao: jest.Mock };
@@ -32,8 +37,8 @@ describe('PaymentsService', () => {
     order: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     range: jest.fn().mockReturnThis(),
-    maybeSingle: jest.fn(),
-    single: jest.fn(),
+    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    single: jest.fn().mockResolvedValue({ data: null, error: null }),
     insert: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
   });
@@ -46,6 +51,10 @@ describe('PaymentsService', () => {
     ordersChain = makeChain();
     paymentsChain = makeChain();
     branchesChain = makeChain();
+    brandsChain = makeChain();
+    settlementPeriodsChain = makeChain();
+    settlementLineItemsChain = makeChain();
+    commissionTiersChain = makeChain();
     webhookChain = makeChain();
     notificationsService = {
       sendOrderCompletionKakao: jest.fn().mockResolvedValue({ success: true }),
@@ -56,6 +65,10 @@ describe('PaymentsService', () => {
         if (table === 'orders') return ordersChain;
         if (table === 'payments') return paymentsChain;
         if (table === 'branches') return branchesChain;
+        if (table === 'brands') return brandsChain;
+        if (table === 'settlement_periods') return settlementPeriodsChain;
+        if (table === 'settlement_line_items') return settlementLineItemsChain;
+        if (table === 'commission_tiers') return commissionTiersChain;
         if (table === 'payment_webhook_logs') return webhookChain;
         return ordersChain;
       }),
@@ -92,9 +105,11 @@ describe('PaymentsService', () => {
     const service = setupService({
       TOSS_TIMEOUT_MS: '12000',
       TOSS_MOCK_MODE: 'yes',
+      TOSS_WEBHOOK_MAX_AGE_SECONDS: '180',
     });
     expect((service as any).tossTimeoutMs).toBe(12000);
     expect((service as any).tossMockMode).toBe(true);
+    expect((service as any).tossWebhookMaxAgeMs).toBe(180000);
 
     const productionService = setupService({
       TOSS_TIMEOUT_MS: '-1',
@@ -104,6 +119,7 @@ describe('PaymentsService', () => {
     });
     expect((productionService as any).tossTimeoutMs).toBe(15000);
     expect((productionService as any).tossMockMode).toBe(false);
+    expect((productionService as any).tossWebhookMaxAgeMs).toBe(300000);
   });
 
   it('constructor should use explicit secrets and base url', () => {
@@ -467,6 +483,86 @@ describe('PaymentsService', () => {
       paymentKey: 'pk',
     } as any);
     expect(result.status).toBe(PaymentStatus.SUCCESS);
+  });
+
+  it('confirmPayment should enqueue settlement line item creation for pg brands', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'o1',
+          order_no: 'O-1',
+          total_amount: 10000,
+          customer_name: 'A',
+          customer_phone: '010',
+          status: 'CREATED',
+          payment_status: 'PENDING',
+          items: [],
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { branch_id: 'branch-1' },
+        error: null,
+      });
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    paymentsChain.single.mockResolvedValueOnce({
+      data: { id: 'pay1', amount: 10000 },
+      error: null,
+    });
+    settlementLineItemsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    branchesChain.maybeSingle.mockResolvedValueOnce({
+      data: { brand_id: 'brand-1' },
+      error: null,
+    });
+    brandsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'brand-1',
+        billing_tier: 'PG',
+        commission_rate: 0.1,
+      },
+      error: null,
+    });
+    settlementPeriodsChain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    settlementPeriodsChain.single.mockResolvedValueOnce({
+      data: { id: 'period-1' },
+      error: null,
+    });
+
+    await service.confirmPayment({
+      orderId: 'o1',
+      amount: 10000,
+      paymentKey: 'pk',
+    } as any);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(settlementPeriodsChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brand_id: 'brand-1',
+        status: 'PENDING',
+        commission_rate: 0.1,
+      }),
+    );
+    expect(settlementLineItemsChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement_period_id: 'period-1',
+        payment_id: 'pay1',
+        order_id: 'o1',
+        sale_amount: 10000,
+        commission_amount: 1000,
+        net_amount: 9000,
+      }),
+    );
   });
 
   it('confirmPayment should send order completion KakaoTalk after card payment success', async () => {
@@ -1698,6 +1794,46 @@ describe('PaymentsService', () => {
     expect(result.status).toBe(PaymentStatus.REFUNDED);
   });
 
+  it('refundPayment should queue settlement adjustment for pg refunds', async () => {
+    const service = setupService({ TOSS_MOCK_MODE: 'true' });
+    const queueSettlementAdjustmentSpy = jest
+      .spyOn(service as any, 'queueSettlementLineItemAdjustmentForRefund')
+      .mockImplementation(() => undefined);
+
+    paymentsChain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        order_id: 'o1',
+        amount: 10000,
+        refund_amount: 0,
+        status: PaymentStatus.SUCCESS,
+        provider_payment_key: 'pk',
+        orders: { branch_id: 'b1' },
+      },
+      error: null,
+    });
+    paymentsChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'p1',
+        status: PaymentStatus.PARTIAL_REFUNDED,
+      },
+      error: null,
+    });
+
+    const result = await service.refundPayment('p1', 'b1', {
+      amount: 5000,
+      reason: 'partial refund',
+    } as any);
+
+    expect(result.status).toBe(PaymentStatus.PARTIAL_REFUNDED);
+    expect(queueSettlementAdjustmentSpy).toHaveBeenCalledWith(
+      'p1',
+      'o1',
+      5000,
+      expect.any(String),
+    );
+  });
+
   it('refundPayment should throw when refund api fails with non-provider error', async () => {
     const service = setupService({
       TOSS_SECRET_KEY: 'secret',
@@ -1852,6 +1988,7 @@ describe('PaymentsService', () => {
     await service.handleTossWebhook(
       {
         eventType: 'UNKNOWN',
+        createdAt: new Date().toISOString(),
         data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
       } as any,
       { 'toss-signature': 'x' },
@@ -1871,6 +2008,7 @@ describe('PaymentsService', () => {
     await service.handleTossWebhook(
       {
         eventType: 'UNKNOWN',
+        createdAt: new Date().toISOString(),
         data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
       } as any,
       {},
@@ -1916,6 +2054,7 @@ describe('PaymentsService', () => {
     await service.handleTossWebhook(
       {
         eventType: 'PAYMENT_CONFIRMED',
+        createdAt: new Date().toISOString(),
         data: {
           orderId: '123e4567-e89b-12d3-a456-426614174000',
           paymentKey: 'pk',
@@ -2150,6 +2289,22 @@ describe('PaymentsService', () => {
     ).rejects.toBeInstanceOf(WebhookSignatureVerificationException);
   });
 
+  it('handleTossWebhook should throw on expired timestamp', async () => {
+    const service = setupService({ TOSS_WEBHOOK_SECRET: '' });
+
+    await expect(
+      service.handleTossWebhook(
+        {
+          eventType: 'PAYMENT_CONFIRMED',
+          createdAt: '2026-01-01T00:00:00Z',
+          data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
+        } as any,
+        { 'tosspayments-webhook-transmission-time': '2026-01-01T00:00:00Z' },
+        Buffer.from('body'),
+      ),
+    ).rejects.toBeInstanceOf(WebhookTimestampVerificationException);
+  });
+
   it('handleTossWebhook should process PAYMENT_CANCELLED', async () => {
     const service = setupService();
     let eqCount = 0;
@@ -2184,6 +2339,7 @@ describe('PaymentsService', () => {
     await service.handleTossWebhook(
       {
         eventType: 'PAYMENT_CANCELLED',
+        createdAt: new Date().toISOString(),
         data: {
           orderId: '123e4567-e89b-12d3-a456-426614174000',
           paymentKey: 'pk',
@@ -2709,12 +2865,52 @@ describe('PaymentsService', () => {
     expect(ok).toBe(false);
   });
 
+  it('verifyTossWebhookTimestamp should accept official header timestamp', () => {
+    const service = setupService({ TOSS_WEBHOOK_MAX_AGE_SECONDS: '300' });
+    const nowMs = Date.parse('2026-04-12T10:00:00Z');
+
+    const ok = (service as any).verifyTossWebhookTimestamp(
+      { 'tosspayments-webhook-transmission-time': '2026-04-12T09:57:00Z' },
+      '2026-04-12T09:56:00Z',
+      nowMs,
+    );
+
+    expect(ok).toBe(true);
+  });
+
+  it('verifyTossWebhookTimestamp should fall back to createdAt when header missing', () => {
+    const service = setupService({ TOSS_WEBHOOK_MAX_AGE_SECONDS: '300' });
+    const nowMs = Date.parse('2026-04-12T10:00:00Z');
+
+    const ok = (service as any).verifyTossWebhookTimestamp(
+      {},
+      '2026-04-12T09:59:30Z',
+      nowMs,
+    );
+
+    expect(ok).toBe(true);
+  });
+
+  it('verifyTossWebhookTimestamp should reject stale timestamps', () => {
+    const service = setupService({ TOSS_WEBHOOK_MAX_AGE_SECONDS: '300' });
+    const nowMs = Date.parse('2026-04-12T10:00:00Z');
+
+    const ok = (service as any).verifyTossWebhookTimestamp(
+      { 'tosspayments-webhook-transmission-time': '2026-04-12T09:54:59Z' },
+      undefined,
+      nowMs,
+    );
+
+    expect(ok).toBe(false);
+  });
+
   it('handleTossWebhook should require signature when secret set', async () => {
     const service = setupService({ TOSS_WEBHOOK_SECRET: 'secret' });
     await expect(
       service.handleTossWebhook(
         {
           eventType: 'PAYMENT_CONFIRMED',
+          createdAt: new Date().toISOString(),
           data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
         } as any,
         {},
@@ -3181,6 +3377,7 @@ describe('PaymentsService', () => {
       await service.handleTossWebhook(
         {
           eventType: 'PAYMENT_CONFIRMED',
+          createdAt: new Date().toISOString(),
           data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
         } as any,
         {},
@@ -3189,6 +3386,7 @@ describe('PaymentsService', () => {
       await service.handleTossWebhook(
         {
           eventType: 'PAYMENT_CANCELLED',
+          createdAt: new Date().toISOString(),
           data: { orderId: 'o2', paymentKey: 'pk2', status: 'CANCELLED' },
         } as any,
         {},
@@ -3217,6 +3415,7 @@ describe('PaymentsService', () => {
       await service.handleTossWebhook(
         {
           eventType: 'PAYMENT_CONFIRMED',
+          createdAt: new Date().toISOString(),
           data: { orderId: 'o1', paymentKey: 'pk', status: 'DONE', amount: 10 },
         } as any,
         {},
@@ -3225,6 +3424,7 @@ describe('PaymentsService', () => {
       await service.handleTossWebhook(
         {
           eventType: 'PAYMENT_CANCELLED',
+          createdAt: new Date().toISOString(),
           data: { orderId: 'o2', paymentKey: 'pk2', status: 'CANCELLED' },
         } as any,
         {},
@@ -3255,6 +3455,7 @@ describe('PaymentsService', () => {
         service.handleTossWebhook(
           {
             eventType: 'PAYMENT_CONFIRMED',
+            createdAt: new Date().toISOString(),
             data: {
               orderId: 'o1',
               paymentKey: 'pk',
@@ -3289,6 +3490,7 @@ describe('PaymentsService', () => {
         service.handleTossWebhook(
           {
             eventType: 'PAYMENT_CONFIRMED',
+            createdAt: new Date().toISOString(),
             data: {
               orderId: 'o1',
               paymentKey: 'pk',

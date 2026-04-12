@@ -12,9 +12,11 @@ import {
   LayoutDashboard,
   Menu,
   PackageSearch,
+  ReceiptText,
   SlidersHorizontal,
   Truck,
   Users2,
+  WalletCards,
   Warehouse,
   X,
 } from 'lucide-react';
@@ -45,19 +47,21 @@ const menuSections: MenuSection[] = [
     items: [{ href: '/business/products', label: '상품 리스트', icon: PackageSearch }],
   },
   {
-    title: '대량발주',
+    title: '주문·결제',
     items: [
       {
         href: '/business/orders/upload',
-        label: '주문서업로드(엑셀/CSV)',
+        label: '주문서 업로드',
         icon: FileSpreadsheet,
       },
-      { href: '/business/orders/history', label: '주문내역', icon: ClipboardList },
-      { href: '/business/payments', label: '결제', icon: CreditCard },
+      { href: '/business/orders/history', label: '주문 내역', icon: ClipboardList },
+      { href: '/business/payments', label: '결제 운영 허브', icon: CreditCard },
+      { href: '/business/billing', label: '월 구독 빌링', icon: WalletCards },
+      { href: '/business/settlement', label: 'PG 정산', icon: ReceiptText },
     ],
   },
   {
-    title: '운영관리',
+    title: '운영 관리',
     items: [
       { href: '/business/suppliers', label: '공급처', icon: Users2 },
       { href: '/business/shipments', label: '송장 매칭', icon: Truck },
@@ -89,7 +93,7 @@ export default function BusinessLayout({
   return (
     <NotificationProvider>
       <div className="min-h-screen md:grid md:grid-cols-[260px_1fr]">
-        <div className="md:hidden sticky top-0 z-40 flex items-center justify-between border-b border-border bg-bg-secondary px-4 py-3">
+        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-bg-secondary px-4 py-3 md:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -119,7 +123,7 @@ export default function BusinessLayout({
           <div className="flex h-[72px] items-center justify-between border-b border-border px-4">
             <Link
               href="/business"
-              className="flex items-center gap-3 no-underline text-foreground"
+              className="flex items-center gap-3 text-foreground no-underline"
               onClick={() => setSidebarOpen(false)}
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-foreground text-background">
@@ -129,14 +133,14 @@ export default function BusinessLayout({
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-text-tertiary">
                   Order Friends
                 </div>
-                <div className="text-[15px] font-black tracking-tight">B2B 조달센터</div>
+                <div className="text-[15px] font-black tracking-tight">B2B 운영센터</div>
               </div>
             </Link>
 
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
-              className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-transparent text-foreground"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-transparent text-foreground md:hidden"
               aria-label="B2B 메뉴 닫기"
             >
               <X size={16} />
@@ -176,12 +180,12 @@ export default function BusinessLayout({
           <div className="space-y-3 border-t border-border p-3">
             <SidebarNotice
               title="오늘 발주 가이드"
-              body="오전 10:30 이전 발주 건은 익일 오전 입고 기준으로 묶어 처리합니다."
+              body="오전 10:30 이전 주문은 당일 오전 입고 기준으로 묶어 처리하는 흐름을 권장합니다."
               tone="amber"
             />
             <SidebarNotice
               title="송장 매칭 체크"
-              body="한진 / 로젠 / CJ 프리셋을 저장해 두면 업로드 시간을 줄일 수 있습니다."
+              body="주문번호와 송장번호 컬럼이 맞는지 먼저 확인하면 업로드 오류를 크게 줄일 수 있습니다."
               tone="slate"
             />
 
@@ -214,12 +218,12 @@ export default function BusinessLayout({
         </aside>
 
         <main className="min-h-screen bg-background">
-          <div className="hidden md:flex sticky top-0 z-30 h-[72px] items-center justify-between gap-4 border-b border-border bg-background/90 px-6 backdrop-blur">
+          <div className="sticky top-0 z-30 hidden h-[72px] items-center justify-between gap-4 border-b border-border bg-background/90 px-6 backdrop-blur md:flex">
             <div className="relative w-full max-w-xl flex-1">
               <input
                 type="search"
                 className="input-field h-12 rounded-2xl pl-12 text-sm"
-                placeholder="Quick Search · 상품명 / 주문번호 / 공급처를 입력하세요"
+                placeholder="빠른 검색 · 상품명 / 주문번호 / 공급처"
               />
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-text-tertiary">
                 <PackageSearch size={18} />
@@ -228,17 +232,17 @@ export default function BusinessLayout({
 
             <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
               <div className="flex shrink-0 items-center gap-4 rounded-2xl border border-border bg-bg-secondary px-4 py-3 text-[13px] text-text-secondary">
-                <TopMetric label="예치금" value={businessTopSummary.deposit} />
-                <TopMetric label="적립금" value={businessTopSummary.points} />
-                <TopMetric label="결제대기" value={businessTopSummary.paymentPending} />
+                <TopMetric label="입치기" value={businessTopSummary.deposit} />
+                <TopMetric label="상품 대기" value={businessTopSummary.points} />
+                <TopMetric label="결제 대기" value={businessTopSummary.paymentPending} />
                 <TopMetric
-                  label="미매칭송장"
+                  label="미매칭 송장"
                   value={businessTopSummary.unmatchedWaybills}
                 />
               </div>
 
               <div className="max-w-[140px] shrink-0 truncate text-[13px] font-semibold text-foreground">
-                {user?.email?.split('@')[0] || '운영자'} 로그인중
+                {user?.email?.split('@')[0] || '운영자'} 로그인 중
               </div>
 
               <button

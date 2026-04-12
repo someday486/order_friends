@@ -11,6 +11,7 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BillingTier } from '../billing/billing.types';
 import {
   PublicBranchResponse,
   PublicBrandBranchesResponse,
@@ -39,6 +40,8 @@ export class PublicOrderService {
   private readonly duplicateWindowMs: number;
   private readonly weakDuplicateWindowMs: number;
   private readonly duplicateLookbackLimit: number;
+  private static readonly DELIVERY_FULFILLMENT_TYPES = new Set(['SHIPPING']);
+  private static readonly SCHEMA_FALLBACK_MAX_ATTEMPTS = 32;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -105,6 +108,124 @@ export class PublicOrderService {
     }
 
     return [trimmed];
+  }
+
+  private normalizeBillingTier(value: unknown): BillingTier {
+    return value === BillingTier.NON_PG ? BillingTier.NON_PG : BillingTier.PG;
+  }
+
+  private inferBillingTierFromPaymentMethods(
+    paymentMethods: string[],
+  ): BillingTier {
+    const normalized = normalizePaymentMethods(paymentMethods);
+    if (normalized.length === 1 && normalized[0] === PaymentMethod.TRANSFER) {
+      return BillingTier.NON_PG;
+    }
+
+    return BillingTier.PG;
+  }
+
+  private getPaymentMethodsForBillingTier(
+    billingTier: BillingTier,
+    paymentMethods: string[],
+  ): PaymentMethod[] {
+    const normalized = normalizePaymentMethods(paymentMethods);
+
+    if (billingTier === BillingTier.PG) {
+      return normalized.includes(PaymentMethod.CARD)
+        ? [PaymentMethod.CARD]
+        : [PaymentMethod.CARD];
+    }
+
+    return normalized.includes(PaymentMethod.TRANSFER)
+      ? [PaymentMethod.TRANSFER]
+      : [PaymentMethod.TRANSFER];
+  }
+
+  private validatePaymentMethodForBillingTier(
+    billingTier: BillingTier,
+    paymentMethod: PaymentMethod,
+  ): void {
+    if (
+      billingTier === BillingTier.PG &&
+      paymentMethod === PaymentMethod.TRANSFER
+    ) {
+      throw new BadRequestException(
+        'PG 이용 브랜드는 계좌이체 결제를 지원하지 않습니다.',
+      );
+    }
+
+    if (
+      billingTier === BillingTier.NON_PG &&
+      paymentMethod === PaymentMethod.CARD
+    ) {
+      throw new BadRequestException(
+        '무통장 전용 브랜드는 카드 결제를 지원하지 않습니다.',
+      );
+    }
+  }
+
+  private async resolveBrandBillingTier(
+    brandId: string,
+    fallbackPaymentMethods: string[] = [],
+  ): Promise<BillingTier> {
+    const adminSb = this.supabase.adminClient();
+    try {
+      const result = await adminSb
+        .from('brands')
+        .select('billing_tier')
+        .eq('id', brandId)
+        .maybeSingle();
+
+      if (!result?.error && result?.data?.billing_tier) {
+        return this.normalizeBillingTier(result.data.billing_tier);
+      }
+
+      if (result?.error && !this.isMissingColumnError(result.error)) {
+        this.logger.warn(
+          `Failed to resolve billing tier for brand ${brandId}: ${result.error.message ?? 'unknown error'}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve billing tier for brand ${brandId}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+
+    return this.inferBillingTierFromPaymentMethods(fallbackPaymentMethods);
+  }
+
+  private async resolveBranchBillingTier(
+    branchId: string,
+    fallbackPaymentMethods: string[] = [],
+  ): Promise<BillingTier> {
+    const adminSb = this.supabase.adminClient();
+    try {
+      const result = await adminSb
+        .from('branches')
+        .select('brand_id')
+        .eq('id', branchId)
+        .maybeSingle();
+
+      if (!result?.error && result?.data?.brand_id) {
+        return this.resolveBrandBillingTier(
+          result.data.brand_id,
+          fallbackPaymentMethods,
+        );
+      }
+
+      if (result?.error) {
+        this.logger.warn(
+          `Failed to resolve branch billing tier for ${branchId}: ${result.error.message ?? 'unknown error'}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve branch billing tier for ${branchId}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+
+    return this.inferBillingTierFromPaymentMethods(fallbackPaymentMethods);
   }
 
   /**
@@ -192,6 +313,7 @@ export class PublicOrderService {
     brandId: string;
     brandSlug: string;
     brandName: string;
+    billingTier: BillingTier;
     cashReceiptEnabled: boolean;
     logoUrl: string | null;
     coverImageUrl: string | null;
@@ -243,8 +365,16 @@ export class PublicOrderService {
     }
 
     const brand = brandRows[0];
-    const shopPaymentMethods = normalizePaymentMethods(
+    const rawShopPaymentMethods = normalizePaymentMethods(
       brand.shop_payment_methods,
+    );
+    const billingTier = await this.resolveBrandBillingTier(
+      brand.id,
+      rawShopPaymentMethods,
+    );
+    const shopPaymentMethods = this.getPaymentMethodsForBillingTier(
+      billingTier,
+      rawShopPaymentMethods,
     );
 
     const { data: branchRows, error: branchError } = await adminSb
@@ -349,6 +479,7 @@ export class PublicOrderService {
       brandId: brand.id,
       brandSlug: brand.slug ?? brandSlug,
       brandName: brand.name ?? '',
+      billingTier,
       cashReceiptEnabled: brand.cash_receipt_enabled === true,
       logoUrl: brand.logo_url ?? null,
       coverImageUrl: brand.cover_image_url ?? null,
@@ -436,7 +567,7 @@ export class PublicOrderService {
     branchId: string,
   ): Promise<void> {
     await saveBranchOrderConfig(adminSb, branchId, {
-      enabledFulfillmentTypes: [FulfillmentType.DELIVERY],
+      enabledFulfillmentTypes: [FulfillmentType.SHIPPING],
     });
     await this.ensureOnlineShopProductsLinkedToBranch(
       adminSb,
@@ -462,9 +593,9 @@ export class PublicOrderService {
     const enabledTypes = normalizeFulfillmentTypes(
       orderConfig.enabledFulfillmentTypes,
     );
-    const supportsDelivery = enabledTypes.includes(FulfillmentType.DELIVERY);
+    const supportsDelivery = enabledTypes.includes(FulfillmentType.SHIPPING);
     const hasDeliveryChannel = Boolean(
-      orderConfig.channelByType[FulfillmentType.DELIVERY],
+      orderConfig.channelByType[FulfillmentType.SHIPPING],
     );
 
     return {
@@ -988,12 +1119,16 @@ export class PublicOrderService {
       brandId: context.brandId,
       brandSlug: context.brandSlug,
       brandName: context.brandName,
+      billingTier: context.billingTier,
       cashReceiptEnabled: context.cashReceiptEnabled,
       logoUrl: context.logoUrl,
       coverImageUrl: context.coverImageUrl,
-      fulfillmentType: FulfillmentType.DELIVERY,
+      fulfillmentType: FulfillmentType.SHIPPING,
       paymentMethods: exposedPaymentMethods,
-      transferAccount: chosenBranchConfig.transferAccount,
+      transferAccount:
+        context.billingTier === BillingTier.NON_PG
+          ? chosenBranchConfig.transferAccount
+          : null,
       products: products as any[],
     };
   }
@@ -1071,6 +1206,10 @@ export class PublicOrderService {
     const paymentMethod = (dto.paymentMethod ?? PaymentMethod.CARD)
       .toUpperCase()
       .trim() as PaymentMethod;
+    this.validatePaymentMethodForBillingTier(
+      context.billingTier,
+      paymentMethod,
+    );
     if (!context.shopPaymentMethods.includes(paymentMethod)) {
       throw new BadRequestException(
         '선택한 결제수단은 현재 온라인샵에서 사용할 수 없습니다.',
@@ -1131,7 +1270,7 @@ export class PublicOrderService {
       customerMemo: dto.customerMemo,
       paymentMethod,
       cashReceipt: dto.cashReceipt,
-      fulfillmentType: FulfillmentType.DELIVERY,
+      fulfillmentType: FulfillmentType.SHIPPING,
       items: mappedItems,
     };
 
@@ -1529,19 +1668,29 @@ export class PublicOrderService {
 
     const row = data as any;
     const orderConfig = await this.getPublicBranchOrderConfig(row.id);
+    const billingTier = await this.resolveBranchBillingTier(
+      row.id,
+      orderConfig.allowedPaymentMethods,
+    );
+    const allowedPaymentMethods = this.getPaymentMethodsForBillingTier(
+      billingTier,
+      orderConfig.allowedPaymentMethods,
+    );
     return {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      billingTier,
       cashReceiptEnabled: row.brands?.cash_receipt_enabled === true,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       contactPhone: row.contact_phone ?? null,
       kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
-      transferAccount: orderConfig.transferAccount,
+      transferAccount:
+        billingTier === BillingTier.NON_PG ? orderConfig.transferAccount : null,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
     };
@@ -1591,19 +1740,29 @@ export class PublicOrderService {
 
     const row = data[0] as any;
     const orderConfig = await this.getPublicBranchOrderConfig(row.id);
+    const billingTier = await this.resolveBranchBillingTier(
+      row.id,
+      orderConfig.allowedPaymentMethods,
+    );
+    const allowedPaymentMethods = this.getPaymentMethodsForBillingTier(
+      billingTier,
+      orderConfig.allowedPaymentMethods,
+    );
     return {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      billingTier,
       cashReceiptEnabled: row.brands?.cash_receipt_enabled === true,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       contactPhone: row.contact_phone ?? null,
       kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
-      transferAccount: orderConfig.transferAccount,
+      transferAccount:
+        billingTier === BillingTier.NON_PG ? orderConfig.transferAccount : null,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
     };
@@ -1659,19 +1818,29 @@ export class PublicOrderService {
 
     const row = data[0] as any;
     const orderConfig = await this.getPublicBranchOrderConfig(row.id);
+    const billingTier = await this.resolveBranchBillingTier(
+      row.id,
+      orderConfig.allowedPaymentMethods,
+    );
+    const allowedPaymentMethods = this.getPaymentMethodsForBillingTier(
+      billingTier,
+      orderConfig.allowedPaymentMethods,
+    );
     return {
       id: row.id,
       name: row.name,
       brandName: row.brands?.name ?? undefined,
+      billingTier,
       cashReceiptEnabled: row.brands?.cash_receipt_enabled === true,
       logoUrl: row.logo_url || row.brands?.logo_url || null,
       coverImageUrl: row.cover_image_url || row.brands?.cover_image_url || null,
       contactPhone: row.contact_phone ?? null,
       kakaoChannelUrl: row.kakao_channel_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods,
       orderNotice: orderConfig.orderNotice,
-      transferAccount: orderConfig.transferAccount,
+      transferAccount:
+        billingTier === BillingTier.NON_PG ? orderConfig.transferAccount : null,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
     };
@@ -1987,6 +2156,28 @@ export class PublicOrderService {
     return 0;
   }
 
+  private normalizeDeliveryTrackingStatus(
+    value: unknown,
+  ):
+    | 'PENDING'
+    | 'PREPARING_SHIPMENT'
+    | 'IN_TRANSIT'
+    | 'DELIVERED'
+    | 'DELIVERY_FAILED'
+    | null {
+    if (
+      value === 'PENDING' ||
+      value === 'PREPARING_SHIPMENT' ||
+      value === 'IN_TRANSIT' ||
+      value === 'DELIVERED' ||
+      value === 'DELIVERY_FAILED'
+    ) {
+      return value;
+    }
+
+    return null;
+  }
+
   private async runOrderSelectWithUnitPriceFallback(
     queryFactory: (
       unitPriceColumn: 'unit_price' | 'unit_price_snapshot',
@@ -2025,6 +2216,12 @@ export class PublicOrderService {
       'customer_address1',
       'customer_address2',
       'customer_memo',
+      'delivery_status',
+      'delivery_carrier',
+      'delivery_tracking_number',
+      'delivery_started_at',
+      'delivered_at',
+      'delivery_status_updated_at',
     ].filter((column) => !omittedColumns.has(column));
 
     return `
@@ -2049,7 +2246,11 @@ export class PublicOrderService {
     const omittedColumns = new Set<string>();
     let unitPriceColumn: 'unit_price' | 'unit_price_snapshot' = 'unit_price';
 
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < PublicOrderService.SCHEMA_FALLBACK_MAX_ATTEMPTS;
+      attempt += 1
+    ) {
       const result = await queryFactory(unitPriceColumn, omittedColumns);
       if (!result.error) {
         return result;
@@ -2120,6 +2321,26 @@ export class PublicOrderService {
         (opt: any) => opt.option_name_snapshot,
       ),
     }));
+    const fulfillmentType = order.fulfillment_type ?? null;
+    const deliveryTracking = PublicOrderService.DELIVERY_FULFILLMENT_TYPES.has(
+      String(fulfillmentType ?? ''),
+    )
+      ? {
+          status:
+            this.normalizeDeliveryTrackingStatus(
+              order.delivery_status ?? null,
+            ) ?? 'PENDING',
+          carrier: order.delivery_carrier ?? null,
+          trackingNumber: order.delivery_tracking_number ?? null,
+          startedAt: order.delivery_started_at ?? null,
+          deliveredAt: order.delivered_at ?? null,
+          updatedAt:
+            order.delivery_status_updated_at ??
+            order.delivered_at ??
+            order.delivery_started_at ??
+            null,
+        }
+      : null;
 
     return {
       id: order.id,
@@ -2129,7 +2350,7 @@ export class PublicOrderService {
       createdAt: order.created_at,
       requestedTime: null,
       paymentMethod: order.payment_method ?? null,
-      fulfillmentType: order.fulfillment_type ?? null,
+      fulfillmentType,
       transferAccount: order.transfer_account ?? null,
       customer: {
         name: order.customer_name ?? null,
@@ -2140,6 +2361,7 @@ export class PublicOrderService {
       },
       branchContactPhone: null,
       branchKakaoChannelUrl: null,
+      deliveryTracking,
       items,
     };
   }
@@ -2580,7 +2802,16 @@ export class PublicOrderService {
       dto.branchId,
     );
     const allowDeliveryOverride = (dto as any).__allowDeliveryOverride === true;
-    const allowedPaymentMethods = normalizePaymentMethods(
+    const billingTier = await this.resolveBranchBillingTier(
+      dto.branchId,
+      branchOrderConfig.allowedPaymentMethods,
+    );
+    this.validatePaymentMethodForBillingTier(
+      billingTier,
+      paymentMethod as PaymentMethod,
+    );
+    const allowedPaymentMethods = this.getPaymentMethodsForBillingTier(
+      billingTier,
       branchOrderConfig.allowedPaymentMethods,
     );
     if (!allowedPaymentMethods.includes(paymentMethod as any)) {
@@ -2597,7 +2828,11 @@ export class PublicOrderService {
     );
     if (
       !enabledFulfillmentTypes.includes(requestedFulfillmentType as any) &&
-      !(allowDeliveryOverride && requestedFulfillmentType === 'DELIVERY')
+      !(
+        allowDeliveryOverride &&
+        (requestedFulfillmentType === 'DELIVERY' ||
+          requestedFulfillmentType === 'SHIPPING')
+      )
     ) {
       throw new BadRequestException(
         '선택한 주문 방식은 현재 매장에서 지원하지 않습니다.',

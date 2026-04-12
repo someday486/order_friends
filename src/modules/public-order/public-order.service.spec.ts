@@ -24,8 +24,8 @@ describe('PublicOrderService - Inventory Integration', () => {
     order: jest.fn().mockReturnThis(),
     limit: jest.fn().mockResolvedValue({ data: [], error: null }),
     in: jest.fn().mockReturnThis(),
-    single: jest.fn(),
-    maybeSingle: jest.fn(),
+    single: jest.fn().mockResolvedValue({ data: null, error: null }),
+    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
   });
 
   beforeEach(async () => {
@@ -38,6 +38,7 @@ describe('PublicOrderService - Inventory Integration', () => {
       order_item_options: makeChain(),
     };
     adminChains = {
+      brands: makeChain(),
       branches: makeChain(),
       orders: makeChain(),
       payments: makeChain(),
@@ -80,6 +81,48 @@ describe('PublicOrderService - Inventory Integration', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('buildOrderResponse should include pending delivery tracking for shipping orders', () => {
+    const result = (service as any).buildOrderResponse({
+      id: 'order-1',
+      order_no: 'ORD-1',
+      status: 'CREATED',
+      total_amount: 12000,
+      created_at: '2026-04-12T12:00:00.000Z',
+      payment_method: 'CARD',
+      fulfillment_type: 'SHIPPING',
+      customer_name: '홍길동',
+      customer_phone: '010-1234-5678',
+      customer_address1: '서울시 강남구',
+      customer_address2: '101호',
+      customer_memo: '문 앞에 놓아주세요',
+      order_items: [],
+    });
+
+    expect(result.deliveryTracking).toEqual({
+      status: 'PENDING',
+      carrier: null,
+      trackingNumber: null,
+      startedAt: null,
+      deliveredAt: null,
+      updatedAt: null,
+    });
+  });
+
+  it('buildOrderResponse should omit delivery tracking for pickup orders', () => {
+    const result = (service as any).buildOrderResponse({
+      id: 'order-2',
+      order_no: 'ORD-2',
+      status: 'CREATED',
+      total_amount: 9000,
+      created_at: '2026-04-12T12:00:00.000Z',
+      payment_method: 'CARD',
+      fulfillment_type: 'PICKUP',
+      order_items: [],
+    });
+
+    expect(result.deliveryTracking).toBeNull();
   });
 
   it('should successfully create order and reserve inventory via RPC', async () => {
@@ -207,6 +250,10 @@ describe('PublicOrderService - Inventory Integration', () => {
       data: [],
       error: null,
     });
+    adminChains.brands.maybeSingle.mockResolvedValueOnce({
+      data: { billing_tier: 'NON_PG' },
+      error: null,
+    });
     adminChains.branches.maybeSingle
       .mockResolvedValueOnce({
         data: {
@@ -215,7 +262,12 @@ describe('PublicOrderService - Inventory Integration', () => {
             account_number: '302-2022-0855-71',
             account_holder: '미남과일',
           },
+          allowed_payment_methods: ['TRANSFER'],
         },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { brand_id: 'brand-1' },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -291,9 +343,20 @@ describe('PublicOrderService - Inventory Integration', () => {
     });
 
     adminClient.rpc.mockResolvedValueOnce({ data: null, error: null });
+    adminChains.brands.maybeSingle.mockResolvedValueOnce({
+      data: { billing_tier: 'NON_PG' },
+      error: null,
+    });
     adminChains.branches.maybeSingle
       .mockResolvedValueOnce({
-        data: { transfer_account: null },
+        data: {
+          transfer_account: null,
+          allowed_payment_methods: ['TRANSFER'],
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { brand_id: 'brand-1' },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -310,6 +373,96 @@ describe('PublicOrderService - Inventory Integration', () => {
 
     expect(warnSpy).toHaveBeenCalledWith(
       'Failed to send order completion KakaoTalk for order order-123: KakaoTalk API error: 400 invalid template',
+    );
+  });
+
+  it('should reject transfer payments for PG billing tier branches', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      paymentMethod: 'TRANSFER',
+      items: [{ productId: 'product-1', qty: 1, unitPrice: 10000 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 10000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.brands.maybeSingle.mockResolvedValueOnce({
+      data: { billing_tier: 'PG' },
+      error: null,
+    });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          allowed_payment_methods: ['CARD'],
+          transfer_account: null,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { brand_id: 'brand-1' },
+        error: null,
+      });
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      'PG 이용 브랜드는 계좌이체 결제를 지원하지 않습니다.',
+    );
+  });
+
+  it('should reject card payments for non-pg billing tier branches', async () => {
+    const mockOrderDto = {
+      branchId: 'branch-123',
+      customerName: 'Customer',
+      customerPhone: '010-1234-5678',
+      paymentMethod: 'CARD',
+      items: [{ productId: 'product-1', qty: 1, unitPrice: 10000 }],
+    };
+
+    anonChains.products.in.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'product-1',
+          name: 'Product',
+          price: 10000,
+          branch_id: 'branch-123',
+        },
+      ],
+      error: null,
+    });
+
+    adminChains.brands.maybeSingle.mockResolvedValueOnce({
+      data: { billing_tier: 'NON_PG' },
+      error: null,
+    });
+    adminChains.branches.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          allowed_payment_methods: ['TRANSFER'],
+          transfer_account: {
+            bank_name: 'NH',
+            account_number: '302-2022-0855-71',
+            account_holder: '미남과일',
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { brand_id: 'brand-1' },
+        error: null,
+      });
+
+    await expect(service.createOrder(mockOrderDto as any)).rejects.toThrow(
+      '무통장 전용 브랜드는 카드 결제를 지원하지 않습니다.',
     );
   });
 

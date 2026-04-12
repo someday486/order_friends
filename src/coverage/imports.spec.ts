@@ -17,8 +17,9 @@ import { NotificationsModule } from '../modules/notifications/notifications.modu
 import { OrdersModule } from '../modules/orders/orders.module';
 import { PaymentsModule } from '../modules/payments/payments.module';
 import { ProductsModule } from '../modules/products/products.module';
-import { PublicModule } from '../modules/public/public.module';
 import { PublicOrderModule } from '../modules/public-order/public-order.module';
+import { BillingModule } from '../modules/billing/billing.module';
+import { SettlementModule } from '../modules/settlement/settlement.module';
 import { UploadModule } from '../modules/upload/upload.module';
 import {
   BranchDetailResponse,
@@ -33,7 +34,15 @@ import {
   NotificationStatus,
   NotificationType,
 } from '../modules/notifications/dto/notification.dto';
+import {
+  BillingRecordStatus,
+  BillingTier,
+  SettlementStatus,
+  SubscriptionStatus,
+} from '../modules/billing/billing.types';
 import * as paymentsIndex from '../modules/payments';
+import * as billingIndex from '../modules/billing';
+import * as settlementIndex from '../modules/settlement';
 import * as notificationsIndex from '../modules/notifications';
 
 describe('Coverage Imports', () => {
@@ -57,8 +66,9 @@ describe('Coverage Imports', () => {
     expect(OrdersModule).toBeDefined();
     expect(PaymentsModule).toBeDefined();
     expect(ProductsModule).toBeDefined();
-    expect(PublicModule).toBeDefined();
     expect(PublicOrderModule).toBeDefined();
+    expect(BillingModule).toBeDefined();
+    expect(SettlementModule).toBeDefined();
     expect(UploadModule).toBeDefined();
   });
 
@@ -74,12 +84,18 @@ describe('Coverage Imports', () => {
     expect(new ProductListItemResponse()).toBeInstanceOf(
       ProductListItemResponse,
     );
+    expect(BillingTier.PG).toBe('PG');
+    expect(SubscriptionStatus.ACTIVE).toBe('ACTIVE');
+    expect(BillingRecordStatus.SUCCESS).toBe('SUCCESS');
+    expect(SettlementStatus.SETTLED).toBe('SETTLED');
     expect(NotificationType.EMAIL).toBe('EMAIL');
     expect(NotificationStatus.SENT).toBe('SENT');
   });
 
   it('should export module indexes', () => {
     expect(Object.keys(paymentsIndex).length).toBeGreaterThan(0);
+    expect(Object.keys(billingIndex).length).toBeGreaterThan(0);
+    expect(Object.keys(settlementIndex).length).toBeGreaterThan(0);
     expect(Object.keys(notificationsIndex).length).toBeGreaterThan(0);
   });
 });

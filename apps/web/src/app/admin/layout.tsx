@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useRef, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDarkMode } from '@/hooks/useDarkMode';
+import { useUserRole } from '@/hooks/useUserRole';
+import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 import { getSelectedBrandId } from '@/lib/brandSelection';
 import { getSelectedBranchId } from '@/lib/branchSelection';
 import {
@@ -61,6 +63,28 @@ const menuSections: MenuSection[] = [
   },
 ];
 
+function AccessState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="card w-full max-w-md p-6 text-center">
+        <div className="text-xs font-semibold tracking-[0.18em] text-text-secondary">
+          CHECKING ACCESS
+        </div>
+        <h1 className="mt-3 text-xl font-extrabold text-foreground">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -68,8 +92,9 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, status, signOut } = useAuth();
   const { isDark, toggle } = useDarkMode();
+  const { role, loading: roleLoading, error: roleError } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
@@ -102,6 +127,80 @@ export default function AdminLayout({
     },
     [prefetchRoute],
   );
+
+  useEffect(() => {
+    if (status !== 'unauthenticated') return;
+
+    const next = pathname || '/admin';
+    router.replace(`/login?next=${encodeURIComponent(next)}`);
+  }, [pathname, router, status]);
+
+  useEffect(() => {
+    if (
+      status !== 'authenticated' ||
+      roleLoading ||
+      roleError ||
+      role === 'system_admin'
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const redirectToDestination = async () => {
+      try {
+        const destination = await resolveAuthenticatedDestination();
+        if (cancelled) return;
+
+        router.replace(destination === '/admin' ? '/customer' : destination);
+      } catch {
+        if (cancelled) return;
+        router.replace('/approval-pending');
+      }
+    };
+
+    void redirectToDestination();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [role, roleError, roleLoading, router, status]);
+
+  if (status === 'loading' || (status === 'authenticated' && roleLoading)) {
+    return (
+      <AccessState
+        title="관리자 권한을 확인하고 있습니다"
+        description="로그인 정보와 연결된 관리자 권한을 확인한 뒤 이동합니다."
+      />
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return (
+      <AccessState
+        title="로그인 페이지로 이동하고 있습니다"
+        description="관리자 화면은 로그인이 필요해 로그인 페이지로 안내하고 있습니다."
+      />
+    );
+  }
+
+  if (roleError) {
+    return (
+      <AccessState
+        title="권한을 확인하지 못했습니다"
+        description="관리자 권한 확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+      />
+    );
+  }
+
+  if (role !== 'system_admin') {
+    return (
+      <AccessState
+        title="접근 가능한 화면으로 이동하고 있습니다"
+        description="현재 계정은 관리자 전용 화면을 사용할 수 없어 맞는 화면으로 이동합니다."
+      />
+    );
+  }
 
   return (
     <div className="md:grid md:grid-cols-[240px_1fr] min-h-screen">

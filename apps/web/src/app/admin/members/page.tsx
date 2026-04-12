@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -246,7 +246,7 @@ function MembersPageContent() {
     }
   };
 
-  const fetchBrandMembers = async () => {
+  const fetchBrandMembers = useCallback(async () => {
     if (!brandId) return setBrandMembers([]);
     try {
       setBrandLoading(true);
@@ -263,9 +263,9 @@ function MembersPageContent() {
     } finally {
       setBrandLoading(false);
     }
-  };
+  }, [brandId]);
 
-  const fetchBranchMembers = async () => {
+  const fetchBranchMembers = useCallback(async () => {
     if (!branchId) return setBranchMembers([]);
     try {
       setBranchLoading(true);
@@ -284,7 +284,7 @@ function MembersPageContent() {
     } finally {
       setBranchLoading(false);
     }
-  };
+  }, [branchId]);
 
   useEffect(() => {
     void fetchBrands();
@@ -295,7 +295,7 @@ function MembersPageContent() {
     if (!brandReady) return;
     if (!brandId) return setBrandMembers([]);
     void fetchBrandMembers();
-  }, [brandId, brandReady]);
+  }, [brandId, brandReady, fetchBrandMembers]);
 
   useEffect(() => {
     if (!branchReady) return;
@@ -313,7 +313,7 @@ function MembersPageContent() {
         setSelectedBranchInfo(null);
       }
     })();
-  }, [branchId, branchReady]);
+  }, [branchId, branchReady, fetchBranchMembers]);
 
   const handleBrandChange = (nextBrandId: string) => {
     if (!nextBrandId) return;

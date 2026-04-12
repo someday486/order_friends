@@ -13,6 +13,12 @@ export interface TossRefundResponse {
   [key: string]: unknown;
 }
 
+export interface TossBillingKeyResponse {
+  billingKey?: string;
+  card?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 /**
  * Toss Payments HTTP API client.
  *
@@ -22,6 +28,9 @@ export interface TossRefundResponse {
  */
 export class TossPaymentsClient {
   private readonly logger = new Logger(TossPaymentsClient.name);
+  private static readonly transmissionTimeHeaderNames = [
+    'tosspayments-webhook-transmission-time',
+  ] as const;
 
   constructor(
     private readonly secretKey: string,
@@ -47,6 +56,31 @@ export class TossPaymentsClient {
     return this.callApi(`/payments/${paymentKey}/cancel`, {
       cancelReason: reason,
       cancelAmount: amount,
+    });
+  }
+
+  async issueBillingKey(
+    customerKey: string,
+    authKey: string,
+  ): Promise<TossBillingKeyResponse> {
+    return this.callApi('/billing/authorizations/issue', {
+      customerKey,
+      authKey,
+    });
+  }
+
+  async chargeBillingKey(
+    billingKey: string,
+    amount: number,
+    customerKey: string,
+    orderId: string,
+    orderName: string,
+  ): Promise<Record<string, unknown>> {
+    return this.callApi(`/billing/${billingKey}`, {
+      amount,
+      customerKey,
+      orderId,
+      orderName,
     });
   }
 
@@ -80,6 +114,59 @@ export class TossPaymentsClient {
       Buffer.from(normalized, 'utf8'),
       Buffer.from(hmac, 'utf8'),
     );
+  }
+
+  resolveWebhookTimestamp(
+    headers: Record<string, string | string[]>,
+    createdAt?: string,
+  ): number | null {
+    for (const headerName of TossPaymentsClient.transmissionTimeHeaderNames) {
+      const headerValue =
+        headers[headerName] ||
+        headers[headerName.toLowerCase()] ||
+        headers[headerName.toUpperCase()];
+
+      const candidate = Array.isArray(headerValue)
+        ? headerValue[0]
+        : headerValue;
+
+      const parsed = this.parseTimestamp(candidate);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+
+    return this.parseTimestamp(createdAt);
+  }
+
+  verifyWebhookTimestamp(
+    headers: Record<string, string | string[]>,
+    createdAt: string | undefined,
+    maxAgeMs: number,
+    nowMs = Date.now(),
+  ): boolean {
+    const timestampMs = this.resolveWebhookTimestamp(headers, createdAt);
+    if (timestampMs === null) {
+      return false;
+    }
+
+    return Math.abs(nowMs - timestampMs) <= maxAgeMs;
+  }
+
+  private parseTimestamp(value?: string | null): number | null {
+    if (!value) return null;
+
+    const normalized = value.trim();
+    if (!normalized) return null;
+
+    if (/^\d+$/.test(normalized)) {
+      const numeric = Number(normalized);
+      if (!Number.isFinite(numeric)) return null;
+      return normalized.length <= 10 ? numeric * 1000 : numeric;
+    }
+
+    const parsed = Date.parse(normalized);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 
   private async callApi(

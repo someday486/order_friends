@@ -47,6 +47,11 @@ This file records the current status of the documentation set after the cleanup.
 | `specs/material-procurement-phase2-master-spec-2026-03-30.md` | draft | procurement phase 2 |
 | `specs/material-procurement-phase3-master-spec-2026-03-30.md` | draft | procurement phase 3 |
 | `specs/material-procurement-phase4-master-spec-2026-03-30.md` | draft | procurement phase 4 |
+| `specs/payment-billing-tiers-master-spec-2026-04-13.md` | draft | 결제 이원화 전체 로드맵 (PG/Non-PG 티어) |
+| `specs/payment-billing-tiers-phase0-spec-2026-04-13.md` | draft | 결제 이원화 Phase 0: 데이터 모델 + 마이그레이션 |
+| `specs/payment-billing-tiers-phase1-spec-2026-04-13.md` | draft | 결제 이원화 Phase 1: PG 티어 주문 플로우 |
+| `specs/payment-billing-tiers-phase2-spec-2026-04-13.md` | draft | 결제 이원화 Phase 2: Non-PG 구독 빌링 |
+| `specs/payment-billing-tiers-phase3-spec-2026-04-13.md` | draft | 결제 이원화 Phase 3: PG 정산 시스템 |
 
 ## Research Docs
 

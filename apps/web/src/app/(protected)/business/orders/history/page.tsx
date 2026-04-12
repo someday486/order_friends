@@ -31,7 +31,7 @@ import toast from 'react-hot-toast';
 const STATUS_FILTERS: Array<'전체' | BusinessOrder['status']> = [
   '전체',
   '작성중',
-  '승인대기',
+  '확인대기',
   '출고준비',
   '부분출고',
   '정산대기',
@@ -46,7 +46,8 @@ type DecoratedOrder = BusinessOrder & {
 
 export default function BusinessOrderHistoryPage() {
   const searchParams = useSearchParams();
-  const [activeFilter, setActiveFilter] = useState<(typeof STATUS_FILTERS)[number]>('전체');
+  const [activeFilter, setActiveFilter] =
+    useState<(typeof STATUS_FILTERS)[number]>('전체');
   const [uploadedBatches, setUploadedBatches] = useState<BusinessImportedOrderBatch[]>([]);
   const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
   const [updatingAction, setUpdatingAction] = useState<{
@@ -133,7 +134,7 @@ export default function BusinessOrderHistoryPage() {
 
   const totalAmount = filteredOrders.reduce((sum, order) => sum + order.amount, 0);
   const draftCount = mergedOrders.filter((order) => order.status === '작성중').length;
-  const pendingCount = mergedOrders.filter((order) => order.status === '승인대기').length;
+  const pendingCount = mergedOrders.filter((order) => order.status === '확인대기').length;
   const readyCount = mergedOrders.filter((order) => order.status === '출고준비').length;
 
   const latestUploadedBatch = uploadedBatches[0] ?? null;
@@ -142,9 +143,9 @@ export default function BusinessOrderHistoryPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <section className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="표시 중 발주금액" value={`${totalAmount.toLocaleString()}원`} />
+        <SummaryCard label="표시 중 발주 금액" value={`${totalAmount.toLocaleString()}원`} />
         <SummaryCard label="작성중" value={`${draftCount}건`} />
-        <SummaryCard label="승인대기" value={`${pendingCount}건`} />
+        <SummaryCard label="확인대기" value={`${pendingCount}건`} />
         <SummaryCard label="출고준비" value={`${readyCount}건`} />
       </section>
 
@@ -157,10 +158,11 @@ export default function BusinessOrderHistoryPage() {
               </div>
               <div>
                 <div className="text-[13px] font-semibold text-foreground">
-                  최근 업로드가 주문내역에 반영되었습니다.
+                  최근 업로드한 주문서가 이력에 반영됐습니다.
                 </div>
                 <div className="mt-1 text-[13px] leading-5 text-text-secondary">
-                  {latestUploadedBatch.fileName} · {latestUploadedBatch.rowCount}건 · {latestUploadedBatch.supplierName}
+                  {latestUploadedBatch.fileName} · {latestUploadedBatch.rowCount}건 ·{' '}
+                  {latestUploadedBatch.supplierName}
                 </div>
               </div>
             </div>
@@ -182,7 +184,7 @@ export default function BusinessOrderHistoryPage() {
             <UploadInfoCard label="거래처" value={latestUploadedBatch.supplierName} />
             <UploadInfoCard label="주문일자" value={latestUploadedBatch.orderDate} />
             <UploadInfoCard
-              label="행 / 수량"
+              label="건수 / 수량"
               value={`${latestUploadedBatch.rowCount}건 / ${latestUploadedBatch.totalQty}개`}
             />
           </CardContent>
@@ -195,10 +197,10 @@ export default function BusinessOrderHistoryPage() {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <ClipboardList size={18} className="text-text-secondary" />
-                <CardTitle className="mb-0">대량 발주 주문내역</CardTitle>
+                <CardTitle className="mb-0">전체 발주 주문 이력</CardTitle>
               </div>
               <p className="text-[13px] leading-5 text-text-secondary">
-                업로드된 초안과 기존 발주 건을 한 화면에서 확인할 수 있습니다.
+                업로드한 초안과 기존 발주 건을 한 화면에서 확인할 수 있습니다.
               </p>
             </div>
 
@@ -224,7 +226,8 @@ export default function BusinessOrderHistoryPage() {
         <CardContent className="px-6 pb-6">
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-[13px] leading-5 text-text-secondary">
             <Filter size={16} />
-            업로드 저장분도 이 화면에서 바로 승인 요청, 발주서 발행, 부분출고, 정산대기까지 이어서 처리할 수 있습니다.
+            업로드 주문서는 이 화면에서 바로 확인 요청, 발주서 발행, 부분출고, 정산대기까지
+            이어서 관리할 수 있습니다.
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-border">
@@ -302,11 +305,15 @@ export default function BusinessOrderHistoryPage() {
                       <td className="px-4 py-4 text-right text-[13px] font-semibold text-foreground">
                         {order.amount.toLocaleString()}원
                       </td>
-                      <td className="px-4 py-4 text-[13px] text-text-secondary">{order.deliveryDate}</td>
+                      <td className="px-4 py-4 text-[13px] text-text-secondary">
+                        {order.deliveryDate}
+                      </td>
                       <td className="px-4 py-4 text-[13px]">
                         <StatusPill label={order.status} />
                       </td>
-                      <td className="px-4 py-4 text-[13px] text-text-secondary">{order.paymentStatus}</td>
+                      <td className="px-4 py-4 text-[13px] text-text-secondary">
+                        {order.paymentStatus}
+                      </td>
                       <td className="px-4 py-4 text-right text-[13px]">
                         {order.source === 'upload' ? (
                           <div className="flex flex-wrap justify-end gap-2">
@@ -325,10 +332,7 @@ export default function BusinessOrderHistoryPage() {
                                   }
                                   loading={isProcessingAction}
                                   onClick={() =>
-                                    void handleUpdateBatchStatus(
-                                      order.id,
-                                      action.nextStatus,
-                                    )
+                                    void handleUpdateBatchStatus(order.id, action.nextStatus)
                                   }
                                 />
                               );
@@ -375,9 +379,18 @@ export default function BusinessOrderHistoryPage() {
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
-          <MemoCard title="작성중" body="업로드 직후에는 초안으로 저장해 두고, 승인 전 검토나 공급처 재분류를 할 수 있게 두는 흐름이 안전합니다." />
-          <MemoCard title="부분출고" body="부분 출고 건은 송장 매칭과 입고 현황 페이지에서 함께 추적하도록 연결하면 좋습니다." />
-          <MemoCard title="정산대기" body="후불 거래처는 납기 완료 후 정산대기로 자동 이동하는 정책을 붙일 수 있습니다." />
+          <MemoCard
+            title="작성중"
+            body="업로드 직후에는 초안으로 두고, 공급처나 매장 기준을 먼저 확인한 뒤 다음 단계로 넘기면 안전합니다."
+          />
+          <MemoCard
+            title="부분출고"
+            body="부분 출고 건은 송장 매칭과 입고 현황 화면에서 함께 추적하면 운영 혼선을 줄일 수 있습니다."
+          />
+          <MemoCard
+            title="정산대기"
+            body="후불 거래처는 납기 완료 후 정산대기로 넘겨두면 빌링·정산 흐름과 연결하기 좋습니다."
+          />
         </CardContent>
       </Card>
     </div>
@@ -401,7 +414,9 @@ function UploadInfoCard({ label, value }: { label: string; value: string }) {
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
         {label}
       </div>
-      <div className="mt-3 break-words text-[13px] font-semibold leading-5 text-foreground">{value}</div>
+      <div className="mt-3 break-words text-[13px] font-semibold leading-5 text-foreground">
+        {value}
+      </div>
     </div>
   );
 }
@@ -421,8 +436,8 @@ function WorkflowActionButton({
     action.tone === 'secondary'
       ? 'border border-border bg-background text-text-secondary hover:bg-bg-tertiary hover:text-foreground'
       : action.tone === 'success'
-      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-      : 'bg-foreground text-background hover:opacity-90';
+        ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+        : 'bg-foreground text-background hover:opacity-90';
 
   return (
     <button

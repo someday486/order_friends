@@ -34,10 +34,11 @@ export class PublicShopBrandResponse {
   brandId: string;
   brandSlug: string;
   brandName: string;
+  billingTier?: 'PG' | 'NON_PG';
   cashReceiptEnabled?: boolean;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
-  fulfillmentType: 'DELIVERY';
+  fulfillmentType: 'SHIPPING';
   paymentMethods: string[];
   transferAccount?: {
     bankName?: string | null;

@@ -16,17 +16,13 @@ import {
   ReorderItem,
 } from '../../modules/products/dto/reorder-products.request';
 import {
-  CreatePublicOrderRequest as CreatePublicOrderDto,
-  OrderItemDto,
-  OrderItemOptionDto,
-  PublicBranchResponse,
-  PublicProductResponse,
-  PublicOrderResponse,
-} from '../../modules/public/dto/public.dto';
-import {
   CreatePublicOrderRequest as CreatePublicOrderV2,
   PaymentMethod,
+  PublicBranchResponse,
   PublicCategoryResponse,
+  PublicOrderResponse,
+  PublicProductResponse,
+  OrderItemDto,
   OrderItemOptionDto as PublicOrderItemOptionDto,
 } from '../../modules/public-order/dto/public-order.dto';
 
@@ -150,9 +146,9 @@ describe('DTO defaults and constructors', () => {
   });
 
   it('Public DTOs should instantiate', () => {
-    const dto = new CreatePublicOrderDto();
+    const dto = new CreatePublicOrderV2();
     const item = new OrderItemDto();
-    const option = new OrderItemOptionDto();
+    const option = new PublicOrderItemOptionDto();
     const branch = new PublicBranchResponse();
     const product = new PublicProductResponse();
     const order = new PublicOrderResponse();
@@ -165,18 +161,13 @@ describe('DTO defaults and constructors', () => {
   });
 
   it('Public DTOs should transform nested items', () => {
-    const dto = plainToInstance(CreatePublicOrderDto, {
+    const dto = plainToInstance(CreatePublicOrderV2, {
       branchId: 'b1',
       customerName: 'A',
       items: [{ productId: 'p1', qty: 1, options: [{ optionId: 'o1' }] }],
     });
     expect(dto.items[0]).toBeInstanceOf(OrderItemDto);
-    expect(dto.items[0].options?.[0]).toBeInstanceOf(OrderItemOptionDto);
-  });
-
-  it('Public order DTO should set default payment method', () => {
-    const dto = new CreatePublicOrderV2();
-    expect(dto.paymentMethod).toBe(PaymentMethod.CARD);
+    expect(dto.items[0].options?.[0]).toBeInstanceOf(PublicOrderItemOptionDto);
   });
 
   it('Public order DTO should transform nested items', () => {
@@ -191,5 +182,10 @@ describe('DTO defaults and constructors', () => {
   it('Public order DTO responses should instantiate', () => {
     const category = new PublicCategoryResponse();
     expect(category).toBeDefined();
+  });
+
+  it('Public order DTO should set default payment method', () => {
+    const dto = new CreatePublicOrderV2();
+    expect(dto.paymentMethod).toBe(PaymentMethod.CARD);
   });
 });

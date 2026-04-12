@@ -10,7 +10,7 @@ export type BusinessOrderWorkflowAction = {
 
 const STATUS_TONE_BY_STATUS: Record<BusinessOrderStatus, string> = {
   작성중: 'bg-violet-500/15 text-violet-700',
-  승인대기: 'bg-amber-500/15 text-amber-700',
+  확인대기: 'bg-amber-500/15 text-amber-700',
   출고준비: 'bg-emerald-500/15 text-emerald-700',
   부분출고: 'bg-sky-500/15 text-sky-700',
   정산대기: 'bg-neutral-500/15 text-text-secondary',
@@ -20,8 +20,8 @@ const WORKFLOW_ACTIONS_BY_STATUS: Record<
   BusinessOrderStatus,
   BusinessOrderWorkflowAction[]
 > = {
-  작성중: [{ label: '승인 요청', nextStatus: '승인대기', tone: 'primary' }],
-  승인대기: [
+  작성중: [{ label: '확인 요청', nextStatus: '확인대기', tone: 'primary' }],
+  확인대기: [
     { label: '작성중으로', nextStatus: '작성중', tone: 'secondary' },
     { label: '발주서 발행', nextStatus: '출고준비', tone: 'primary' },
   ],
@@ -32,8 +32,8 @@ const WORKFLOW_ACTIONS_BY_STATUS: Record<
 
 const SUCCESS_MESSAGE_BY_STATUS: Record<BusinessOrderStatus, string> = {
   작성중: '주문서를 작성중 상태로 되돌렸습니다.',
-  승인대기: '주문서를 승인대기로 변경했습니다.',
-  출고준비: '발주서 발행 후 출고준비 상태로 변경했습니다.',
+  확인대기: '주문서를 확인대기 상태로 변경했습니다.',
+  출고준비: '발주서를 발행하고 출고준비 상태로 변경했습니다.',
   부분출고: '주문서를 부분출고 상태로 변경했습니다.',
   정산대기: '주문서를 정산대기 상태로 변경했습니다.',
 };

@@ -8,9 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
-
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
-type PaymentMethod = "CARD" | "TRANSFER";
+import { type FulfillmentType, type StorePaymentMethod } from "@/types/common";
 
 type Branch = {
   id: string;
@@ -19,7 +17,7 @@ type Branch = {
   slug?: string | null;
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
-  allowedPaymentMethods?: PaymentMethod[];
+  allowedPaymentMethods?: StorePaymentMethod[];
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -51,7 +49,7 @@ type BranchMember = {
 };
 
 const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
-const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER"];
+const ALL_PAYMENT_METHODS: StorePaymentMethod[] = ["CARD", "TRANSFER"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
@@ -60,7 +58,7 @@ const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   SHIPPING: "택배",
 };
 
-const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+const PAYMENT_LABEL: Record<StorePaymentMethod, string> = {
   CARD: "카드",
   TRANSFER: "계좌이체",
 };
@@ -117,7 +115,9 @@ export default function StoreDetailPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
-  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<
+    StorePaymentMethod[]
+  >(["CARD"]);
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");

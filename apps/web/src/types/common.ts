@@ -1,11 +1,11 @@
-export type OrderStatus =
-  | 'CREATED'
-  | 'CONFIRMED'
-  | 'PREPARING'
-  | 'READY'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'REFUNDED';
+import type {
+  ApiBillingTier,
+  ApiFulfillmentType,
+  ApiOrderStatus,
+  ApiStorePaymentMethod,
+} from './api-contracts';
+
+export type OrderStatus = ApiOrderStatus;
 
 export type DepositMatchStatus = 'PENDING' | 'AUTO_MATCHED';
 
@@ -88,13 +88,21 @@ export const ORDER_STATUS_DISPLAY_BADGE_CLASS: Record<
   CANCELLED: 'bg-danger-500/20 text-danger-500',
 };
 
-export type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
+export type FulfillmentType = ApiFulfillmentType;
+export type BillingTier = ApiBillingTier;
+export type StorePaymentMethod = ApiStorePaymentMethod;
+export type PaymentMethod = StorePaymentMethod | 'CASH';
 
 export const FULFILLMENT_TYPE_LABEL: Record<FulfillmentType, string> = {
   PICKUP: '포장',
   DELIVERY: '배달',
   DINE_IN: '매장',
-  SHIPPING: '택배',
+  SHIPPING: '배송',
+};
+
+export const STORE_PAYMENT_METHOD_LABEL: Record<StorePaymentMethod, string> = {
+  CARD: '카드',
+  TRANSFER: '계좌이체',
 };
 
 export type Branch = {

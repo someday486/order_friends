@@ -15,6 +15,10 @@ import {
 } from "@/lib/business-hours";
 import toast from "react-hot-toast";
 import { CardSkeleton } from "@/components/ui/Skeleton";
+import {
+  type FulfillmentType as BranchFulfillmentType,
+  type StorePaymentMethod as BranchPaymentMethod,
+} from "@/types/common";
 
 
 // ============================================================
@@ -42,9 +46,6 @@ type Brand = {
   myRole?: string | null;
   shop_payment_methods?: string[] | null;
 };
-
-type BranchPaymentMethod = "CARD" | "TRANSFER";
-type BranchFulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
 
 // ============================================================
 // Constants
@@ -471,56 +472,6 @@ function BranchCard({ branch }: { branch: Branch }) {
           관리하기
         </Link>
       </div>
-    </div>
-  );
-}
-
-// ── 3. BrandShopCard: grouped prop으로 섹션 내 렌더링 지원 ──
-function BrandShopCard({ brand, grouped = false }: { brand: Brand; grouped?: boolean }) {
-  const shopUrl = getBrandShopUrl(brand.slug);
-
-  // grouped=true일 때: 외부 border/radius 제거 (부모 섹션이 담당)
-  const containerClass = grouped
-    ? "p-4 bg-bg-secondary text-foreground"
-    : "p-5 rounded-xl border border-border bg-bg-secondary text-foreground";
-
-  if (!shopUrl) {
-    return (
-      <div className={grouped ? "p-4 bg-bg-secondary text-foreground" : "p-5 rounded-xl border border-border bg-bg-secondary text-foreground"}>
-        <div className="font-bold text-base mb-1">온라인샵</div>
-        <div className="text-sm text-text-secondary">
-          브랜드 URL이 없어 온라인샵 주소를 만들 수 없습니다.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={containerClass}>
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-2xl">
-            🛒
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-base mb-1">온라인샵</div>
-            <div className="text-xs text-text-secondary">브랜드 하위 온라인 판매 채널</div>
-          </div>
-        </div>
-
-        <Link
-          href={shopUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="온라인샵 페이지 열기"
-          aria-label="온라인샵 페이지 열기"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </Link>
-      </div>
-
-      <div className="text-sm text-text-secondary">브랜드 온라인샵</div>
     </div>
   );
 }

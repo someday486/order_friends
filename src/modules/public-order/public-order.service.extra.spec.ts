@@ -15,9 +15,9 @@ describe('PublicOrderService - Public Queries', () => {
     eq: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
-    single: jest.fn(),
-    maybeSingle: jest.fn(),
-    limit: jest.fn().mockReturnThis(),
+    single: jest.fn().mockResolvedValue({ data: null, error: null }),
+    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    limit: jest.fn().mockResolvedValue({ data: [], error: null }),
   });
 
   beforeEach(() => {
@@ -28,6 +28,8 @@ describe('PublicOrderService - Public Queries', () => {
       orders: makeChain(),
     };
     adminChains = {
+      brands: makeChain(),
+      branches: makeChain(),
       product_categories: makeChain(),
       product_inventory: makeChain(),
       orders: makeChain(),
@@ -70,6 +72,8 @@ describe('PublicOrderService - Public Queries', () => {
     const result = await service.getBranch('b1');
     expect(result.id).toBe('b1');
     expect(result.brandName).toBe('Brand');
+    expect(result.billingTier).toBe('PG');
+    expect(result.allowedPaymentMethods).toEqual(['CARD']);
   });
 
   it('getBranch should throw when missing', async () => {
@@ -380,6 +384,68 @@ describe('PublicOrderService - Public Queries', () => {
 
     expect(result.id).toBe('o-unit-fallback');
     expect(result.items[0].unitPrice).toBe(1200);
+  });
+
+  it('getOrder should keep retrying across many missing columns', async () => {
+    const missingColumns = [
+      'unit_price',
+      'payment_method',
+      'customer_address1',
+      'customer_address2',
+      'customer_memo',
+      'delivery_status',
+      'delivery_carrier',
+      'delivery_tracking_number',
+      'delivery_started_at',
+      'delivered_at',
+      'delivery_status_updated_at',
+    ];
+
+    for (const column of missingColumns) {
+      anonChains.orders.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message:
+            column === 'unit_price'
+              ? 'column order_items_1.unit_price does not exist'
+              : `column orders.${column} does not exist`,
+        },
+      });
+    }
+
+    anonChains.orders.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'o-many-fallbacks',
+        order_no: null,
+        status: 'CREATED',
+        total_amount: 1200,
+        created_at: 't',
+        fulfillment_type: 'SHIPPING',
+        customer_name: '홍길동',
+        customer_phone: '010-1234-5678',
+        order_items: [],
+      },
+      error: null,
+    });
+
+    const result = await service.getOrder(
+      '43a3aa26-85a6-439b-b27b-51e1221bab74',
+    );
+
+    expect(result.id).toBe('o-many-fallbacks');
+    expect(result.fulfillmentType).toBe('SHIPPING');
+    expect(result.deliveryTracking).toEqual({
+      status: 'PENDING',
+      carrier: null,
+      trackingNumber: null,
+      startedAt: null,
+      deliveredAt: null,
+      updatedAt: null,
+    });
+    expect(anonChains.orders.maybeSingle).toHaveBeenCalledTimes(
+      missingColumns.length + 1,
+    );
   });
 
   it('getOrder should fallback to admin query when order number is not visible to anon', async () => {

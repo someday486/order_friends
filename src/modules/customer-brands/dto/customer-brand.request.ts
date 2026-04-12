@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
+import { BillingTier } from '../../billing/billing.types';
 
 export enum ShopPaymentMethod {
   CARD = 'CARD',
@@ -19,6 +20,13 @@ export class CreateCustomerBrandRequest {
   @ApiProperty({ description: 'Brand name' })
   @IsString()
   name: string;
+
+  @ApiProperty({
+    description: 'Billing tier selected when the brand is created',
+    enum: BillingTier,
+  })
+  @IsEnum(BillingTier)
+  billingTier: BillingTier;
 
   @ApiProperty({
     description: 'Brand slug (letters, numbers, hyphen only)',

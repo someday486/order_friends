@@ -281,6 +281,9 @@ Set environment variables:
 ```bash
 TOSS_SECRET_KEY=test_sk_xxxxxxxxxxxxxxxxxxxx
 TOSS_CLIENT_KEY=test_ck_xxxxxxxxxxxxxxxxxxxx
+TOSS_WEBHOOK_SECRET=optional_webhook_secret
+TOSS_WEBHOOK_SIGNATURE_HEADER=toss-signature
+TOSS_WEBHOOK_MAX_AGE_SECONDS=300
 ```
 
 ### Mock Mode

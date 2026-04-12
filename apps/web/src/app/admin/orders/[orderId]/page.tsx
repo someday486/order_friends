@@ -85,16 +85,6 @@ const CASH_RECEIPT_STATUS_LABEL: Record<string, string> = {
   CANCELLED: "취소 완료",
 };
 
-const RAW_STATUS_LABEL: Record<OrderStatus, string> = {
-  CREATED: "주문접수",
-  CONFIRMED: "확인",
-  PREPARING: "준비중",
-  READY: "준비완료",
-  COMPLETED: "완료",
-  CANCELLED: "취소",
-  REFUNDED: "환불",
-};
-
 const paymentMethodLabel: Record<string, string> = {
   CARD: "카드",
   TRANSFER: "계좌이체",

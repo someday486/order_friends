@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BillingTier } from '../billing/billing.types';
 import { FulfillmentType } from '../public-order/dto/public-order.dto';
 import {
   TossPaymentsClient,
@@ -59,6 +60,7 @@ interface CancellationPaymentRecord {
   status: string;
   amount: number | null;
   refund_amount: number | null;
+  order_id?: string;
 }
 
 /** Minimal payment row returned by payments list query */
@@ -73,6 +75,12 @@ interface PaymentListRow {
   created_at: string;
   /** Supabase !inner join returns single object (filtered) */
   orders: { order_no: string | null; branch_id: string } | null;
+}
+
+interface BrandBillingContext {
+  brandId: string;
+  billingTier: BillingTier;
+  commissionRate: number | null;
 }
 import {
   PreparePaymentRequest,
@@ -98,6 +106,7 @@ import {
   RefundNotAllowedException,
   RefundAmountExceededException,
   WebhookSignatureVerificationException,
+  WebhookTimestampVerificationException,
 } from '../../common/exceptions/payment.exception';
 import { OrderNotFoundException } from '../../common/exceptions/order.exception';
 import { BusinessException } from '../../common/exceptions/business.exception';
@@ -118,6 +127,7 @@ export class PaymentsService {
   private readonly tossApiBaseUrl: string;
   private readonly tossWebhookSecret: string;
   private readonly tossWebhookSignatureHeader: string;
+  private readonly tossWebhookMaxAgeMs: number;
   private readonly tossTimeoutMs: number;
   private readonly tossMockMode: boolean;
   private readonly tossClient: TossPaymentsClient;
@@ -130,6 +140,15 @@ export class PaymentsService {
     const rawTimeout = Number(process.env.TOSS_TIMEOUT_MS);
     this.tossTimeoutMs =
       Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 15000;
+
+    const rawWebhookMaxAgeSeconds = Number(
+      process.env.TOSS_WEBHOOK_MAX_AGE_SECONDS,
+    );
+    const webhookMaxAgeSeconds =
+      Number.isFinite(rawWebhookMaxAgeSeconds) && rawWebhookMaxAgeSeconds > 0
+        ? rawWebhookMaxAgeSeconds
+        : 300;
+    this.tossWebhookMaxAgeMs = webhookMaxAgeSeconds * 1000;
 
     const rawMock = process.env.TOSS_MOCK_MODE;
     const envMock =
@@ -408,6 +427,328 @@ export class PaymentsService {
     return data?.name ?? '매장';
   }
 
+  private getSettlementPeriodBounds(targetAt: string) {
+    const sourceDate = new Date(targetAt);
+    const koreaDate = new Date(sourceDate.getTime() + 9 * 60 * 60 * 1000);
+    const year = koreaDate.getUTCFullYear();
+    const month = koreaDate.getUTCMonth();
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const monthValue = String(month + 1).padStart(2, '0');
+
+    return {
+      periodStart: `${year}-${monthValue}-01`,
+      periodEnd: `${year}-${monthValue}-${String(lastDay).padStart(2, '0')}`,
+    };
+  }
+
+  private async resolveBrandBillingContext(
+    sb: SupabaseClient,
+    orderId: string,
+  ): Promise<BrandBillingContext | null> {
+    const { data: order, error: orderError } = await sb
+      .from('orders')
+      .select('branch_id')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderError || !order?.branch_id) {
+      this.logger.warn(
+        `Failed to resolve branch for settlement line item (${orderId}): ${orderError?.message ?? 'order missing'}`,
+      );
+      return null;
+    }
+
+    const { data: branch, error: branchError } = await sb
+      .from('branches')
+      .select('brand_id')
+      .eq('id', order.branch_id)
+      .maybeSingle();
+
+    if (branchError || !branch?.brand_id) {
+      this.logger.warn(
+        `Failed to resolve brand for settlement line item (${orderId}): ${branchError?.message ?? 'branch missing'}`,
+      );
+      return null;
+    }
+
+    const { data: brand, error: brandError } = await sb
+      .from('brands')
+      .select('id, billing_tier, commission_rate')
+      .eq('id', branch.brand_id)
+      .maybeSingle();
+
+    if (brandError || !brand?.id) {
+      this.logger.warn(
+        `Failed to resolve billing tier for settlement line item (${orderId}): ${brandError?.message ?? 'brand missing'}`,
+      );
+      return null;
+    }
+
+    return {
+      brandId: brand.id,
+      billingTier:
+        brand.billing_tier === BillingTier.NON_PG
+          ? BillingTier.NON_PG
+          : BillingTier.PG,
+      commissionRate:
+        brand.commission_rate === null || brand.commission_rate === undefined
+          ? null
+          : Number(brand.commission_rate),
+    };
+  }
+
+  private async resolveSettlementCommissionRate(
+    sb: SupabaseClient,
+    brandId: string,
+    commissionRate: number | null,
+  ): Promise<number> {
+    if (typeof commissionRate === 'number' && Number.isFinite(commissionRate)) {
+      return commissionRate;
+    }
+
+    const { data: tier, error } = await sb
+      .from('commission_tiers')
+      .select('commission_rate')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !tier?.commission_rate) {
+      this.logger.warn(
+        `Failed to resolve commission tier for brand ${brandId}: ${error?.message ?? 'tier missing'}`,
+      );
+      return 0.035;
+    }
+
+    return Number(tier.commission_rate);
+  }
+
+  private async ensureSettlementPeriod(
+    sb: SupabaseClient,
+    brandId: string,
+    paidAt: string,
+    commissionRate: number,
+  ): Promise<string | null> {
+    const { periodStart, periodEnd } = this.getSettlementPeriodBounds(paidAt);
+
+    const { data: existing, error: existingError } = await sb
+      .from('settlement_periods')
+      .select('id')
+      .eq('brand_id', brandId)
+      .eq('period_start', periodStart)
+      .maybeSingle();
+
+    if (!existingError && existing?.id) {
+      return existing.id;
+    }
+
+    const { data: created, error: createError } = await sb
+      .from('settlement_periods')
+      .insert({
+        brand_id: brandId,
+        period_start: periodStart,
+        period_end: periodEnd,
+        commission_rate: commissionRate,
+        status: 'PENDING',
+      })
+      .select('id')
+      .single();
+
+    if (!createError && created?.id) {
+      return created.id;
+    }
+
+    if (createError?.code === '23505') {
+      const { data: retried } = await sb
+        .from('settlement_periods')
+        .select('id')
+        .eq('brand_id', brandId)
+        .eq('period_start', periodStart)
+        .maybeSingle();
+
+      return retried?.id ?? null;
+    }
+
+    this.logger.warn(
+      `Failed to ensure settlement period for brand ${brandId}: ${createError?.message ?? existingError?.message ?? 'unknown error'}`,
+    );
+    return null;
+  }
+
+  private async createSettlementLineItemForPayment(
+    paymentId: string,
+    orderId: string,
+    amount: number,
+    paidAt: string,
+  ): Promise<void> {
+    const sb = this.supabase.adminClient();
+    const { data: existingLineItem, error: existingLineItemError } = await sb
+      .from('settlement_line_items')
+      .select('id')
+      .eq('payment_id', paymentId)
+      .maybeSingle();
+
+    if (!existingLineItemError && existingLineItem?.id) {
+      return;
+    }
+
+    const billingContext = await this.resolveBrandBillingContext(sb, orderId);
+    if (!billingContext || billingContext.billingTier !== BillingTier.PG) {
+      return;
+    }
+
+    const commissionRate = await this.resolveSettlementCommissionRate(
+      sb,
+      billingContext.brandId,
+      billingContext.commissionRate,
+    );
+    const settlementPeriodId = await this.ensureSettlementPeriod(
+      sb,
+      billingContext.brandId,
+      paidAt,
+      commissionRate,
+    );
+
+    if (!settlementPeriodId) {
+      return;
+    }
+
+    const commissionAmount = Math.round(amount * commissionRate);
+    const netAmount = amount - commissionAmount;
+
+    const { error } = await sb.from('settlement_line_items').insert({
+      settlement_period_id: settlementPeriodId,
+      payment_id: paymentId,
+      order_id: orderId,
+      sale_amount: amount,
+      commission_amount: commissionAmount,
+      net_amount: netAmount,
+    });
+
+    if (error && error.code !== '23505') {
+      throw new Error(error.message ?? 'settlement line item insert failed');
+    }
+  }
+
+  private queueSettlementLineItemCreation(
+    paymentId: string,
+    orderId: string,
+    amount: number,
+    paidAt: string,
+  ): void {
+    void this.createSettlementLineItemForPayment(
+      paymentId,
+      orderId,
+      amount,
+      paidAt,
+    ).catch((error) => {
+      this.logger.warn(
+        `Failed to create settlement line item for payment ${paymentId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
+  private async createSettlementAdjustmentLineItemForRefund(
+    paymentId: string,
+    orderId: string,
+    refundAmount: number,
+    refundedAt: string,
+  ): Promise<void> {
+    const sb = this.supabase.adminClient();
+    const { data: originalLineItem, error: originalLineItemError } = await sb
+      .from('settlement_line_items')
+      .select('settlement_period_id, sale_amount, commission_amount')
+      .eq('payment_id', paymentId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (originalLineItemError || !originalLineItem?.settlement_period_id) {
+      this.logger.warn(
+        `Failed to resolve original settlement line item for refund ${paymentId}: ${originalLineItemError?.message ?? 'line item missing'}`,
+      );
+      return;
+    }
+
+    const { data: originalPeriod, error: originalPeriodError } = await sb
+      .from('settlement_periods')
+      .select('id, brand_id, period_start, commission_rate')
+      .eq('id', originalLineItem.settlement_period_id)
+      .maybeSingle();
+
+    if (
+      originalPeriodError ||
+      !originalPeriod?.id ||
+      !originalPeriod.brand_id
+    ) {
+      this.logger.warn(
+        `Failed to resolve settlement period for refund ${paymentId}: ${originalPeriodError?.message ?? 'period missing'}`,
+      );
+      return;
+    }
+
+    const originalSaleAmount = Math.abs(
+      Number(originalLineItem.sale_amount ?? 0),
+    );
+    const originalCommissionAmount = Math.abs(
+      Number(originalLineItem.commission_amount ?? 0),
+    );
+    const originalCommissionRate =
+      originalSaleAmount > 0
+        ? originalCommissionAmount / originalSaleAmount
+        : Number(originalPeriod.commission_rate ?? 0);
+
+    const refundPeriod = this.getSettlementPeriodBounds(refundedAt);
+    const targetSettlementPeriodId =
+      refundPeriod.periodStart === originalPeriod.period_start
+        ? originalPeriod.id
+        : await this.ensureSettlementPeriod(
+            sb,
+            originalPeriod.brand_id,
+            refundedAt,
+            originalCommissionRate,
+          );
+
+    if (!targetSettlementPeriodId) {
+      return;
+    }
+
+    const commissionAmount = Math.round(refundAmount * originalCommissionRate);
+    const { error } = await sb.from('settlement_line_items').insert({
+      settlement_period_id: targetSettlementPeriodId,
+      payment_id: paymentId,
+      order_id: orderId,
+      sale_amount: -refundAmount,
+      commission_amount: -commissionAmount,
+      net_amount: -refundAmount + commissionAmount,
+    });
+
+    if (error) {
+      throw new Error(
+        error.message ?? 'settlement refund line item insert failed',
+      );
+    }
+  }
+
+  private queueSettlementLineItemAdjustmentForRefund(
+    paymentId: string,
+    orderId: string,
+    refundAmount: number,
+    refundedAt: string,
+  ): void {
+    void this.createSettlementAdjustmentLineItemForRefund(
+      paymentId,
+      orderId,
+      refundAmount,
+      refundedAt,
+    ).catch((error) => {
+      this.logger.warn(
+        `Failed to create settlement adjustment line item for refund ${paymentId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
   private async sendCardOrderCompletionNotification(
     sb: SupabaseClient,
     paymentId: string,
@@ -606,6 +947,19 @@ export class PaymentsService {
     return this.tossClient.verifyWebhookSignature(rawBody, headers);
   }
 
+  private verifyTossWebhookTimestamp(
+    headers: Record<string, string | string[]>,
+    createdAt?: string,
+    nowMs = Date.now(),
+  ): boolean {
+    return this.tossClient.verifyWebhookTimestamp(
+      headers,
+      createdAt,
+      this.tossWebhookMaxAgeMs,
+      nowMs,
+    );
+  }
+
   /**
    * 결제 준비 - 주문 검증 및 결제 정보 반환
    * PUBLIC (인증 불필요)
@@ -750,6 +1104,12 @@ export class PaymentsService {
             resolvedId,
             idempotentPayment.metadata,
           );
+          this.queueSettlementLineItemCreation(
+            idempotentPayment.id,
+            resolvedId,
+            idempotentPayment.amount ?? dto.amount,
+            idempotentPayment.paid_at || new Date().toISOString(),
+          );
           this.logMetric('payment.confirm.idempotent_hit', {
             orderId: resolvedId,
             paymentId: idempotentPayment.id,
@@ -798,6 +1158,12 @@ export class PaymentsService {
           paymentByOrder.id,
           resolvedId,
           paymentByOrder.metadata,
+        );
+        this.queueSettlementLineItemCreation(
+          paymentByOrder.id,
+          resolvedId,
+          paymentByOrder.amount ?? dto.amount,
+          paymentByOrder.paid_at || new Date().toISOString(),
         );
         this.logMetric('payment.confirm.existing_hit', {
           orderId: resolvedId,
@@ -967,6 +1333,12 @@ export class PaymentsService {
               idempotentPayment.order_id,
               idempotentPayment.metadata,
             );
+            this.queueSettlementLineItemCreation(
+              idempotentPayment.id,
+              idempotentPayment.order_id,
+              idempotentPayment.amount ?? dto.amount,
+              idempotentPayment.paid_at || new Date().toISOString(),
+            );
             this.logMetric('payment.confirm.idempotency_race', {
               orderId: idempotentPayment.order_id,
               paymentId: idempotentPayment.id,
@@ -1005,6 +1377,12 @@ export class PaymentsService {
       payment.id,
       resolvedId,
       payment.metadata,
+    );
+    this.queueSettlementLineItemCreation(
+      payment.id,
+      resolvedId,
+      payment.amount ?? dto.amount,
+      paidAt,
     );
     this.logger.log(`Payment confirmed successfully: ${payment.id}`);
     this.logMetric('payment.confirm.success', {
@@ -1416,6 +1794,12 @@ export class PaymentsService {
       newStatus,
       'refund',
     );
+    this.queueSettlementLineItemAdjustmentForRefund(
+      payment.id,
+      payment.order_id,
+      refundAmount,
+      refundedAt,
+    );
     this.logger.log(`Payment refunded successfully: ${paymentId}`);
 
     return {
@@ -1627,6 +2011,14 @@ export class PaymentsService {
       }
     }
 
+    const isFresh = this.verifyTossWebhookTimestamp(
+      headers,
+      webhookData.createdAt,
+    );
+    if (!isFresh) {
+      throw new WebhookTimestampVerificationException();
+    }
+
     // 1. 웹훅 로그 저장
     const { paymentKey } = webhookData.data;
 
@@ -1779,6 +2171,12 @@ export class PaymentsService {
           resolvedId,
           payment.metadata,
         );
+        this.queueSettlementLineItemCreation(
+          payment.id,
+          resolvedId,
+          payment.amount ?? amount ?? order.total_amount,
+          new Date().toISOString(),
+        );
         return;
       }
 
@@ -1861,6 +2259,12 @@ export class PaymentsService {
         confirmedPaymentId,
         resolvedId,
         confirmedPaymentMetadata,
+      );
+      this.queueSettlementLineItemCreation(
+        confirmedPaymentId,
+        resolvedId,
+        amount ?? order.total_amount,
+        new Date().toISOString(),
       );
     }
     this.logger.log(`Payment confirmed via webhook: ${orderId}`);

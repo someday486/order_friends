@@ -20,10 +20,10 @@ describe('PublicOrderService - Shop Flow', () => {
     eq: jest.fn().mockReturnThis(),
     gte: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
-    limit: jest.fn(),
+    limit: jest.fn().mockResolvedValue({ data: [], error: null }),
     in: jest.fn().mockReturnThis(),
-    single: jest.fn(),
-    maybeSingle: jest.fn(),
+    single: jest.fn().mockResolvedValue({ data: null, error: null }),
+    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
   });
 
   beforeEach(async () => {
@@ -159,8 +159,9 @@ describe('PublicOrderService - Shop Flow', () => {
 
     expect(result.brandId).toBe('brand-1');
     expect(result.brandSlug).toBe('test-brand');
+    expect(result.billingTier).toBe('PG');
     expect(result.cashReceiptEnabled).toBe(true);
-    expect(result.fulfillmentType).toBe('DELIVERY');
+    expect(result.fulfillmentType).toBe('SHIPPING');
     expect(result.paymentMethods).toEqual(expect.arrayContaining(['CARD']));
     expect(result.products).toHaveLength(2);
     expect(result.products[0]).toEqual(
@@ -356,7 +357,7 @@ describe('PublicOrderService - Shop Flow', () => {
     expect(createOrderSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         branchId: 'branch-1',
-        fulfillmentType: 'DELIVERY',
+        fulfillmentType: 'SHIPPING',
         cashReceipt: {
           requested: true,
           type: 'EXPENSE_PROOF',
@@ -441,7 +442,7 @@ describe('PublicOrderService - Shop Flow', () => {
     expect(createOrderSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         branchId: 'branch-1',
-        fulfillmentType: 'DELIVERY',
+        fulfillmentType: 'SHIPPING',
         __allowDeliveryOverride: true,
       }),
       undefined,
@@ -528,7 +529,7 @@ describe('PublicOrderService - Shop Flow', () => {
     adminChains.order_channels.eq
       .mockReturnValueOnce(adminChains.order_channels)
       .mockResolvedValueOnce({
-        data: [{ id: 'ch-delivery', type: 'DELIVERY', is_active: true }],
+        data: [{ id: 'ch-shipping', type: 'SHIPPING', is_active: true }],
         error: null,
       });
     adminChains.branches.maybeSingle.mockResolvedValueOnce({
@@ -646,7 +647,7 @@ describe('PublicOrderService - Shop Flow', () => {
     expect(createOrderSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         branchId: 'branch-shop',
-        fulfillmentType: 'DELIVERY',
+        fulfillmentType: 'SHIPPING',
         items: [{ productId: 'prod-shop-1', qty: 1 }],
       }),
       undefined,

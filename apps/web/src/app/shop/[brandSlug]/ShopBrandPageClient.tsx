@@ -52,7 +52,7 @@ export type ShopBrandResponse = {
   cashReceiptEnabled?: boolean | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
-  fulfillmentType: 'DELIVERY';
+  fulfillmentType: 'SHIPPING';
   paymentMethods: string[];
   transferAccount?: {
     bankName?: string | null;
@@ -678,7 +678,7 @@ export default function ShopBrandPageClient({
           customerAddress2: customerAddress2 || null,
           customerMemo: customerMemo || null,
           paymentMethod,
-          fulfillmentType: 'DELIVERY',
+          fulfillmentType: 'SHIPPING',
           transferAccount:
             response.transferAccount ?? data.transferAccount ?? null,
         },

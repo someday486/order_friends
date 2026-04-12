@@ -24,6 +24,22 @@ export class CashReceiptIssueResponse {
   errorMessage?: string | null;
 }
 
+export type DeliveryTrackingStatus =
+  | 'PENDING'
+  | 'PREPARING_SHIPMENT'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'DELIVERY_FAILED';
+
+export class DeliveryTrackingResponse {
+  status: DeliveryTrackingStatus;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  startedAt?: string | null;
+  deliveredAt?: string | null;
+  updatedAt?: string | null;
+}
+
 export class OrderDetailResponse {
   id: string;
   orderedAt: string;
@@ -51,6 +67,7 @@ export class OrderDetailResponse {
   };
   cashReceiptRequest?: CashReceiptRequestResponse | null;
   cashReceiptIssue?: CashReceiptIssueResponse | null;
+  deliveryTracking?: DeliveryTrackingResponse | null;
 
   items: OrderItemResponse[];
 }

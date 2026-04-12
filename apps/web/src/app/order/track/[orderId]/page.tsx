@@ -1,21 +1,20 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { formatDateTimeFull, formatPhone, formatWon } from '@/lib/format';
 import {
+  type FulfillmentType,
   ORDER_STATUS_LABEL_LONG,
+  type PaymentMethod,
   getOrderStatusDisplay,
   type OrderStatus,
   type OrderStatusDisplay,
 } from '@/types/common';
 import { apiClient } from '@/lib/api-client';
 import { loadLastOrderRecord, saveLastOrderRecord } from '@/lib/order-session';
-
-type PaymentMethod = 'CARD' | 'TRANSFER' | 'CASH';
-type FulfillmentType = 'PICKUP' | 'DELIVERY' | 'DINE_IN' | 'SHIPPING';
 
 type TransferAccountInfo = {
   bankName?: string | null;
@@ -29,6 +28,22 @@ type OrderItemInfo = {
   unitPrice: number;
   options: string[];
 };
+
+type DeliveryTrackingStatus =
+  | 'PENDING'
+  | 'PREPARING_SHIPMENT'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'DELIVERY_FAILED';
+
+type DeliveryTrackingInfo = {
+  status: DeliveryTrackingStatus;
+  carrier: string | null;
+  trackingNumber: string | null;
+  startedAt: string | null;
+  deliveredAt: string | null;
+  updatedAt: string | null;
+} | null;
 
 type OrderInfo = {
   id: string;
@@ -48,6 +63,7 @@ type OrderInfo = {
   branchId?: string | null;
   branchContactPhone?: string | null;
   branchKakaoChannelUrl?: string | null;
+  deliveryTracking: DeliveryTrackingInfo;
   items: OrderItemInfo[];
 };
 
@@ -90,6 +106,18 @@ function isFulfillmentType(value: unknown): value is FulfillmentType {
   );
 }
 
+function isDeliveryTrackingStatus(
+  value: unknown,
+): value is DeliveryTrackingStatus {
+  return (
+    value === 'PENDING' ||
+    value === 'PREPARING_SHIPMENT' ||
+    value === 'IN_TRANSIT' ||
+    value === 'DELIVERED' ||
+    value === 'DELIVERY_FAILED'
+  );
+}
+
 function toText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -115,6 +143,25 @@ function extractCustomerValue(
     if (nested) return nested;
   }
   return null;
+}
+
+function normalizeDeliveryTracking(raw: unknown): DeliveryTrackingInfo {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw as Record<string, unknown>;
+  const status = source.status;
+
+  if (!isDeliveryTrackingStatus(status)) {
+    return null;
+  }
+
+  return {
+    status,
+    carrier: toText(source.carrier),
+    trackingNumber: toText(source.trackingNumber ?? source.tracking_number),
+    startedAt: toText(source.startedAt ?? source.started_at),
+    deliveredAt: toText(source.deliveredAt ?? source.delivered_at),
+    updatedAt: toText(source.updatedAt ?? source.updated_at),
+  };
 }
 
 function normalizeOrder(raw: unknown): OrderInfo | null {
@@ -158,6 +205,9 @@ function normalizeOrder(raw: unknown): OrderInfo | null {
         : null;
 
   const items = Array.isArray(source.items) ? source.items : [];
+  const deliveryTracking = normalizeDeliveryTracking(
+    source.deliveryTracking ?? source.delivery_tracking,
+  );
 
   return {
     id,
@@ -220,6 +270,7 @@ function normalizeOrder(raw: unknown): OrderInfo | null {
     branchKakaoChannelUrl: toText(
       source.branchKakaoChannelUrl ?? source.branch_kakao_channel_url,
     ),
+    deliveryTracking,
     items: items.map((item) => {
       const row = (item ?? {}) as Record<string, unknown>;
       const name =
@@ -264,6 +315,7 @@ function mergeOrder(primary: OrderInfo, fallback: OrderInfo | null): OrderInfo {
       primary.branchContactPhone ?? fallback.branchContactPhone,
     branchKakaoChannelUrl:
       primary.branchKakaoChannelUrl ?? fallback.branchKakaoChannelUrl,
+    deliveryTracking: primary.deliveryTracking ?? fallback.deliveryTracking,
     items: primary.items.length > 0 ? primary.items : fallback.items,
   };
 }
@@ -352,6 +404,34 @@ function paymentMethodLabel(method: PaymentMethod | null): string {
   if (method === 'CASH') return '현금';
   return '미확인';
 }
+
+function isDeliveryOrder(type: FulfillmentType | null): boolean {
+  return type === 'SHIPPING';
+}
+
+const DELIVERY_STATUS_STEPS: DeliveryTrackingStatus[] = [
+  'PENDING',
+  'PREPARING_SHIPMENT',
+  'IN_TRANSIT',
+  'DELIVERED',
+];
+
+const DELIVERY_STATUS_LABEL: Record<DeliveryTrackingStatus, string> = {
+  PENDING: '배송 접수',
+  PREPARING_SHIPMENT: '배송 준비중',
+  IN_TRANSIT: '배송중',
+  DELIVERED: '배송 완료',
+  DELIVERY_FAILED: '배송 실패',
+};
+
+const DELIVERY_STATUS_DESCRIPTION: Record<DeliveryTrackingStatus, string> = {
+  PENDING: '배송 주문이 접수되었어요. 매장에서 출고 준비 여부를 확인하고 있어요.',
+  PREPARING_SHIPMENT: '상품 포장과 출고 준비가 진행 중이에요.',
+  IN_TRANSIT: '배송이 시작되었어요. 기사님 또는 택배사 이동이 진행 중입니다.',
+  DELIVERED: '배송이 완료되었어요. 수령하신 내용이 맞는지 확인해 주세요.',
+  DELIVERY_FAILED:
+    '배송이 정상 완료되지 않았어요. 자세한 내용은 문의 연락처로 확인해 주세요.',
+};
 
 function fulfillmentTypeLabel(type: FulfillmentType | null): string {
   if (type === 'PICKUP') return '포장';
@@ -553,15 +633,10 @@ function playReadySound() {
 export default function TrackOrderPage() {
   const params = useParams();
   const orderId = params?.orderId as string;
-  const cachedOrder = useMemo(
-    () => normalizeOrder(loadLastOrderRecord({})),
-    [],
-  );
+  const [cachedOrder, setCachedOrder] = useState<OrderInfo | null>(null);
+  const [cacheReady, setCacheReady] = useState(false);
 
-  const [order, setOrder] = useState<OrderInfo | null>(() => {
-    if (matchesOrderReference(cachedOrder, orderId)) return cachedOrder;
-    return null;
-  });
+  const [order, setOrder] = useState<OrderInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -575,6 +650,19 @@ export default function TrackOrderPage() {
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
   const prevStatusRef = useRef<OrderStatus | null>(null);
+
+  useEffect(() => {
+    const nextCachedOrder = normalizeOrder(loadLastOrderRecord({}));
+    setCachedOrder(nextCachedOrder);
+
+    if (matchesOrderReference(nextCachedOrder, orderId)) {
+      setOrder((current) => current ?? nextCachedOrder);
+      setUsingCachedOrderFallback(true);
+      setLoading(false);
+    }
+
+    setCacheReady(true);
+  }, [orderId]);
 
   const fetchOrder = useCallback(
     async (isBackground = false) => {
@@ -629,9 +717,9 @@ export default function TrackOrderPage() {
   );
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || !cacheReady) return;
     void fetchOrder(false);
-  }, [fetchOrder, orderId]);
+  }, [cacheReady, fetchOrder, orderId]);
 
   useEffect(() => {
     if (!cancelConfirmOpen) return;
@@ -774,6 +862,26 @@ export default function TrackOrderPage() {
   const isRefunded = order.status === 'REFUNDED';
   const isCompleted = order.status === 'COMPLETED';
   const isReady = order.status === 'READY';
+  const isDeliveryFulfillment = isDeliveryOrder(order.fulfillmentType);
+  const deliveryTracking =
+    isDeliveryFulfillment && order.deliveryTracking
+      ? order.deliveryTracking
+      : isDeliveryFulfillment
+        ? {
+            status: 'PENDING' as DeliveryTrackingStatus,
+            carrier: null,
+            trackingNumber: null,
+            startedAt: null,
+            deliveredAt: null,
+            updatedAt: null,
+          }
+        : null;
+  const deliveryStepIndex = deliveryTracking
+    ? Math.max(
+        DELIVERY_STATUS_STEPS.indexOf(deliveryTracking.status),
+        deliveryTracking.status === 'DELIVERY_FAILED' ? 1 : 0,
+      )
+    : -1;
   const supportAvailable = hasSupportChannel(order);
   const currentStepIndex = STATUS_STEPS.indexOf(displayStatus);
   const guide = paymentGuide(order.paymentMethod);
@@ -1159,6 +1267,118 @@ export default function TrackOrderPage() {
             })}
           </div>
         </section>
+
+        {deliveryTracking && (
+          <section className="rounded-2xl border border-border bg-bg-secondary p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">
+                  배송 현황
+                </h2>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {DELIVERY_STATUS_DESCRIPTION[deliveryTracking.status]}
+                </div>
+              </div>
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                  deliveryTracking.status === 'DELIVERED'
+                    ? 'bg-success/20 text-success'
+                    : deliveryTracking.status === 'DELIVERY_FAILED'
+                      ? 'bg-danger-500/20 text-danger-500'
+                      : 'bg-primary-500/15 text-primary-500'
+                }`}
+              >
+                {DELIVERY_STATUS_LABEL[deliveryTracking.status]}
+              </span>
+            </div>
+            <div className="mt-4 flex items-center gap-0">
+              {DELIVERY_STATUS_STEPS.map((step, idx) => {
+                const isDone = idx < deliveryStepIndex;
+                const isCurrent = idx === deliveryStepIndex;
+                const isUpcoming = idx > deliveryStepIndex;
+
+                return (
+                  <div
+                    key={step}
+                    className="flex flex-1 items-center last:flex-none"
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold ${
+                          isDone
+                            ? 'bg-success text-white'
+                            : isCurrent
+                              ? 'bg-primary-500 text-white'
+                              : isUpcoming
+                                ? 'bg-bg-tertiary text-text-tertiary'
+                                : 'bg-bg-tertiary text-text-tertiary'
+                        }`}
+                      >
+                        {isDone ? '✓' : idx + 1}
+                      </div>
+                      <span
+                        className={`text-[11px] ${
+                          isCurrent
+                            ? 'font-semibold text-foreground'
+                            : 'text-text-tertiary'
+                        }`}
+                      >
+                        {DELIVERY_STATUS_LABEL[step]}
+                      </span>
+                    </div>
+                    {idx < DELIVERY_STATUS_STEPS.length - 1 && (
+                      <div className="mx-1 mt-[-16px] flex-1">
+                        <div
+                          className={`h-0.5 w-full rounded-full ${
+                            idx < deliveryStepIndex
+                              ? 'bg-success'
+                              : 'bg-border'
+                          }`}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 space-y-2 rounded-xl border border-border bg-background px-3 py-3 text-xs text-text-secondary">
+              <div className="flex justify-between gap-3">
+                <span>배송 수단</span>
+                <span className="text-right font-medium text-foreground">
+                  {order.fulfillmentType === 'SHIPPING' ? '택배' : '배달'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>배송사</span>
+                <span className="text-right font-medium text-foreground">
+                  {deliveryTracking.carrier ?? '-'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>송장 번호</span>
+                <span className="text-right font-medium text-foreground">
+                  {deliveryTracking.trackingNumber ?? '-'}
+                </span>
+              </div>
+              {deliveryTracking.startedAt && (
+                <div className="flex justify-between gap-3">
+                  <span>배송 시작</span>
+                  <span className="text-right font-medium text-foreground">
+                    {formatDateTimeFull(deliveryTracking.startedAt)}
+                  </span>
+                </div>
+              )}
+              {deliveryTracking.deliveredAt && (
+                <div className="flex justify-between gap-3">
+                  <span>배송 완료</span>
+                  <span className="text-right font-medium text-foreground">
+                    {formatDateTimeFull(deliveryTracking.deliveredAt)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* ── 취소된 경우: 다시 주문하기 ── */}
         {isCancelled && order.branchId && (

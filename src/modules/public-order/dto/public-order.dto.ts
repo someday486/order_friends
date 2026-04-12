@@ -29,6 +29,7 @@ export class PublicBranchResponse {
   id: string;
   name: string;
   brandName?: string;
+  billingTier?: 'PG' | 'NON_PG';
   cashReceiptEnabled?: boolean;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
@@ -151,6 +152,19 @@ export class PublicOrderResponse {
   };
   branchContactPhone?: string | null;
   branchKakaoChannelUrl?: string | null;
+  deliveryTracking?: {
+    status:
+      | 'PENDING'
+      | 'PREPARING_SHIPMENT'
+      | 'IN_TRANSIT'
+      | 'DELIVERED'
+      | 'DELIVERY_FAILED';
+    carrier?: string | null;
+    trackingNumber?: string | null;
+    startedAt?: string | null;
+    deliveredAt?: string | null;
+    updatedAt?: string | null;
+  } | null;
   items: {
     productName: string;
     qty: number;

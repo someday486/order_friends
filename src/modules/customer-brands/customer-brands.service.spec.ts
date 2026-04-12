@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CustomerBrandsService } from './customer-brands.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
+import { BillingTier } from '../billing/billing.types';
 
 describe('CustomerBrandsService', () => {
   let service: CustomerBrandsService;
@@ -160,6 +161,7 @@ describe('CustomerBrandsService', () => {
       {
         name: 'New Brand',
         slug: 'new-brand',
+        billingTier: BillingTier.PG,
       } as any,
       'user-1',
       [{ brand_id: 'brand-1', role: 'OWNER' } as any],
@@ -170,6 +172,9 @@ describe('CustomerBrandsService', () => {
       expect.objectContaining({
         name: 'New Brand',
         slug: 'new-brand',
+        billing_tier: BillingTier.PG,
+        commission_rate: 0.035,
+        shop_payment_methods: ['CARD'],
       }),
     );
     expect(result.id).toBe('new-brand-id');
@@ -178,9 +183,11 @@ describe('CustomerBrandsService', () => {
 
   it('createMyBrand should throw when no owner/admin membership', async () => {
     await expect(
-      service.createMyBrand({ name: 'Brand' } as any, 'user-1', [
-        { brand_id: 'brand-1', role: 'STAFF' } as any,
-      ]),
+      service.createMyBrand(
+        { name: 'Brand', billingTier: BillingTier.PG } as any,
+        'user-1',
+        [{ brand_id: 'brand-1', role: 'STAFF' } as any],
+      ),
     ).rejects.toThrow(ForbiddenException);
   });
 
@@ -201,7 +208,11 @@ describe('CustomerBrandsService', () => {
     });
 
     const result = await service.createMyBrand(
-      { name: 'New Brand', slug: 'new-brand' } as any,
+      {
+        name: 'New Brand',
+        slug: 'new-brand',
+        billingTier: BillingTier.NON_PG,
+      } as any,
       'user-1',
       [],
       true,
@@ -209,6 +220,13 @@ describe('CustomerBrandsService', () => {
 
     expect(result.id).toBe('new-brand-id');
     expect(result.myRole).toBe('OWNER');
+    expect(mockSb.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing_tier: BillingTier.NON_PG,
+        commission_rate: null,
+        shop_payment_methods: ['TRANSFER'],
+      }),
+    );
   });
 
   it('createMyBrand should throw when brand insert fails', async () => {
@@ -218,9 +236,11 @@ describe('CustomerBrandsService', () => {
     });
 
     await expect(
-      service.createMyBrand({ name: 'Brand' } as any, 'user-1', [
-        { brand_id: 'brand-1', role: 'ADMIN' } as any,
-      ]),
+      service.createMyBrand(
+        { name: 'Brand', billingTier: BillingTier.PG } as any,
+        'user-1',
+        [{ brand_id: 'brand-1', role: 'ADMIN' } as any],
+      ),
     ).rejects.toThrow('Failed to create brand');
   });
 
@@ -244,9 +264,11 @@ describe('CustomerBrandsService', () => {
       .mockImplementationOnce(() => ({ error: { message: 'member-fail' } }));
 
     await expect(
-      service.createMyBrand({ name: 'Brand' } as any, 'user-1', [
-        { brand_id: 'brand-1', role: 'OWNER' } as any,
-      ]),
+      service.createMyBrand(
+        { name: 'Brand', billingTier: BillingTier.PG } as any,
+        'user-1',
+        [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      ),
     ).rejects.toThrow('Failed to create brand membership');
   });
 

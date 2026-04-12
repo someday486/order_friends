@@ -10,6 +10,7 @@ describe('CustomerOrdersController', () => {
   const mockService = {
     getMyOrders: jest.fn(),
     getMyOrder: jest.fn(),
+    updateMyOrderDeliveryTracking: jest.fn(),
     updateMyOrderStatus: jest.fn(),
     confirmMyOrderTransferPayment: jest.fn(),
     retryMyOrderCashReceiptIssue: jest.fn(),
@@ -53,7 +54,7 @@ describe('CustomerOrdersController', () => {
       fulfillmentType: 'DELIVERY',
       dateStart: '2026-03-01',
       dateEnd: '2026-03-21',
-      search: '김한나',
+      search: 'kim',
       page: 1,
       limit: 10,
     } as any);
@@ -70,7 +71,7 @@ describe('CustomerOrdersController', () => {
       '2026-03-01',
       '2026-03-21',
       undefined,
-      '김한나',
+      'kim',
     );
   });
 
@@ -123,6 +124,59 @@ describe('CustomerOrdersController', () => {
   it('getOrder should throw when user is missing', async () => {
     await expect(
       controller.getOrder(makeReq({ user: undefined }), 'order-1'),
+    ).rejects.toThrow('Missing user');
+  });
+
+  it('updateDeliveryTracking should call service and return result', async () => {
+    mockService.updateMyOrderDeliveryTracking.mockResolvedValue({
+      status: 'IN_TRANSIT',
+      carrier: 'Carrier X',
+      trackingNumber: '1234567890',
+      startedAt: '2026-04-12T15:00:00.000Z',
+      deliveredAt: null,
+      updatedAt: '2026-04-12T15:00:00.000Z',
+    });
+
+    const result = await controller.updateDeliveryTracking(
+      makeReq(),
+      'order-1',
+      {
+        deliveryStatus: 'IN_TRANSIT',
+        deliveryCarrier: 'Carrier X',
+        deliveryTrackingNumber: '1234567890',
+      } as any,
+    );
+
+    expect(result).toEqual({
+      status: 'IN_TRANSIT',
+      carrier: 'Carrier X',
+      trackingNumber: '1234567890',
+      startedAt: '2026-04-12T15:00:00.000Z',
+      deliveredAt: null,
+      updatedAt: '2026-04-12T15:00:00.000Z',
+    });
+    expect(mockService.updateMyOrderDeliveryTracking).toHaveBeenCalledWith(
+      'user-1',
+      'order-1',
+      {
+        deliveryStatus: 'IN_TRANSIT',
+        deliveryCarrier: 'Carrier X',
+        deliveryTrackingNumber: '1234567890',
+      },
+      [],
+      [],
+    );
+  });
+
+  it('updateDeliveryTracking should throw when user is missing', async () => {
+    await expect(
+      controller.updateDeliveryTracking(
+        makeReq({ user: undefined }),
+        'order-1',
+        {
+          deliveryStatus: 'IN_TRANSIT',
+        } as any,
+      ),
     ).rejects.toThrow('Missing user');
   });
 
@@ -302,6 +356,30 @@ describe('CustomerOrdersController', () => {
         expect(mockService.getMyOrder).toHaveBeenCalledWith(
           'user-1',
           'order-1',
+          [],
+          [],
+        ),
+    },
+    {
+      name: 'updateDeliveryTracking',
+      setup: () =>
+        mockService.updateMyOrderDeliveryTracking.mockResolvedValueOnce({
+          status: 'PREPARING_SHIPMENT',
+        }),
+      call: () =>
+        controller.updateDeliveryTracking(
+          makeReq({
+            brandMemberships: undefined,
+            branchMemberships: undefined,
+          }),
+          'order-1',
+          { deliveryStatus: 'PREPARING_SHIPMENT' } as any,
+        ),
+      expectCall: () =>
+        expect(mockService.updateMyOrderDeliveryTracking).toHaveBeenCalledWith(
+          'user-1',
+          'order-1',
+          { deliveryStatus: 'PREPARING_SHIPMENT' },
           [],
           [],
         ),

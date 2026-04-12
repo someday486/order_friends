@@ -1,5 +1,6 @@
 ﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -29,6 +30,8 @@ import { UploadModule } from './modules/upload/upload.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { StampsModule } from './modules/stamps/stamps.module';
 import { DepositSyncModule } from './modules/deposit-sync/deposit-sync.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { SettlementModule } from './modules/settlement/settlement.module';
 
 import { AuthGuard } from './common/guards/auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
@@ -41,6 +44,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     SentryModule.forRoot(),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 1분
@@ -76,6 +80,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     ExportsModule,
     StampsModule,
     DepositSyncModule,
+    BillingModule,
+    SettlementModule,
   ],
   providers: [
     AuthGuard,

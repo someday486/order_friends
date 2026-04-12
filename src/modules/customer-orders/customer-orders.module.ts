@@ -4,9 +4,15 @@ import { CustomerOrdersService } from './customer-orders.service';
 import { SupabaseModule } from '../../infra/supabase/supabase.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { CashReceiptsModule } from '../cash-receipts/cash-receipts.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [SupabaseModule, PaymentsModule, CashReceiptsModule],
+  imports: [
+    SupabaseModule,
+    PaymentsModule,
+    CashReceiptsModule,
+    NotificationsModule,
+  ],
   controllers: [CustomerOrdersController],
   providers: [CustomerOrdersService],
   exports: [CustomerOrdersService],

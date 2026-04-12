@@ -1,0 +1,47 @@
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.update_order_payment_status()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.status = 'SUCCESS' THEN
+    UPDATE public.orders
+    SET payment_status = 'PAID',
+        status = CASE
+          WHEN status = 'CREATED' THEN 'CONFIRMED'::public.order_status
+          ELSE status
+        END
+    WHERE id = NEW.order_id;
+  ELSIF NEW.status = 'FAILED' THEN
+    UPDATE public.orders
+    SET payment_status = 'FAILED'
+    WHERE id = NEW.order_id;
+  ELSIF NEW.status = 'CANCELLED' THEN
+    UPDATE public.orders
+    SET payment_status = 'CANCELLED',
+        status = 'CANCELLED'
+    WHERE id = NEW.order_id;
+  ELSIF NEW.status = 'REFUNDED' THEN
+    UPDATE public.orders
+    SET payment_status = 'REFUNDED',
+        status = CASE
+          WHEN status IN ('COMPLETED', 'REFUNDED') THEN 'REFUNDED'::public.order_status
+          ELSE 'CANCELLED'::public.order_status
+        END
+    WHERE id = NEW.order_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS update_order_on_payment_status_change ON public.payments;
+
+CREATE TRIGGER update_order_on_payment_status_change
+  AFTER INSERT OR UPDATE OF status ON public.payments
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_order_payment_status();
+
+COMMIT;

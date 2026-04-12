@@ -3,9 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
-
-type PaymentMethod = "CARD" | "TRANSFER";
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
+import { type FulfillmentType, type StorePaymentMethod } from "@/types/common";
 
 type TransferAccountInput = {
   bankName: string;
@@ -26,7 +24,7 @@ type Props = {
     name: string;
     slug: string;
     enabledFulfillmentTypes: FulfillmentType[];
-    allowedPaymentMethods: PaymentMethod[];
+    allowedPaymentMethods: StorePaymentMethod[];
     transferAccount: TransferAccountInput;
     pickupTimeConfig: PickupTimeConfigInput;
     depositSheetName: string;
@@ -37,7 +35,7 @@ type Props = {
   adding: boolean;
 };
 
-const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
+const PAYMENT_METHOD_OPTIONS: Array<{ value: StorePaymentMethod; label: string }> = [
   { value: "CARD", label: "카드" },
   { value: "TRANSFER", label: "계좌이체" },
 ];
@@ -70,7 +68,9 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>([
     "PICKUP",
   ]);
-  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>([
+  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<
+    StorePaymentMethod[]
+  >([
     "CARD",
     "TRANSFER",
   ]);
@@ -92,7 +92,7 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
     );
   };
 
-  const togglePaymentMethod = (method: PaymentMethod) => {
+  const togglePaymentMethod = (method: StorePaymentMethod) => {
     setAllowedPaymentMethods((prev) =>
       prev.includes(method) ? prev.filter((item) => item !== method) : [...prev, method],
     );

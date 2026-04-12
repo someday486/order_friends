@@ -2,333 +2,154 @@
 
 ## 문서 성격
 - 상태: `research`
-- 목적: 현재 코드베이스의 위험 요소를 우선순위 기준으로 재정리하고, 실제 수정 착수 순서를 잡기 위한 감사 스냅샷
-- 기준: 2026-04-03 시점의 백엔드, 웹앱, Supabase 마이그레이션, 테스트, CI/CD, 문서 구조를 함께 검토한 결과
+- 목적: 코드베이스 리스크를 우선순위 기준으로 정리하고, 배치별 개선 진행 상황을 추적하기 위한 감사 스냅샷
+- 기준 시점: 2026-04-12 `develop`
 
 ## 현재 상태 요약
-- 기준 시점: 2026-04-04 밤 작업 반영 후
 - 전체 상태: `부분 완료`
-- 완료:
-  - `deposit_match_rows`, `cash_receipts` RLS 및 멤버 정책 적용
-  - `update_order_payment_status()`의 mutable `search_path` 경고 수정
-  - `brand_products`, `order_channels`, `procurement_*` 테이블의 기본 조회 정책 추가
-- 완료:
-  - 공개 주문/공개 결제 경로 맵 작성 및 실사용 경로 확인
-  - 사용처 없는 공개 결제 상태 조회 엔드포인트 제거
-- 미착수:
-  - 레이아웃 역할 검증 재점검
-  - Toss webhook timestamp 검증
-  - 결제/환불/공개 주문 E2E 보강
-  - `public` / `public-order` 통합 방향 정리
-  - OpenAPI 기반 타입 공유
-  - CI/CD와 마이그레이션 운영 정리
+- 완료된 배치
+  - 배치 1: 내부 재무성 테이블 RLS 보강, 공개 주문/결제 경로 조사
+  - 배치 2: `/admin`, `(protected)` 접근 제어 보강, Toss webhook timestamp 검증
+  - 배치 3: 공개 주문/결제 E2E 추가, 결제 상태 트리거 canonical migration 추가, CI migration/API contract 가드 추가
+  - 배치 4: 레거시 `public` 모듈 제거, OpenAPI 타입 생성 파이프라인 추가, generated 타입의 프론트 1차 연동
+- 남은 핵심 후속 작업
+  - `/admin/orders` 멀티테넌트 스코핑 재검증
+  - 환불, 주문 상태 전이, 입금확인 E2E 확대
+  - generated 타입의 프론트 적용 범위 확대
+  - 역할 모델 문서와 DB 실제 역할 값 정리
 
-## 공개 주문 경로 맵 (2026-04-05 확인)
-
-### 백엔드 활성 경로
-- 상태: `확인 완료`
-- 실제 앱 모듈에는 [PublicOrderModule](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.module.ts)만 등록되어 있고, [AppModule](C:/Users/user/Documents/projects/order_friends/src/app.module.ts) 기준으로 [PublicModule](C:/Users/user/Documents/projects/order_friends/src/modules/public/public.module.ts)은 import되지 않습니다.
-- 즉 현재 실행 중인 공개 주문 API의 실사용 구현은 [public-order.controller.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.controller.ts) + [public-order.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)입니다.
-- [public.controller.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public/public.controller.ts), [public.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public/public.service.ts)는 레거시 코드이지만 현재 서버 부팅 기준으로는 비활성 상태입니다.
-
-### 활성 공개 주문 엔드포인트
-- `GET /public/brands`:
-  - 브랜드 주문 진입 목록
-- `GET /public/shop/brands/:brandSlug`:
-  - 온라인샵 브랜드 상세
-- `POST /public/shop/brands/:brandSlug/orders`:
-  - 온라인샵 비인증 주문 생성
-  - 내부적으로 [createShopOrderByBrandSlug](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 일반 공개 주문 생성 로직으로 연결
-- `GET /public/brands/:brandSlug/branches`:
-  - 브랜드별 지점 선택 화면
-- `GET /public/brands/:brandSlug/branches/:branchSlug`:
-  - 슬러그 기반 주문 지점 상세
-- `GET /public/branches/slug/:slug`:
-  - 브랜드 슬러그가 바뀌어도 기존 주문 URL을 살리기 위한 fallback
-- `GET /public/branches/:branchId`, `GET /public/branch/:branchId`:
-  - 지점 상세 현재/레거시 alias
-- `GET /public/branches/:branchId/products`, `GET /public/branch/:branchId/products`:
-  - 상품 목록 현재/레거시 alias
-- `GET /public/branches/:branchId/categories`:
-  - 카테고리 목록
-- `POST /public/orders`:
-  - 비인증 일반 주문 생성
-- `GET /public/orders/:orderIdOrNo`:
-  - 공개 주문 추적
-  - [getOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 `anonClient()` 조회 후 실패 시 `adminClient()` fallback
-- `POST /public/orders/:orderId/cancel`:
-  - 공개 주문 취소
-  - [cancelPublicOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 `adminClient()`로 직접 처리
-  - 취소는 path 이름 그대로 `id` 기준이며, 조회처럼 `order_no` fallback을 갖고 있지 않음
-
-### 로그인 구매자 전용 경로
-- `POST /me/orders`:
-  - 로그인 구매자 주문 생성
-  - [me-orders.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/me-orders.service.ts)에서 [PublicOrderService.createOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)로 위임
-- `GET /me/orders/:orderId`:
-  - 본인 주문 조회
-- `POST /me/orders/:orderId/cancel`:
-  - 본인 주문 취소
-
-### 프론트 실사용 경로
-- [apps/web/src/app/order/[brandSlug]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/[brandSlug]/page.tsx):
-  - 브랜드 주문 진입 화면
-  - `GET /public/brands/:brandSlug/branches`
-- [apps/web/src/app/order/[brandSlug]/[branchSlug]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/[brandSlug]/[branchSlug]/page.tsx):
-  - 슬러그 기반 주문 페이지
-  - `GET /public/brands/:brandSlug/branches/:branchSlug`
-  - fallback `GET /public/branches/slug/:branchSlug`
-  - 상품/카테고리 `GET /public/branches/:branchId/products`, `GET /public/branches/:branchId/categories`
-- [apps/web/src/app/order/branch/[branchId]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/branch/[branchId]/page.tsx):
-  - ID 기반 레거시 주문 페이지
-  - `GET /public/branches/:branchId`, `GET /public/branches/:branchId/products`
-- [apps/web/src/app/order/[brandSlug]/[branchSlug]/checkout/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/[brandSlug]/[branchSlug]/checkout/page.tsx), [apps/web/src/app/order/branch/[branchId]/checkout/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/branch/[branchId]/checkout/page.tsx):
-  - 로그인 상태면 `POST /me/orders`
-  - 비로그인이면 `POST /public/orders`
-  - 카드 결제면 이어서 `POST /payments/prepare`
-- [apps/web/src/app/order/payment/success/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/payment/success/page.tsx):
-  - `POST /payments/confirm` 후 `GET /public/orders/:orderId`
-- [apps/web/src/app/shop/[brandSlug]/ShopBrandPageClient.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/shop/[brandSlug]/ShopBrandPageClient.tsx):
-  - `GET /public/shop/brands/:brandSlug`
-  - `POST /public/shop/brands/:brandSlug/orders`
-  - 완료 후 `/order/track/:id`로 이동
-- [apps/web/src/app/order/track/[orderId]/page.tsx](C:/Users/user/Documents/projects/order_friends/apps/web/src/app/order/track/[orderId]/page.tsx):
-  - 로그인 상태면 먼저 `GET /me/orders/:orderId`
-  - 실패 시 `GET /public/orders/:orderId`
-  - 비로그인이면 곧바로 `GET /public/orders/:orderId`
-  - 취소는 현재 항상 `POST /public/orders/:id/cancel`
-
-### 지금 바로 쓸 수 있는 결론
-- 공개 주문 실사용 흐름은 사실상 `public-order` 단일 축으로 수렴해 있습니다.
-- `public` 모듈은 현재 앱에 붙지 않으므로 “동작 중인 공개 API”로 보지 말고 레거시 정리 후보로 다루는 편이 정확합니다.
-- `orders` RLS를 더 조일 때는 프론트가 Supabase를 직접 읽는 게 아니라 백엔드의 `GET /public/orders/:orderIdOrNo`에 의존한다는 점을 기준으로 보면 됩니다.
-- 다만 공개 조회가 [PublicOrderService.getOrder](C:/Users/user/Documents/projects/order_friends/src/modules/public-order/public-order.service.ts)에서 `anonClient()` 후 `adminClient()` fallback을 허용하고 있으므로, 다음 배치에서는 “정책 tightening”보다 먼저 이 fallback이 정말 필요한 범위를 줄일지 검토해야 합니다.
-
-## 진단 범위
-- 백엔드: NestJS 11, 약 25개 모듈
-- 프론트엔드: Next.js 16 기반 `apps/web`
-- 데이터베이스: Supabase / PostgreSQL, 누적 마이그레이션
-- 배포 및 운영: GitHub Actions, Render, 수동 마이그레이션 운영
-- 품질 체계: 단위 테스트, E2E, 문서, 패치노트 운영
-
-## 분류 기준
+## 우선순위 기준
 
 ### 확정 취약점
-- 현재 운영 환경에서 데이터 노출, 권한 우회, 민감 정보 노출로 직접 이어질 가능성이 높은 항목
+- 현재 운영 환경에서 데이터 노출, 권한 우회, 민감 정보 노출로 직접 이어질 수 있는 항목
 
 ### 재검증 필요
-- 방향성상 위험 신호는 뚜렷하지만, 실제 가드 조건이나 호출 경로를 더 확인해야 확정할 수 있는 항목
+- 위험 신호는 있지만 실제 사용 경로와 운영 조건을 더 확인해야 확정할 수 있는 항목
 
 ### 구조적 위험
-- 당장 장애나 유출로 이어지지 않더라도, 회귀와 운영 리스크를 키우는 구조적 부채
+- 당장 사고로 이어지지 않더라도, 향후 운영 리스크와 유지보수 비용을 높이는 구조적 부채
 
-## 확정 취약점
+## 배치별 진행 현황
+
+### 배치 1 - 공개 주문 경로 및 RLS 보강
+- 상태: `완료`
+- 완료 항목
+  - `deposit_match_rows`, `cash_receipts`에 RLS 및 멤버 정책 적용
+  - `brand_products`, `order_channels`, `procurement_*` 기본 조회 정책 추가
+  - 공개 주문/결제 실사용 경로 조사
+  - 미사용 공개 결제 상태 조회 엔드포인트 `GET /payments/:orderId/status` 제거
+- 판단 메모
+  - 현재 실사용 공개 주문 흐름은 `PublicOrderModule` 기준으로 수렴
+  - `PublicModule`은 레거시 경로로 분류 가능
+
+### 배치 2 - 프론트 접근 제어 및 webhook 방어
+- 상태: `완료`
+- 완료 항목
+  - `/admin` 레이아웃을 system admin 기준으로 제한
+  - `(protected)` 레이아웃을 실제 활성 멤버십 기준으로 제한
+  - Toss webhook timestamp 검증 추가
+  - `TOSS_WEBHOOK_MAX_AGE_SECONDS` 환경변수 문서화
+
+### 배치 3 - 자동 검증과 migration governance
+- 상태: `완료`
+- 완료 항목
+  - 공개 주문/결제 E2E 테스트 추가
+  - webhook DTO 검증 보강
+  - `update_order_payment_status()` canonical migration 추가
+  - `scripts/check-migration-governance.js` 추가
+  - `scripts/export-openapi.ts` 추가
+  - CI에 `Migration Governance`, `API Contracts` 잡 추가
+  - backend build가 `web`, `migration-governance`, `api-contracts`를 선행 통과하도록 의존성 강화
+
+### 배치 4 - 공개 모듈 정리와 타입 공유
+- 상태: `완료`
+- 완료 항목
+  - 레거시 `PublicModule` 및 관련 DTO, 서비스, 테스트 제거
+  - `PublicModule`이 다시 `AppModule`에 연결되지 않도록 고정 테스트 유지
+  - `openapi-typescript` 기반 타입 생성 파이프라인 추가
+  - `apps/web/src/types/common.ts`가 generated 타입을 재사용하도록 연결
+  - 매장 설정, 주문 체크아웃, 주문 추적 화면 일부가 generated 기반 공통 타입을 사용하도록 정리
+  - 역할 enum이 정규화된 앱 권한 역할이라는 점을 코드 주석으로 명시
+- 남은 항목
+  - generated 타입의 프론트 적용 범위 확대
+  - 역할 모델 문서와 DB 실제 역할 값 비교 정리
+
+## 항목별 상태
 
 ### 1. `deposit_match_rows`, `cash_receipts` RLS 부재
 - 상태: `완료`
-- 위치:
-  - `supabase/migrations/20260323183000_add_deposit_match_rows.sql`
-  - `supabase/migrations/20260325170000_add_cash_receipt_support.sql`
-- 내용:
-  - 내부 운영 데이터 테이블이 `public` 스키마에 있고 RLS가 켜져 있지 않음
-  - 입금 매칭 데이터, 현금영수증 처리 데이터처럼 일반 주문자가 볼 이유가 없는 데이터가 포함됨
-- 영향:
-  - 인증된 사용자가 직접 조회 가능한 표면이 남아 있을 수 있음
-- 권장 조치:
-  - 두 테이블에 우선 RLS를 활성화
-  - 실제 읽기 주체가 운영 API뿐이라면 anon/authenticated 직접 정책은 만들지 않음
-  - 이후 브랜드/브랜치 멤버 범위가 필요한지 별도 검토
-- 반영:
-  - `20260404213000_enable_rls_on_internal_financial_tables.sql`
-  - 원격 Supabase 정책 적용 완료
+- 결과
+  - RLS 및 조회 정책 적용 완료
 
-### 2. 공개 주문 조회 정책이 과도하게 열려 있을 가능성
-- 상태: `진행 중`
-- 위치:
-  - 초기 `orders` 공개 조회 관련 마이그레이션과 현재 공개 주문 경로 전반
-- 내용:
-  - 비인증 주문 자체는 의도된 설계지만, "주문 생성 가능"과 "다른 사람 주문 전체 조회 가능"은 다른 문제
-  - 주문 테이블에는 고객명, 연락처, 주소, 금액 등 민감한 데이터가 포함됨
-- 영향:
-  - 공개 조회 조건이 넓으면 주문 열거와 개인정보 노출로 이어질 수 있음
-- 권장 조치:
-  - 현재 운영 DB의 실제 정책명과 조건을 먼저 확정
-  - 공개 조회는 `order_no` 또는 별도 비밀 식별자 기반으로만 허용
-  - 공개 주문 화면이 Supabase direct access인지 백엔드 프록시인지 경로를 하나로 정리
-- 메모:
-  - 운영 DB 기준 `orders_select_customer_own`, `orders_select_members` 정책은 확인함
-  - 다만 공개 주문 경로가 `public` / `public-order`로 나뉘어 있어 최종 판정은 보류
-
-## 재검증 필요
+### 2. 공개 주문 조회 정책 과도 개방 가능성
+- 상태: `조사 완료`
+- 결과
+  - 운영 DB 기준 `orders_select_customer_own`, `orders_select_members` 정책 확인
+  - 실사용 공개 주문 경로가 백엔드 `public-order` 서비스 경유임을 확인
+- 후속
+  - 주문 추적 키 정책을 더 강하게 조일지 여부는 공개 주문 UX 변경과 함께 검토
 
 ### 3. `/admin` 프론트 레이아웃 역할 검증
-- 상태: `미착수`
-- 위치:
-  - `apps/web/src/app/admin/layout.tsx`
-- 내용:
-  - 백엔드 API는 `AdminGuard`로 막혀 있어도, 프론트 라우트 자체가 일반 인증 사용자에게 어느 정도 노출되는지 확인이 필요
-- 판단:
-  - 순수 데이터 유출이라기보다 UI 접근 제어의 문제일 수 있어 `P0`보다는 재검증 후 `P1` 판단이 적절
+- 상태: `완료`
 
-### 4. `/admin/orders`의 멀티테넌트 스코핑
+### 4. `/admin/orders` 멀티테넌트 스코핑
 - 상태: `미착수`
-- 위치:
-  - `src/modules/orders/orders.controller.ts`
-  - 관련 서비스 계층
-- 내용:
-  - `AdminGuard`가 허용하는 역할 범위에 따라 전체 주문 접근 위험도가 달라짐
-- 판단:
-  - `system_admin` 전용이면 위험도는 낮아지고, 운영 멤버까지 허용하면 멀티테넌트 위반 가능성이 커짐
+- 메모
+  - `AdminGuard` 허용 범위를 운영 역할 기준으로 재확인해야 함
 
-### 5. 사용자 요청 경로에서의 `adminClient()` 사용
+### 5. 사용자 요청 경로의 `adminClient()` 사용
 - 상태: `진행 중`
-- 위치:
-  - 주문, 결제, 고객 주문 관련 서비스 전반
-- 내용:
-  - `service_role` 클라이언트 자체가 문제는 아니지만, 사용자 요청 처리에서도 과도하게 쓰이면 RLS가 마지막 안전망이 되지 못함
-- 판단:
-  - webhook, cron, 내부 정산, 운영성 배치는 계속 `adminClient()`가 맞음
-  - 사용자 요청 경로에 한해 `userClient(token)`로 좁힐 지점 식별이 필요
-- 메모:
-  - procurement, 공개 주문, 상품/브랜치 관리 경로의 사용 패턴 1차 확인 완료
-  - 아직 서비스별 축소 계획은 미작성
+- 메모
+  - 시스템 작업과 사용자 요청을 분리하는 원칙은 정리됐지만, 서비스 계층 전면 정리는 아직 남음
 
 ### 6. 공개 결제 상태 조회 엔드포인트
 - 상태: `완료`
-- 위치:
-  - [payments.controller.ts](C:/Users/user/Documents/projects/order_friends/src/modules/payments/payments.controller.ts)
-  - [payments.service.ts](C:/Users/user/Documents/projects/order_friends/src/modules/payments/payments.service.ts)
-- 확인 결과:
-  - `POST /payments/prepare`
-    - 비인증 주문 체크아웃에서 카드 결제 직전 호출되는 공개 엔드포인트
-  - `POST /payments/confirm`
-    - Toss 승인 완료 후 주문 완료 화면에서 호출되는 공개 엔드포인트
-  - `GET /payments/:orderId/status`
-    - `resolveOrderId()`에서 `id`와 `order_no` 둘 다 허용한 뒤 `adminClient()`로 결제 상태를 읽던 공개 상태 조회 엔드포인트
-    - 현재 `apps/web` 기준 직접 사용처가 확인되지 않아 제거 완료
-- 판단:
-  - `prepare` / `confirm`은 비인증 주문 설계상 공개가 맞음
-  - 사용처 없는 공개 상태 조회 API를 정리해 결제 상태 노출 표면을 축소함
+- 결과
+  - 미사용 공개 엔드포인트 제거 완료
 
-### 7. Toss 웹훅 타임스탬프 검증
+### 7. Toss webhook replay 방어
+- 상태: `완료`
+
+### 8. 재고 예약 / 스탬프 적립 연결 방식
 - 상태: `미착수`
-- 위치:
-  - `src/modules/payments/`
-- 내용:
-  - 서명 검증 외에 재전송 윈도우 제한이 없으면 리플레이 공격 방어가 약함
-- 판단:
-  - 즉시 보강 후보지만, 실제 Toss 헤더 규격과 현재 구현이 일치하는지 먼저 확정 필요
+- 메모
+  - 트리거 부재 자체보다, 애플리케이션 레벨 보장 여부와 테스트 공백을 먼저 확인해야 함
 
-### 8. 재고 예약 / 스탬프 적립 함수 연결 방식
-- 상태: `미착수`
-- 위치:
-  - 재고 예약 함수 관련 마이그레이션
-  - 스탬프 적립 함수 관련 마이그레이션
-- 내용:
-  - 트리거가 없다고 해서 곧바로 버그라고 단정할 수는 없음
-  - 백엔드 서비스가 의도적으로 호출을 보장하는 구조일 수 있음
-- 판단:
-  - "트리거 미연결"보다 "호출 보장 여부와 테스트 존재 여부"를 먼저 확인
+### 9. 결제 상태 트리거 drift
+- 상태: `완료`
+- 결과
+  - canonical migration과 CI governance 추가
 
-## 구조적 위험
-
-### 9. 결제 상태 트리거가 여러 마이그레이션에서 덮어써짐
+### 10. 고위험 비즈니스 흐름 E2E 공백
 - 상태: `부분 완료`
-- 위치:
-  - 결제 상태 관련 후속 마이그레이션들
-- 내용:
-  - 동일 함수를 `CREATE OR REPLACE`로 반복 덮어씀
-  - 전체 이력 적용 환경에선 최종 상태가 맞더라도, 부분 적용/수동 수정 이력이 있으면 불일치가 생기기 쉬움
-- 권장 조치:
-  - 단일 정리 마이그레이션으로 통합
-  - 현재 DB 함수 정의를 기준으로 drift 점검
-- 반영:
-  - `update_order_payment_status()`의 `SET search_path = ''`는 반영 완료
-  - 함수 통합 정리 자체는 아직 미착수
-
-### 10. 고위험 비즈니스 흐름의 E2E 공백
-- 상태: `미착수`
-- 내용:
-  - 결제, 환불, 공개 주문, 입금확인, 권한 흐름에 대한 자동화 검증이 부족함
-  - 웹 E2E도 인증 우회 환경변수에 의존하는 경향이 있어 실제 흐름 검증과 거리가 있을 수 있음
-- 권장 조치:
-  - 결제/환불/공개 주문부터 우선 추가
-  - 감사 단계에서 각 위험 항목마다 "자동 검증 존재 여부"를 함께 기록
+- 완료 범위
+  - 공개 주문/결제 경로 E2E 추가
+- 남은 범위
+  - 환불, 주문 상태 전이, 입금확인, 권한 경계 E2E 확대
 
 ### 11. `public` vs `public-order` 모듈 중복
-- 상태: `미착수`
-- 위치:
-  - `src/modules/public/`
-  - `src/modules/public-order/`
-- 내용:
-  - 비인증 주문 흐름이 두 경로로 퍼져 있어 정책, DTO, 조회 방식이 갈라질 가능성이 큼
-- 권장 조치:
-  - 실제 사용 경로를 하나로 정리
-  - 레거시 경로 유지가 필요하면 역할을 명확히 분리
-
-### 12. 프론트-백엔드 타입 계약 미공유
-- 상태: `미착수`
-- 내용:
-  - 웹앱이 백엔드 DTO를 자동 생성 타입으로 소비하지 않음
-  - API shape가 바뀌어도 프론트가 컴파일 단계에서 바로 깨지지 않을 수 있음
-- 권장 조치:
-  - OpenAPI 기반 타입 생성 파이프라인 검토
-  - 최소한 주문/결제/인증 DTO부터 우선 적용
-
-### 13. CI/CD와 DB 마이그레이션 운영이 분리됨
-- 상태: `미착수`
-- 내용:
-  - 코드 배포와 DB 변경 반영이 자동으로 묶여 있지 않음
-  - 이미 서비스 코드에 "컬럼이 아직 없을 수 있음"을 고려한 완화 로직이 보이는 만큼 실제 운영 경험이 있었던 흔적이 있음
-- 권장 조치:
-  - 마이그레이션 적용 절차를 CI/CD 또는 명시적 운영 체크리스트에 포함
-  - 웹 빌드와 백엔드 배포 의존성도 재점검
-
-### 14. 역할 모델 문서와 코드 표현 불일치
-- 상태: `미착수`
-- 내용:
-  - enum, DB 값, 변환 로직이 완전히 같은 용어를 쓰지 않음
-  - 문서와 실제 권한 판정이 어긋날 여지가 있음
-- 권장 조치:
-  - 실제 DB 값을 기준으로 표준 역할 용어 정리
-  - 코드 변환 규칙과 문서 표기를 함께 맞춤
-
-## 즉시 실행 순서
-
-### 배치 1
 - 상태: `완료`
-- 완료:
-  - `deposit_match_rows`, `cash_receipts` RLS 긴급 패치
-  - `brand_products`, `order_channels`, `procurement_*` 기본 조회 정책 추가
-  - 공개 주문 조회 정책 실제 상태 확인
-  - 공개 주문/공개 결제 경로 맵 작성
+- 결과
+  - 활성 경로는 `public-order`로 확정
+  - 레거시 `public` 모듈, DTO, 전용 테스트 제거
 
-### 배치 2
-- 상태: `미착수`
-- 항목:
-  - `/admin` 및 보호 레이아웃 역할 검증 재점검
-  - Toss 웹훅 타임스탬프 검증 도입 여부 확정
+### 12. 프론트-백엔드 타입 공유 부재
+- 상태: `진행 중`
+- 완료 범위
+  - OpenAPI export/generation/check 파이프라인 구축
+  - generated 타입을 공통 타입과 일부 프론트 화면에서 재사용하도록 연결
+- 남은 범위
+  - 수동 타입 정의가 많은 화면으로 적용 범위 확대
 
-### 배치 3
-- 상태: `미착수`
-- 항목:
-  - 결제 상태 트리거 통합
-  - 결제/환불/공개 주문 E2E 추가
-  - 마이그레이션 운영 절차와 CI 의존성 강화
+### 13. 역할 모델 문서-코드 불일치
+- 상태: `진행 중`
+- 결과
+  - enum 주석으로 정규화 역할 개념을 명시
+- 남은 범위
+  - 문서와 DB 실제 역할 값을 한 표로 정리
 
-### 배치 4
-- 상태: `미착수`
-- 항목:
-  - `public` / `public-order` 통합 방향 결정
-  - OpenAPI 기반 프론트 타입 공유 검토
-  - 역할 모델 문서와 코드 표현 통일
-
-## 우선순위 기준
-- `P0`: 운영 중 데이터 노출, 권한 우회, 잘못된 결제/주문 처리로 바로 이어질 수 있는 항목
-- `P1`: 특정 조건에서 장애나 테넌트 격리 문제를 만들 수 있는 항목
-- `P2`: 구조적 부채와 테스트 공백으로 회귀 가능성을 키우는 항목
-- `P3`: 유지보수성, 확장성, 문서 정합성 개선 항목
-
-## 한 줄 결론
-이 진단은 단순 아이디어 메모가 아니라, 다음 수정 스프린트에서 그대로 실행 백로그로 변환할 수 있는 연구 스냅샷이다. 다만 일부 항목은 "확정 취약점"과 "재검증 필요"를 계속 분리해서 다뤄야 불필요한 과잉 수정 없이 정확하게 우선순위를 잡을 수 있다.
-
+## 다음 권장 순서
+1. `/admin/orders` 멀티테넌트 스코핑 재검증
+2. 환불 / 주문 상태 전이 / 입금확인 E2E 확대
+3. generated 타입의 프론트 적용 범위 확대
+4. 역할 모델 문서 정합성 정리

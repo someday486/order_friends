@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { OrderStatus } from '../../modules/orders/order-status.enum';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 import {
+  DeliveryTrackingResponse,
   OrderDetailResponse,
   OrderItemResponse,
 } from '../../modules/orders/dto/order-detail.response';
@@ -24,16 +26,30 @@ import {
   PaymentStatus,
   PaymentStatusResponse,
 } from '../payments/dto/payment.dto';
+import { UpdateDeliveryTrackingRequest } from './dto/update-delivery-tracking.request';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CustomerOrdersService {
   private readonly logger = new Logger(CustomerOrdersService.name);
   private static readonly ITEMS_SUMMARY_LIMIT = 6;
+  private static readonly DELIVERY_FULFILLMENT_TYPES = new Set(['SHIPPING']);
+  private static readonly DELIVERY_STATUS_TRANSITIONS: Record<
+    DeliveryTrackingResponse['status'],
+    DeliveryTrackingResponse['status'][]
+  > = {
+    PENDING: ['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERY_FAILED'],
+    PREPARING_SHIPMENT: ['IN_TRANSIT', 'DELIVERY_FAILED'],
+    IN_TRANSIT: ['DELIVERED', 'DELIVERY_FAILED'],
+    DELIVERED: [],
+    DELIVERY_FAILED: ['PREPARING_SHIPMENT', 'IN_TRANSIT'],
+  };
 
   constructor(
     private readonly supabase: SupabaseService,
     private readonly paymentsService: PaymentsService,
     private readonly cashReceiptsService: CashReceiptsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private async syncCashReceiptForStatusChange(
@@ -413,6 +429,167 @@ export class CustomerOrdersService {
       errorCode: data.error_code ?? null,
       errorMessage: data.error_message ?? null,
     };
+  }
+
+  private isDeliveryFulfillmentType(
+    fulfillmentType: string | null | undefined,
+  ): boolean {
+    return CustomerOrdersService.DELIVERY_FULFILLMENT_TYPES.has(
+      String(fulfillmentType ?? ''),
+    );
+  }
+
+  private normalizeDeliveryTrackingStatus(
+    value: unknown,
+  ): DeliveryTrackingResponse['status'] | null {
+    if (
+      value === 'PENDING' ||
+      value === 'PREPARING_SHIPMENT' ||
+      value === 'IN_TRANSIT' ||
+      value === 'DELIVERED' ||
+      value === 'DELIVERY_FAILED'
+    ) {
+      return value;
+    }
+
+    return null;
+  }
+
+  private mapDeliveryTracking(data: {
+    fulfillment_type?: string | null;
+    delivery_status?: string | null;
+    delivery_carrier?: string | null;
+    delivery_tracking_number?: string | null;
+    delivery_started_at?: string | null;
+    delivered_at?: string | null;
+    delivery_status_updated_at?: string | null;
+  }): DeliveryTrackingResponse | null {
+    if (!this.isDeliveryFulfillmentType(data.fulfillment_type ?? null)) {
+      return null;
+    }
+
+    const status =
+      this.normalizeDeliveryTrackingStatus(data.delivery_status ?? null) ??
+      'PENDING';
+
+    return {
+      status,
+      carrier: data.delivery_carrier ?? null,
+      trackingNumber: data.delivery_tracking_number ?? null,
+      startedAt: data.delivery_started_at ?? null,
+      deliveredAt: data.delivered_at ?? null,
+      updatedAt:
+        data.delivery_status_updated_at ??
+        data.delivered_at ??
+        data.delivery_started_at ??
+        null,
+    };
+  }
+
+  private normalizeOptionalText(
+    value: string | null | undefined,
+  ): string | null | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const trimmed = value?.trim() ?? '';
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private assertDeliveryTrackingTransition(
+    currentStatus: DeliveryTrackingResponse['status'],
+    nextStatus: DeliveryTrackingResponse['status'],
+  ) {
+    if (currentStatus === nextStatus) {
+      return;
+    }
+
+    const allowedTransitions =
+      CustomerOrdersService.DELIVERY_STATUS_TRANSITIONS[currentStatus] ?? [];
+
+    if (!allowedTransitions.includes(nextStatus)) {
+      throw new BadRequestException(
+        `Invalid delivery status transition: ${currentStatus} -> ${nextStatus}`,
+      );
+    }
+  }
+
+  private async getDeliveryTrackingForOrder(
+    sb: any,
+    orderId: string,
+    fulfillmentType: string | null | undefined,
+  ): Promise<DeliveryTrackingResponse | null> {
+    if (!this.isDeliveryFulfillmentType(fulfillmentType)) {
+      return null;
+    }
+
+    const { data, error } = await sb
+      .from('orders')
+      .select(
+        'fulfillment_type, delivery_status, delivery_carrier, delivery_tracking_number, delivery_started_at, delivered_at, delivery_status_updated_at',
+      )
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (error) {
+      const message = String(error?.message ?? '');
+      const missingColumn =
+        error?.code === '42703' ||
+        error?.code === 'PGRST204' ||
+        /column .* does not exist/i.test(message) ||
+        /schema cache/i.test(message);
+
+      if (!missingColumn) {
+        this.logger.warn(
+          `Failed to load delivery tracking for order ${orderId}: ${message}`,
+        );
+      }
+
+      return this.mapDeliveryTracking({
+        fulfillment_type: fulfillmentType,
+      });
+    }
+
+    return this.mapDeliveryTracking({
+      fulfillment_type:
+        (data?.fulfillment_type as string | null | undefined) ??
+        fulfillmentType,
+      delivery_status: data?.delivery_status ?? null,
+      delivery_carrier: data?.delivery_carrier ?? null,
+      delivery_tracking_number: data?.delivery_tracking_number ?? null,
+      delivery_started_at: data?.delivery_started_at ?? null,
+      delivered_at: data?.delivered_at ?? null,
+      delivery_status_updated_at: data?.delivery_status_updated_at ?? null,
+    });
+  }
+
+  private async notifyDeliveryTrackingUpdate(
+    order: {
+      id: string;
+      order_no?: string | null;
+      customer_phone?: string | null;
+    },
+    tracking: DeliveryTrackingResponse,
+  ): Promise<void> {
+    const phone = order.customer_phone?.trim();
+    if (!phone || tracking.status !== 'DELIVERED') {
+      return;
+    }
+
+    try {
+      const orderReference = order.order_no?.trim() || order.id;
+      await this.notificationsService.sendKakaoTalk(
+        phone,
+        `[오더프렌즈] 주문 ${orderReference} 배송이 완료되었습니다. 이용해 주셔서 감사합니다.`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to send delivery completion KakaoTalk for order ${order.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /**
@@ -1095,6 +1272,11 @@ export class CustomerOrdersService {
     );
 
     const paymentStatus = paymentStatusMap.get(String(data.id)) ?? null;
+    const deliveryTracking = await this.getDeliveryTrackingForOrder(
+      sb,
+      String(data.id),
+      data.fulfillment_type ?? null,
+    );
 
     return {
       id: data.id,
@@ -1125,6 +1307,7 @@ export class CustomerOrdersService {
       },
       cashReceiptRequest,
       cashReceiptIssue,
+      deliveryTracking,
       items,
     };
   }
@@ -1231,6 +1414,110 @@ export class CustomerOrdersService {
       totalAmount: data.total_amount ?? 0,
       status: data.status as OrderStatus,
     };
+  }
+
+  async updateMyOrderDeliveryTracking(
+    userId: string,
+    orderId: string,
+    body: UpdateDeliveryTrackingRequest,
+    brandMemberships: BrandMembership[],
+    branchMemberships: BranchMembership[],
+  ): Promise<DeliveryTrackingResponse> {
+    this.logger.log(
+      `Updating order ${orderId} delivery tracking to ${body.deliveryStatus} by user ${userId}`,
+    );
+
+    const { role, order } = await this.checkOrderAccess(
+      orderId,
+      userId,
+      brandMemberships,
+      branchMemberships,
+    );
+
+    this.checkModificationPermission(role, 'update delivery tracking', userId);
+
+    if (!this.isDeliveryFulfillmentType(order.fulfillment_type ?? null)) {
+      throw new BadRequestException(
+        'Delivery tracking is only available for delivery orders',
+      );
+    }
+
+    const currentStatus =
+      this.normalizeDeliveryTrackingStatus(order.delivery_status ?? null) ??
+      'PENDING';
+    this.assertDeliveryTrackingTransition(currentStatus, body.deliveryStatus);
+
+    const timestamp = new Date().toISOString();
+    const updatePayload: Record<string, string | null> = {
+      delivery_status: body.deliveryStatus,
+      delivery_status_updated_at: timestamp,
+    };
+
+    const normalizedCarrier = this.normalizeOptionalText(body.deliveryCarrier);
+    if (normalizedCarrier !== undefined) {
+      updatePayload.delivery_carrier = normalizedCarrier;
+    }
+
+    const normalizedTrackingNumber = this.normalizeOptionalText(
+      body.deliveryTrackingNumber,
+    );
+    if (normalizedTrackingNumber !== undefined) {
+      updatePayload.delivery_tracking_number = normalizedTrackingNumber;
+    }
+
+    if (body.deliveryStatus === 'IN_TRANSIT' && !order.delivery_started_at) {
+      updatePayload.delivery_started_at = timestamp;
+    }
+
+    if (body.deliveryStatus === 'DELIVERED') {
+      updatePayload.delivery_started_at =
+        order.delivery_started_at ?? timestamp;
+      updatePayload.delivered_at = timestamp;
+    }
+
+    if (
+      body.deliveryStatus !== 'DELIVERED' &&
+      order.delivered_at &&
+      currentStatus !== 'DELIVERED'
+    ) {
+      updatePayload.delivered_at = order.delivered_at;
+    }
+
+    const { data, error } = await this.supabase
+      .adminClient()
+      .from('orders')
+      .update(updatePayload)
+      .eq('id', order.id)
+      .select(
+        'fulfillment_type, delivery_status, delivery_carrier, delivery_tracking_number, delivery_started_at, delivered_at, delivery_status_updated_at',
+      )
+      .maybeSingle();
+
+    if (error || !data) {
+      this.logger.error(
+        `Failed to update delivery tracking for order ${orderId}`,
+        error,
+      );
+      throw new Error('Failed to update delivery tracking');
+    }
+
+    const response = this.mapDeliveryTracking({
+      fulfillment_type: data.fulfillment_type ?? order.fulfillment_type ?? null,
+      delivery_status: data.delivery_status ?? null,
+      delivery_carrier: data.delivery_carrier ?? null,
+      delivery_tracking_number: data.delivery_tracking_number ?? null,
+      delivery_started_at: data.delivery_started_at ?? null,
+      delivered_at: data.delivered_at ?? null,
+      delivery_status_updated_at: data.delivery_status_updated_at ?? null,
+    });
+
+    if (!response) {
+      throw new Error('Failed to update delivery tracking');
+    }
+
+    await this.notifyDeliveryTrackingUpdate(order, response);
+
+    return response;
   }
 
   /**

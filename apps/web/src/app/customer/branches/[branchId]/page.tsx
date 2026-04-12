@@ -16,9 +16,7 @@ import {
   type BusinessHoursFormState,
   type WeeklyBusinessHours,
 } from "@/lib/business-hours";
-
-type FulfillmentType = "PICKUP" | "DELIVERY" | "DINE_IN" | "SHIPPING";
-type PaymentMethod = "CARD" | "TRANSFER";
+import { type FulfillmentType, type StorePaymentMethod } from "@/types/common";
 
 type Branch = {
   id: string;
@@ -31,7 +29,7 @@ type Branch = {
   myRole: string | null;
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
-  allowedPaymentMethods?: PaymentMethod[];
+  allowedPaymentMethods?: StorePaymentMethod[];
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -55,7 +53,7 @@ type Brand = {
 };
 
 const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
-const ALL_PAYMENT_METHODS: PaymentMethod[] = ["CARD", "TRANSFER"];
+const ALL_PAYMENT_METHODS: StorePaymentMethod[] = ["CARD", "TRANSFER"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
@@ -64,7 +62,7 @@ const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   SHIPPING: "택배",
 };
 
-const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+const PAYMENT_LABEL: Record<StorePaymentMethod, string> = {
   CARD: "카드",
   TRANSFER: "계좌이체",
 };
@@ -128,7 +126,9 @@ export default function BranchDetailPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
-  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<PaymentMethod[]>(["CARD"]);
+  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<
+    StorePaymentMethod[]
+  >(["CARD"]);
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");

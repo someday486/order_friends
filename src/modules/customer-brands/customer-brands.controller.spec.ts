@@ -3,6 +3,7 @@ import { CustomerBrandsController } from './customer-brands.controller';
 import { CustomerBrandsService } from './customer-brands.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
+import { BillingTier } from '../billing/billing.types';
 
 describe('CustomerBrandsController', () => {
   let controller: CustomerBrandsController;
@@ -56,11 +57,12 @@ describe('CustomerBrandsController', () => {
     mockService.createMyBrand.mockResolvedValue({ id: 'brand-new' });
 
     const createData = {
-      name: '브랜드',
+      name: 'Brand',
       slug: 'brand',
-    } as any;
+      billingTier: BillingTier.PG,
+    } as const;
 
-    const result = await controller.createMyBrand(makeReq(), createData);
+    const result = await controller.createMyBrand(makeReq(), createData as any);
 
     expect(result).toEqual({ id: 'brand-new' });
     expect(mockService.createMyBrand).toHaveBeenCalledWith(

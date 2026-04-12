@@ -12,9 +12,11 @@ import {
   UpdateCustomerBrandRequest,
 } from './dto/customer-brand.request';
 import { CashReceiptOnboardingService } from '../cash-receipts/cash-receipt-onboarding.service';
+import { BillingTier } from '../billing/billing.types';
 
 const SHOP_PAYMENT_METHODS = ['CARD', 'TRANSFER'] as const;
 type ShopPaymentMethod = (typeof SHOP_PAYMENT_METHODS)[number];
+const DEFAULT_PG_COMMISSION_RATE = 0.035;
 
 @Injectable()
 export class CustomerBrandsService {
@@ -44,6 +46,12 @@ export class CustomerBrandsService {
     }
 
     return [...set];
+  }
+
+  private getShopPaymentMethodsForBillingTier(
+    billingTier: BillingTier,
+  ): ShopPaymentMethod[] {
+    return billingTier === BillingTier.NON_PG ? ['TRANSFER'] : ['CARD'];
   }
 
   private shouldRevalidateCashReceipt(
@@ -100,7 +108,7 @@ export class CustomerBrandsService {
         ? sb
             .from('brands')
             .select(
-              'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+              'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
             )
             .in('id', brandIds)
             .order('created_at', { ascending: false })
@@ -108,7 +116,7 @@ export class CustomerBrandsService {
       sb
         .from('brands')
         .select(
-          'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+          'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
         )
         .eq('owner_user_id', userId)
         .order('created_at', { ascending: false }),
@@ -183,7 +191,7 @@ export class CustomerBrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
+        'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -230,11 +238,17 @@ export class CustomerBrandsService {
     }
 
     const sb = this.supabase.adminClient();
+    const billingTier = createData.billingTier;
+    const billingTierDecidedAt = new Date().toISOString();
 
     const insertPayload: Record<string, unknown> = {
       name: createData.name,
       slug: createData.slug ?? null,
       owner_user_id: userId,
+      billing_tier: billingTier,
+      billing_tier_decided_at: billingTierDecidedAt,
+      commission_rate:
+        billingTier === BillingTier.PG ? DEFAULT_PG_COMMISSION_RATE : null,
       biz_name: createData.biz_name ?? null,
       biz_reg_no: createData.biz_reg_no ?? null,
       rep_name: createData.rep_name ?? null,
@@ -251,11 +265,8 @@ export class CustomerBrandsService {
       logo_url: createData.logo_url ?? null,
       cover_image_url: createData.cover_image_url ?? null,
     };
-    if (createData.shop_payment_methods !== undefined) {
-      insertPayload.shop_payment_methods = this.normalizeShopPaymentMethods(
-        createData.shop_payment_methods,
-      );
-    }
+    insertPayload.shop_payment_methods =
+      this.getShopPaymentMethodsForBillingTier(billingTier);
     const createOnboarding = await this.resolveCashReceiptConfig(
       userId,
       createData,
@@ -266,7 +277,7 @@ export class CustomerBrandsService {
       .from('brands')
       .insert(insertPayload)
       .select(
-        'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, slug, owner_user_id, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -454,7 +465,7 @@ export class CustomerBrandsService {
       .update(updateFields)
       .eq('id', brandId)
       .select(
-        'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, created_at',
+        'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, created_at',
       )
       .single();
 

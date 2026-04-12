@@ -27,7 +27,7 @@ const quickActions = [
   {
     href: '/business/orders/upload',
     title: '주문서 업로드',
-    description: '엑셀/CSV 주문서와 송장 파일을 바로 올려서 매핑합니다.',
+    description: '엑셀이나 CSV 주문서를 바로 올리고 컬럼 매핑을 시작합니다.',
     icon: FileSpreadsheet,
   },
   {
@@ -38,14 +38,14 @@ const quickActions = [
   },
   {
     href: '/business/orders/history',
-    title: '주문내역',
-    description: '승인대기, 부분출고, 정산대기 상태를 빠르게 점검합니다.',
+    title: '주문 내역',
+    description: '확인 대기, 출고 준비, 결제 대기 상태를 빠르게 훑어봅니다.',
     icon: ClipboardList,
   },
   {
     href: '/business/payments',
-    title: '결제 현황',
-    description: '예치금과 후불 정산 일정을 기준으로 결제를 관리합니다.',
+    title: '결제 운영',
+    description: '빌링과 정산 흐름을 브랜드별 운영 방식에 맞춰 확인합니다.',
     icon: CreditCard,
   },
 ];
@@ -61,11 +61,11 @@ export default function BusinessDashboardPage() {
             </div>
             <h1 className="mt-3 text-2xl font-black leading-tight tracking-tight text-foreground md:text-3xl">
               발주, 송장, 결제를
-              <br className="hidden md:block" /> 한 화면 구조로 정리했습니다.
+              <br className="hidden md:block" /> 한 흐름으로 정리했습니다.
             </h1>
             <p className="mt-4 max-w-2xl text-[13px] leading-5 text-text-secondary md:text-sm">
-              B2C 운영 화면과 분리해서, 상품 탐색부터 대량 발주, 송장 매칭, 입고와 결제 확인까지
-              B2B 운영 흐름으로 이어지도록 뼈대를 만들었습니다.
+              B2C 운영 화면과 분리해서, 상품 탐색부터 주문서 업로드, 송장 매칭, 입고와
+              결제 확인까지 B2B 운영 흐름만 이어지도록 정리한 대시보드입니다.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -86,10 +86,10 @@ export default function BusinessDashboardPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <HeroMetric label="예치금" value={businessTopSummary.deposit} />
-            <HeroMetric label="적립금" value={businessTopSummary.points} />
-            <HeroMetric label="결제대기" value={businessTopSummary.paymentPending} />
-            <HeroMetric label="미매칭송장" value={businessTopSummary.unmatchedWaybills} />
+            <HeroMetric label="입치기" value={businessTopSummary.deposit} />
+            <HeroMetric label="상품 대기" value={businessTopSummary.points} />
+            <HeroMetric label="결제 대기" value={businessTopSummary.paymentPending} />
+            <HeroMetric label="미매칭 송장" value={businessTopSummary.unmatchedWaybills} />
           </div>
         </div>
       </section>
@@ -117,19 +117,19 @@ export default function BusinessDashboardPage() {
           <CardHeader>
             <div className="mb-2 flex items-center gap-2">
               <Boxes size={18} className="text-text-secondary" />
-              <CardTitle className="mb-0">오늘 바로 확인할 것</CardTitle>
+              <CardTitle className="mb-0">오늘 바로 확인할 항목</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <DashboardChecklist
-              title="상품 소싱"
+              title="상품 카탈로그"
               count={`${businessProducts.length}개`}
               hint="공급처별 발주 가능 상품"
             />
             <DashboardChecklist
               title="진행 중 발주"
               count={`${businessOrders.length}건`}
-              hint="승인대기 / 출고준비 포함"
+              hint="확인 대기와 출고 준비 포함"
             />
             <DashboardChecklist
               title="활성 공급처"
@@ -139,7 +139,7 @@ export default function BusinessDashboardPage() {
             <DashboardChecklist
               title="입고 추적"
               count={`${receiptStatuses.length}건`}
-              hint="부분 입고 / 입고 예정 포함"
+              hint="부분 입고와 입고 예정 포함"
             />
           </CardContent>
         </Card>
@@ -162,7 +162,7 @@ export default function BusinessDashboardPage() {
                   <div className="text-xs text-text-tertiary">{preset.lastUsed}</div>
                 </div>
                 <div className="mt-2 text-xs leading-5 text-text-secondary">
-                  주문번호: {preset.orderHeader} · 송장번호: {preset.waybillHeader} · 헤더행:{' '}
+                  주문번호: {preset.orderHeader} · 송장번호: {preset.waybillHeader} · 헤더 행{' '}
                   {preset.headerRow}
                 </div>
               </div>
@@ -240,19 +240,19 @@ export default function BusinessDashboardPage() {
           href="/business/suppliers"
           icon={Users2}
           title="공급처"
-          description="납기, 마감시간, 최소주문금액 기준으로 정리"
+          description="납기, 마감 시간, 최소 주문 금액 기준으로 정리합니다."
         />
         <SmallLinkCard
           href="/business/shipments"
           icon={Truck}
           title="송장 매칭"
-          description="헤더 프리셋과 미매칭 예외 건 확인"
+          description="헤더 프리셋과 미매칭 예외 건을 빠르게 확인합니다."
         />
         <SmallLinkCard
           href="/business/settings"
           icon={CreditCard}
           title="운영 설정"
-          description="발주 마감, 결제 정책, 업로드 규칙 설정"
+          description="발주 마감, 결제 방식, 업로드 규칙을 관리합니다."
         />
       </section>
     </div>
@@ -265,7 +265,9 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
         {label}
       </div>
-      <div className="mt-3 break-keep text-xl font-black text-foreground md:text-[22px]">{value}</div>
+      <div className="mt-3 break-keep text-xl font-black text-foreground md:text-[22px]">
+        {value}
+      </div>
     </div>
   );
 }
@@ -284,7 +286,9 @@ function DashboardChecklist({
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
         {title}
       </div>
-      <div className="mt-3 break-keep text-xl font-black text-foreground md:text-[22px]">{count}</div>
+      <div className="mt-3 break-keep text-xl font-black text-foreground md:text-[22px]">
+        {count}
+      </div>
       <div className="mt-1 text-[13px] leading-5 text-text-secondary">{hint}</div>
     </div>
   );
@@ -294,11 +298,11 @@ function StatusPill({ label }: { label: string }) {
   const tone =
     label === '출고준비'
       ? 'bg-emerald-500/15 text-emerald-700'
-      : label === '승인대기'
-      ? 'bg-amber-500/15 text-amber-700'
-      : label === '부분출고'
-      ? 'bg-sky-500/15 text-sky-700'
-      : 'bg-neutral-500/15 text-text-secondary';
+      : label === '확인대기'
+        ? 'bg-amber-500/15 text-amber-700'
+        : label === '부분출고'
+          ? 'bg-sky-500/15 text-sky-700'
+          : 'bg-neutral-500/15 text-text-secondary';
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>

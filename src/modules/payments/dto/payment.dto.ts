@@ -1,5 +1,6 @@
 ﻿import { IsString, IsNumber, IsOptional, Min, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsObject } from 'class-validator';
 
 // Payment Status Enum
 export enum PaymentStatus {
@@ -386,15 +387,18 @@ export class RefundPaymentResponse {
 
 export class TossWebhookRequest {
   @ApiProperty({ description: '이벤트 타입', example: 'PAYMENT_CONFIRMED' })
+  @IsString()
   eventType: string;
 
   @ApiProperty({
     description: '생성 시각',
     example: '2026-02-06T10:30:00+09:00',
   })
+  @IsDateString()
   createdAt: string;
 
   @ApiProperty({ description: '결제 데이터' })
+  @IsObject()
   data: {
     orderId: string;
     paymentKey: string;

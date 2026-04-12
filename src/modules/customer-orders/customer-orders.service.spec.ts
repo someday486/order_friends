@@ -1,9 +1,14 @@
-﻿import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CustomerOrdersService } from './customer-orders.service';
 import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { OrderStatus } from '../../modules/orders/order-status.enum';
 import { PaymentsService } from '../payments/payments.service';
 import { CashReceiptsService } from '../cash-receipts/cash-receipts.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('CustomerOrdersService', () => {
   let service: CustomerOrdersService;
@@ -22,6 +27,9 @@ describe('CustomerOrdersService', () => {
   let mockCashReceiptsService: {
     issueForCompletedOrder: jest.Mock;
     cancelForOrder: jest.Mock;
+  };
+  let mockNotificationsService: {
+    sendKakaoTalk: jest.Mock;
   };
 
   const makeChain = () => ({
@@ -65,6 +73,11 @@ describe('CustomerOrdersService', () => {
       issueForCompletedOrder: jest.fn().mockResolvedValue(undefined),
       cancelForOrder: jest.fn().mockResolvedValue(undefined),
     };
+    mockNotificationsService = {
+      sendKakaoTalk: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    };
     mockSb = {
       from: jest.fn((table: string) => {
         if (table === 'orders') return ordersChain;
@@ -82,6 +95,7 @@ describe('CustomerOrdersService', () => {
       supabase as SupabaseService,
       mockPaymentsService as unknown as PaymentsService,
       mockCashReceiptsService as unknown as CashReceiptsService,
+      mockNotificationsService as unknown as NotificationsService,
     );
   };
 
@@ -89,6 +103,39 @@ describe('CustomerOrdersService', () => {
     setup();
     jest.clearAllMocks();
     jest.spyOn(service as any, 'getLatestCashReceipt').mockResolvedValue(null);
+    jest
+      .spyOn(service as any, 'getDeliveryTrackingForOrder')
+      .mockResolvedValue(null);
+  });
+
+  it('mapDeliveryTracking should return pending tracking for shipping orders without saved status', () => {
+    const result = (service as any).mapDeliveryTracking({
+      fulfillment_type: 'SHIPPING',
+      delivery_status: null,
+      delivery_carrier: null,
+      delivery_tracking_number: null,
+      delivery_started_at: null,
+      delivered_at: null,
+      delivery_status_updated_at: null,
+    });
+
+    expect(result).toEqual({
+      status: 'PENDING',
+      carrier: null,
+      trackingNumber: null,
+      startedAt: null,
+      deliveredAt: null,
+      updatedAt: null,
+    });
+  });
+
+  it('mapDeliveryTracking should return null for pickup orders', () => {
+    const result = (service as any).mapDeliveryTracking({
+      fulfillment_type: 'PICKUP',
+      delivery_status: 'IN_TRANSIT',
+    });
+
+    expect(result).toBeNull();
   });
 
   it('isUuid should validate uuid', () => {
@@ -1103,6 +1150,16 @@ describe('CustomerOrdersService', () => {
   });
 
   it('getMyOrder should return order detail', async () => {
+    jest
+      .spyOn(service as any, 'getDeliveryTrackingForOrder')
+      .mockResolvedValueOnce({
+        status: 'PENDING',
+        carrier: null,
+        trackingNumber: null,
+        startedAt: null,
+        deliveredAt: null,
+        updatedAt: null,
+      });
     ordersChain.maybeSingle
       .mockResolvedValueOnce({ data: { id: 'o1' }, error: null })
       .mockResolvedValueOnce({
@@ -1111,6 +1168,7 @@ describe('CustomerOrdersService', () => {
           order_no: 'O-1',
           status: OrderStatus.CREATED,
           created_at: 't',
+          fulfillment_type: 'SHIPPING',
           customer_name: 'A',
           customer_phone: '1',
           delivery_address: 'addr',
@@ -1146,6 +1204,7 @@ describe('CustomerOrdersService', () => {
     expect(result.id).toBe('o1');
     expect(result.items).toHaveLength(1);
     expect(result.myRole).toBe('OWNER');
+    expect(result.deliveryTracking?.status).toBe('PENDING');
   });
 
   it('getMyOrder should fall back to order payment method when payment row is missing', async () => {
@@ -1583,6 +1642,222 @@ describe('CustomerOrdersService', () => {
     );
 
     expect(result.status).toBe(OrderStatus.READY);
+  });
+
+  it('updateMyOrderDeliveryTracking should update delivery tracking for shipping orders', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({
+        data: { id: 'o1' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          fulfillment_type: 'SHIPPING',
+          delivery_status: 'IN_TRANSIT',
+          delivery_carrier: 'CJ대한통운',
+          delivery_tracking_number: '1234567890',
+          delivery_started_at: '2026-04-12T14:00:00.000Z',
+          delivered_at: null,
+          delivery_status_updated_at: '2026-04-12T14:00:00.000Z',
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        branches: { brand_id: 'brand-1' },
+        fulfillment_type: 'SHIPPING',
+        delivery_status: 'PENDING',
+        delivery_started_at: null,
+        delivered_at: null,
+      },
+      error: null,
+    });
+
+    const result = await service.updateMyOrderDeliveryTracking(
+      'user-1',
+      'o1',
+      {
+        deliveryStatus: 'IN_TRANSIT',
+        deliveryCarrier: '  CJ대한통운 ',
+        deliveryTrackingNumber: ' 1234567890 ',
+      },
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(result).toEqual({
+      status: 'IN_TRANSIT',
+      carrier: 'CJ대한통운',
+      trackingNumber: '1234567890',
+      startedAt: '2026-04-12T14:00:00.000Z',
+      deliveredAt: null,
+      updatedAt: '2026-04-12T14:00:00.000Z',
+    });
+    expect(ordersChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        delivery_status: 'IN_TRANSIT',
+        delivery_carrier: 'CJ대한통운',
+        delivery_tracking_number: '1234567890',
+        delivery_started_at: expect.any(String),
+        delivery_status_updated_at: expect.any(String),
+      }),
+    );
+  });
+
+  it('updateMyOrderDeliveryTracking should reject non-delivery orders', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        branches: { brand_id: 'brand-1' },
+        fulfillment_type: 'PICKUP',
+        delivery_status: null,
+      },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrderDeliveryTracking(
+        'user-1',
+        'o1',
+        { deliveryStatus: 'IN_TRANSIT' },
+        [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+        [],
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('updateMyOrderDeliveryTracking should reject invalid delivery status transitions', async () => {
+    ordersChain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'o1' },
+      error: null,
+    });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        branches: { brand_id: 'brand-1' },
+        fulfillment_type: 'DELIVERY',
+        delivery_status: 'DELIVERED',
+        delivered_at: '2026-04-12T14:00:00.000Z',
+      },
+      error: null,
+    });
+
+    await expect(
+      service.updateMyOrderDeliveryTracking(
+        'user-1',
+        'o1',
+        { deliveryStatus: 'PREPARING_SHIPMENT' },
+        [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+        [],
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('updateMyOrderDeliveryTracking should send a delivery completion KakaoTalk when shipping becomes DELIVERED', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({
+        data: { id: 'o1' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          fulfillment_type: 'SHIPPING',
+          delivery_status: 'DELIVERED',
+          delivery_carrier: 'CJ대한통운',
+          delivery_tracking_number: 'TRACK-123',
+          delivery_started_at: '2026-04-12T12:00:00.000Z',
+          delivered_at: '2026-04-12T13:00:00.000Z',
+          delivery_status_updated_at: '2026-04-12T13:00:00.000Z',
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        order_no: 'ORD-001',
+        customer_phone: '010-1111-2222',
+        branches: { brand_id: 'brand-1' },
+        fulfillment_type: 'SHIPPING',
+        delivery_status: 'IN_TRANSIT',
+        delivery_started_at: '2026-04-12T12:00:00.000Z',
+        delivered_at: null,
+      },
+      error: null,
+    });
+
+    await service.updateMyOrderDeliveryTracking(
+      'user-1',
+      'o1',
+      {
+        deliveryStatus: 'DELIVERED',
+        deliveryCarrier: 'CJ대한통운',
+        deliveryTrackingNumber: 'TRACK-123',
+      },
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(mockNotificationsService.sendKakaoTalk).toHaveBeenCalledWith(
+      '010-1111-2222',
+      '[오더프렌즈] 주문 ORD-001 배송이 완료되었습니다. 이용해 주셔서 감사합니다.',
+    );
+  });
+
+  it('updateMyOrderDeliveryTracking should not send a delivery completion KakaoTalk for non-delivered shipping statuses', async () => {
+    ordersChain.maybeSingle
+      .mockResolvedValueOnce({
+        data: { id: 'o1' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          fulfillment_type: 'SHIPPING',
+          delivery_status: 'IN_TRANSIT',
+          delivery_carrier: 'CJ대한통운',
+          delivery_tracking_number: 'TRACK-123',
+          delivery_started_at: '2026-04-12T12:30:00.000Z',
+          delivered_at: null,
+          delivery_status_updated_at: '2026-04-12T12:30:00.000Z',
+        },
+        error: null,
+      });
+    ordersChain.single.mockResolvedValueOnce({
+      data: {
+        id: 'o1',
+        branch_id: 'b1',
+        order_no: 'ORD-001',
+        customer_phone: '010-1111-2222',
+        branches: { brand_id: 'brand-1' },
+        fulfillment_type: 'SHIPPING',
+        delivery_status: 'PREPARING_SHIPMENT',
+        delivery_started_at: null,
+        delivered_at: null,
+      },
+      error: null,
+    });
+
+    await service.updateMyOrderDeliveryTracking(
+      'user-1',
+      'o1',
+      {
+        deliveryStatus: 'IN_TRANSIT',
+        deliveryCarrier: 'CJ대한통운',
+        deliveryTrackingNumber: 'TRACK-123',
+      },
+      [{ brand_id: 'brand-1', role: 'OWNER', status: 'ACTIVE' }],
+      [],
+    );
+
+    expect(mockNotificationsService.sendKakaoTalk).not.toHaveBeenCalled();
   });
 
   it('updateMyOrderStatus should persist completed_at when completing an order', async () => {

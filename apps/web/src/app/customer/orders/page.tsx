@@ -8,7 +8,6 @@ import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import {
   FULFILLMENT_TYPE_LABEL,
-  getOrderStatusDisplay,
   type DepositMatchStatus,
   type Branch,
   type FulfillmentType,
@@ -80,7 +79,7 @@ const BULK_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
 
 const BULK_STATUS_OPTIONS_WITH_REFUND: { value: OrderStatus; label: string }[] = [
   ...BULK_STATUS_OPTIONS.slice(0, 4),
-  { value: "REFUNDED", label: "환불" },
+  { value: 'REFUNDED', label: '환불' },
   ...BULK_STATUS_OPTIONS.slice(4),
 ];
 
@@ -94,7 +93,7 @@ const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   REFUNDED: '취소',
 };
 
-ORDER_STATUS_LABEL.REFUNDED = "환불";
+ORDER_STATUS_LABEL.REFUNDED = '환불';
 
 // Active statuses: filled + ring (high visual weight)
 // Terminal statuses: muted (low visual weight)

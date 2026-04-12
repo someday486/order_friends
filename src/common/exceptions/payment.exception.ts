@@ -106,3 +106,16 @@ export class WebhookSignatureVerificationException extends BusinessException {
     );
   }
 }
+
+/**
+ * 웹훅 타임스탬프 검증 실패
+ */
+export class WebhookTimestampVerificationException extends BusinessException {
+  constructor() {
+    super(
+      'Webhook timestamp verification failed',
+      'WEBHOOK_TIMESTAMP_VERIFICATION_FAILED',
+      HttpStatus.UNAUTHORIZED,
+    );
+  }
+}

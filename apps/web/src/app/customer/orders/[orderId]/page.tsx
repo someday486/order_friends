@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
@@ -31,6 +31,22 @@ type OrderItem = {
   option?: string;
   qty: number;
   unitPrice: number;
+};
+
+type DeliveryTrackingStatus =
+  | "PENDING"
+  | "PREPARING_SHIPMENT"
+  | "IN_TRANSIT"
+  | "DELIVERED"
+  | "DELIVERY_FAILED";
+
+type DeliveryTracking = {
+  status: DeliveryTrackingStatus;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  startedAt?: string | null;
+  deliveredAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type OrderDetail = {
@@ -68,6 +84,7 @@ type OrderDetail = {
     errorCode?: string | null;
     errorMessage?: string | null;
   } | null;
+  deliveryTracking?: DeliveryTracking | null;
   items: OrderItem[];
   myRole?: string;
 };
@@ -107,6 +124,34 @@ function getCashReceiptStatusLabel(status?: string | null) {
   if (!status) return "-";
   return CASH_RECEIPT_STATUS_LABEL[status] ?? status;
 }
+
+function isDeliveryOrder(fulfillmentType?: FulfillmentType | null) {
+  return fulfillmentType === "SHIPPING";
+}
+
+const DELIVERY_STATUS_LABEL: Record<DeliveryTrackingStatus, string> = {
+  PENDING: "배송 접수",
+  PREPARING_SHIPMENT: "배송 준비중",
+  IN_TRANSIT: "배송중",
+  DELIVERED: "배송 완료",
+  DELIVERY_FAILED: "배송 실패",
+};
+
+const DELIVERY_STATUS_DESCRIPTION: Record<DeliveryTrackingStatus, string> = {
+  PENDING: "배송 요청이 접수된 상태입니다.",
+  PREPARING_SHIPMENT: "상품 포장과 출고 준비가 진행 중입니다.",
+  IN_TRANSIT: "배송이 시작되어 이동 중입니다.",
+  DELIVERED: "배송이 완료된 상태입니다.",
+  DELIVERY_FAILED: "배송이 정상 완료되지 않아 추가 확인이 필요합니다.",
+};
+
+const NEXT_DELIVERY_STATUS: Partial<
+  Record<DeliveryTrackingStatus, DeliveryTrackingStatus>
+> = {
+  PENDING: "PREPARING_SHIPMENT",
+  PREPARING_SHIPMENT: "IN_TRANSIT",
+  IN_TRANSIT: "DELIVERED",
+};
 
 // ============================================================
 // Constants
@@ -392,6 +437,10 @@ export default function CustomerOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [deliveryTrackingLoading, setDeliveryTrackingLoading] = useState(false);
+  const [deliveryCarrierInput, setDeliveryCarrierInput] = useState("");
+  const [deliveryTrackingNumberInput, setDeliveryTrackingNumberInput] =
+    useState("");
   const [paymentConfirmLoading, setPaymentConfirmLoading] = useState(false);
   const [cashReceiptRetryLoading, setCashReceiptRetryLoading] = useState(false);
 
@@ -421,8 +470,18 @@ export default function CustomerOrderDetailPage() {
     order.paymentStatus === "SUCCESS" &&
     order.cashReceiptRequest?.requested === true &&
     (!order.cashReceiptIssue || order.cashReceiptIssue.status === "FAILED");
+  const isDeliveryFulfillment = isDeliveryOrder(order?.fulfillmentType);
+  const deliveryTracking =
+    isDeliveryFulfillment && order?.deliveryTracking
+      ? order.deliveryTracking
+      : isDeliveryFulfillment
+        ? { status: "PENDING" as DeliveryTrackingStatus }
+        : null;
+  const nextDeliveryStatus = deliveryTracking
+    ? NEXT_DELIVERY_STATUS[deliveryTracking.status] ?? null
+    : null;
 
-  const loadOrder = async () => {
+  const loadOrder = useCallback(async () => {
     if (!orderId) return;
 
     try {
@@ -438,14 +497,19 @@ export default function CustomerOrderDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
 
   // Load order detail
   useEffect(() => {
     if (!orderId) return;
 
-    loadOrder();
-  }, [orderId]);
+    void loadOrder();
+  }, [orderId, loadOrder]);
+
+  useEffect(() => {
+    setDeliveryCarrierInput(order?.deliveryTracking?.carrier ?? "");
+    setDeliveryTrackingNumberInput(order?.deliveryTracking?.trackingNumber ?? "");
+  }, [order?.deliveryTracking?.carrier, order?.deliveryTracking?.trackingNumber]);
 
   // Update order status
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
@@ -487,6 +551,30 @@ export default function CustomerOrderDetailPage() {
       );
     } finally {
       setPaymentConfirmLoading(false);
+    }
+  };
+
+  const handleDeliveryTrackingUpdate = async (
+    deliveryStatus: DeliveryTrackingStatus,
+  ) => {
+    if (!orderId || !canUpdateStatus || !isDeliveryFulfillment) return;
+
+    try {
+      setDeliveryTrackingLoading(true);
+      setError(null);
+      await apiClient.patch(`/customer/orders/${orderId}/delivery-tracking`, {
+        deliveryStatus,
+        deliveryCarrier: deliveryCarrierInput,
+        deliveryTrackingNumber: deliveryTrackingNumberInput,
+      });
+      await loadOrder();
+    } catch (e) {
+      console.error(e);
+      setError(
+        e instanceof Error ? e.message : "배송현황 변경에 실패했습니다",
+      );
+    } finally {
+      setDeliveryTrackingLoading(false);
     }
   };
 
@@ -706,6 +794,119 @@ export default function CustomerOrderDetailPage() {
           </div>
         )}
       </div>
+
+      {deliveryTracking && (
+        <div className="bg-card rounded-md border border-border p-4 mb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-extrabold text-foreground mb-1">
+                배송 현황
+              </h2>
+              <p className="text-xs text-text-tertiary">
+                {DELIVERY_STATUS_DESCRIPTION[deliveryTracking.status]}
+              </p>
+            </div>
+            <span className="inline-flex rounded-full bg-primary-500/15 px-3 py-1 text-xs font-semibold text-primary-600">
+              {DELIVERY_STATUS_LABEL[deliveryTracking.status]}
+            </span>
+          </div>
+
+          <div className="mt-3 space-y-0 divide-y divide-border-light">
+            <InfoRow
+              label="배송 방식"
+              value={
+                order.fulfillmentType === "SHIPPING" ? "택배" : "배달"
+              }
+            />
+            <InfoRow
+              label="배송사"
+              value={deliveryTracking.carrier || "-"}
+            />
+            <InfoRow
+              label="송장 번호"
+              value={deliveryTracking.trackingNumber || "-"}
+            />
+            <InfoRow
+              label="최근 상태"
+              value={DELIVERY_STATUS_LABEL[deliveryTracking.status]}
+            />
+            {deliveryTracking.startedAt && (
+              <InfoRow
+                label="배송 시작"
+                value={formatDateTime(deliveryTracking.startedAt)}
+              />
+            )}
+            {deliveryTracking.deliveredAt && (
+              <InfoRow
+                label="배송 완료"
+                value={formatDateTime(deliveryTracking.deliveredAt)}
+              />
+            )}
+          </div>
+
+          {canUpdateStatus && (
+            <div className="pt-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-text-tertiary">
+                    배송사
+                  </span>
+                  <input
+                    value={deliveryCarrierInput}
+                    onChange={(e) => setDeliveryCarrierInput(e.target.value)}
+                    placeholder="예: CJ대한통운"
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-text-tertiary">
+                    송장 번호
+                  </span>
+                  <input
+                    value={deliveryTrackingNumberInput}
+                    onChange={(e) =>
+                      setDeliveryTrackingNumberInput(e.target.value)
+                    }
+                    placeholder="예: 1234567890"
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                  />
+                </label>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {nextDeliveryStatus ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeliveryTrackingUpdate(nextDeliveryStatus)}
+                    disabled={deliveryTrackingLoading}
+                    className="h-10 w-full rounded-md border border-border bg-bg-secondary text-foreground text-sm font-medium cursor-pointer hover:bg-bg-tertiary active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deliveryTrackingLoading
+                      ? "배송현황 변경 중..."
+                      : DELIVERY_STATUS_LABEL[nextDeliveryStatus]}
+                  </button>
+                ) : (
+                  <div className="col-span-2 flex items-center justify-center rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary">
+                    다음 배송 단계가 없습니다
+                  </div>
+                )}
+                {deliveryTracking.status !== "DELIVERY_FAILED" && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeliveryTrackingUpdate("DELIVERY_FAILED")}
+                    disabled={deliveryTrackingLoading}
+                    className="h-10 w-full rounded-md border border-danger-200 bg-danger-50 text-danger-600 text-sm font-medium cursor-pointer hover:bg-danger-100 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    배송 실패 처리
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-text-tertiary">
+                배송 상태는 주문 상태와 별도로 관리됩니다.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {order.cashReceiptRequest?.requested && (
         <div className="bg-card rounded-md border border-border p-4 mb-3">

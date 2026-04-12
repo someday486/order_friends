@@ -25,6 +25,7 @@ import { UpdateOrderStatusRequest } from '../../modules/orders/dto/update-order-
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { GetCustomerOrdersQueryDto } from './dto/get-customer-orders-query.dto';
 import { BulkUpdateOrderStatusRequest } from './dto/bulk-update-order-status.request';
+import { UpdateDeliveryTrackingRequest } from './dto/update-delivery-tracking.request';
 import { PaymentStatusResponse } from '../payments/dto/payment.dto';
 
 @ApiTags('customer-orders')
@@ -128,6 +129,40 @@ export class CustomerOrdersController {
     return this.ordersService.getMyOrder(
       req.user.id,
       orderId,
+      req.brandMemberships || [],
+      req.branchMemberships || [],
+    );
+  }
+
+  @Patch(':orderId/delivery-tracking')
+  @ApiOperation({
+    summary: '배송 현황 수정',
+    description:
+      '배송 주문의 배송 상태, 택배사, 송장 번호를 수정합니다. 주문 상태와는 별도로 관리됩니다.',
+  })
+  @ApiParam({ name: 'orderId', description: '주문 ID 또는 주문 번호' })
+  @ApiResponse({ status: 200, description: '배송 현황 수정 성공' })
+  @ApiResponse({
+    status: 400,
+    description: '배송 주문이 아니거나 잘못된 상태 전이',
+  })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  @ApiResponse({ status: 404, description: '주문을 찾을 수 없음' })
+  async updateDeliveryTracking(
+    @Req() req: AuthRequest,
+    @Param('orderId') orderId: string,
+    @Body() body: UpdateDeliveryTrackingRequest,
+  ) {
+    if (!req.user) throw new Error('Missing user');
+
+    this.logger.log(
+      `User ${req.user.id} updating order ${orderId} delivery status to ${body.deliveryStatus}`,
+    );
+
+    return this.ordersService.updateMyOrderDeliveryTracking(
+      req.user.id,
+      orderId,
+      body,
       req.brandMemberships || [],
       req.branchMemberships || [],
     );

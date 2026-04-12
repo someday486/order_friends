@@ -56,7 +56,6 @@ function ProductsPageContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   const selectedBranchValue = branchId ?? "";
-  const isAllBranchesSelected = selectedBranchValue === ALL_BRANCHES_VALUE;
 
   useEffect(() => {
     const fetchBrands = async () => {

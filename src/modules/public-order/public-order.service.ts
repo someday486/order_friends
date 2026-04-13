@@ -11,7 +11,7 @@ import { SupabaseService } from '../../infra/supabase/supabase.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { StampsService } from '../stamps/stamps.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { BillingTier } from '../billing/billing.types';
+import { BillingTier, SubscriptionStatus } from '../billing/billing.types';
 import {
   PublicBranchResponse,
   PublicBrandBranchesResponse,
@@ -249,11 +249,72 @@ export class PublicOrderService {
     return null;
   }
 
+  private async getAccessibleNonPgShopBrandIds(
+    adminSb: any,
+    brandIds: string[],
+  ): Promise<Set<string>> {
+    const normalizedIds = [...new Set(brandIds.filter(Boolean))];
+    if (normalizedIds.length === 0) {
+      return new Set();
+    }
+
+    try {
+      const { data, error } = await adminSb
+        .from('brand_subscriptions')
+        .select('brand_id')
+        .in('brand_id', normalizedIds)
+        .in('status', [
+          SubscriptionStatus.ACTIVE,
+          SubscriptionStatus.PAST_DUE,
+          SubscriptionStatus.TRIAL,
+        ])
+        .limit(Math.max(normalizedIds.length, 1));
+
+      if (error) {
+        this.logger.warn(
+          `Failed to resolve Non-PG storefront subscriptions: ${error.message ?? 'unknown error'}`,
+        );
+        return new Set();
+      }
+
+      return new Set(
+        (data ?? [])
+          .map((row: any) => String(row?.brand_id ?? ''))
+          .filter(Boolean),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve Non-PG storefront subscriptions: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      return new Set();
+    }
+  }
+
+  private async assertShopBrandAccessAllowed(
+    adminSb: any,
+    brandId: string,
+    billingTier: BillingTier,
+  ): Promise<void> {
+    if (billingTier !== BillingTier.NON_PG) {
+      return;
+    }
+
+    const accessibleBrandIds = await this.getAccessibleNonPgShopBrandIds(
+      adminSb,
+      [brandId],
+    );
+
+    if (!accessibleBrandIds.has(brandId)) {
+      throw new NotFoundException('온라인샵 브랜드를 찾을 수 없습니다.');
+    }
+  }
+
   /**
    * Get public brand list for shop landing
    */
   async getBrands() {
     const sb = this.supabase.anonClient();
+    const adminSb = this.supabase.adminClient();
 
     const [
       { data: brandRows, error: brandError },
@@ -261,7 +322,9 @@ export class PublicOrderService {
     ] = await Promise.all([
       sb
         .from('brands')
-        .select('id, name, slug, logo_url, cover_image_url')
+        .select(
+          'id, name, slug, logo_url, cover_image_url, billing_tier, shop_payment_methods',
+        )
         .eq('is_active', true)
         .order('name', { ascending: true })
         .limit(1000),
@@ -306,10 +369,44 @@ export class PublicOrderService {
       existing.branchCount += 1;
     }
 
+    const billingTierByBrandId = new Map<string, BillingTier>();
+    const nonPgBrandIds: string[] = [];
+
+    for (const brand of (brandRows ?? []) as any[]) {
+      const brandId = String(brand?.id ?? '');
+      if (!brandId) continue;
+
+      const billingTier = brand?.billing_tier
+        ? this.normalizeBillingTier(brand.billing_tier)
+        : this.inferBillingTierFromPaymentMethods(
+            normalizePaymentMethods(brand?.shop_payment_methods),
+          );
+
+      billingTierByBrandId.set(brandId, billingTier);
+      if (billingTier === BillingTier.NON_PG) {
+        nonPgBrandIds.push(brandId);
+      }
+    }
+
+    const accessibleNonPgBrandIds = await this.getAccessibleNonPgShopBrandIds(
+      adminSb,
+      nonPgBrandIds,
+    );
+
     return ((brandRows ?? []) as any[])
       .filter((brand) => {
-        const summary = branchSummaryByBrandId.get(String(brand?.id ?? ''));
-        return Boolean(brand?.slug) || Boolean(summary?.branchCount);
+        const brandId = String(brand?.id ?? '');
+        const summary = branchSummaryByBrandId.get(brandId);
+        if (!brand?.slug && !summary?.branchCount) {
+          return false;
+        }
+
+        const billingTier = billingTierByBrandId.get(brandId) ?? BillingTier.PG;
+        if (billingTier !== BillingTier.NON_PG) {
+          return true;
+        }
+
+        return accessibleNonPgBrandIds.has(brandId);
       })
       .sort((a, b) =>
         String(a?.name ?? '').localeCompare(String(b?.name ?? ''), 'ko-KR'),
@@ -393,6 +490,7 @@ export class PublicOrderService {
       brand.id,
       rawShopPaymentMethods,
     );
+    await this.assertShopBrandAccessAllowed(adminSb, brand.id, billingTier);
     const shopPaymentMethods = this.getPaymentMethodsForBillingTier(
       billingTier,
       rawShopPaymentMethods,

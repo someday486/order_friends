@@ -30,6 +30,7 @@ describe('PublicOrderService - Shop Flow', () => {
     adminChains = {
       brands: makeChain(),
       branches: makeChain(),
+      brand_subscriptions: makeChain(),
       order_channels: makeChain(),
       brand_products: makeChain(),
       products: makeChain(),
@@ -172,6 +173,91 @@ describe('PublicOrderService - Shop Flow', () => {
         categoryName: 'Coffee',
       }),
     );
+  });
+
+  it('getShopBrandBySlug should hide non-pg brands without an active subscription', async () => {
+    adminChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-1',
+          name: 'Transfer Brand',
+          slug: 'transfer-brand',
+          shop_payment_methods: ['TRANSFER'],
+          logo_url: null,
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
+    adminChains.brands.maybeSingle.mockResolvedValueOnce({
+      data: { billing_tier: 'NON_PG' },
+      error: null,
+    });
+    adminChains.brand_subscriptions.limit.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    await expect(service.getShopBrandBySlug('transfer-brand')).rejects.toThrow(
+      '온라인샵 브랜드를 찾을 수 없습니다.',
+    );
+  });
+
+  it('getShopBrandBySlug should allow non-pg brands with an active subscription', async () => {
+    adminChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-1',
+          name: 'Transfer Brand',
+          slug: 'transfer-brand',
+          shop_payment_methods: ['TRANSFER'],
+          cash_receipt_enabled: false,
+          logo_url: null,
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
+    adminChains.brands.maybeSingle.mockResolvedValueOnce({
+      data: { billing_tier: 'NON_PG' },
+      error: null,
+    });
+    adminChains.brand_subscriptions.limit.mockResolvedValueOnce({
+      data: [{ brand_id: 'brand-1' }],
+      error: null,
+    });
+    adminChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'branch-1',
+          name: 'Branch',
+          slug: 'branch',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    adminChains.branches.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'branch-1',
+        allowed_payment_methods: ['TRANSFER'],
+        transfer_account: {
+          bank_name: 'NH',
+          account_number: '123-456',
+          account_holder: 'Transfer Brand',
+        },
+      },
+      error: null,
+    });
+    adminChains.brand_products.limit.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const result = await service.getShopBrandBySlug('transfer-brand');
+
+    expect(result.billingTier).toBe('NON_PG');
+    expect(result.paymentMethods).toEqual(['TRANSFER']);
   });
 
   it('getShopBrandBySlug should fall back to dedicated online shop branch when regular branches miss linked products', async () => {

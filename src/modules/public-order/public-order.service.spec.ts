@@ -40,6 +40,7 @@ describe('PublicOrderService - Inventory Integration', () => {
     adminChains = {
       brands: makeChain(),
       branches: makeChain(),
+      brand_subscriptions: makeChain(),
       orders: makeChain(),
       payments: makeChain(),
       order_items: makeChain(),
@@ -543,6 +544,59 @@ describe('PublicOrderService - Inventory Integration', () => {
         branchCount: 2,
         orderPath: '/order/test-cafe',
       },
+    ]);
+  });
+
+  it('getBrands should exclude non-pg brands without storefront billing setup', async () => {
+    anonChains.brands.limit.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'brand-pg',
+          name: 'PG Brand',
+          slug: 'pg-brand',
+          billing_tier: 'PG',
+          logo_url: null,
+          cover_image_url: null,
+        },
+        {
+          id: 'brand-nonpg-open',
+          name: 'Transfer Open',
+          slug: 'transfer-open',
+          billing_tier: 'NON_PG',
+          shop_payment_methods: ['TRANSFER'],
+          logo_url: null,
+          cover_image_url: null,
+        },
+        {
+          id: 'brand-nonpg-blocked',
+          name: 'Transfer Blocked',
+          slug: 'transfer-blocked',
+          billing_tier: 'NON_PG',
+          shop_payment_methods: ['TRANSFER'],
+          logo_url: null,
+          cover_image_url: null,
+        },
+      ],
+      error: null,
+    });
+    anonChains.branches.limit.mockResolvedValueOnce({
+      data: [
+        { id: 'branch-1', brand_id: 'brand-pg' },
+        { id: 'branch-2', brand_id: 'brand-nonpg-open' },
+        { id: 'branch-3', brand_id: 'brand-nonpg-blocked' },
+      ],
+      error: null,
+    });
+    adminChains.brand_subscriptions.limit.mockResolvedValueOnce({
+      data: [{ brand_id: 'brand-nonpg-open' }],
+      error: null,
+    });
+
+    const result = await service.getBrands();
+
+    expect(result.map((brand) => brand.id)).toEqual([
+      'brand-pg',
+      'brand-nonpg-open',
     ]);
   });
 

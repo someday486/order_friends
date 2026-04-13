@@ -127,6 +127,29 @@ const menuSections: MenuSection[] = [
       },
     ],
   },
+  {
+    title: '결제',
+    items: [
+      {
+        href: '/customer/payments',
+        label: '결제운영',
+        icon: OrderIcon,
+        allowedRoles: ['system_admin', 'brand_owner'],
+      },
+      {
+        href: '/customer/billing',
+        label: '월 구독 빌링',
+        icon: OrderIcon,
+        allowedRoles: ['system_admin', 'brand_owner'],
+      },
+      {
+        href: '/customer/settlement',
+        label: 'PG 정산',
+        icon: OrderIcon,
+        allowedRoles: ['system_admin', 'brand_owner'],
+      },
+    ],
+  },
 ];
 
 export default function CustomerLayout({

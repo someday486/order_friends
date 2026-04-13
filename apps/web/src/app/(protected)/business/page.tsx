@@ -43,7 +43,7 @@ const quickActions = [
     icon: ClipboardList,
   },
   {
-    href: '/business/payments',
+    href: '/customer/payments',
     title: '결제 운영',
     description: '빌링과 정산 흐름을 브랜드별 운영 방식에 맞춰 확인합니다.',
     icon: CreditCard,

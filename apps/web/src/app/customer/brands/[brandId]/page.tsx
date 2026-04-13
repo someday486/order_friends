@@ -17,6 +17,7 @@ type Brand = {
   id: string;
   name: string;
   slug: string | null;
+  billing_tier?: "PG" | "NON_PG" | null;
   biz_name: string | null;
   biz_reg_no: string | null;
   rep_name: string | null;
@@ -198,6 +199,7 @@ export default function BrandDetailPage() {
   }, [brandId]);
 
   const canEdit = brand && (brand.myRole === "OWNER" || brand.myRole === "ADMIN");
+  const isNonPgBrand = brand?.billing_tier === "NON_PG";
   const brandOrderUrl = useMemo(
     () => getBrandOrderUrl(brand?.slug ?? null),
     [brand?.slug],
@@ -480,6 +482,7 @@ export default function BrandDetailPage() {
               />
             </div>
 
+            {isNonPgBrand ? (
             <div className="mb-6 rounded-xl border border-border bg-bg-tertiary/40 p-4">
               <div className="mb-4">
                 <div className="text-sm font-semibold text-foreground">
@@ -601,6 +604,7 @@ export default function BrandDetailPage() {
                 고객 식별정보가 없으면 자진발급 사용
               </label>
             </div>
+            ) : null}
 
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
               <ImageUpload
@@ -841,6 +845,7 @@ export default function BrandDetailPage() {
               )}
             </div>
 
+            {isNonPgBrand ? (
             <div className="mt-6 rounded-xl border border-border bg-bg-tertiary/30 p-4">
               <div className="mb-3 text-sm font-semibold text-foreground">
                 현금영수증 설정
@@ -906,6 +911,7 @@ export default function BrandDetailPage() {
                 </div>
               </div>
             </div>
+            ) : null}
 
             <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>

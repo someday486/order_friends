@@ -79,10 +79,10 @@ export default function CustomerBrandsPage() {
 
       const data = await apiClient.get<Brand[]>('/customer/brands');
       setBrands(data);
-    } catch (error) {
-      console.error(error);
+    } catch (loadError) {
+      console.error(loadError);
       setError(
-        parseApiErrorMessage(error, '브랜드 목록을 불러오지 못했습니다.'),
+        parseApiErrorMessage(loadError, '브랜드 목록을 불러오지 못했습니다.'),
       );
     } finally {
       setLoading(false);
@@ -149,7 +149,8 @@ export default function CustomerBrandsPage() {
         <div className="card p-12 text-center text-text-tertiary">
           <div className="mb-2 text-base">등록된 브랜드가 없습니다.</div>
           <div className="text-sm">
-            운영 권한이 필요하면 브랜드 멤버 초대를 요청하거나 새 브랜드를 만들어 주세요.
+            운영 권한이 필요하면 브랜드 멤버 초대를 요청하거나 새 브랜드를
+            만들어 주세요.
           </div>
         </div>
       ) : (
@@ -171,9 +172,10 @@ export default function CustomerBrandsPage() {
               return [createdBrand, ...deduped];
             });
             loadBrands().catch(() => null);
+
             if (createdBrand.billing_tier === 'NON_PG') {
               router.push(
-                `/business/billing/setup?brandId=${encodeURIComponent(createdBrand.id)}`,
+                `/customer/billing/setup?brandId=${encodeURIComponent(createdBrand.id)}`,
               );
               return;
             }
@@ -260,10 +262,10 @@ function AddBrandModal({
 
       toast.success('브랜드를 등록했습니다.');
       onSuccess(createdBrand);
-    } catch (error) {
-      console.error(error);
+    } catch (saveError) {
+      console.error(saveError);
       toast.error(
-        parseApiErrorMessage(error, '브랜드 등록에 실패했습니다.'),
+        parseApiErrorMessage(saveError, '브랜드 등록에 실패했습니다.'),
       );
     } finally {
       setSaving(false);
@@ -292,7 +294,7 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, name: event.target.value }))
               }
               className="input-field"
-              placeholder="브랜드명 또는 상호명을 입력해 주세요."
+              placeholder="브랜드명 또는 상호명을 입력해 주세요"
               required
             />
           </div>
@@ -315,7 +317,8 @@ function AddBrandModal({
               >
                 <div className="font-semibold">PG 이용</div>
                 <div className="mt-1 text-xs leading-5">
-                  토스페이먼츠 결제로 주문을 받고 매출 건당 수수료로 정산합니다.
+                  토스페이먼츠 결제로 주문을 받고 매출 건당 수수료 기준으로
+                  운영합니다.
                 </div>
               </button>
               <button
@@ -331,7 +334,8 @@ function AddBrandModal({
               >
                 <div className="font-semibold">무통장 전용</div>
                 <div className="mt-1 text-xs leading-5">
-                  고객은 계좌이체로 주문하고 브랜드는 월 이용료 기반으로 운영합니다.
+                  고객은 계좌이체로 주문하고 브랜드는 월 이용료 기준으로
+                  운영합니다.
                 </div>
               </button>
             </div>
@@ -351,7 +355,7 @@ function AddBrandModal({
                 }))
               }
               className="input-field"
-              placeholder="사용할 URL을 입력해 주세요."
+              placeholder="사용할 URL을 입력해 주세요"
             />
             <div className="mt-1 text-xs text-text-tertiary">
               영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다.
@@ -369,7 +373,7 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, biz_name: event.target.value }))
               }
               className="input-field"
-              placeholder="사업자등록증 상의 사업자명을 입력해 주세요."
+              placeholder="사업자등록증 상의 사업자명을 입력해 주세요"
             />
           </div>
 

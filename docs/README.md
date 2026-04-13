@@ -42,6 +42,7 @@ Supporting technical references. Useful for implementation details, but not the 
 Future-feature or draft specifications. These are planning documents, not guaranteed to match the currently shipped product.
 
 - `specs/material-procurement-*.md`
+- `specs/payment-billing-tiers-*.md`
 
 ### `research/`
 Research snapshots and backlog inputs. These help planning but do not define current behavior by themselves.

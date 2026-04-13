@@ -52,6 +52,7 @@ This file records the current status of the documentation set after the cleanup.
 | `specs/payment-billing-tiers-phase1-spec-2026-04-13.md` | draft | 결제 이원화 Phase 1: PG 티어 주문 플로우 |
 | `specs/payment-billing-tiers-phase2-spec-2026-04-13.md` | draft | 결제 이원화 Phase 2: Non-PG 구독 빌링 |
 | `specs/payment-billing-tiers-phase3-spec-2026-04-13.md` | draft | 결제 이원화 Phase 3: PG 정산 시스템 |
+| `specs/payment-billing-tiers-codex-instructions-2026-04-13.md` | draft | 결제 이원화 추가 구현 지시서 및 후속 작업 체크리스트 |
 
 ## Research Docs
 

@@ -1,7 +1,7 @@
 # Phase 2: Non-PG 구독 빌링
 
 작성일: 2026-04-13
-상태: Draft v1
+상태: Draft v2 (요금제/체험/초과 정책 추가)
 상위 문서: `docs/specs/payment-billing-tiers-master-spec-2026-04-13.md`
 선행 Phase: Phase 0
 
@@ -27,25 +27,67 @@
 - 정산 시스템 (Phase 3)
 - Non-PG 주문의 입금 확인 플로우 (기존 deposit_match_rows 시스템 그대로 유지)
 
-## 3. 브랜드 온보딩 플로우 변경
+## 3. 요금제 (Subscription Plans)
 
-### 3.1 현재 플로우
+### 3.1 플랜 구조
+
+| 플랜 | 월 주문 한도 | 월 이용료 | 대상 |
+| --- | --- | --- | --- |
+| **Starter** | 100건 | ₩33,000 | 단일 매장 소규모 자영업 |
+| **Growth** | 500건 | ₩44,000 | 다매장 또는 중간 규모 |
+| **Pro** | 무제한 | ₩55,000 | 고주문량 프랜차이즈 |
+
+- 차등 기준: **월 주문 건수**
+- 기본 플랜: Starter (가입 시 기본 선택)
+- 모든 플랜에 매장 수 제한 없음
+
+### 3.2 초과 주문 정책
+
+Starter/Growth에서 월 주문 한도 초과 시:
+
+1. **주문을 차단하지 않음** (매출 손실 방지)
+2. 한도 초과 시 브랜드 오너에게 알림: "이번 달 주문이 N건을 초과했습니다. 상위 플랜을 확인해보세요."
+3. **3개월 연속 초과 시 다음 결제 시점에 자동 업그레이드** (사전 7일 전 알림)
+
+### 3.3 체험 기간
+
+- **14일 무료 체험** (빌링키 등록 필수)
+- 체험 중 구독 상태: `TRIAL`
+- `next_billing_at` = 가입일 + 14일
+- 14일 후 Starter 플랜으로 첫 결제 자동 실행
+- 체험 기간 중 해지 가능 (결제 없이 종료)
+
+### 3.4 플랜 변경 규칙
+
+| 변경 | 처리 |
+| --- | --- |
+| 업그레이드 (Starter→Growth) | 즉시 적용, 차액 일할 계산 |
+| 다운그레이드 (Pro→Growth) | 현재 결제 주기 끝나고 적용 |
+| 해지 | 현재 결제 주기까지 이용 가능, 이후 비활성화 |
+
+## 4. 브랜드 온보딩 플로우 변경
+
+### 4.1 현재 플로우
 
 ```
 브랜드 생성 → Brand Owner 등록 → 매장 생성 → 운영 시작
 ```
 
-### 3.2 변경 후 플로우
+### 4.2 변경 후 플로우
 
 ```
 브랜드 생성 시 billing_tier 선택
   ├─ PG 선택 → 기존 플로우 (토스 결제 바로 가능)
-  └─ NON_PG 선택 → 빌링키 등록 (결제 카드 등록)
-                  → 구독 생성 (ACTIVE)
+  └─ NON_PG 선택 → 빌링키 등록 (결제 카드 등록, 필수)
+                  → 구독 생성 (status: TRIAL, plan: Starter)
+                  → next_billing_at = 가입일 + 14일
                   → 매장 생성 → 운영 시작
+                  → 14일 후 첫 결제 자동 실행
 ```
 
-### 3.3 API 변경: 브랜드 생성
+빌링키 미등록 시 브랜드 생성을 완료할 수 없다. 브랜드 생성 후 빌링키 등록 화면으로 강제 리다이렉트한다.
+
+### 4.3 API 변경: 브랜드 생성
 
 ```typescript
 // CreateBrandRequest에 billingTier 추가
@@ -60,25 +102,26 @@ interface CreateBrandRequest {
 - `billingTier`는 브랜드 생성 시 필수
 - 생성 후 변경 불가 (관리자만 변경 가능)
 
-## 4. 토스 빌링키 발급 플로우
+## 5. 토스 빌링키 발급 플로우
 
-### 4.1 개요
+### 5.1 개요
 
 Non-PG 브랜드 가입 시, 월 구독료 자동 결제를 위한 카드를 등록한다. 토스 빌링 API를 사용한다.
 
-### 4.2 플로우
+### 5.2 플로우
 
 ```
 1. 프론트: 빌링 카드 등록 UI 표시 (토스 빌링 위젯)
 2. 고객이 카드 정보 입력 → 토스에서 authKey 발급
-3. 프론트 → 백엔드: POST /billing/billing-key { authKey, customerKey }
+3. 프론트 → 백엔드: POST /billing/billing-key { authKey, customerKey, brandId }
 4. 백엔드 → 토스: POST /billing/authorizations/issue { authKey, customerKey }
 5. 토스 응답: billingKey 발급
 6. 백엔드: billingKey 암호화 저장 (brand_subscriptions.payment_method_token)
-7. 백엔드: brand_subscriptions 레코드 생성 (status: ACTIVE)
+7. 백엔드: brand_subscriptions 레코드 생성 (status: TRIAL, plan: Starter)
+8. 백엔드: next_billing_at = NOW() + 14일
 ```
 
-### 4.3 TossPaymentsClient 확장
+### 5.3 TossPaymentsClient 확장
 
 ```typescript
 // toss-payments.client.ts에 빌링 메서드 추가
@@ -109,14 +152,14 @@ async chargeBillingKey(
 }
 ```
 
-## 5. 월 자동 결제 배치 잡
+## 6. 월 자동 결제 배치 잡
 
-### 5.1 실행 주기
+### 6.1 실행 주기
 
 - 매일 1회 실행 (예: 매일 09:00 KST)
 - `next_billing_at <= NOW()` 인 구독을 조회하여 청구
 
-### 5.2 처리 로직
+### 6.2 처리 로직
 
 ```
 1. SELECT * FROM brand_subscriptions
@@ -139,7 +182,7 @@ async chargeBillingKey(
       - 재시도 스케줄 적용 (Section 5.3)
 ```
 
-### 5.3 재시도 정책
+### 6.3 재시도 정책
 
 | 시도 | 시점 | 설명 |
 | --- | --- | --- |
@@ -151,7 +194,7 @@ async chargeBillingKey(
 - 재시도 간격: 배치 잡이 매일 돌면서 `next_billing_at` 기준으로 처리
 - 재시도 시 `billing_records`에 새 레코드 생성 (이전 실패 기록 보존)
 
-### 5.4 유예 및 비활성화 정책
+### 6.4 유예 및 비활성화 정책
 
 ```
 결제 성공 → ACTIVE (정상)
@@ -166,7 +209,7 @@ async chargeBillingKey(
 - 유예 기간 만료 후 비활성화되면 주문 접수 중단
 - 비활성화 후에도 기존 주문 데이터는 조회 가능
 
-## 6. Non-PG 주문 플로우 (기존 유지)
+## 7. Non-PG 주문 플로우 (기존 유지)
 
 Non-PG 브랜드의 주문 플로우는 기존과 동일하다:
 
@@ -178,7 +221,7 @@ Non-PG 브랜드의 주문 플로우는 기존과 동일하다:
 
 변경사항: Phase 1에서 정의한 tier 기반 유효성 검증만 적용.
 
-## 7. 신규 모듈: src/modules/billing/
+## 8. 신규 모듈: src/modules/billing/
 
 ### 파일 구조
 
@@ -215,35 +258,50 @@ src/modules/billing/
 | PUT | `/admin/billing/subscriptions/:brandId/extend` | System Admin | 유예 기간 연장 |
 | GET | `/admin/billing/records` | System Admin | 전체 빌링 이력 |
 
-## 8. 프론트엔드 변경
+## 9. 프론트엔드 변경
 
-### 8.1 브랜드 생성 페이지
+### 9.1 브랜드 생성 페이지
 
-- billing_tier 선택 UI 추가 (PG / Non-PG)
-- Non-PG 선택 시 토스 빌링 위젯으로 카드 등록 단계 추가
-- 카드 등록 완료 후 브랜드 생성 완료
+파일: `apps/web/src/app/customer/brands/page.tsx`
 
-### 8.2 브랜드 오너 빌링 관리 페이지 (신규)
+- billing_tier 선택 UI (이미 구현됨: PG / Non-PG 버튼)
+- **Non-PG 선택 시 브랜드 생성 완료 후 빌링키 등록 화면으로 강제 리다이렉트**
+- 빌링키 미등록 상태에서는 매장 생성/주문 접수 불가
+- 카드 등록 완료 후 TRIAL 구독 생성 → 정상 이용 시작
 
-경로: `/business/billing` 또는 기존 설정 페이지 내 탭
+### 9.2 빌링키 등록 페이지 (신규)
 
-- 현재 구독 상태 (ACTIVE / PAST_DUE / CANCELLED)
-- 현재 요금제 및 금액
-- 다음 결제일
+경로: `/business/billing/setup`
+
+- Non-PG 브랜드 생성 직후 랜딩 페이지
+- 토스 빌링 위젯 렌더 (카드 등록)
+- 등록 완료 시 `/business` 대시보드로 리다이렉트
+- "14일 무료 체험 후 월 ₩33,000부터 자동 결제됩니다" 안내 문구
+
+### 9.3 브랜드 오너 빌링 관리 페이지
+
+경로: `/business/billing` (이미 구현됨, 보강 필요)
+
+- 현재 구독 상태 (TRIAL / ACTIVE / PAST_DUE / CANCELLED)
+- **현재 플랜 및 월 주문 한도 표시**
+- **플랜 변경 UI (업그레이드/다운그레이드)**
+- 다음 결제일 (TRIAL이면 "체험 종료일" 표시)
 - 등록된 결제 카드 정보 (마스킹)
 - 결제 카드 변경 버튼
 - 빌링 이력 테이블 (날짜, 금액, 상태)
 - PAST_DUE 시 경고 배너 + "결제 수단 변경" CTA
+- TRIAL 시 "체험 기간 N일 남음" 배너
 
-### 8.3 관리자 빌링 관리 페이지
+### 9.4 관리자 빌링 관리 페이지
 
 기존 관리자 페이지에 빌링 탭 추가:
 
-- 전체 구독 목록 (상태별 필터)
+- 전체 구독 목록 (상태별 필터: TRIAL / ACTIVE / PAST_DUE / CANCELLED)
 - 브랜드별 빌링 이력
 - 수동 재시도, 유예 연장, 상태 변경 액션
+- **브랜드별 티어(PG/Non-PG) 표시**
 
-## 9. 알림
+## 10. 알림
 
 | 이벤트 | 대상 | 채널 | 내용 |
 | --- | --- | --- | --- |
@@ -253,27 +311,33 @@ src/modules/billing/
 | 최종 실패 (비활성화 예정) | Brand Owner | 앱 내 알림 + 문자 | "7일 내 결제하지 않으면 서비스 중단" |
 | 브랜드 비활성화 | Brand Owner | 앱 내 알림 + 문자 | "이용료 미납으로 서비스가 중단되었습니다" |
 
-## 10. 보안 고려사항
+| 주문 한도 초과 | Brand Owner | 앱 내 알림 | "이번 달 주문이 N건을 초과했습니다. 상위 플랜을 확인해보세요" |
+| 자동 업그레이드 예정 | Brand Owner | 앱 내 알림 + 문자 | "3개월 연속 한도 초과로 다음 결제부터 Growth 플랜으로 전환됩니다" |
+| 체험 종료 임박 (3일 전) | Brand Owner | 앱 내 알림 | "무료 체험이 3일 후 종료됩니다. 등록된 카드로 ₩33,000 결제 예정" |
+
+## 11. 보안 고려사항
 
 - **빌링키 암호화**: `brand_subscriptions.payment_method_token`은 AES-256 등으로 암호화 저장. 평문 저장 금지.
 - **빌링키 접근 제한**: 빌링키는 서버에서만 사용. 클라이언트에 노출하지 않음.
 - **결제 금액 검증**: 배치 잡에서 청구 시 `subscription_plans.price`와 일치하는지 검증.
 - **관리자 액션 로깅**: 수동 상태 변경, 유예 연장 등은 감사 로그 필수.
 
-## 11. 성공 / 실패 시나리오
+## 12. 성공 / 실패 시나리오
 
 ### 성공
 
-1. Non-PG 브랜드 가입 → 카드 등록 → 구독 ACTIVE → 매월 자동 결제 성공
+1. Non-PG 브랜드 가입 → 카드 등록 → TRIAL 14일 → 첫 결제 → ACTIVE → 매월 자동 결제
 2. 결제 실패 후 카드 변경 → 다음 재시도에서 성공 → ACTIVE 복구
+3. 주문 한도 초과 3개월 → 알림 → 자동 업그레이드 → 상위 플랜 결제
+4. 체험 기간 중 해지 → 결제 없이 CANCELLED
 
 ### 실패
 
-1. 카드 등록 실패 → 브랜드 생성 불가 (빌링키 필수)
+1. 카드 등록 실패 → 브랜드 생성은 되지만 빌링키 등록 완료까지 서비스 이용 불가
 2. 4회 연속 결제 실패 → PAST_DUE → 유예 7일 → 비활성화
 3. 비활성화 후 카드 변경 + 수동 결제 → ACTIVE 복구 → 브랜드 재활성화
 
-## 12. 검증 체크리스트
+## 13. 검증 체크리스트
 
 - [ ] Non-PG 브랜드 생성 시 빌링키 등록 플로우 정상 작동
 - [ ] PG 브랜드 생성 시 빌링키 등록 단계 스킵 확인
@@ -285,3 +349,10 @@ src/modules/billing/
 - [ ] 카드 변경 후 결제 성공 확인
 - [ ] 관리자 수동 재시도/유예 연장 정상 작동
 - [ ] 빌링키 암호화 저장 확인
+- [ ] Non-PG 브랜드 생성 후 빌링키 미등록 시 서비스 이용 차단 확인
+- [ ] 14일 체험 → TRIAL→ACTIVE 전환 확인
+- [ ] 체험 중 해지 시 결제 없이 CANCELLED 확인
+- [ ] 주문 한도 초과 시 알림 발송 확인
+- [ ] 3개월 연속 초과 시 자동 업그레이드 확인
+- [ ] 플랜 업/다운그레이드 정상 작동 확인
+- [ ] subscription_plans 시드 데이터 확인 (Starter/Growth/Pro)

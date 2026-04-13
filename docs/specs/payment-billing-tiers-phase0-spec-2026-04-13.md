@@ -121,16 +121,28 @@ INSERT INTO commission_tiers (name, min_monthly_sales, max_monthly_sales, commis
 ```sql
 CREATE TABLE IF NOT EXISTS subscription_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,                    -- 예: 'Basic Monthly'
+  name TEXT NOT NULL,                    -- 예: 'Starter', 'Growth', 'Pro'
   price INTEGER NOT NULL CHECK (price > 0), -- 월 금액 (KRW)
+  max_monthly_orders INTEGER,            -- 월 주문 한도 (NULL = 무제한)
   billing_interval TEXT NOT NULL DEFAULT 'MONTHLY'
     CHECK (billing_interval IN ('MONTHLY')),
   is_active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 COMMENT ON TABLE subscription_plans IS 'Non-PG 티어 월 구독 요금제 정의';
+COMMENT ON COLUMN subscription_plans.max_monthly_orders IS '월 주문 한도 (NULL = 무제한)';
+```
+
+### subscription_plans 초기 데이터
+
+```sql
+INSERT INTO subscription_plans (name, price, max_monthly_orders, sort_order) VALUES
+  ('Starter', 33000, 100,  1),  -- 월 100건, ₩33,000
+  ('Growth',  44000, 500,  2),  -- 월 500건, ₩44,000
+  ('Pro',     55000, NULL, 3);  -- 무제한, ₩55,000
 ```
 
 ### brand_subscriptions
@@ -280,41 +292,37 @@ COMMENT ON TABLE settlement_line_items IS 'PG 정산 상세 (결제별 수수료
 
 ### 티어 배정 로직
 
+**결정: 기존 브랜드는 전부 PG로 배정한다.** Non-PG는 신규 가입자부터만 적용한다. 기존 TRANSFER 전용 브랜드도 PG로 전환하며, 토스 결제(CARD)를 사용하도록 한다.
+
 ```sql
 -- 1. CASH 제거 (Section 3에서 처리)
 
--- 2. 티어 배정
--- CARD가 포함된 브랜드 → PG
--- TRANSFER만 있는 브랜드 → NON_PG
+-- 2. 기존 브랜드 전부 PG 배정
 UPDATE public.brands
-SET billing_tier = CASE
-  WHEN 'CARD' = ANY(shop_payment_methods) THEN 'PG'
-  ELSE 'NON_PG'
-END,
-billing_tier_decided_at = NOW();
+SET billing_tier = 'PG',
+    billing_tier_decided_at = NOW();
 
--- 3. PG 브랜드에 기본 수수료율 설정 (초기값, 이후 구간별로 자동 적용)
+-- 3. PG 브랜드에 기본 수수료율 설정
 UPDATE public.brands
 SET commission_rate = 0.0350
-WHERE billing_tier = 'PG' AND commission_rate IS NULL;
+WHERE commission_rate IS NULL;
 ```
 
 ### branches.allowed_payment_methods 정합성
 
 ```sql
--- PG 브랜드 산하 매장: CARD만
-UPDATE public.branches b
-SET allowed_payment_methods = ARRAY['CARD']::TEXT[]
-FROM public.brands br
-WHERE br.id = b.brand_id
-  AND br.billing_tier = 'PG';
+-- 기존 브랜드 전부 PG이므로: 모든 매장 CARD만
+UPDATE public.branches
+SET allowed_payment_methods = ARRAY['CARD']::TEXT[];
+```
 
--- Non-PG 브랜드 산하 매장: TRANSFER만
-UPDATE public.branches b
-SET allowed_payment_methods = ARRAY['TRANSFER']::TEXT[]
-FROM public.brands br
-WHERE br.id = b.brand_id
-  AND br.billing_tier = 'NON_PG';
+### brands.shop_payment_methods 정합성
+
+```sql
+-- 기존 브랜드 전부 PG이므로: CARD + TRANSFER 유지하되 CARD 필수
+UPDATE public.brands
+SET shop_payment_methods = ARRAY['CARD', 'TRANSFER']::TEXT[]
+WHERE NOT ('CARD' = ANY(shop_payment_methods));
 ```
 
 ## 9. Backend Enum/DTO 추가
@@ -372,11 +380,10 @@ export enum SettlementStatus {
 
 ## 12. 검증 체크리스트
 
-- [ ] 모든 기존 브랜드에 `billing_tier` 값 배정 확인
-- [ ] PG 브랜드의 `commission_rate` NOT NULL 확인
+- [ ] 모든 기존 브랜드의 `billing_tier = 'PG'` 확인 (기존 브랜드 전부 PG)
+- [ ] 모든 기존 브랜드의 `commission_rate` NOT NULL 확인
 - [ ] CASH가 어떤 브랜드의 `shop_payment_methods`에도 없는지 확인
-- [ ] PG 브랜드 산하 매장의 `allowed_payment_methods`가 `['CARD']`인지 확인
-- [ ] Non-PG 브랜드 산하 매장의 `allowed_payment_methods`가 `['TRANSFER']`인지 확인
+- [ ] 모든 기존 매장의 `allowed_payment_methods`가 `['CARD']`인지 확인
 - [ ] `commission_tiers` 초기 데이터 정상 입력 확인
 - [ ] 기존 테스트 통과 확인
 - [ ] `npm run migrations:check` 통과

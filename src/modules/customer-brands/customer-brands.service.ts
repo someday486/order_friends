@@ -17,6 +17,19 @@ import { BillingTier } from '../billing/billing.types';
 const SHOP_PAYMENT_METHODS = ['CARD', 'TRANSFER'] as const;
 type ShopPaymentMethod = (typeof SHOP_PAYMENT_METHODS)[number];
 const DEFAULT_PG_COMMISSION_RATE = 0.035;
+const BRAND_SELECT_WITH_BILLING =
+  'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at';
+const BRAND_SELECT_LEGACY =
+  'id, name, slug, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at';
+const BRAND_CREATE_SELECT_WITH_BILLING =
+  'id, name, slug, owner_user_id, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at';
+const BRAND_CREATE_SELECT_LEGACY =
+  'id, name, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at';
+type BrandRecord = Record<string, any>;
+type BrandQueryResult<T> = {
+  data: T | null;
+  error: any;
+};
 
 @Injectable()
 export class CustomerBrandsService {
@@ -52,6 +65,82 @@ export class CustomerBrandsService {
     billingTier: BillingTier,
   ): ShopPaymentMethod[] {
     return billingTier === BillingTier.NON_PG ? ['TRANSFER'] : ['CARD'];
+  }
+
+  private isMissingColumnError(error: any): boolean {
+    const message =
+      typeof error?.message === 'string' ? error.message : String(error ?? '');
+
+    return (
+      error?.code === '42703' ||
+      /column .* does not exist/i.test(message) ||
+      /schema cache/i.test(message)
+    );
+  }
+
+  private inferBillingTierFromBrand(brand: {
+    billing_tier?: unknown;
+    shop_payment_methods?: unknown;
+  }): BillingTier {
+    if (brand.billing_tier === BillingTier.NON_PG) {
+      return BillingTier.NON_PG;
+    }
+
+    const paymentMethods = this.normalizeShopPaymentMethods(
+      brand.shop_payment_methods,
+    );
+    return paymentMethods.length === 1 && paymentMethods[0] === 'TRANSFER'
+      ? BillingTier.NON_PG
+      : BillingTier.PG;
+  }
+
+  private normalizeBrandRecord<T extends BrandRecord>(brand: T): T {
+    const billingTier = this.inferBillingTierFromBrand(brand);
+
+    return {
+      ...brand,
+      billing_tier: billingTier,
+      billing_tier_decided_at: brand.billing_tier_decided_at ?? null,
+      commission_rate:
+        brand.commission_rate ??
+        (billingTier === BillingTier.PG ? DEFAULT_PG_COMMISSION_RATE : null),
+      shop_payment_methods: this.normalizeShopPaymentMethods(
+        brand.shop_payment_methods,
+      ),
+    };
+  }
+
+  private stripBillingTierWriteFields(
+    payload: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const next = { ...payload };
+    delete next.billing_tier;
+    delete next.billing_tier_decided_at;
+    delete next.commission_rate;
+    return next;
+  }
+
+  private async runBrandQueryWithFallback<T>(params: {
+    run:
+      | ((selectClause: string) => PromiseLike<BrandQueryResult<T>>)
+      | ((selectClause: string) => BrandQueryResult<T>);
+    primarySelect?: string;
+    fallbackSelect?: string;
+    context: string;
+  }): Promise<BrandQueryResult<T>> {
+    const primarySelect = params.primarySelect ?? BRAND_SELECT_WITH_BILLING;
+    const fallbackSelect = params.fallbackSelect ?? BRAND_SELECT_LEGACY;
+
+    const primary = await params.run(primarySelect);
+    if (!primary.error || !this.isMissingColumnError(primary.error)) {
+      return primary;
+    }
+
+    this.logger.warn(
+      `${params.context}: billing tier columns are unavailable, using legacy brand schema fallback`,
+    );
+
+    return params.run(fallbackSelect);
   }
 
   private shouldRevalidateCashReceipt(
@@ -105,21 +194,25 @@ export class CustomerBrandsService {
 
     const [memberBrandsResult, ownedBrandsResult] = await Promise.all([
       brandIds.length > 0
-        ? sb
-            .from('brands')
-            .select(
-              'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
-            )
-            .in('id', brandIds)
-            .order('created_at', { ascending: false })
+        ? this.runBrandQueryWithFallback<BrandRecord[]>({
+            context: `getMyBrands(member:${userId})`,
+            run: (selectClause) =>
+              sb
+                .from('brands')
+                .select(selectClause)
+                .in('id', brandIds)
+                .order('created_at', { ascending: false }),
+          })
         : Promise.resolve({ data: [], error: null }),
-      sb
-        .from('brands')
-        .select(
-          'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
-        )
-        .eq('owner_user_id', userId)
-        .order('created_at', { ascending: false }),
+      this.runBrandQueryWithFallback<BrandRecord[]>({
+        context: `getMyBrands(owner:${userId})`,
+        run: (selectClause) =>
+          sb
+            .from('brands')
+            .select(selectClause)
+            .eq('owner_user_id', userId)
+            .order('created_at', { ascending: false }),
+      }),
     ]);
 
     if (memberBrandsResult.error) {
@@ -157,16 +250,14 @@ export class CustomerBrandsService {
         return right.localeCompare(left);
       })
       .map((brand) => {
+        const normalizedBrand = this.normalizeBrandRecord(brand);
         const membership = membershipByBrandId.get(brand.id);
         return {
-          ...brand,
-          slug: brand.slug ?? null,
-          shop_payment_methods: this.normalizeShopPaymentMethods(
-            brand.shop_payment_methods,
-          ),
+          ...normalizedBrand,
+          slug: normalizedBrand.slug ?? null,
           myRole:
             membership?.role ??
-            (brand.owner_user_id === userId ? 'OWNER' : null),
+            (normalizedBrand.owner_user_id === userId ? 'OWNER' : null),
         };
       });
 
@@ -188,13 +279,11 @@ export class CustomerBrandsService {
 
     const sb = this.supabase.adminClient();
 
-    const { data, error } = await sb
-      .from('brands')
-      .select(
-        'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, thumbnail_url, created_at',
-      )
-      .eq('id', brandId)
-      .single();
+    const { data, error } = await this.runBrandQueryWithFallback<BrandRecord>({
+      context: `getMyBrand(${brandId})`,
+      run: (selectClause) =>
+        sb.from('brands').select(selectClause).eq('id', brandId).single(),
+    });
 
     if (error || !data) {
       this.logger.error(`Failed to fetch brand ${brandId}`, error);
@@ -212,10 +301,7 @@ export class CustomerBrandsService {
     }
 
     return {
-      ...data,
-      shop_payment_methods: this.normalizeShopPaymentMethods(
-        data.shop_payment_methods,
-      ),
+      ...this.normalizeBrandRecord(data),
       myRole: effectiveRole,
     };
   }
@@ -273,13 +359,26 @@ export class CustomerBrandsService {
     );
     Object.assign(insertPayload, createOnboarding.config);
 
-    const { data, error } = await sb
+    let createResult = await sb
       .from('brands')
       .insert(insertPayload)
-      .select(
-        'id, name, slug, owner_user_id, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
-      )
+      .select(BRAND_CREATE_SELECT_WITH_BILLING)
       .single();
+
+    if (createResult.error && this.isMissingColumnError(createResult.error)) {
+      this.logger.warn(
+        `createMyBrand(${userId}): billing tier columns are unavailable, using legacy brand schema fallback`,
+      );
+      const legacyInsertPayload =
+        this.stripBillingTierWriteFields(insertPayload);
+      createResult = await sb
+        .from('brands')
+        .insert(legacyInsertPayload)
+        .select(BRAND_CREATE_SELECT_LEGACY)
+        .single();
+    }
+
+    const { data, error } = createResult;
 
     if (error || !data) {
       this.logger.error('Failed to create brand', error);
@@ -303,13 +402,9 @@ export class CustomerBrandsService {
     }
 
     return {
-      ...data,
+      ...this.normalizeBrandRecord(data),
       myRole: 'OWNER',
       cash_receipt_onboarding_message: createOnboarding.onboardingMessage,
-      slug: data.slug ?? null,
-      shop_payment_methods: this.normalizeShopPaymentMethods(
-        data.shop_payment_methods,
-      ),
     };
   }
 
@@ -460,14 +555,16 @@ export class CustomerBrandsService {
       onboardingMessage = resolvedOnboarding.onboardingMessage;
     }
 
-    const { data, error } = await sb
-      .from('brands')
-      .update(updateFields)
-      .eq('id', brandId)
-      .select(
-        'id, name, slug, billing_tier, billing_tier_decided_at, commission_rate, biz_name, biz_reg_no, rep_name, address, biz_cert_url, shop_payment_methods, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, owner_user_id, logo_url, cover_image_url, created_at',
-      )
-      .single();
+    const { data, error } = await this.runBrandQueryWithFallback<BrandRecord>({
+      context: `updateMyBrand(${brandId})`,
+      run: (selectClause) =>
+        sb
+          .from('brands')
+          .update(updateFields)
+          .eq('id', brandId)
+          .select(selectClause)
+          .single(),
+    });
 
     if (error || !data) {
       this.logger.error(`Failed to update brand ${brandId}`, error);
@@ -477,11 +574,8 @@ export class CustomerBrandsService {
     this.logger.log(`Brand ${brandId} updated successfully`);
 
     return {
-      ...data,
+      ...this.normalizeBrandRecord(data),
       cash_receipt_onboarding_message: onboardingMessage,
-      shop_payment_methods: this.normalizeShopPaymentMethods(
-        data.shop_payment_methods,
-      ),
       myRole: effectiveRole,
     };
   }

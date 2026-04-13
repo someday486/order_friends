@@ -81,6 +81,37 @@ describe('CustomerBrandsService', () => {
     ).rejects.toThrow('Failed to fetch brands');
   });
 
+  it('getMyBrands should fall back when billing columns are missing', async () => {
+    mockSb.order
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column brands.billing_tier does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'brand-1',
+            name: 'Brand',
+            slug: 'brand',
+            owner_user_id: 'user-1',
+            shop_payment_methods: ['CARD'],
+            created_at: '2026-01-01',
+          },
+        ],
+        error: null,
+      });
+
+    const result = await service.getMyBrands('user-1', []);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].billing_tier).toBe(BillingTier.PG);
+    expect(result[0].commission_rate).toBe(0.035);
+    expect(result[0].myRole).toBe('OWNER');
+  });
+
   it('getMyBrand should throw when membership and ownership are missing', async () => {
     mockSb.single.mockResolvedValueOnce({
       data: {
@@ -139,6 +170,34 @@ describe('CustomerBrandsService', () => {
 
     expect(result.myRole).toBe('OWNER');
     expect(result.id).toBe('brand-1');
+  });
+
+  it('getMyBrand should fall back when billing columns are missing', async () => {
+    mockSb.single
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column brands.billing_tier does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'brand-1',
+          name: 'Brand',
+          slug: 'brand',
+          owner_user_id: 'user-1',
+          shop_payment_methods: ['TRANSFER'],
+          created_at: 'now',
+        },
+        error: null,
+      });
+
+    const result = await service.getMyBrand('brand-1', 'user-1', []);
+
+    expect(result.billing_tier).toBe(BillingTier.NON_PG);
+    expect(result.commission_rate).toBeNull();
+    expect(result.myRole).toBe('OWNER');
   });
 
   it('createMyBrand should allow OWNER/ADMIN and create brand', async () => {
@@ -227,6 +286,56 @@ describe('CustomerBrandsService', () => {
         shop_payment_methods: ['TRANSFER'],
       }),
     );
+  });
+
+  it('createMyBrand should fall back to legacy schema when billing columns are missing', async () => {
+    mockSb.single
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'column brands.billing_tier does not exist',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'new-brand-id',
+          name: 'Legacy Brand',
+          slug: 'legacy-brand',
+          owner_user_id: 'user-1',
+          shop_payment_methods: ['TRANSFER'],
+          created_at: '2026-01-01',
+        },
+        error: null,
+      });
+
+    const result = await service.createMyBrand(
+      {
+        name: 'Legacy Brand',
+        slug: 'legacy-brand',
+        billingTier: BillingTier.NON_PG,
+      } as any,
+      'user-1',
+      [{ brand_id: 'brand-1', role: 'OWNER' } as any],
+      false,
+    );
+
+    expect(mockSb.insert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        billing_tier: BillingTier.NON_PG,
+        billing_tier_decided_at: expect.any(String),
+        commission_rate: null,
+      }),
+    );
+    expect(mockSb.insert).toHaveBeenNthCalledWith(
+      2,
+      expect.not.objectContaining({
+        billing_tier: expect.anything(),
+      }),
+    );
+    expect(result.billing_tier).toBe(BillingTier.NON_PG);
+    expect(result.myRole).toBe('OWNER');
   });
 
   it('createMyBrand should throw when brand insert fails', async () => {

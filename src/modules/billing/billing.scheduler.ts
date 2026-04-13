@@ -11,6 +11,8 @@ export class BillingScheduler {
   @Cron('0 0 9 * * *', { timeZone: 'Asia/Seoul' })
   async runDailyBilling(): Promise<void> {
     const processed = await this.billingService.processDueSubscriptions();
+    const scheduled = await this.billingService.processOverageChecks();
     this.logger.log(`Processed ${processed} due subscriptions`);
+    this.logger.log(`Scheduled ${scheduled} overage plan changes`);
   }
 }

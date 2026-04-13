@@ -14,6 +14,44 @@ export class CancelSubscriptionRequest {
   brandId!: string;
 }
 
+export class ChangePlanRequest {
+  @ApiProperty({ description: '브랜드 ID' })
+  @IsUUID()
+  brandId!: string;
+
+  @ApiProperty({ description: '변경할 플랜 ID' })
+  @IsUUID()
+  planId!: string;
+}
+
+export class SubscriptionPlanOptionResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  price!: number;
+
+  @ApiPropertyOptional()
+  maxMonthlyOrders!: number | null;
+
+  @ApiProperty()
+  isCurrent!: boolean;
+}
+
+export class ChangePlanResponse {
+  @ApiProperty({ description: '적용 시각' })
+  effectiveDate!: string;
+
+  @ApiPropertyOptional({ description: '즉시 업그레이드 시 일할 청구 금액' })
+  proratedAmount?: number;
+
+  @ApiProperty({ type: SubscriptionPlanOptionResponse })
+  newPlan!: SubscriptionPlanOptionResponse;
+}
+
 export class SubscriptionResponse {
   @ApiProperty()
   id!: string;
@@ -53,6 +91,36 @@ export class SubscriptionResponse {
 
   @ApiProperty()
   planPrice!: number;
+
+  @ApiPropertyOptional()
+  planMaxMonthlyOrders!: number | null;
+
+  @ApiProperty()
+  hasPaymentMethod!: boolean;
+
+  @ApiProperty()
+  currentOrderCount!: number;
+
+  @ApiProperty()
+  hasExceededLimit!: boolean;
+
+  @ApiProperty({ type: SubscriptionPlanOptionResponse, isArray: true })
+  availablePlans!: SubscriptionPlanOptionResponse[];
+
+  @ApiPropertyOptional()
+  scheduledPlanId?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledPlanName?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledPlanPrice?: number | null;
+
+  @ApiPropertyOptional()
+  scheduledPlanMaxMonthlyOrders?: number | null;
+
+  @ApiPropertyOptional()
+  scheduledPlanEffectiveAt?: string | null;
 
   @ApiPropertyOptional()
   cardCompany?: string | null;

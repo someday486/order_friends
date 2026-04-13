@@ -2319,7 +2319,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** 빌링키 변경 */
+    /** 빌링키 교체 */
     put: operations['BillingController_replaceBillingKey'];
     /** 빌링키 발급 */
     post: operations['BillingController_issueBillingKey'];
@@ -2391,6 +2391,23 @@ export interface paths {
     get?: never;
     /** 구독 해지 요청 */
     put: operations['BillingController_cancelSubscription'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/billing/subscription/plan': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** 구독 플랜 변경 */
+    put: operations['BillingController_changePlan'];
     post?: never;
     delete?: never;
     options?: never;
@@ -4111,7 +4128,7 @@ export interface components {
       subscriptionStatus: components['schemas']['SubscriptionStatus'];
       /** @description 토스 고객 키 */
       customerKey: string;
-      /** @description 카드사명 */
+      /** @description 카드사 이름 */
       cardCompany?: Record<string, never>;
       /** @description 마스킹된 카드 번호 */
       cardNumber?: Record<string, never>;
@@ -4132,6 +4149,13 @@ export interface components {
       /** @description 브랜드 ID */
       brandId: string;
     };
+    SubscriptionPlanOptionResponse: {
+      id: string;
+      name: string;
+      price: number;
+      maxMonthlyOrders?: Record<string, never>;
+      isCurrent: boolean;
+    };
     SubscriptionResponse: {
       id: string;
       brandId: string;
@@ -4144,6 +4168,16 @@ export interface components {
       cancelledAt?: Record<string, never>;
       planName: string;
       planPrice: number;
+      planMaxMonthlyOrders?: Record<string, never>;
+      hasPaymentMethod: boolean;
+      currentOrderCount: number;
+      hasExceededLimit: boolean;
+      availablePlans: components['schemas']['SubscriptionPlanOptionResponse'][];
+      scheduledPlanId?: Record<string, never>;
+      scheduledPlanName?: Record<string, never>;
+      scheduledPlanPrice?: Record<string, never>;
+      scheduledPlanMaxMonthlyOrders?: Record<string, never>;
+      scheduledPlanEffectiveAt?: Record<string, never>;
       cardCompany?: Record<string, never>;
       cardNumber?: Record<string, never>;
       cardOwner?: Record<string, never>;
@@ -4175,6 +4209,19 @@ export interface components {
     CancelSubscriptionRequest: {
       /** @description 브랜드 ID */
       brandId: string;
+    };
+    ChangePlanRequest: {
+      /** @description 브랜드 ID */
+      brandId: string;
+      /** @description 변경할 플랜 ID */
+      planId: string;
+    };
+    ChangePlanResponse: {
+      /** @description 적용 시각 */
+      effectiveDate: string;
+      /** @description 즉시 업그레이드 시 일할 청구 금액 */
+      proratedAmount?: number;
+      newPlan: components['schemas']['SubscriptionPlanOptionResponse'];
     };
     RetryBillingRequest: {
       /** @description 빌링 레코드 ID */
@@ -8802,7 +8849,7 @@ export interface operations {
       query: {
         /** @description 브랜드 ID */
         brandId: string;
-        /** @description 최근 조회 개월 수 */
+        /** @description 조회할 최근 개월 수 */
         months?: number;
       };
       header?: never;
@@ -8840,6 +8887,29 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['SubscriptionResponse'];
+        };
+      };
+    };
+  };
+  BillingController_changePlan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangePlanRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChangePlanResponse'];
         };
       };
     };
@@ -9042,7 +9112,7 @@ export interface operations {
       query: {
         /** @description 브랜드 ID */
         brandId: string;
-        /** @description 최근 조회 개월 수 */
+        /** @description 조회할 최근 개월 수 */
         months?: number;
       };
       header?: never;

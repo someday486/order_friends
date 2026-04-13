@@ -38,6 +38,8 @@ import {
   BillingSummaryQueryDto,
   BillingSummaryResponse,
   CancelSubscriptionRequest,
+  ChangePlanRequest,
+  ChangePlanResponse,
   SubscriptionQueryDto,
   SubscriptionResponse,
 } from './dto/subscription.dto';
@@ -140,6 +142,20 @@ export class BillingController {
     @Body() dto: CancelSubscriptionRequest,
   ): Promise<SubscriptionResponse> {
     return this.billingService.cancelSubscription(
+      req.user?.id ?? '',
+      dto,
+      Boolean(req.isAdmin),
+    );
+  }
+
+  @Put('subscription/plan')
+  @ApiOperation({ summary: '구독 플랜 변경' })
+  @ApiResponse({ status: 200, type: ChangePlanResponse })
+  changePlan(
+    @Req() req: AuthRequest,
+    @Body() dto: ChangePlanRequest,
+  ): Promise<ChangePlanResponse> {
+    return this.billingService.changePlan(
       req.user?.id ?? '',
       dto,
       Boolean(req.isAdmin),

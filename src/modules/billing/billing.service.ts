@@ -36,6 +36,8 @@ import type {
   BillingSummaryQueryDto,
   BillingSummaryResponse,
   CancelSubscriptionRequest,
+  ChangePlanRequest,
+  ChangePlanResponse,
   SubscriptionQueryDto,
   SubscriptionResponse,
 } from './dto/subscription.dto';
@@ -53,6 +55,7 @@ type PlanRow = {
   name: string;
   price: number;
   billing_interval: string;
+  max_monthly_orders: number | null;
 };
 
 type StoredBillingToken = {
@@ -76,7 +79,10 @@ type SubscriptionRow = {
   next_billing_at: string;
   cancelled_at: string | null;
   payment_method_token: string | null;
+  scheduled_plan_id?: string | null;
+  scheduled_plan_effective_at?: string | null;
   plan?: PlanRow | PlanRow[] | null;
+  scheduled_plan?: PlanRow | PlanRow[] | null;
 };
 
 type BillingRecordRow = {
@@ -142,10 +148,14 @@ export class BillingService {
       dto.brandId,
       isAdmin,
     );
-    const plan = await this.getActiveSubscriptionPlan();
+    const plan = await this.getStarterSubscriptionPlan();
     const issued = await this.tossClient.issueBillingKey(
       dto.customerKey,
       dto.authKey,
+    );
+    const existingSubscription = await this.getSubscriptionByBrandId(
+      brand.id,
+      true,
     );
 
     const token = this.encryptBillingToken({
@@ -156,15 +166,27 @@ export class BillingService {
     });
 
     const currentPeriodStart = new Date();
-    const currentPeriodEnd = this.addMonths(currentPeriodStart, 1);
+    const currentPeriodEnd =
+      existingSubscription &&
+      existingSubscription.status !== SubscriptionStatus.CANCELLED
+        ? new Date(existingSubscription.current_period_end)
+        : this.addDays(currentPeriodStart, 14);
+
+    const shouldStartTrial =
+      !existingSubscription ||
+      existingSubscription.status === SubscriptionStatus.CANCELLED;
     const subscription = await this.upsertSubscription(brand.id, {
-      planId: plan.id,
+      planId: shouldStartTrial ? plan.id : existingSubscription.plan_id,
       paymentMethodToken: token,
-      status: SubscriptionStatus.ACTIVE,
+      status: shouldStartTrial
+        ? SubscriptionStatus.TRIAL
+        : existingSubscription.status,
       currentPeriodStart: currentPeriodStart.toISOString(),
       currentPeriodEnd: currentPeriodEnd.toISOString(),
       nextBillingAt: currentPeriodEnd.toISOString(),
       cancelledAt: null,
+      scheduledPlanId: null,
+      scheduledPlanEffectiveAt: null,
     });
 
     return this.toBillingKeyResponse(
@@ -178,7 +200,43 @@ export class BillingService {
     dto: UpdateBillingKeyRequest,
     isAdmin = false,
   ): Promise<BillingKeyResponse> {
-    return this.issueBillingKey(userId, dto, isAdmin);
+    const brand = await this.getAccessibleNonPgBrand(
+      userId,
+      dto.brandId,
+      isAdmin,
+    );
+    const subscription = this.requireSubscription(
+      await this.getSubscriptionByBrandId(brand.id),
+    );
+    const issued = await this.tossClient.issueBillingKey(
+      dto.customerKey,
+      dto.authKey,
+    );
+
+    const token = this.encryptBillingToken({
+      billingKey: String(issued.billingKey ?? ''),
+      customerKey: dto.customerKey,
+      card: this.extractCardSummary(issued.card),
+      issuedAt: new Date().toISOString(),
+    });
+
+    const updated = await this.upsertSubscription(brand.id, {
+      planId: subscription.plan_id,
+      paymentMethodToken: token,
+      status: subscription.status,
+      currentPeriodStart: subscription.current_period_start,
+      currentPeriodEnd: subscription.current_period_end,
+      nextBillingAt: subscription.next_billing_at,
+      cancelledAt: subscription.cancelled_at,
+      scheduledPlanId: subscription.scheduled_plan_id ?? null,
+      scheduledPlanEffectiveAt:
+        subscription.scheduled_plan_effective_at ?? null,
+    });
+
+    return this.toBillingKeyResponse(
+      brand.billing_tier ?? BillingTier.NON_PG,
+      updated,
+    );
   }
 
   async deleteBillingKey(
@@ -219,7 +277,7 @@ export class BillingService {
     const subscription = this.requireSubscription(
       await this.getSubscriptionByBrandId(brand.id),
     );
-    return this.toSubscriptionResponse(brand, subscription);
+    return this.toDetailedSubscriptionResponse(brand, subscription);
   }
 
   async getBillingRecords(
@@ -286,12 +344,15 @@ export class BillingService {
     const brand = await this.getAccessibleBrand(userId, dto.brandId, isAdmin);
     const sb = this.supabase.adminClient();
     const now = new Date().toISOString();
+    await this.getSubscriptionByBrandId(brand.id);
 
     const { error } = await sb
       .from('brand_subscriptions')
       .update({
         status: SubscriptionStatus.CANCELLED,
         cancelled_at: now,
+        scheduled_plan_id: null,
+        scheduled_plan_effective_at: null,
         updated_at: now,
       })
       .eq('brand_id', brand.id);
@@ -300,10 +361,93 @@ export class BillingService {
       throw new BadRequestException(error.message);
     }
 
-    return this.toSubscriptionResponse(
+    return this.toDetailedSubscriptionResponse(
       brand,
       this.requireSubscription(await this.getSubscriptionByBrandId(brand.id)),
     );
+  }
+
+  async changePlan(
+    userId: string,
+    dto: ChangePlanRequest,
+    isAdmin = false,
+  ): Promise<ChangePlanResponse> {
+    const brand = await this.getAccessibleNonPgBrand(
+      userId,
+      dto.brandId,
+      isAdmin,
+    );
+    const subscription = this.requireSubscription(
+      await this.getSubscriptionByBrandId(brand.id),
+    );
+    const currentPlan = await this.getPlanOrThrow(subscription.plan_id);
+    const newPlan = await this.getPlanOrThrow(dto.planId);
+
+    if (currentPlan.id === newPlan.id) {
+      throw new BadRequestException('동일한 플랜으로는 변경할 수 없습니다.');
+    }
+
+    const now = new Date();
+    const sb = this.supabase.adminClient();
+
+    if (Number(newPlan.price) > Number(currentPlan.price)) {
+      const proratedAmount = this.calculateProratedUpgradeAmount(
+        currentPlan,
+        newPlan,
+        subscription,
+        now,
+      );
+
+      if (proratedAmount > 0) {
+        await this.chargeProratedUpgrade(
+          brand,
+          subscription,
+          currentPlan,
+          newPlan,
+          proratedAmount,
+          now,
+        );
+      }
+
+      const { error } = await sb
+        .from('brand_subscriptions')
+        .update({
+          plan_id: newPlan.id,
+          scheduled_plan_id: null,
+          scheduled_plan_effective_at: null,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', subscription.id);
+
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+
+      return {
+        effectiveDate: now.toISOString(),
+        proratedAmount,
+        newPlan: this.toPlanOptionResponse(newPlan, true),
+      };
+    }
+
+    const effectiveDate = subscription.current_period_end;
+    const { error } = await sb
+      .from('brand_subscriptions')
+      .update({
+        scheduled_plan_id: newPlan.id,
+        scheduled_plan_effective_at: effectiveDate,
+        updated_at: now.toISOString(),
+      })
+      .eq('id', subscription.id);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return {
+      effectiveDate,
+      newPlan: this.toPlanOptionResponse(newPlan, false),
+    };
   }
 
   async retryBilling(dto: RetryBillingRequest): Promise<{ success: true }> {
@@ -359,7 +503,10 @@ export class BillingService {
       next_billing_at,
       cancelled_at,
       payment_method_token,
-      plan:subscription_plans(id, name, price, billing_interval)
+      scheduled_plan_id,
+      scheduled_plan_effective_at,
+      plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+      scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
     `);
 
     if (query.status) {
@@ -394,7 +541,7 @@ export class BillingService {
     const subscription = this.requireSubscription(
       await this.getSubscriptionByBrandId(brandId),
     );
-    return this.toSubscriptionResponse(brand, subscription);
+    return this.toDetailedSubscriptionResponse(brand, subscription);
   }
 
   async updateSubscriptionStatus(
@@ -476,7 +623,11 @@ export class BillingService {
     const { data, error } = await sb
       .from('brand_subscriptions')
       .select('id')
-      .in('status', [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE])
+      .in('status', [
+        SubscriptionStatus.ACTIVE,
+        SubscriptionStatus.PAST_DUE,
+        SubscriptionStatus.TRIAL,
+      ])
       .lte('next_billing_at', now.toISOString());
 
     if (error) {
@@ -506,7 +657,16 @@ export class BillingService {
   ): Promise<void> {
     const subscription = await this.getSubscriptionById(subscriptionId);
     const brand = await this.getBrandOrThrow(subscription.brand_id);
-    const plan = await this.getPlanOrThrow(subscription.plan_id);
+    const currentPlan = await this.getPlanOrThrow(subscription.plan_id);
+    const scheduledPlan = subscription.scheduled_plan_id
+      ? await this.getPlanOrThrow(subscription.scheduled_plan_id)
+      : null;
+    const shouldApplyScheduledPlan =
+      Boolean(subscription.scheduled_plan_id) &&
+      Boolean(subscription.scheduled_plan_effective_at) &&
+      new Date(subscription.scheduled_plan_effective_at as string) <= now;
+    const plan =
+      shouldApplyScheduledPlan && scheduledPlan ? scheduledPlan : currentPlan;
 
     if (brand.billing_tier !== BillingTier.NON_PG) {
       return;
@@ -555,7 +715,7 @@ export class BillingService {
         plan.price,
         token.customerKey,
         `sub-${subscription.id}-${Date.now()}`,
-        `${brand.id} 월 이용료`,
+        `${brand.id} ${plan.name} 이용료`,
       );
 
       const currentPeriodEnd = new Date(subscription.current_period_end);
@@ -580,10 +740,18 @@ export class BillingService {
       await sb
         .from('brand_subscriptions')
         .update({
+          plan_id: plan.id,
           current_period_start: subscription.current_period_end,
           current_period_end: nextPeriodEnd.toISOString(),
           next_billing_at: nextPeriodEnd.toISOString(),
           status: SubscriptionStatus.ACTIVE,
+          cancelled_at: null,
+          scheduled_plan_id: shouldApplyScheduledPlan
+            ? null
+            : (subscription.scheduled_plan_id ?? null),
+          scheduled_plan_effective_at: shouldApplyScheduledPlan
+            ? null
+            : (subscription.scheduled_plan_effective_at ?? null),
           updated_at: now.toISOString(),
         })
         .eq('id', subscription.id);
@@ -638,6 +806,12 @@ export class BillingService {
     return next;
   }
 
+  private addDays(date: Date, days: number): Date {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
   private toBillingKeyResponse(
     billingTier: BillingTier,
     subscription: SubscriptionRow,
@@ -660,6 +834,7 @@ export class BillingService {
   ): SubscriptionResponse {
     const token = this.decryptBillingToken(subscription.payment_method_token);
     const plan = this.normalizePlan(subscription.plan);
+    const scheduledPlan = this.normalizePlan(subscription.scheduled_plan);
 
     return {
       id: subscription.id,
@@ -673,10 +848,261 @@ export class BillingService {
       cancelledAt: subscription.cancelled_at ?? null,
       planName: plan?.name ?? 'Unknown',
       planPrice: Number(plan?.price ?? 0),
+      planMaxMonthlyOrders:
+        plan?.max_monthly_orders === null ||
+        plan?.max_monthly_orders === undefined
+          ? null
+          : Number(plan.max_monthly_orders),
+      hasPaymentMethod: Boolean(subscription.payment_method_token),
+      currentOrderCount: 0,
+      hasExceededLimit: false,
+      availablePlans: [],
+      scheduledPlanId: subscription.scheduled_plan_id ?? null,
+      scheduledPlanName: scheduledPlan?.name ?? null,
+      scheduledPlanPrice:
+        scheduledPlan?.price === null || scheduledPlan?.price === undefined
+          ? null
+          : Number(scheduledPlan.price),
+      scheduledPlanMaxMonthlyOrders:
+        scheduledPlan?.max_monthly_orders === null ||
+        scheduledPlan?.max_monthly_orders === undefined
+          ? null
+          : Number(scheduledPlan.max_monthly_orders),
+      scheduledPlanEffectiveAt:
+        subscription.scheduled_plan_effective_at ?? null,
       cardCompany: token?.card?.company ?? null,
       cardNumber: token?.card?.number ?? null,
       cardOwner: token?.card?.owner ?? null,
     };
+  }
+
+  private async toDetailedSubscriptionResponse(
+    brand: BrandRow,
+    subscription: SubscriptionRow,
+  ): Promise<SubscriptionResponse> {
+    const base = this.toSubscriptionResponse(brand, subscription);
+    const plan = this.normalizePlan(subscription.plan);
+    const usage = await this.getCurrentUsageSnapshot(
+      brand.id,
+      subscription,
+      plan,
+    );
+    const plans = await this.listActivePlans();
+
+    return {
+      ...base,
+      currentOrderCount: usage.currentOrderCount,
+      hasExceededLimit: usage.hasExceededLimit,
+      availablePlans: plans.map((candidate) =>
+        this.toPlanOptionResponse(
+          candidate,
+          candidate.id === subscription.plan_id,
+        ),
+      ),
+    };
+  }
+
+  private toPlanOptionResponse(
+    plan: PlanRow,
+    isCurrent: boolean,
+  ): ChangePlanResponse['newPlan'] {
+    return {
+      id: plan.id,
+      name: plan.name,
+      price: Number(plan.price ?? 0),
+      maxMonthlyOrders:
+        plan.max_monthly_orders === null ||
+        plan.max_monthly_orders === undefined
+          ? null
+          : Number(plan.max_monthly_orders),
+      isCurrent,
+    };
+  }
+
+  private async listActivePlans(): Promise<PlanRow[]> {
+    const sb = this.supabase.adminClient();
+    const { data, error } = await sb
+      .from('subscription_plans')
+      .select('id, name, price, billing_interval, max_monthly_orders')
+      .eq('is_active', true)
+      .eq('billing_interval', 'MONTHLY')
+      .order('price', { ascending: true });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return (data ?? []) as PlanRow[];
+  }
+
+  private async getCurrentUsageSnapshot(
+    brandId: string,
+    subscription: SubscriptionRow,
+    plan: PlanRow | null,
+  ): Promise<{
+    currentOrderCount: number;
+    hasExceededLimit: boolean;
+  }> {
+    const currentOrderCount = await this.countBrandOrdersInPeriod(
+      brandId,
+      subscription.current_period_start,
+      subscription.current_period_end,
+    );
+    const limit =
+      plan?.max_monthly_orders === null ||
+      plan?.max_monthly_orders === undefined
+        ? null
+        : Number(plan.max_monthly_orders);
+
+    return {
+      currentOrderCount,
+      hasExceededLimit: limit !== null ? currentOrderCount > limit : false,
+    };
+  }
+
+  private async countBrandOrdersInPeriod(
+    brandId: string,
+    start: string,
+    end: string,
+  ): Promise<number> {
+    const sb = this.supabase.adminClient();
+    const { data: branches, error: branchError } = await sb
+      .from('branches')
+      .select('id')
+      .eq('brand_id', brandId);
+
+    if (branchError) {
+      throw new BadRequestException(branchError.message);
+    }
+
+    const branchIds = (branches ?? [])
+      .map((row: any) => String(row.id ?? ''))
+      .filter(Boolean);
+
+    if (branchIds.length === 0) {
+      return 0;
+    }
+
+    const { count, error } = await sb
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .in('branch_id', branchIds)
+      .gte('created_at', start)
+      .lt('created_at', end);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return Number(count ?? 0);
+  }
+
+  private calculateProratedUpgradeAmount(
+    currentPlan: PlanRow,
+    newPlan: PlanRow,
+    subscription: SubscriptionRow,
+    now: Date,
+  ): number {
+    const priceDelta =
+      Number(newPlan.price ?? 0) - Number(currentPlan.price ?? 0);
+    if (priceDelta <= 0) {
+      return 0;
+    }
+
+    const currentPeriodStart = new Date(subscription.current_period_start);
+    const currentPeriodEnd = new Date(subscription.current_period_end);
+    const totalMs = currentPeriodEnd.getTime() - currentPeriodStart.getTime();
+    const remainingMs = Math.max(currentPeriodEnd.getTime() - now.getTime(), 0);
+
+    if (totalMs <= 0 || remainingMs <= 0) {
+      return 0;
+    }
+
+    return Math.round((remainingMs / totalMs) * priceDelta);
+  }
+
+  private async chargeProratedUpgrade(
+    brand: BrandRow,
+    subscription: SubscriptionRow,
+    currentPlan: PlanRow,
+    newPlan: PlanRow,
+    amount: number,
+    now: Date,
+  ): Promise<void> {
+    const token = this.decryptBillingToken(subscription.payment_method_token);
+    if (!token?.billingKey || !token.customerKey) {
+      throw new BadRequestException('등록된 결제 수단이 없습니다.');
+    }
+
+    const sb = this.supabase.adminClient();
+    const { data: record, error: recordError } = await sb
+      .from('billing_records')
+      .insert({
+        brand_id: brand.id,
+        subscription_id: subscription.id,
+        amount,
+        status: BillingRecordStatus.PENDING,
+        provider: 'TOSS',
+        billing_period_start: subscription.current_period_start,
+        billing_period_end: subscription.current_period_end,
+        attempted_at: now.toISOString(),
+        retry_count: 0,
+      })
+      .select('id')
+      .single();
+
+    if (recordError || !record?.id) {
+      throw new BadRequestException(
+        recordError?.message ?? '일할 업그레이드 청구를 시작하지 못했습니다.',
+      );
+    }
+
+    try {
+      const charge = await this.tossClient.chargeBillingKey(
+        token.billingKey,
+        amount,
+        token.customerKey,
+        `sub-upgrade-${subscription.id}-${Date.now()}`,
+        `${brand.id} ${currentPlan.name} → ${newPlan.name} 차액`,
+      );
+
+      const { error } = await sb
+        .from('billing_records')
+        .update({
+          status: BillingRecordStatus.SUCCESS,
+          paid_at: now.toISOString(),
+          provider_payment_key:
+            typeof charge.paymentKey === 'string'
+              ? charge.paymentKey
+              : typeof charge.mId === 'string'
+                ? charge.mId
+                : '',
+          failure_reason: null,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', record.id);
+
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+    } catch (error) {
+      const failureReason =
+        error instanceof Error
+          ? error.message
+          : '일할 업그레이드 청구에 실패했습니다.';
+
+      await sb
+        .from('billing_records')
+        .update({
+          status: BillingRecordStatus.FAILED,
+          failure_reason: failureReason,
+          retry_count: 1,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', record.id);
+
+      throw new BadRequestException(failureReason);
+    }
   }
 
   private toBillingRecordResponse(
@@ -768,6 +1194,8 @@ export class BillingService {
       currentPeriodEnd: string;
       nextBillingAt: string;
       cancelledAt: string | null;
+      scheduledPlanId: string | null;
+      scheduledPlanEffectiveAt: string | null;
     },
   ): Promise<SubscriptionRow> {
     const existing = await this.getSubscriptionByBrandId(brandId, true);
@@ -780,6 +1208,8 @@ export class BillingService {
       current_period_end: params.currentPeriodEnd,
       next_billing_at: params.nextBillingAt,
       cancelled_at: params.cancelledAt,
+      scheduled_plan_id: params.scheduledPlanId,
+      scheduled_plan_effective_at: params.scheduledPlanEffectiveAt,
       updated_at: new Date().toISOString(),
     };
 
@@ -799,7 +1229,10 @@ export class BillingService {
           next_billing_at,
           cancelled_at,
           payment_method_token,
-          plan:subscription_plans(id, name, price, billing_interval)
+          scheduled_plan_id,
+          scheduled_plan_effective_at,
+          plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+          scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
         `,
         )
         .single();
@@ -830,7 +1263,10 @@ export class BillingService {
         next_billing_at,
         cancelled_at,
         payment_method_token,
-        plan:subscription_plans(id, name, price, billing_interval)
+        scheduled_plan_id,
+        scheduled_plan_effective_at,
+        plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+        scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
       `,
       )
       .single();
@@ -898,7 +1334,7 @@ export class BillingService {
         brandId,
       );
       if (!hasMembershipAccess) {
-        throw new ForbiddenException('??? ?????? ?????????????.');
+        throw new ForbiddenException('브랜드 접근 권한이 없습니다.');
       }
     }
     return brand;
@@ -941,7 +1377,7 @@ export class BillingService {
     const sb = this.supabase.adminClient();
     const { data, error } = await sb
       .from('subscription_plans')
-      .select('id, name, price, billing_interval')
+      .select('id, name, price, billing_interval, max_monthly_orders')
       .eq('is_active', true)
       .eq('billing_interval', 'MONTHLY')
       .order('price', { ascending: true })
@@ -957,11 +1393,31 @@ export class BillingService {
     return data as PlanRow;
   }
 
+  private async getStarterSubscriptionPlan(): Promise<PlanRow> {
+    const sb = this.supabase.adminClient();
+    const { data, error } = await sb
+      .from('subscription_plans')
+      .select('id, name, price, billing_interval, max_monthly_orders')
+      .eq('is_active', true)
+      .eq('billing_interval', 'MONTHLY')
+      .eq('name', 'Starter')
+      .maybeSingle();
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+    if (data) {
+      return data as PlanRow;
+    }
+
+    return this.getActiveSubscriptionPlan();
+  }
+
   private async getPlanOrThrow(planId: string): Promise<PlanRow> {
     const sb = this.supabase.adminClient();
     const { data, error } = await sb
       .from('subscription_plans')
-      .select('id, name, price, billing_interval')
+      .select('id, name, price, billing_interval, max_monthly_orders')
       .eq('id', planId)
       .maybeSingle();
 
@@ -992,7 +1448,10 @@ export class BillingService {
         next_billing_at,
         cancelled_at,
         payment_method_token,
-        plan:subscription_plans(id, name, price, billing_interval)
+        scheduled_plan_id,
+        scheduled_plan_effective_at,
+        plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+        scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
       `,
       )
       .eq('brand_id', brandId)
@@ -1025,7 +1484,10 @@ export class BillingService {
         next_billing_at,
         cancelled_at,
         payment_method_token,
-        plan:subscription_plans(id, name, price, billing_interval)
+        scheduled_plan_id,
+        scheduled_plan_effective_at,
+        plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+        scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
       `,
       )
       .eq('id', subscriptionId)
@@ -1073,6 +1535,141 @@ export class BillingService {
         updated_at: now.toISOString(),
       })
       .eq('id', subscriptionId);
+  }
+
+  async processOverageChecks(now = new Date()): Promise<number> {
+    const sb = this.supabase.adminClient();
+    const { data, error } = await sb
+      .from('brand_subscriptions')
+      .select('brand_id')
+      .in('status', [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL])
+      .not('scheduled_plan_id', 'is', null);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    const alreadyScheduledBrandIds = new Set(
+      (data ?? [])
+        .map((row: any) => String(row.brand_id ?? ''))
+        .filter(Boolean),
+    );
+
+    const { data: dueBrands, error: dueError } = await sb
+      .from('brand_subscriptions')
+      .select('brand_id')
+      .in('status', [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL]);
+
+    if (dueError) {
+      throw new BadRequestException(dueError.message);
+    }
+
+    let processed = 0;
+    for (const row of dueBrands ?? []) {
+      const brandId = String((row as any).brand_id ?? '');
+      if (!brandId || alreadyScheduledBrandIds.has(brandId)) {
+        continue;
+      }
+
+      const upgraded = await this.checkOverageAndAutoUpgrade(brandId, now);
+      if (upgraded) {
+        processed += 1;
+      }
+    }
+
+    return processed;
+  }
+
+  async checkOverageAndAutoUpgrade(
+    brandId: string,
+    now = new Date(),
+  ): Promise<boolean> {
+    const brand = await this.getBrandOrThrow(brandId);
+    if (brand.billing_tier !== BillingTier.NON_PG) {
+      return false;
+    }
+
+    const subscription = await this.getSubscriptionByBrandId(brandId, true);
+    if (!subscription) {
+      return false;
+    }
+
+    if (subscription.scheduled_plan_id) {
+      return false;
+    }
+
+    const currentPlan = this.normalizePlan(subscription.plan);
+    if (!currentPlan?.max_monthly_orders) {
+      return false;
+    }
+
+    const activePlans = await this.listActivePlans();
+    const nextPlan = activePlans.find(
+      (plan) => Number(plan.price ?? 0) > Number(currentPlan.price ?? 0),
+    );
+    if (!nextPlan) {
+      return false;
+    }
+
+    const periods = this.getRecentBillingPeriods(subscription, 3, now);
+    const overLimit = await Promise.all(
+      periods.map(async (period) => {
+        const count = await this.countBrandOrdersInPeriod(
+          brandId,
+          period.start,
+          period.end,
+        );
+        return count > Number(currentPlan.max_monthly_orders ?? 0);
+      }),
+    );
+
+    if (!overLimit.every(Boolean)) {
+      return false;
+    }
+
+    const sb = this.supabase.adminClient();
+    const effectiveAt = subscription.next_billing_at;
+    const { error } = await sb
+      .from('brand_subscriptions')
+      .update({
+        scheduled_plan_id: nextPlan.id,
+        scheduled_plan_effective_at: effectiveAt,
+        updated_at: now.toISOString(),
+      })
+      .eq('id', subscription.id);
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    this.logger.warn(
+      `Brand ${brandId} exceeded monthly order limit for 3 consecutive periods. Scheduled ${nextPlan.name} from ${effectiveAt}.`,
+    );
+
+    return true;
+  }
+
+  private getRecentBillingPeriods(
+    subscription: SubscriptionRow,
+    months: number,
+    now: Date,
+  ): Array<{ start: string; end: string }> {
+    return Array.from({ length: months }, (_, index) => {
+      const start = this.addMonths(
+        new Date(subscription.current_period_start),
+        -index,
+      );
+      const endBase = this.addMonths(
+        new Date(subscription.current_period_end),
+        -index,
+      );
+      const end =
+        index === 0 && endBase.getTime() > now.getTime() ? now : endBase;
+      return {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      };
+    });
   }
 
   private async listBillingRecords(params: {

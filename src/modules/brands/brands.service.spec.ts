@@ -36,7 +36,15 @@ describe('BrandsService', () => {
 
   it('getMyBrands should return admin brands', async () => {
     adminSb.order.mockResolvedValueOnce({
-      data: [{ id: 'b1', name: 'Brand', is_active: true, created_at: 't' }],
+      data: [
+        {
+          id: 'b1',
+          name: 'Brand',
+          is_active: true,
+          billing_tier: 'NON_PG',
+          created_at: 't',
+        },
+      ],
       error: null,
     });
 
@@ -45,6 +53,7 @@ describe('BrandsService', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('b1');
     expect(result[0].isActive).toBe(true);
+    expect(result[0].billingTier).toBe('NON_PG');
   });
 
   it('getMyBrands should map null fields for admin', async () => {
@@ -191,6 +200,7 @@ describe('BrandsService', () => {
         id: 'b1',
         name: 'Brand',
         is_active: true,
+        billing_tier: 'PG',
         owner_user_id: 'u1',
         created_at: 't',
       },
@@ -202,6 +212,7 @@ describe('BrandsService', () => {
     expect(result.id).toBe('b1');
     expect(result.ownerUserId).toBe('u1');
     expect(result.isActive).toBe(true);
+    expect(result.billingTier).toBe('PG');
   });
 
   it('getBrand should map null fields for non-admin', async () => {

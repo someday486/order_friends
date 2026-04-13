@@ -37,6 +37,7 @@ type Branch = {
 type Brand = {
   id: string;
   slug?: string | null;
+  billingTier?: "PG" | "NON_PG" | null;
 };
 
 type BranchMember = {
@@ -111,6 +112,7 @@ export default function StoreDetailPage() {
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [brandSlug, setBrandSlug] = useState<string | null>(null);
+  const [brandBillingTier, setBrandBillingTier] = useState<Brand["billingTier"]>(null);
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -254,8 +256,10 @@ export default function StoreDetailPage() {
         const brands = await apiClient.get<Brand[]>("/admin/brands");
         const current = brands.find((item) => item.id === brandId);
         setBrandSlug(current?.slug ?? null);
+        setBrandBillingTier(current?.billingTier ?? null);
       } catch {
         setBrandSlug(null);
+        setBrandBillingTier(null);
       }
     };
 
@@ -454,6 +458,11 @@ export default function StoreDetailPage() {
         <p className="text-text-secondary mt-1 text-[13px]">
           {branch ? buildOrderUrl(brandSlug, branch.slug, branch.id) : "-"}
         </p>
+        {brandBillingTier ? (
+          <p className="mt-1 text-[13px] font-semibold text-text-secondary">
+            결제 운영 방식: {brandBillingTier === "NON_PG" ? "무통장 전용" : "PG 이용"}
+          </p>
+        ) : null}
       </div>
 
       {loading && <p className="text-text-tertiary">불러오는 중...</p>}

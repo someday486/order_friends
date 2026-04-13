@@ -12,6 +12,7 @@ import {
   UpdateBrandRequest,
 } from './dto/brand.dto';
 import { CashReceiptOnboardingService } from '../cash-receipts/cash-receipt-onboarding.service';
+import { BillingTier } from '../billing/billing.types';
 
 @Injectable()
 export class BrandsService {
@@ -90,7 +91,7 @@ export class BrandsService {
       const { data, error } = await sb
         .from('brands')
         .select(
-          'id, name, is_active, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at',
+          'id, name, is_active, billing_tier, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at',
         )
         .order('created_at', { ascending: false });
 
@@ -102,6 +103,10 @@ export class BrandsService {
         id: row.id,
         name: row.name,
         isActive: row.is_active ?? true,
+        billingTier:
+          row.billing_tier === BillingTier.NON_PG
+            ? BillingTier.NON_PG
+            : BillingTier.PG,
         slug: row.slug ?? null,
         bizName: row.biz_name ?? null,
         bizRegNo: row.biz_reg_no ?? null,
@@ -119,7 +124,7 @@ export class BrandsService {
         `
         brand_id,
         brands (
-          id, name, is_active, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at
+          id, name, is_active, billing_tier, slug, biz_name, biz_reg_no, address, logo_url, cover_image_url, created_at
         )
       `,
       )
@@ -135,6 +140,10 @@ export class BrandsService {
         id: row.brands.id,
         name: row.brands.name,
         isActive: row.brands.is_active ?? true,
+        billingTier:
+          row.brands.billing_tier === BillingTier.NON_PG
+            ? BillingTier.NON_PG
+            : BillingTier.PG,
         slug: row.brands.slug ?? null,
         bizName: row.brands.biz_name ?? null,
         bizRegNo: row.brands.biz_reg_no ?? null,
@@ -157,7 +166,7 @@ export class BrandsService {
     const { data, error } = await sb
       .from('brands')
       .select(
-        'id, name, is_active, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, is_active, billing_tier, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .eq('id', brandId)
       .single();
@@ -174,6 +183,10 @@ export class BrandsService {
       id: data.id,
       name: data.name,
       isActive: data.is_active ?? true,
+      billingTier:
+        data.billing_tier === BillingTier.NON_PG
+          ? BillingTier.NON_PG
+          : BillingTier.PG,
       slug: data.slug ?? null,
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,
@@ -266,7 +279,7 @@ export class BrandsService {
       .from('brands')
       .insert(insertPayload)
       .select(
-        'id, name, is_active, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, is_active, billing_tier, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .single();
 
@@ -295,6 +308,10 @@ export class BrandsService {
       id: brand.id,
       name: brand.name,
       isActive: brand.is_active ?? true,
+      billingTier:
+        brand.billing_tier === BillingTier.NON_PG
+          ? BillingTier.NON_PG
+          : BillingTier.PG,
       slug: brand.slug ?? null,
       ownerUserId: brand.owner_user_id ?? null,
       bizName: brand.biz_name ?? null,
@@ -439,7 +456,7 @@ export class BrandsService {
       .update(updateData)
       .eq('id', brandId)
       .select(
-        'id, name, is_active, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
+        'id, name, is_active, billing_tier, slug, owner_user_id, biz_name, biz_reg_no, rep_name, address, biz_cert_url, cash_receipt_enabled, cash_receipt_provider, cash_receipt_merchant_id, cash_receipt_issue_timing, cash_receipt_self_issue_enabled, cash_receipt_contact_name, cash_receipt_contact_phone, logo_url, cover_image_url, created_at',
       )
       .maybeSingle();
 
@@ -455,6 +472,10 @@ export class BrandsService {
       id: data.id,
       name: data.name,
       isActive: data.is_active ?? true,
+      billingTier:
+        data.billing_tier === BillingTier.NON_PG
+          ? BillingTier.NON_PG
+          : BillingTier.PG,
       slug: data.slug ?? null,
       ownerUserId: data.owner_user_id ?? null,
       bizName: data.biz_name ?? null,

@@ -12,6 +12,7 @@ import {
   getAdminBrands,
   getAdminBranches,
   invalidateAdminBranches,
+  type AdminBrandSummary,
 } from "@/lib/adminDataCache";
 
 type Branch = {
@@ -22,11 +23,7 @@ type Branch = {
   createdAt: string;
 };
 
-type Brand = {
-  id: string;
-  name: string;
-  slug?: string | null;
-};
+type Brand = AdminBrandSummary;
 
 function formatDate(iso: string) {
   if (!iso) return "-";
@@ -232,6 +229,11 @@ export default function StoresPage() {
           </div>
         </div>
 
+        {selectedBrand ? (
+          <div className="mt-3 text-xs font-semibold text-text-secondary">
+            결제 운영 방식: {selectedBrand.billingTier === "NON_PG" ? "무통장 전용" : "PG 이용"}
+          </div>
+        ) : null}
         <div className="mt-3 text-xs text-text-secondary">
           {selectedBrand
             ? `현재 선택한 브랜드: ${selectedBrand.name}`

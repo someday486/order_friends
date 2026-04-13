@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import {
   Boxes,
   ChevronRight,
@@ -21,10 +21,12 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useSelectedBrand } from '@/hooks/useSelectedBrand';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { NotificationProvider } from '@/providers/NotificationProvider';
 import { businessTopSummary } from '@/lib/businessMockData';
+import { apiClient } from '@/lib/api-client';
 
 type MenuItem = {
   href: string;
@@ -35,6 +37,15 @@ type MenuItem = {
 type MenuSection = {
   title: string;
   items: MenuItem[];
+};
+
+type BillingGateBrand = {
+  id: string;
+  billing_tier?: 'PG' | 'NON_PG' | null;
+};
+
+type BillingGateSubscription = {
+  hasPaymentMethod: boolean;
 };
 
 const menuSections: MenuSection[] = [
@@ -77,11 +88,71 @@ export default function BusinessLayout({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, signOut } = useAuth();
+  const { brandId } = useSelectedBrand();
   const { isDark, toggle } = useDarkMode();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [billingGateLoading, setBillingGateLoading] = useState(false);
 
   const sections = useMemo(() => menuSections, []);
+
+  useEffect(() => {
+    if (!brandId || pathname?.startsWith('/business/billing/setup')) {
+      setBillingGateLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    const checkBillingGate = async () => {
+      try {
+        setBillingGateLoading(true);
+        const brands = await apiClient.get<BillingGateBrand[]>('/customer/brands');
+        if (!active) {
+          return;
+        }
+
+        const currentBrand = brands.find((brand) => brand.id === brandId);
+        if (!currentBrand || currentBrand.billing_tier !== 'NON_PG') {
+          setBillingGateLoading(false);
+          return;
+        }
+
+        const subscription = await apiClient
+          .get<BillingGateSubscription>(
+            `/billing/subscription?brandId=${encodeURIComponent(brandId)}`,
+          )
+          .catch((error) => {
+            if (error instanceof Error && error.message.includes('API Error: 404')) {
+              return null;
+            }
+            throw error;
+          });
+
+        if (!active) {
+          return;
+        }
+
+        if (!subscription?.hasPaymentMethod) {
+          router.replace(
+            `/business/billing/setup?brandId=${encodeURIComponent(brandId)}`,
+          );
+          return;
+        }
+      } finally {
+        if (active) {
+          setBillingGateLoading(false);
+        }
+      }
+    };
+
+    void checkBillingGate();
+
+    return () => {
+      active = false;
+    };
+  }, [brandId, pathname, router]);
 
   const isActive = (href: string) => {
     if (href === '/business') {
@@ -89,6 +160,23 @@ export default function BusinessLayout({
     }
     return pathname?.startsWith(href);
   };
+
+  if (billingGateLoading && brandId && !pathname?.startsWith('/business/billing/setup')) {
+    return (
+      <NotificationProvider>
+        <div className="flex min-h-screen items-center justify-center bg-background px-6">
+          <div className="max-w-md rounded-2xl border border-border bg-bg-secondary px-6 py-5 text-center">
+            <div className="text-sm font-semibold text-foreground">
+              빌링 설정 상태를 확인하고 있어요.
+            </div>
+            <p className="mt-2 text-[13px] leading-6 text-text-secondary">
+              무통장 전용 브랜드는 카드 등록이 끝나야 운영 화면을 계속 사용할 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </NotificationProvider>
+    );
+  }
 
   return (
     <NotificationProvider>

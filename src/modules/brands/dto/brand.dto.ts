@@ -1,11 +1,13 @@
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
+import { BillingTier } from '../../billing/billing.types';
 
 // Response DTOs
 export class BrandListItemResponse {
   id: string;
   name: string;
   isActive: boolean;
+  billingTier?: BillingTier | null;
   slug?: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;
@@ -18,6 +20,7 @@ export class BrandDetailResponse {
   id: string;
   name: string;
   isActive: boolean;
+  billingTier?: BillingTier | null;
   slug?: string | null;
   ownerUserId?: string | null;
   bizName?: string | null;

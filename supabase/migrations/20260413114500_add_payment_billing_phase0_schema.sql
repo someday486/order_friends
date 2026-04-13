@@ -159,11 +159,9 @@ ALTER TABLE public.brands
     AND shop_payment_methods <@ ARRAY['CARD', 'TRANSFER']::TEXT[]
   );
 
+-- 기존 브랜드는 전부 PG로 배정한다. Non-PG 티어는 신규 가입자부터 적용한다.
 UPDATE public.brands
-SET billing_tier = CASE
-  WHEN 'CARD' = ANY(shop_payment_methods) THEN 'PG'
-  ELSE 'NON_PG'
-END,
+SET billing_tier = 'PG',
     billing_tier_decided_at = NOW();
 
 UPDATE public.brands
@@ -178,17 +176,9 @@ ALTER TABLE public.brands
   ADD CONSTRAINT brands_pg_commission_rate_check
   CHECK (billing_tier != 'PG' OR commission_rate IS NOT NULL);
 
-UPDATE public.branches b
-SET allowed_payment_methods = ARRAY['CARD']::TEXT[]
-FROM public.brands br
-WHERE br.id = b.brand_id
-  AND br.billing_tier = 'PG';
-
-UPDATE public.branches b
-SET allowed_payment_methods = ARRAY['TRANSFER']::TEXT[]
-FROM public.brands br
-WHERE br.id = b.brand_id
-  AND br.billing_tier = 'NON_PG';
+-- 기존 브랜드 전부 PG이므로, 기존 매장은 모두 카드 결제만 사용하도록 정합성을 맞춘다.
+UPDATE public.branches
+SET allowed_payment_methods = ARRAY['CARD']::TEXT[];
 
 ALTER TABLE public.commission_tiers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;

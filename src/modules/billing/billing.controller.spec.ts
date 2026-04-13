@@ -16,6 +16,7 @@ describe('BillingController', () => {
     getBillingRecords: jest.fn(),
     getBillingSummary: jest.fn(),
     cancelSubscription: jest.fn(),
+    changePlan: jest.fn(),
     retryBilling: jest.fn(),
     listSubscriptions: jest.fn(),
     getAdminSubscription: jest.fn(),
@@ -93,6 +94,32 @@ describe('BillingController', () => {
         dto,
         true,
       );
+    });
+
+    it('changePlan should delegate to service', async () => {
+      mockService.changePlan.mockResolvedValue({
+        effectiveDate: '2026-04-14T00:00:00.000Z',
+        newPlan: {
+          id: 'plan-2',
+          name: 'Growth',
+          price: 99000,
+          isCurrent: false,
+        },
+      });
+
+      const req = { user: { id: 'user-1' }, isAdmin: false } as any;
+      const dto = { brandId: 'brand-1', planId: 'plan-2' };
+
+      await expect(controller.changePlan(req, dto as any)).resolves.toEqual({
+        effectiveDate: '2026-04-14T00:00:00.000Z',
+        newPlan: {
+          id: 'plan-2',
+          name: 'Growth',
+          price: 99000,
+          isCurrent: false,
+        },
+      });
+      expect(mockService.changePlan).toHaveBeenCalledWith('user-1', dto, false);
     });
   });
 

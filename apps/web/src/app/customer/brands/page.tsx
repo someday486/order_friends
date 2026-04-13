@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { CardSkeleton } from "@/components/ui/Skeleton";
+import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useUserRole } from "@/hooks/useUserRole";
 import { parseApiErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
@@ -61,12 +63,14 @@ function createInitialForm(): BrandCreateForm {
 }
 
 export default function CustomerBrandsPage() {
+  const router = useRouter();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const { role, userData, loading: roleLoading } = useUserRole();
+  const { selectBrand } = useSelectedBrand();
 
   const loadBrands = async () => {
     try {
@@ -155,11 +159,20 @@ export default function CustomerBrandsPage() {
           onClose={() => setShowAddModal(false)}
           onSuccess={(createdBrand) => {
             setShowAddModal(false);
+            selectBrand(createdBrand.id);
             setBrands((prev) => {
               const deduped = prev.filter((brand) => brand.id !== createdBrand.id);
               return [createdBrand, ...deduped];
             });
             loadBrands().catch(() => null);
+            if (createdBrand.billing_tier === "NON_PG") {
+              router.push(
+                `/business/billing/setup?brandId=${encodeURIComponent(createdBrand.id)}`,
+              );
+              return;
+            }
+
+            router.push(`/customer/brands/${encodeURIComponent(createdBrand.id)}`);
           }}
         />
       ) : null}

@@ -228,6 +228,27 @@ export class PublicOrderService {
     return this.inferBillingTierFromPaymentMethods(fallbackPaymentMethods);
   }
 
+  private async getBranchBrandId(branchId: string): Promise<string | null> {
+    const adminSb = this.supabase.adminClient();
+    try {
+      const result = await adminSb
+        .from('branches')
+        .select('brand_id')
+        .eq('id', branchId)
+        .maybeSingle();
+
+      if (!result?.error && result?.data?.brand_id) {
+        return String(result.data.brand_id);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve branch brand for ${branchId}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+
+    return null;
+  }
+
   /**
    * Get public brand list for shop landing
    */
@@ -1546,6 +1567,82 @@ export class PublicOrderService {
     }
   }
 
+  private async logNonPgOrderUsageOverage(
+    adminClient: any,
+    brandId: string,
+  ): Promise<void> {
+    try {
+      const { data: subscription, error: subscriptionError } = await adminClient
+        .from('brand_subscriptions')
+        .select(
+          `
+          current_period_start,
+          current_period_end,
+          plan:subscription_plans(max_monthly_orders)
+        `,
+        )
+        .eq('brand_id', brandId)
+        .in('status', ['ACTIVE', 'PAST_DUE', 'TRIAL'])
+        .maybeSingle();
+
+      if (subscriptionError || !subscription) {
+        return;
+      }
+
+      const plan = Array.isArray(subscription.plan)
+        ? subscription.plan[0]
+        : subscription.plan;
+      const limitValue = plan?.max_monthly_orders;
+      const maxMonthlyOrders =
+        limitValue === null || limitValue === undefined
+          ? null
+          : Number(limitValue);
+
+      if (!maxMonthlyOrders) {
+        return;
+      }
+
+      const { data: branches, error: branchError } = await adminClient
+        .from('branches')
+        .select('id')
+        .eq('brand_id', brandId);
+
+      if (branchError) {
+        return;
+      }
+
+      const branchIds = (branches ?? [])
+        .map((row: any) => String(row.id ?? ''))
+        .filter(Boolean);
+
+      if (branchIds.length === 0) {
+        return;
+      }
+
+      const { count, error: countError } = await adminClient
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .in('branch_id', branchIds)
+        .gte('created_at', subscription.current_period_start)
+        .lt('created_at', subscription.current_period_end);
+
+      if (countError) {
+        return;
+      }
+
+      const currentCount = Number(count ?? 0);
+      if (currentCount === maxMonthlyOrders + 1) {
+        this.logger.warn(
+          `Brand ${brandId} exceeded monthly order limit: ${currentCount}/${maxMonthlyOrders}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to evaluate Non-PG order overage for ${brandId}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+  }
+
   private async rollbackOrder(adminClient: any, orderId: string) {
     try {
       await adminClient.from('payments').delete().eq('order_id', orderId);
@@ -2802,10 +2899,16 @@ export class PublicOrderService {
       dto.branchId,
     );
     const allowDeliveryOverride = (dto as any).__allowDeliveryOverride === true;
-    const billingTier = await this.resolveBranchBillingTier(
-      dto.branchId,
-      branchOrderConfig.allowedPaymentMethods,
-    );
+    const branchBrandId = await this.getBranchBrandId(dto.branchId);
+    const billingTier = branchBrandId
+      ? await this.resolveBrandBillingTier(
+          branchBrandId,
+          branchOrderConfig.allowedPaymentMethods,
+        )
+      : await this.resolveBranchBillingTier(
+          dto.branchId,
+          branchOrderConfig.allowedPaymentMethods,
+        );
     this.validatePaymentMethodForBillingTier(
       billingTier,
       paymentMethod as PaymentMethod,
@@ -3406,6 +3509,10 @@ export class PublicOrderService {
         })),
         branchName,
       });
+    }
+
+    if (branchBrandId && billingTier === BillingTier.NON_PG) {
+      void this.logNonPgOrderUsageOverage(adminClient, branchBrandId);
     }
 
     return {

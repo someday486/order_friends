@@ -15,6 +15,7 @@ export type AdminBrandSummary = {
   id: string;
   name: string;
   isActive: boolean;
+  billingTier?: 'PG' | 'NON_PG' | null;
   slug: string | null;
   bizName?: string | null;
   bizRegNo?: string | null;

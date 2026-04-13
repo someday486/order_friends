@@ -1070,7 +1070,7 @@ export class PublicOrderService {
       context.shopPaymentMethods.includes(method),
     );
     if (exposedPaymentMethods.length === 0) {
-      throw new BadRequestException('온라인샵 결제수단 설정을 확인해주세요.');
+      throw new BadRequestException('온라인샵 결제 정책 설정을 확인해주세요.');
     }
 
     const categoryIds = [
@@ -1233,7 +1233,7 @@ export class PublicOrderService {
     );
     if (!context.shopPaymentMethods.includes(paymentMethod)) {
       throw new BadRequestException(
-        '선택한 결제수단은 현재 온라인샵에서 사용할 수 없습니다.',
+        '현재 온라인샵 결제 정책에서는 이 결제 방식으로 주문할 수 없습니다.',
       );
     }
     let branchSelection;
@@ -1490,7 +1490,7 @@ export class PublicOrderService {
 
     if (withPayment.length === 0) {
       throw new BadRequestException(
-        '선택한 결제수단은 현재 온라인샵 주문에서 지원하지 않습니다.',
+        '현재 온라인샵 주문 정책에서는 이 결제 방식이 지원되지 않습니다.',
       );
     }
 
@@ -2919,7 +2919,7 @@ export class PublicOrderService {
     );
     if (!allowedPaymentMethods.includes(paymentMethod as any)) {
       throw new BadRequestException(
-        '선택한 결제수단은 현재 매장에서 지원하지 않습니다.',
+        '현재 매장 결제 정책에서는 이 결제 방식으로 주문할 수 없습니다.',
       );
     }
 

@@ -5,6 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { formatPhone, formatWon } from '@/lib/format';
 import { apiClient } from '@/lib/api-client';
+import {
+  getAllowedPaymentMethodsForBillingTier,
+  resolveBillingTier,
+} from '@/lib/billing-tier';
 import { loadLastOrderRecord, saveCheckoutDraft } from '@/lib/order-session';
 import toast from 'react-hot-toast';
 import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
@@ -35,6 +39,7 @@ type Branch = {
   id: string;
   name: string;
   brandName?: string;
+  billingTier?: 'PG' | 'NON_PG' | null;
   cashReceiptEnabled?: boolean | null;
   address?: string | null;
   contactPhone?: string | null;
@@ -309,10 +314,12 @@ export default function OrderPage() {
     branch?.enabledFulfillmentTypes && branch.enabledFulfillmentTypes.length > 0
       ? branch.enabledFulfillmentTypes
       : ['PICKUP'];
+  const effectiveBillingTier = resolveBillingTier(
+    branch?.billingTier,
+    branch?.allowedPaymentMethods,
+  );
   const allowedPaymentMethods =
-    branch?.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
-      ? branch.allowedPaymentMethods
-      : ['CARD', 'TRANSFER'];
+    getAllowedPaymentMethodsForBillingTier(effectiveBillingTier);
 
   // 주문하기
   const goToCheckout = () => {
@@ -327,7 +334,9 @@ export default function OrderPage() {
       enabledFulfillmentTypes,
       allowedPaymentMethods,
       selectedFulfillmentType: enabledFulfillmentTypes[0] ?? 'PICKUP',
-      selectedPaymentMethod: allowedPaymentMethods[0] ?? 'CARD',
+      selectedPaymentMethod:
+        getAllowedPaymentMethodsForBillingTier(effectiveBillingTier)[0] ??
+        'CARD',
     });
     router.push(`/order/branch/${branchId}/checkout`);
   };

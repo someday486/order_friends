@@ -1,7 +1,5 @@
 import {
-  ArrayMinSize,
   IsBoolean,
-  IsArray,
   IsEnum,
   IsOptional,
   IsString,
@@ -10,11 +8,6 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { CashReceiptIssueTiming } from '../../cash-receipts/cash-receipt.types';
 import { BillingTier } from '../../billing/billing.types';
-
-export enum ShopPaymentMethod {
-  CARD = 'CARD',
-  TRANSFER = 'TRANSFER',
-}
 
 export class CreateCustomerBrandRequest {
   @ApiProperty({ description: 'Brand name' })
@@ -84,18 +77,6 @@ export class CreateCustomerBrandRequest {
   @IsString()
   @IsOptional()
   bizCertUrl?: string | null;
-
-  @ApiProperty({
-    description: 'Online shop payment methods',
-    required: false,
-    enum: ShopPaymentMethod,
-    isArray: true,
-  })
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsEnum(ShopPaymentMethod, { each: true })
-  @IsOptional()
-  shop_payment_methods?: ShopPaymentMethod[];
 
   @ApiProperty({
     description: 'Enable cash receipt automation',
@@ -202,18 +183,6 @@ export class UpdateCustomerBrandRequest {
   @IsString()
   @IsOptional()
   bizCertUrl?: string | null;
-
-  @ApiProperty({
-    description: 'Online shop payment methods',
-    required: false,
-    enum: ShopPaymentMethod,
-    isArray: true,
-  })
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsEnum(ShopPaymentMethod, { each: true })
-  @IsOptional()
-  shop_payment_methods?: ShopPaymentMethod[];
 
   @ApiProperty({
     description: 'Enable cash receipt automation',

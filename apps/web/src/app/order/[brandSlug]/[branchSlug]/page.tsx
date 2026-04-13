@@ -33,6 +33,7 @@ type PublicBranchResponse = {
   id: string;
   name: string;
   brandName?: string;
+  billingTier?: 'PG' | 'NON_PG' | null;
   cashReceiptEnabled?: boolean | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;

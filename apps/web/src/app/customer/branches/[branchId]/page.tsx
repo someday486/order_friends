@@ -8,6 +8,12 @@ import { apiClient } from "@/lib/api-client";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import {
+  getBillingTierCheckoutDescription,
+  getBillingTierLabel,
+  isManualTransferTier,
+  resolveBillingTier,
+} from "@/lib/billing-tier";
+import {
   BUSINESS_HOUR_DAY_KEYS,
   BUSINESS_HOUR_DAY_LABELS,
   createBusinessHoursFormState,
@@ -16,7 +22,7 @@ import {
   type BusinessHoursFormState,
   type WeeklyBusinessHours,
 } from "@/lib/business-hours";
-import { type FulfillmentType, type StorePaymentMethod } from "@/types/common";
+import { type BillingTier, type FulfillmentType } from "@/types/common";
 
 type Branch = {
   id: string;
@@ -29,7 +35,7 @@ type Branch = {
   myRole: string | null;
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
-  allowedPaymentMethods?: StorePaymentMethod[];
+  allowedPaymentMethods?: string[];
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -50,21 +56,16 @@ type Branch = {
 type Brand = {
   id: string;
   slug: string | null;
+  billing_tier?: BillingTier | null;
 };
 
 const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
-const ALL_PAYMENT_METHODS: StorePaymentMethod[] = ["CARD", "TRANSFER"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
   DINE_IN: "매장",
   SHIPPING: "택배",
-};
-
-const PAYMENT_LABEL: Record<StorePaymentMethod, string> = {
-  CARD: "카드",
-  TRANSFER: "계좌이체",
 };
 
 function normalizeSlug(value: string) {
@@ -115,6 +116,7 @@ export default function BranchDetailPage() {
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [brandSlug, setBrandSlug] = useState<string | null>(null);
+  const [brandBillingTier, setBrandBillingTier] = useState<BillingTier | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,9 +128,6 @@ export default function BranchDetailPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
-  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<
-    StorePaymentMethod[]
-  >(["CARD"]);
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
@@ -159,20 +158,20 @@ export default function BranchDetailPage() {
     () => (branch ? buildOrderUrl(brandSlug, branch.slug, branch.id) : "-"),
     [branch, brandSlug],
   );
+  const effectiveBillingTier = useMemo(
+    () => resolveBillingTier(brandBillingTier, branch?.allowedPaymentMethods ?? null),
+    [brandBillingTier, branch?.allowedPaymentMethods],
+  );
+  const isTransferEnabled = isManualTransferTier(effectiveBillingTier);
 
   const isDirty = useMemo(() => {
     if (!branch) return false;
 
     const originFulfillment = branch.enabledFulfillmentTypes ?? ["PICKUP"];
-    const originPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER"];
 
     const sameFulfillment =
       enabledFulfillmentTypes.length === originFulfillment.length &&
       enabledFulfillmentTypes.every((item) => originFulfillment.includes(item));
-
-    const samePayments =
-      allowedPaymentMethods.length === originPayments.length &&
-      allowedPaymentMethods.every((item) => originPayments.includes(item));
     const sameTransferInfo =
       transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
       transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
@@ -198,7 +197,6 @@ export default function BranchDetailPage() {
       logoUrl !== (branch.logoUrl ?? null) ||
       coverImageUrl !== (branch.coverImageUrl ?? null) ||
       !sameFulfillment ||
-      !samePayments ||
       !sameTransferInfo ||
       !samePickupTimeConfig ||
       !sameBusinessHours ||
@@ -209,7 +207,6 @@ export default function BranchDetailPage() {
       !sameDepositSheetUrl
     );
   }, [
-    allowedPaymentMethods,
     businessHours,
     branch,
     coverImageUrl,
@@ -238,11 +235,6 @@ export default function BranchDetailPage() {
       source.enabledFulfillmentTypes && source.enabledFulfillmentTypes.length > 0
         ? source.enabledFulfillmentTypes
         : ["PICKUP"],
-    );
-    setAllowedPaymentMethods(
-      source.allowedPaymentMethods && source.allowedPaymentMethods.length > 0
-        ? source.allowedPaymentMethods
-        : ["CARD", "TRANSFER"],
     );
     setTransferBankName(source.transferAccount?.bankName ?? "");
     setTransferAccountNumber(source.transferAccount?.accountNumber ?? "");
@@ -287,17 +279,19 @@ export default function BranchDetailPage() {
   useEffect(() => {
     if (!branch?.brandId) return;
 
-    const loadBrandSlug = async () => {
+    const loadBrandInfo = async () => {
       try {
         const brands = await apiClient.get<Brand[]>("/customer/brands");
         const currentBrand = brands.find((item) => item.id === branch.brandId);
         setBrandSlug(currentBrand?.slug ?? null);
+        setBrandBillingTier(currentBrand?.billing_tier ?? null);
       } catch {
         setBrandSlug(null);
+        setBrandBillingTier(null);
       }
     };
 
-    loadBrandSlug();
+    loadBrandInfo();
   }, [branch?.brandId]);
 
   useEffect(() => {
@@ -367,13 +361,8 @@ export default function BranchDetailPage() {
       return;
     }
 
-    if (allowedPaymentMethods.length === 0) {
-      toast.error("결제 수단을 최소 1개 이상 선택하세요.");
-      return;
-    }
-
     if (
-      allowedPaymentMethods.includes("TRANSFER") &&
+      isTransferEnabled &&
       (!transferBankName.trim() ||
         !transferAccountNumber.trim() ||
         !transferAccountHolder.trim())
@@ -425,14 +414,19 @@ export default function BranchDetailPage() {
         logoUrl,
         coverImageUrl,
         enabledFulfillmentTypes,
-        allowedPaymentMethods,
-        transferAccount: {
-          bankName: transferBankName.trim(),
-          accountNumber: transferAccountNumber.trim(),
-          accountHolder: transferAccountHolder.trim(),
-        },
-        depositSheetName: depositSheetName.trim() || null,
-        depositSheetUrl: depositSheetUrl.trim() || null,
+        transferAccount: isTransferEnabled
+          ? {
+              bankName: transferBankName.trim(),
+              accountNumber: transferAccountNumber.trim(),
+              accountHolder: transferAccountHolder.trim(),
+            }
+          : {
+              bankName: null,
+              accountNumber: null,
+              accountHolder: null,
+            },
+        depositSheetName: isTransferEnabled ? depositSheetName.trim() || null : null,
+        depositSheetUrl: isTransferEnabled ? depositSheetUrl.trim() || null : null,
         orderNotice: orderNotice.trim() || null,
         contactPhone: contactPhone.trim() || null,
         kakaoChannelUrl: kakaoChannelUrl.trim() || null,
@@ -642,22 +636,15 @@ export default function BranchDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 결제 수단</div>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {ALL_PAYMENT_METHODS.map((method) => (
-                      <label
-                        key={method}
-                        className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer hover:bg-bg-tertiary transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-primary"
-                          checked={allowedPaymentMethods.includes(method)}
-                          onChange={() => setAllowedPaymentMethods((prev) => toggleItem(prev, method))}
-                        />
-                        <span className="text-sm text-foreground">{PAYMENT_LABEL[method]}</span>
-                      </label>
-                    ))}
+                  <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출될 결제 운영 방식</div>
+                  <div className="rounded-xl border border-border bg-bg-secondary px-3 py-3 text-sm text-text-secondary">
+                    <div className="font-semibold text-foreground">
+                      {getBillingTierLabel(effectiveBillingTier)}
+                    </div>
+                    <div className="mt-1">{getBillingTierCheckoutDescription(effectiveBillingTier)}</div>
+                    <div className="mt-2 text-xs">
+                      결제 방식은 브랜드 정책에 따라 자동으로 정해지며, 지점 화면에서는 직접 변경하지 않습니다.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -797,7 +784,7 @@ export default function BranchDetailPage() {
               </p>
             </section>
 
-            {allowedPaymentMethods.includes("TRANSFER") && (
+            {isTransferEnabled && (
               <section>
                 <SectionHeading>계좌이체 입금 정보</SectionHeading>
                 <div className="grid gap-2">
@@ -820,6 +807,9 @@ export default function BranchDetailPage() {
                     placeholder="예금주"
                   />
                 </div>
+                <p className="text-xs text-text-tertiary mt-1.5">
+                  무통장 입금 브랜드에서만 고객에게 노출되는 계좌 정보입니다.
+                </p>
               </section>
             )}
 
@@ -920,16 +910,12 @@ export default function BranchDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-[13px] text-text-secondary mb-1.5">결제 수단</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(branch.allowedPaymentMethods ?? ["CARD", "TRANSFER"]).map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-bg-tertiary border border-border text-foreground"
-                      >
-                        {PAYMENT_LABEL[item]}
-                      </span>
-                    ))}
+                  <div className="text-[13px] text-text-secondary mb-1.5">결제 운영 방식</div>
+                  <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-foreground">
+                    {getBillingTierLabel(effectiveBillingTier)}
+                    <div className="mt-1 text-xs text-text-secondary">
+                      {getBillingTierCheckoutDescription(effectiveBillingTier)}
+                    </div>
                   </div>
                 </div>
 
@@ -978,12 +964,12 @@ export default function BranchDetailPage() {
                   </div>
                 </div>
 
-                {(branch.allowedPaymentMethods ?? []).includes("TRANSFER") && (
+                {isTransferEnabled && (
                   <div>
-                    <div className="text-[13px] text-text-secondary mb-1.5">계좌이체 입금 정보</div>
+                    <div className="text-[13px] text-text-secondary mb-1.5">입금 계좌 정보</div>
                     <div className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border space-y-1">
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-text-tertiary w-16 shrink-0">은행명</span>
+                        <span className="text-text-tertiary w-16 shrink-0">은행</span>
                         <span className="text-foreground">{branch.transferAccount?.bankName?.trim() || "-"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
@@ -999,7 +985,7 @@ export default function BranchDetailPage() {
                         <span className="text-foreground">{branch.depositSheetName?.trim() || "-"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-text-tertiary w-16 shrink-0">?쒗듃留곹겕</span>
+                        <span className="text-text-tertiary w-16 shrink-0">시트 URL</span>
                         <span className="text-foreground break-all">{branch.depositSheetUrl?.trim() || "-"}</span>
                       </div>
                     </div>

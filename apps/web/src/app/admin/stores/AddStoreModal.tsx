@@ -3,7 +3,12 @@
 import React, { useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
-import { type FulfillmentType, type StorePaymentMethod } from "@/types/common";
+import { type BillingTier, type FulfillmentType } from "@/types/common";
+import {
+  getAllowedPaymentMethodsForBillingTier,
+  getBillingTierLabel,
+  isManualTransferTier,
+} from "@/lib/billing-tier";
 
 type TransferAccountInput = {
   bankName: string;
@@ -19,12 +24,12 @@ type PickupTimeConfigInput = {
 type Props = {
   open: boolean;
   brandId: string;
+  billingTier: BillingTier | null;
   onClose: () => void;
   onSubmit: (payload: {
     name: string;
     slug: string;
     enabledFulfillmentTypes: FulfillmentType[];
-    allowedPaymentMethods: StorePaymentMethod[];
     transferAccount: TransferAccountInput;
     pickupTimeConfig: PickupTimeConfigInput;
     depositSheetName: string;
@@ -34,11 +39,6 @@ type Props = {
   }) => Promise<void>;
   adding: boolean;
 };
-
-const PAYMENT_METHOD_OPTIONS: Array<{ value: StorePaymentMethod; label: string }> = [
-  { value: "CARD", label: "카드" },
-  { value: "TRANSFER", label: "계좌이체" },
-];
 
 const FULFILLMENT_OPTIONS: Array<{ value: FulfillmentType; label: string }> = [
   { value: "PICKUP", label: "포장" },
@@ -62,17 +62,18 @@ function timeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
-export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding }: Props) {
+export default function AddStoreModal({
+  open,
+  brandId,
+  billingTier,
+  onClose,
+  onSubmit,
+  adding,
+}: Props) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>([
     "PICKUP",
-  ]);
-  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<
-    StorePaymentMethod[]
-  >([
-    "CARD",
-    "TRANSFER",
   ]);
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -84,17 +85,12 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
   const [contactPhone, setContactPhone] = useState("");
   const [kakaoChannelUrl, setKakaoChannelUrl] = useState("");
 
-  const isTransferEnabled = allowedPaymentMethods.includes("TRANSFER");
+  const resolvedBillingTier = billingTier ?? "PG";
+  const isTransferEnabled = isManualTransferTier(resolvedBillingTier);
 
   const toggleFulfillmentType = (type: FulfillmentType) => {
     setEnabledFulfillmentTypes((prev) =>
       prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type],
-    );
-  };
-
-  const togglePaymentMethod = (method: StorePaymentMethod) => {
-    setAllowedPaymentMethods((prev) =>
-      prev.includes(method) ? prev.filter((item) => item !== method) : [...prev, method],
     );
   };
 
@@ -106,7 +102,6 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
           !name.trim() ||
           !slug.trim() ||
           enabledFulfillmentTypes.length === 0 ||
-          allowedPaymentMethods.length === 0 ||
           (isTransferEnabled &&
             (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())) ||
           ((pickupStartTime.trim() && !pickupEndTime.trim()) ||
@@ -119,7 +114,6 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
       accountHolder,
       accountNumber,
       adding,
-      allowedPaymentMethods.length,
       bankName,
       brandId,
       enabledFulfillmentTypes.length,
@@ -152,7 +146,6 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
                 name,
                 slug,
                 enabledFulfillmentTypes,
-                allowedPaymentMethods,
                 transferAccount: {
                   bankName: bankName.trim(),
                   accountNumber: accountNumber.trim(),
@@ -227,30 +220,24 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         </div>
 
         <div className="mt-3">
-          <label className="mb-1.5 block text-xs text-text-secondary">결제수단 노출</label>
-          <div className="flex flex-wrap gap-2">
-            {PAYMENT_METHOD_OPTIONS.map((option) => {
-              const checked = allowedPaymentMethods.includes(option.value);
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => togglePaymentMethod(option.value)}
-                  className={`h-9 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-                    checked
-                      ? "border-primary-500 bg-primary-500/10 text-primary-500"
-                      : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+          <label className="mb-1.5 block text-xs text-text-secondary">결제 운영 방식</label>
+          <div className="rounded-xl border border-border bg-bg-secondary px-3 py-3 text-sm text-text-secondary">
+            <div className="font-semibold text-foreground">
+              {getBillingTierLabel(resolvedBillingTier)}
+            </div>
+            <div className="mt-1">
+              {isTransferEnabled
+                ? "이 브랜드는 무통장 입금만 사용할 수 있어요."
+                : "이 브랜드는 토스페이먼츠 결제만 사용할 수 있어요."}
+            </div>
+            <div className="mt-1 text-xs">
+              주문에는 {getAllowedPaymentMethodsForBillingTier(resolvedBillingTier).join(", ")} 방식만 적용됩니다.
+            </div>
           </div>
         </div>
 
         <div className="mt-3 grid gap-2">
-          <label className="mb-0 block text-xs text-text-secondary">기본 픽업 시간</label>
+          <label className="mb-0 block text-xs text-text-secondary">기본 영업 시간</label>
           <div className="grid gap-2 sm:grid-cols-2">
             <select
               className="input-field w-full"
@@ -278,37 +265,41 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
             </select>
           </div>
 
-          <label className="mb-0 block text-xs text-text-secondary">계좌이체 입금 정보</label>
-          <input
-            className="input-field w-full"
-            placeholder="은행명"
-            value={bankName}
-            onChange={(e) => setBankName(e.target.value)}
-          />
-          <input
-            className="input-field w-full"
-            placeholder="계좌번호"
-            value={accountNumber}
-            onChange={(e) => setAccountNumber(e.target.value)}
-          />
-          <input
-            className="input-field w-full"
-            placeholder="예금주"
-            value={accountHolder}
-            onChange={(e) => setAccountHolder(e.target.value)}
-          />
-          <input
-            className="input-field w-full"
-            placeholder="입금기록 시트명 (예: 시트1)"
-            value={depositSheetName}
-            onChange={(e) => setDepositSheetName(e.target.value)}
-          />
-          <input
-            className="input-field w-full"
-            placeholder="입금기록 링크 (Google Sheets URL)"
-            value={depositSheetUrl}
-            onChange={(e) => setDepositSheetUrl(e.target.value)}
-          />
+          {isTransferEnabled && (
+            <>
+              <label className="mb-0 block text-xs text-text-secondary">계좌이체 입금 정보</label>
+              <input
+                className="input-field w-full"
+                placeholder="은행명"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+              />
+              <input
+                className="input-field w-full"
+                placeholder="계좌번호"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+              />
+              <input
+                className="input-field w-full"
+                placeholder="예금주"
+                value={accountHolder}
+                onChange={(e) => setAccountHolder(e.target.value)}
+              />
+              <input
+                className="input-field w-full"
+                placeholder="입금기록 시트명 (예: 시트1)"
+                value={depositSheetName}
+                onChange={(e) => setDepositSheetName(e.target.value)}
+              />
+              <input
+                className="input-field w-full"
+                placeholder="입금기록 링크 (Google Sheets URL)"
+                value={depositSheetUrl}
+                onChange={(e) => setDepositSheetUrl(e.target.value)}
+              />
+            </>
+          )}
 
           <label className="mb-0 block text-xs text-text-secondary">고객 문의 정보</label>
           <input
@@ -326,9 +317,11 @@ export default function AddStoreModal({ open, brandId, onClose, onSubmit, adding
         </div>
 
         <div className="mt-2.5 text-xs leading-relaxed text-text-tertiary">
-          계좌이체를 노출할 경우 은행명, 계좌번호, 예금주를 입력해주세요.
+          {isTransferEnabled
+            ? "무통장 브랜드는 은행명, 계좌번호, 예금주를 입력해 주세요."
+            : "PG 브랜드는 결제 방식이 토스페이먼츠로 고정됩니다."}
           <br />
-          URL은 <b>영문/숫자/하이픈(-)</b>만 가능합니다.
+          URL은 <b>영문/숫자/하이픈(-)</b>만 사용할 수 있습니다.
         </div>
       </div>
     </Modal>

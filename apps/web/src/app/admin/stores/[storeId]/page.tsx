@@ -6,9 +6,15 @@ import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api-client";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
+import {
+  getBillingTierCheckoutDescription,
+  getBillingTierLabel,
+  isManualTransferTier,
+  resolveBillingTier,
+} from "@/lib/billing-tier";
 import { useSelectedBrand } from "@/hooks/useSelectedBrand";
 import { useSelectedBranch } from "@/hooks/useSelectedBranch";
-import { type FulfillmentType, type StorePaymentMethod } from "@/types/common";
+import { type FulfillmentType } from "@/types/common";
 
 type Branch = {
   id: string;
@@ -17,7 +23,7 @@ type Branch = {
   slug?: string | null;
   createdAt: string;
   enabledFulfillmentTypes?: FulfillmentType[];
-  allowedPaymentMethods?: StorePaymentMethod[];
+  allowedPaymentMethods?: string[];
   transferAccount?: {
     bankName?: string | null;
     accountNumber?: string | null;
@@ -50,7 +56,6 @@ type BranchMember = {
 };
 
 const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN", "SHIPPING"];
-const ALL_PAYMENT_METHODS: StorePaymentMethod[] = ["CARD", "TRANSFER"];
 
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
@@ -58,15 +63,6 @@ const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   DINE_IN: "매장",
   SHIPPING: "택배",
 };
-
-const PAYMENT_LABEL: Record<StorePaymentMethod, string> = {
-  CARD: "카드",
-  TRANSFER: "계좌이체",
-};
-
-function isValidSlug(value: string) {
-  return /^[a-z0-9-]+$/.test(value);
-}
 
 function normalizeSlug(value: string) {
   return value
@@ -78,15 +74,15 @@ function normalizeSlug(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-function formatDateTime(iso: string) {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString("ko-KR");
+function isValidSlug(value: string) {
+  return /^[a-z0-9-]+$/.test(value);
 }
 
 function buildOrderUrl(brandSlug: string | null, branchSlug: string | null | undefined, branchId: string) {
   if (brandSlug && branchSlug) {
     return `/order/${encodeURIComponent(brandSlug)}/${encodeURIComponent(branchSlug)}`;
   }
+
   return `/order/branch/${branchId}`;
 }
 
@@ -94,12 +90,18 @@ function toggleItem<T extends string>(items: T[], value: T): T[] {
   if (items.includes(value)) {
     return items.filter((item) => item !== value);
   }
+
   return [...items, value];
 }
 
 function timeToMinutes(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+function formatDateTime(value: string) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("ko-KR");
 }
 
 export default function StoreDetailPage() {
@@ -117,9 +119,6 @@ export default function StoreDetailPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [enabledFulfillmentTypes, setEnabledFulfillmentTypes] = useState<FulfillmentType[]>(["PICKUP"]);
-  const [allowedPaymentMethods, setAllowedPaymentMethods] = useState<
-    StorePaymentMethod[]
-  >(["CARD"]);
   const [transferBankName, setTransferBankName] = useState("");
   const [transferAccountNumber, setTransferAccountNumber] = useState("");
   const [transferAccountHolder, setTransferAccountHolder] = useState("");
@@ -140,19 +139,19 @@ export default function StoreDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [membersError, setMembersError] = useState<string | null>(null);
 
+  const effectiveBillingTier = useMemo(
+    () => resolveBillingTier(brandBillingTier, branch?.allowedPaymentMethods ?? null),
+    [brandBillingTier, branch?.allowedPaymentMethods],
+  );
+  const isTransferEnabled = isManualTransferTier(effectiveBillingTier);
+
   const isDirty = useMemo(() => {
     if (!branch) return false;
 
     const branchFulfillment = branch.enabledFulfillmentTypes ?? ["PICKUP"];
-    const branchPayments = branch.allowedPaymentMethods ?? ["CARD", "TRANSFER"];
-
     const sameFulfillment =
       enabledFulfillmentTypes.length === branchFulfillment.length &&
       enabledFulfillmentTypes.every((item) => branchFulfillment.includes(item));
-
-    const samePayments =
-      allowedPaymentMethods.length === branchPayments.length &&
-      allowedPaymentMethods.every((item) => branchPayments.includes(item));
     const sameTransferInfo =
       transferBankName.trim() === (branch.transferAccount?.bankName ?? "") &&
       transferAccountNumber.trim() === (branch.transferAccount?.accountNumber ?? "") &&
@@ -162,18 +161,14 @@ export default function StoreDetailPage() {
       pickupEndTime.trim() === (branch.pickupTimeConfig?.endTime ?? "");
     const sameOrderNotice = orderNotice.trim() === (branch.orderNotice ?? "");
     const sameContactPhone = contactPhone.trim() === (branch.contactPhone ?? "");
-    const sameKakaoChannelUrl =
-      kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
-    const sameDepositSheetName =
-      depositSheetName.trim() === (branch.depositSheetName ?? "");
-    const sameDepositSheetUrl =
-      depositSheetUrl.trim() === (branch.depositSheetUrl ?? "");
+    const sameKakaoChannelUrl = kakaoChannelUrl.trim() === (branch.kakaoChannelUrl ?? "");
+    const sameDepositSheetName = depositSheetName.trim() === (branch.depositSheetName ?? "");
+    const sameDepositSheetUrl = depositSheetUrl.trim() === (branch.depositSheetUrl ?? "");
 
     return (
       name.trim() !== branch.name ||
       slug.trim() !== (branch.slug ?? "") ||
       !sameFulfillment ||
-      !samePayments ||
       !sameTransferInfo ||
       !samePickupTimeConfig ||
       !sameOrderNotice ||
@@ -183,21 +178,20 @@ export default function StoreDetailPage() {
       !sameDepositSheetUrl
     );
   }, [
-    allowedPaymentMethods,
     branch,
+    contactPhone,
+    depositSheetName,
+    depositSheetUrl,
     enabledFulfillmentTypes,
+    kakaoChannelUrl,
     name,
+    orderNotice,
+    pickupEndTime,
+    pickupStartTime,
     slug,
     transferAccountHolder,
     transferAccountNumber,
     transferBankName,
-    pickupEndTime,
-    pickupStartTime,
-    orderNotice,
-    contactPhone,
-    kakaoChannelUrl,
-    depositSheetName,
-    depositSheetUrl,
   ]);
 
   useEffect(() => {
@@ -221,11 +215,6 @@ export default function StoreDetailPage() {
             ? data.enabledFulfillmentTypes
             : ["PICKUP"],
         );
-        setAllowedPaymentMethods(
-          data.allowedPaymentMethods && data.allowedPaymentMethods.length > 0
-            ? data.allowedPaymentMethods
-            : ["CARD", "TRANSFER"],
-        );
         setTransferBankName(data.transferAccount?.bankName ?? "");
         setTransferAccountNumber(data.transferAccount?.accountNumber ?? "");
         setTransferAccountHolder(data.transferAccount?.accountHolder ?? "");
@@ -245,13 +234,13 @@ export default function StoreDetailPage() {
       }
     };
 
-    loadBranch();
-  }, [storeId, brandId, ready, router, selectBranch]);
+    void loadBranch();
+  }, [brandId, ready, router, selectBranch, storeId]);
 
   useEffect(() => {
     if (!ready || !brandId) return;
 
-    const loadBrandSlug = async () => {
+    const loadBrands = async () => {
       try {
         const brands = await apiClient.get<Brand[]>("/admin/brands");
         const current = brands.find((item) => item.id === brandId);
@@ -263,7 +252,7 @@ export default function StoreDetailPage() {
       }
     };
 
-    loadBrandSlug();
+    void loadBrands();
   }, [brandId, ready]);
 
   useEffect(() => {
@@ -283,7 +272,7 @@ export default function StoreDetailPage() {
       }
     };
 
-    loadMembers();
+    void loadMembers();
   }, [branch?.id]);
 
   const handleReset = () => {
@@ -294,11 +283,6 @@ export default function StoreDetailPage() {
       branch.enabledFulfillmentTypes && branch.enabledFulfillmentTypes.length > 0
         ? branch.enabledFulfillmentTypes
         : ["PICKUP"],
-    );
-    setAllowedPaymentMethods(
-      branch.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
-        ? branch.allowedPaymentMethods
-        : ["CARD", "TRANSFER"],
     );
     setTransferBankName(branch.transferAccount?.bankName ?? "");
     setTransferAccountNumber(branch.transferAccount?.accountNumber ?? "");
@@ -316,38 +300,31 @@ export default function StoreDetailPage() {
     if (!branch) return;
 
     if (!name.trim()) {
-      toast.error("매장명을 입력하세요.");
+      toast.error("매장명을 입력해 주세요.");
       return;
     }
 
     const normalizedSlug = normalizeSlug(slug);
     if (!normalizedSlug) {
-      toast.error("주문 URL 값을 입력하세요.");
+      toast.error("주문 URL 값을 입력해 주세요.");
       return;
     }
 
     if (!isValidSlug(normalizedSlug)) {
-      toast.error("주문 URL은 영문/숫자/하이픈(-)만 사용할 수 있습니다.");
+      toast.error("주문 URL은 영문, 숫자, 하이픈(-)만 사용할 수 있습니다.");
       return;
     }
 
     if (enabledFulfillmentTypes.length === 0) {
-      toast.error("주문 방식을 최소 1개 이상 선택하세요.");
-      return;
-    }
-
-    if (allowedPaymentMethods.length === 0) {
-      toast.error("결제 수단을 최소 1개 이상 선택하세요.");
+      toast.error("주문 방식은 최소 1개 이상 선택해 주세요.");
       return;
     }
 
     if (
-      allowedPaymentMethods.includes("TRANSFER") &&
-      (!transferBankName.trim() ||
-        !transferAccountNumber.trim() ||
-        !transferAccountHolder.trim())
+      isTransferEnabled &&
+      (!transferBankName.trim() || !transferAccountNumber.trim() || !transferAccountHolder.trim())
     ) {
-      toast.error("계좌이체를 사용하려면 은행명, 계좌번호, 예금주를 모두 입력해 주세요.");
+      toast.error("무통장 입금을 사용하려면 은행명, 계좌번호, 예금주를 모두 입력해 주세요.");
       return;
     }
 
@@ -355,7 +332,7 @@ export default function StoreDetailPage() {
       (pickupStartTime.trim() && !pickupEndTime.trim()) ||
       (!pickupStartTime.trim() && pickupEndTime.trim())
     ) {
-      toast.error("픽업 가능 시간의 시작/종료 시간을 모두 입력해 주세요.");
+      toast.error("영업 가능 시간은 시작/종료 시간을 모두 입력해 주세요.");
       return;
     }
 
@@ -364,7 +341,7 @@ export default function StoreDetailPage() {
       pickupEndTime.trim() &&
       timeToMinutes(pickupEndTime) <= timeToMinutes(pickupStartTime)
     ) {
-      toast.error("픽업 종료 시간은 시작 시간보다 늦어야 합니다.");
+      toast.error("영업 종료 시간은 시작 시간보다 늦어야 합니다.");
       return;
     }
 
@@ -374,14 +351,19 @@ export default function StoreDetailPage() {
         name: name.trim(),
         slug: normalizedSlug,
         enabledFulfillmentTypes,
-        allowedPaymentMethods,
-        transferAccount: {
-          bankName: transferBankName.trim(),
-          accountNumber: transferAccountNumber.trim(),
-          accountHolder: transferAccountHolder.trim(),
-        },
-        depositSheetName: depositSheetName.trim() || null,
-        depositSheetUrl: depositSheetUrl.trim() || null,
+        transferAccount: isTransferEnabled
+          ? {
+              bankName: transferBankName.trim(),
+              accountNumber: transferAccountNumber.trim(),
+              accountHolder: transferAccountHolder.trim(),
+            }
+          : {
+              bankName: null,
+              accountNumber: null,
+              accountHolder: null,
+            },
+        depositSheetName: isTransferEnabled ? depositSheetName.trim() || null : null,
+        depositSheetUrl: isTransferEnabled ? depositSheetUrl.trim() || null : null,
         orderNotice: orderNotice.trim() || null,
         contactPhone: contactPhone.trim() || null,
         kakaoChannelUrl: kakaoChannelUrl.trim() || null,
@@ -402,11 +384,6 @@ export default function StoreDetailPage() {
           ? updated.enabledFulfillmentTypes
           : ["PICKUP"],
       );
-      setAllowedPaymentMethods(
-        updated.allowedPaymentMethods && updated.allowedPaymentMethods.length > 0
-          ? updated.allowedPaymentMethods
-          : ["CARD", "TRANSFER"],
-      );
       setTransferBankName(updated.transferAccount?.bankName ?? "");
       setTransferAccountNumber(updated.transferAccount?.accountNumber ?? "");
       setTransferAccountHolder(updated.transferAccount?.accountHolder ?? "");
@@ -417,11 +394,10 @@ export default function StoreDetailPage() {
       setOrderNotice(updated.orderNotice ?? "");
       setContactPhone(updated.contactPhone ?? "");
       setKakaoChannelUrl(updated.kakaoChannelUrl ?? "");
-
-      toast.success("매장을 수정했습니다.");
+      toast.success("매장 설정을 저장했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 수정에 실패했습니다.");
+      toast.error(err?.message ?? "매장 설정 저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -430,7 +406,7 @@ export default function StoreDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 매장을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`);
+    const confirmed = confirm(`"${branch.name}" 매장을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`);
     if (!confirmed) return;
 
     try {
@@ -445,8 +421,9 @@ export default function StoreDetailPage() {
     }
   };
 
-  if (!ready) return null;
-  if (!brandId) return null;
+  if (!ready || !brandId) {
+    return null;
+  }
 
   return (
     <div>
@@ -458,17 +435,15 @@ export default function StoreDetailPage() {
         <p className="text-text-secondary mt-1 text-[13px]">
           {branch ? buildOrderUrl(brandSlug, branch.slug, branch.id) : "-"}
         </p>
-        {brandBillingTier ? (
-          <p className="mt-1 text-[13px] font-semibold text-text-secondary">
-            결제 운영 방식: {brandBillingTier === "NON_PG" ? "무통장 전용" : "PG 이용"}
-          </p>
-        ) : null}
+        <p className="mt-1 text-[13px] font-semibold text-text-secondary">
+          결제 운영 방식: {getBillingTierLabel(effectiveBillingTier)}
+        </p>
       </div>
 
       {loading && <p className="text-text-tertiary">불러오는 중...</p>}
       {error && <p className="text-danger-500">{error}</p>}
 
-      {!loading && branch && (
+      {!loading && branch ? (
         <div className="grid gap-3">
           <div className="card p-4">
             <div className="text-xs text-text-secondary">매장 기본 정보</div>
@@ -479,7 +454,7 @@ export default function StoreDetailPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input-field w-full"
-                  placeholder="매장명을 입력하세요"
+                  placeholder="매장명을 입력해 주세요."
                 />
               </div>
 
@@ -491,7 +466,7 @@ export default function StoreDetailPage() {
                   className="input-field w-full"
                   placeholder="예: gangnam-main"
                 />
-                <div className="text-xs text-text-tertiary mt-1.5">영문/숫자/하이픈(-)만 가능합니다.</div>
+                <div className="text-xs text-text-tertiary mt-1.5">영문, 숫자, 하이픈(-)만 사용할 수 있습니다.</div>
               </div>
 
               <div>
@@ -514,15 +489,19 @@ export default function StoreDetailPage() {
                 onChange={(e) => setDepositSheetName(e.target.value)}
                 className="input-field w-full"
                 placeholder="입금기록 시트명 (예: 시트1)"
+                disabled={!isTransferEnabled}
               />
               <input
                 value={depositSheetUrl}
                 onChange={(e) => setDepositSheetUrl(e.target.value)}
                 className="input-field w-full"
                 placeholder="https://docs.google.com/spreadsheets/d/..."
+                disabled={!isTransferEnabled}
               />
               <div className="text-xs text-text-tertiary">
-                이 매장의 자동 입금매칭에 사용할 구글시트 탭 이름입니다.
+                {isTransferEnabled
+                  ? "무통장 입금 주문의 자동 매칭에 사용하는 구글 시트 정보입니다."
+                  : "PG 이용 브랜드는 무통장 입금 시트 설정을 사용하지 않습니다."}
               </div>
             </div>
           </div>
@@ -553,29 +532,18 @@ export default function StoreDetailPage() {
             </div>
 
             <div className="mt-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출할 결제 수단</div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {ALL_PAYMENT_METHODS.map((method) => {
-                  const checked = allowedPaymentMethods.includes(method);
-                  return (
-                    <label
-                      key={method}
-                      className="flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-bg-secondary cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => setAllowedPaymentMethods((prev) => toggleItem(prev, method))}
-                      />
-                      <span className="text-sm text-foreground">{PAYMENT_LABEL[method]}</span>
-                    </label>
-                  );
-                })}
+              <div className="text-[13px] font-semibold text-foreground mb-2">고객에게 노출될 결제 운영 방식</div>
+              <div className="rounded-xl border border-border bg-bg-secondary px-3 py-3 text-sm text-text-secondary">
+                <div className="font-semibold text-foreground">{getBillingTierLabel(effectiveBillingTier)}</div>
+                <div className="mt-1">{getBillingTierCheckoutDescription(effectiveBillingTier)}</div>
+                <div className="mt-2 text-xs">
+                  결제 방식은 브랜드 정책에 따라 자동으로 결정되며, 매장 화면에서는 직접 변경하지 않습니다.
+                </div>
               </div>
             </div>
 
             <div className="mt-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">픽업 가능 시간</div>
+              <div className="text-[13px] font-semibold text-foreground mb-2">영업 가능 시간</div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select
                   value={pickupStartTime}
@@ -603,7 +571,7 @@ export default function StoreDetailPage() {
                 </select>
               </div>
               <div className="mt-1.5 text-xs text-text-tertiary">
-                30분 단위로 고객이 선택할 수 있는 픽업 시간을 설정합니다.
+                30분 단위로 고객이 선택할 수 있는 영업 시간을 설정합니다.
               </div>
             </div>
 
@@ -613,10 +581,10 @@ export default function StoreDetailPage() {
                 value={orderNotice}
                 onChange={(e) => setOrderNotice(e.target.value)}
                 className="input-field w-full min-h-[96px] resize-y py-3"
-                placeholder="예: 포장은 20분 전 미리 주문해 주세요."
+                placeholder="예: 포장은 20분 전에 미리 주문해 주세요."
               />
               <div className="mt-1.5 text-xs text-text-tertiary">
-                주문 메뉴 상단에 고객에게 노출되는 안내 문구입니다.
+                주문 메뉴 상단에 고객에게 보여줄 안내 문구입니다.
               </div>
             </div>
 
@@ -641,30 +609,34 @@ export default function StoreDetailPage() {
               </div>
             </div>
 
-            <div className="mt-4">
-              <div className="text-[13px] font-semibold text-foreground mb-2">계좌이체 입금 정보</div>
-              <div className="grid gap-2">
-                <input
-                  value={transferBankName}
-                  onChange={(e) => setTransferBankName(e.target.value)}
-                  className="input-field w-full"
-                  placeholder="은행명"
-                />
-                <input
-                  value={transferAccountNumber}
-                  onChange={(e) => setTransferAccountNumber(e.target.value)}
-                  className="input-field w-full"
-                  placeholder="계좌번호"
-                />
-                <input
-                  value={transferAccountHolder}
-                  onChange={(e) => setTransferAccountHolder(e.target.value)}
-                  className="input-field w-full"
-                  placeholder="예금주"
-                />
+            {isTransferEnabled ? (
+              <div className="mt-4">
+                <div className="text-[13px] font-semibold text-foreground mb-2">무통장 입금 정보</div>
+                <div className="grid gap-2">
+                  <input
+                    value={transferBankName}
+                    onChange={(e) => setTransferBankName(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="은행명"
+                  />
+                  <input
+                    value={transferAccountNumber}
+                    onChange={(e) => setTransferAccountNumber(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="계좌번호"
+                  />
+                  <input
+                    value={transferAccountHolder}
+                    onChange={(e) => setTransferAccountHolder(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="예금주"
+                  />
+                </div>
+                <div className="mt-1.5 text-xs text-text-tertiary">
+                  무통장 입금 주문 화면에 노출되는 정보입니다.
+                </div>
               </div>
-              <div className="mt-1.5 text-xs text-text-tertiary">계좌이체 결제 화면에 노출되는 정보입니다.</div>
-            </div>
+            ) : null}
           </div>
 
           <div className="card p-4">
@@ -697,10 +669,10 @@ export default function StoreDetailPage() {
             <div className="text-xs text-text-secondary">매장 멤버</div>
             {membersLoading && <p className="text-text-tertiary mt-2">불러오는 중...</p>}
             {membersError && <p className="text-danger-500 mt-2">{membersError}</p>}
-            {!membersLoading && !membersError && members.length === 0 && (
+            {!membersLoading && !membersError && members.length === 0 ? (
               <p className="text-text-tertiary mt-2">등록된 멤버가 없습니다.</p>
-            )}
-            {!membersLoading && members.length > 0 && (
+            ) : null}
+            {!membersLoading && members.length > 0 ? (
               <div className="mt-2 grid gap-1.5">
                 {members.map((member) => (
                   <div
@@ -719,10 +691,10 @@ export default function StoreDetailPage() {
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -17,6 +17,10 @@ import {
   formatWon,
   isValidOrderPhone,
 } from '@/lib/format';
+import {
+  getAllowedPaymentMethodsForBillingTier,
+  resolveBillingTier,
+} from '@/lib/billing-tier';
 import { KakaoQuickLoginButton } from '@/components/auth/KakaoQuickLoginButton';
 import { useAuth } from '@/hooks/useAuth';
 import { getVerifiedUser } from '@/lib/auth/client';
@@ -151,15 +155,6 @@ function normalizeBillingTier(value: unknown): BillingTier | null {
   return value === 'PG' || value === 'NON_PG' ? value : null;
 }
 
-function getBillingTierPaymentMethods(
-  billingTier: BillingTier | null,
-  fallback: PaymentMethod[],
-): PaymentMethod[] {
-  if (billingTier === 'PG') return ['CARD'];
-  if (billingTier === 'NON_PG') return ['TRANSFER'];
-  return fallback;
-}
-
 function getFulfillmentLabel(type: FulfillmentType) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
@@ -178,12 +173,6 @@ function getPaymentLabel(method: PaymentMethod) {
   if (method === 'CARD') return '카드';
   if (method === 'TRANSFER') return '계좌이체';
   return '현금';
-}
-
-function getPaymentIcon(method: PaymentMethod) {
-  if (method === 'CARD') return '💳';
-  if (method === 'TRANSFER') return '🏦';
-  return '💵';
 }
 
 function normalizePhoneNumber(value: string) {
@@ -318,7 +307,11 @@ export default function CheckoutPage() {
     () => isValidOrderPhone(customerPhone),
     [customerPhone],
   );
-  const isPgCheckout = billingTier === 'PG';
+  const effectiveBillingTier = useMemo(
+    () => resolveBillingTier(billingTier, allowedPaymentMethods),
+    [allowedPaymentMethods, billingTier],
+  );
+  const isPgCheckout = effectiveBillingTier === 'PG';
   const supportsReceiptRequest = paymentMethod === 'TRANSFER';
   const canRequestReceipt = cashReceiptEnabled && supportsReceiptRequest;
   const completePagePath = `/order/${brandSlug}/${branchSlug}/complete`;
@@ -572,7 +565,10 @@ export default function CheckoutPage() {
         )
           ? latestConfig.allowedPaymentMethods.filter(isPaymentMethod)
           : [];
-        latestBillingTier = normalizeBillingTier(latestConfig?.billingTier);
+        latestBillingTier = resolveBillingTier(
+          normalizeBillingTier(latestConfig?.billingTier),
+          latestPaymentMethods,
+        );
 
         if (latestFulfillmentTypes.length > 0) {
           normalizedFulfillmentTypes = latestFulfillmentTypes;
@@ -580,9 +576,8 @@ export default function CheckoutPage() {
         if (latestPaymentMethods.length > 0) {
           normalizedPaymentMethods = latestPaymentMethods;
         }
-        normalizedPaymentMethods = getBillingTierPaymentMethods(
+        normalizedPaymentMethods = getAllowedPaymentMethodsForBillingTier(
           latestBillingTier,
-          normalizedPaymentMethods,
         );
         setBillingTier(latestBillingTier);
         setCashReceiptEnabled(latestConfig?.cashReceiptEnabled === true);
@@ -612,9 +607,12 @@ export default function CheckoutPage() {
       const selectedPayment = isPaymentMethod(recovered.selectedPaymentMethod)
         ? recovered.selectedPaymentMethod
         : normalizedPaymentMethods[0];
-      const effectivePaymentMethods = getBillingTierPaymentMethods(
+      const resolvedBillingTier = resolveBillingTier(
         latestBillingTier,
         normalizedPaymentMethods,
+      );
+      const effectivePaymentMethods = getAllowedPaymentMethodsForBillingTier(
+        resolvedBillingTier,
       );
 
       if (cancelled) return;
@@ -623,6 +621,7 @@ export default function CheckoutPage() {
       setCart(recovered.cart as CartItem[]);
       setEnabledFulfillmentTypes(normalizedFulfillmentTypes);
       setAllowedPaymentMethods(effectivePaymentMethods);
+      setBillingTier(resolvedBillingTier);
       setFulfillmentType(
         normalizedFulfillmentTypes.includes(selectedFulfillment)
           ? selectedFulfillment
@@ -1195,41 +1194,21 @@ export default function CheckoutPage() {
           {/* ── 결제 수단 ── */}
           <section className="py-4 border-b border-border">
             <h2 className="text-xs font-bold mb-3 text-text-tertiary uppercase tracking-wide">
-              결제 수단
+              결제 방식
             </h2>
-            {billingTier ? (
-              <div className="rounded-xl border border-border bg-bg-secondary p-4 text-sm text-text-secondary lg:max-w-[420px]">
-                <p className="font-semibold text-foreground">
-                  {isPgCheckout
-                    ? '이 브랜드는 토스페이먼츠 결제만 사용할 수 있어요.'
-                    : '이 브랜드는 계좌이체로만 주문을 받을 수 있어요.'}
-                </p>
-                <p className="mt-1">
-                  현재 결제 방식: {getPaymentLabel(paymentMethod)}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 lg:max-w-[420px]">
-                {allowedPaymentMethods.map((method) => {
-                  const isSelected = paymentMethod === method;
-                  return (
-                    <button
-                      key={method}
-                      data-testid={`payment-${method.toLowerCase()}`}
-                      onClick={() => setPaymentMethod(method)}
-                      className={`min-h-[76px] rounded-xl border p-3 text-sm font-semibold cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
-                        isSelected
-                          ? 'bg-foreground text-background border-foreground'
-                          : 'bg-transparent border-border text-text-secondary hover:bg-bg-tertiary'
-                      }`}
-                    >
-                      <span className="text-lg">{getPaymentIcon(method)}</span>
-                      <span>{getPaymentLabel(method)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <div className="rounded-xl border border-border bg-bg-secondary p-4 text-sm text-text-secondary lg:max-w-[420px]">
+              <p className="font-semibold text-foreground">
+                {isPgCheckout
+                  ? '이 브랜드는 토스페이먼츠 결제로만 주문할 수 있어요.'
+                  : '이 브랜드는 계좌이체로만 주문할 수 있어요.'}
+              </p>
+              <p className="mt-1">
+                현재 결제 방식: {getPaymentLabel(paymentMethod)}
+              </p>
+              <p className="mt-2 text-xs text-text-tertiary">
+                결제 방식은 브랜드 정책에 따라 자동으로 정해지며 이 화면에서 직접 바꿀 수 없습니다.
+              </p>
+            </div>
 
             {paymentMethod === 'CARD' && (
               <TossPaymentWidget

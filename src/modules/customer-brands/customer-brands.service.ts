@@ -461,7 +461,6 @@ export class CustomerBrandsService {
       bizCertUrl,
       logo_url,
       cover_image_url,
-      shop_payment_methods,
       cash_receipt_enabled,
       cash_receipt_provider,
       cash_receipt_merchant_id,
@@ -483,10 +482,6 @@ export class CustomerBrandsService {
     if (logo_url !== undefined) updateFields.logo_url = logo_url;
     if (cover_image_url !== undefined)
       updateFields.cover_image_url = cover_image_url;
-    if (shop_payment_methods !== undefined) {
-      updateFields.shop_payment_methods =
-        this.normalizeShopPaymentMethods(shop_payment_methods);
-    }
     if (cash_receipt_enabled !== undefined) {
       updateFields.cash_receipt_enabled = cash_receipt_enabled;
     }

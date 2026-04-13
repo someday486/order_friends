@@ -864,7 +864,7 @@ export default function ShopBrandPageClient({
                     로그인하면 최근 주문 정보와 고객 정보가 자동으로 채워져 더 빠르게 주문할 수 있어요.
                   </p>
                   <div className="mt-4">
-                    <PublicAuthActions hideWhenLoggedOut className="w-full sm:max-w-sm" />
+                    <PublicAuthActions className="w-full sm:max-w-sm" />
                   </div>
                 </div>
               </div>
@@ -1171,30 +1171,20 @@ export default function ShopBrandPageClient({
                   </p>
                   <h3 className="mt-2 text-base font-bold text-foreground">결제 방식</h3>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {data.paymentMethods.map((method) => (
-                    <label
-                      key={method}
-                      className={`flex min-h-[56px] items-center justify-between rounded-2xl border px-4 py-3 text-sm cursor-pointer transition-colors ${
-                        paymentMethod === method
-                          ? 'border-primary-500 bg-primary-500/10 text-primary-500 font-semibold shadow-[0_8px_24px_rgba(251,113,133,0.12)]'
-                          : 'border-black/8 bg-[#faf8f4]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment-method"
-                        value={method}
-                        checked={paymentMethod === method}
-                        onChange={() => setPaymentMethod(method)}
-                        className="sr-only"
-                      />
-                      <span>{PAYMENT_LABEL[method] ?? method}</span>
-                      {paymentMethod === method ? (
-                        <span className="text-xs font-medium">선택됨</span>
-                      ) : null}
-                    </label>
-                  ))}
+                <div className="rounded-[28px] border border-black/8 bg-[#faf8f4] px-4 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {PAYMENT_LABEL[paymentMethod] ?? paymentMethod}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-text-secondary">
+                        온라인샵 결제 방식은 브랜드 결제 정책에 따라 자동으로 정해집니다.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-text-secondary shadow-sm">
+                      자동 선택
+                    </span>
+                  </div>
                 </div>
                 {paymentMethod === 'CARD' ? (
                   <div className="rounded-[28px] border border-black/8 bg-[#faf8f4] p-4">

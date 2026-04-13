@@ -246,13 +246,13 @@ export default function StoresPage() {
           key={showAddForm ? "store-modal-open" : "store-modal-closed"}
           open={showAddForm}
           brandId={brandId}
+          billingTier={selectedBrand?.billingTier ?? "PG"}
           adding={adding}
           onClose={() => setShowAddForm(false)}
           onSubmit={async ({
             name,
             slug,
             enabledFulfillmentTypes,
-            allowedPaymentMethods,
             transferAccount,
             pickupTimeConfig,
             depositSheetName,
@@ -262,7 +262,6 @@ export default function StoresPage() {
           }) => {
             if (!name.trim() || !slug.trim()) return;
             if (enabledFulfillmentTypes.length === 0) return;
-            if (allowedPaymentMethods.length === 0) return;
 
             try {
               setAdding(true);
@@ -272,7 +271,6 @@ export default function StoresPage() {
                 name,
                 slug,
                 enabledFulfillmentTypes,
-                allowedPaymentMethods,
                 transferAccount,
                 pickupTimeConfig,
                 depositSheetName: depositSheetName || null,

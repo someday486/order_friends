@@ -5,6 +5,10 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { formatPhone, formatWon } from '@/lib/format';
+import {
+  getAllowedPaymentMethodsForBillingTier,
+  resolveBillingTier,
+} from '@/lib/billing-tier';
 import { saveCheckoutDraft, loadLastOrderRecord } from '@/lib/order-session';
 import { PublicAuthActions } from '@/components/auth/PublicAuthActions';
 import {
@@ -21,6 +25,7 @@ type Branch = {
   id: string;
   name: string;
   brandName?: string;
+  billingTier?: 'PG' | 'NON_PG' | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   contactPhone?: string | null;
@@ -326,10 +331,12 @@ export default function OrderPageClient({
     branch.enabledFulfillmentTypes && branch.enabledFulfillmentTypes.length > 0
       ? branch.enabledFulfillmentTypes
       : ['PICKUP'];
+  const effectiveBillingTier = resolveBillingTier(
+    branch.billingTier,
+    branch.allowedPaymentMethods,
+  );
   const allowedPaymentMethods =
-    branch.allowedPaymentMethods && branch.allowedPaymentMethods.length > 0
-      ? branch.allowedPaymentMethods
-      : ['CARD', 'TRANSFER'];
+    getAllowedPaymentMethodsForBillingTier(effectiveBillingTier);
 
   const goToCheckout = () => {
     if (cart.length === 0) {
@@ -345,7 +352,9 @@ export default function OrderPageClient({
       enabledFulfillmentTypes,
       allowedPaymentMethods,
       selectedFulfillmentType: enabledFulfillmentTypes[0] ?? 'PICKUP',
-      selectedPaymentMethod: allowedPaymentMethods[0] ?? 'CARD',
+      selectedPaymentMethod:
+        getAllowedPaymentMethodsForBillingTier(effectiveBillingTier)[0] ??
+        'CARD',
     });
     router.push(`/order/${brandSlug}/${branchSlug}/checkout`);
   };

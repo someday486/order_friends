@@ -13,6 +13,7 @@ import {
   getBranchOrderConfig,
   saveBranchOrderConfig,
 } from './branch-order-config.util';
+import { loadBrandBillingConfig } from './branch-billing.util';
 
 @Injectable()
 export class BranchesService {
@@ -108,6 +109,7 @@ export class BranchesService {
     }
 
     const orderConfig = await getBranchOrderConfig(adminSb, data.id);
+    const billingConfig = await loadBrandBillingConfig(adminSb, data.brand_id);
 
     return {
       id: data.id,
@@ -119,7 +121,7 @@ export class BranchesService {
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
@@ -140,6 +142,7 @@ export class BranchesService {
     dto: CreateBranchRequest,
     isAdmin?: boolean,
   ): Promise<BranchDetailResponse> {
+    const adminSb = this.supabase.adminClient();
     const insertPayload: any = {
       brand_id: dto.brandId,
       name: dto.name,
@@ -164,7 +167,7 @@ export class BranchesService {
       insertPayload.kakao_channel_url = dto.kakaoChannelUrl;
 
     if (isAdmin) {
-      const sb = this.supabase.adminClient();
+      const sb = adminSb;
       const { data, error } = await sb
         .from('branches')
         .insert(insertPayload)
@@ -180,18 +183,19 @@ export class BranchesService {
         throw new Error(`[branches.createBranch] ${error.message}`);
       }
 
-      await saveBranchOrderConfig(this.supabase.adminClient(), data.id, {
+      const billingConfig = await loadBrandBillingConfig(
+        adminSb,
+        data.brand_id,
+      );
+      await saveBranchOrderConfig(adminSb, data.id, {
         enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-        allowedPaymentMethods: dto.allowedPaymentMethods,
+        allowedPaymentMethods: billingConfig.allowedPaymentMethods,
         transferAccount: dto.transferAccount,
         pickupTimeConfig: dto.pickupTimeConfig,
         businessHours: dto.businessHours,
         orderNotice: dto.orderNotice,
       });
-      const orderConfig = await getBranchOrderConfig(
-        this.supabase.adminClient(),
-        data.id,
-      );
+      const orderConfig = await getBranchOrderConfig(adminSb, data.id);
 
       return {
         id: data.id,
@@ -203,7 +207,7 @@ export class BranchesService {
         coverImageUrl: data.cover_image_url ?? null,
         thumbnailUrl: data.thumbnail_url ?? null,
         enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-        allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+        allowedPaymentMethods: billingConfig.allowedPaymentMethods,
         transferAccount: orderConfig.transferAccount,
         pickupTimeConfig: orderConfig.pickupTimeConfig,
         businessHours: orderConfig.businessHours,
@@ -255,18 +259,16 @@ export class BranchesService {
       throw new Error(`[branches.createBranch] ${error.message}`);
     }
 
-    await saveBranchOrderConfig(this.supabase.adminClient(), data.id, {
+    const billingConfig = await loadBrandBillingConfig(adminSb, data.brand_id);
+    await saveBranchOrderConfig(adminSb, data.id, {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-      allowedPaymentMethods: dto.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
       pickupTimeConfig: dto.pickupTimeConfig,
       businessHours: dto.businessHours,
       orderNotice: dto.orderNotice,
     });
-    const orderConfig = await getBranchOrderConfig(
-      this.supabase.adminClient(),
-      data.id,
-    );
+    const orderConfig = await getBranchOrderConfig(adminSb, data.id);
 
     return {
       id: data.id,
@@ -278,7 +280,7 @@ export class BranchesService {
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
@@ -328,23 +330,44 @@ export class BranchesService {
       updateData.kakao_channel_url = dto.kakaoChannelUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
-      dto.allowedPaymentMethods !== undefined ||
       dto.transferAccount !== undefined ||
       dto.pickupTimeConfig !== undefined ||
       dto.businessHours !== undefined ||
       dto.orderNotice !== undefined;
 
     if (Object.keys(updateData).length === 0) {
-      if (hasOrderConfigUpdate) {
-        await saveBranchOrderConfig(adminSb, branchId, {
-          enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-          allowedPaymentMethods: dto.allowedPaymentMethods,
-          transferAccount: dto.transferAccount,
-          pickupTimeConfig: dto.pickupTimeConfig,
-          businessHours: dto.businessHours,
-          orderNotice: dto.orderNotice,
-        });
+      if (!hasOrderConfigUpdate) {
+        return this.getBranch(accessToken, branchId, isAdmin);
       }
+
+      const { data: existingBranch, error: existingBranchError } = await adminSb
+        .from('branches')
+        .select('id, brand_id')
+        .eq('id', branchId)
+        .maybeSingle();
+
+      if (existingBranchError) {
+        throw new Error(
+          `[branches.updateBranch] ${existingBranchError.message}`,
+        );
+      }
+
+      if (!existingBranch) {
+        throw new NotFoundException('가게를 찾을 수 없거나 권한이 없습니다.');
+      }
+
+      const billingConfig = await loadBrandBillingConfig(
+        adminSb,
+        existingBranch.brand_id,
+      );
+      await saveBranchOrderConfig(adminSb, branchId, {
+        enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+        allowedPaymentMethods: billingConfig.allowedPaymentMethods,
+        transferAccount: dto.transferAccount,
+        pickupTimeConfig: dto.pickupTimeConfig,
+        businessHours: dto.businessHours,
+        orderNotice: dto.orderNotice,
+      });
       return this.getBranch(accessToken, branchId, isAdmin);
     }
 
@@ -368,14 +391,18 @@ export class BranchesService {
       throw new NotFoundException('가게를 찾을 수 없거나 권한이 없습니다.');
     }
 
-    await saveBranchOrderConfig(adminSb, branchId, {
-      enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-      allowedPaymentMethods: dto.allowedPaymentMethods,
-      transferAccount: dto.transferAccount,
-      pickupTimeConfig: dto.pickupTimeConfig,
-      businessHours: dto.businessHours,
-      orderNotice: dto.orderNotice,
-    });
+    const billingConfig = await loadBrandBillingConfig(adminSb, data.brand_id);
+
+    if (hasOrderConfigUpdate) {
+      await saveBranchOrderConfig(adminSb, branchId, {
+        enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+        allowedPaymentMethods: billingConfig.allowedPaymentMethods,
+        transferAccount: dto.transferAccount,
+        pickupTimeConfig: dto.pickupTimeConfig,
+        businessHours: dto.businessHours,
+        orderNotice: dto.orderNotice,
+      });
+    }
     const orderConfig = await getBranchOrderConfig(adminSb, branchId);
 
     return {
@@ -388,7 +415,7 @@ export class BranchesService {
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,

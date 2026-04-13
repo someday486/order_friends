@@ -3399,8 +3399,6 @@ export interface components {
       biz_cert_url?: Record<string, never>;
       /** @description Business certificate URL (camelCase) */
       bizCertUrl?: Record<string, never>;
-      /** @description Online shop payment methods */
-      shop_payment_methods?: ('CARD' | 'TRANSFER')[];
       /** @description Enable cash receipt automation */
       cash_receipt_enabled?: boolean;
       /** @description Cash receipt provider */
@@ -3440,8 +3438,6 @@ export interface components {
       biz_cert_url?: Record<string, never>;
       /** @description Business certificate URL (camelCase) */
       bizCertUrl?: Record<string, never>;
-      /** @description Online shop payment methods */
-      shop_payment_methods?: ('CARD' | 'TRANSFER')[];
       /** @description Enable cash receipt automation */
       cash_receipt_enabled?: boolean;
       /** @description Cash receipt provider */

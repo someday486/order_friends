@@ -17,6 +17,7 @@ import {
   getBranchOrderConfig,
   saveBranchOrderConfig,
 } from '../../modules/branches/branch-order-config.util';
+import { loadBrandBillingConfig } from '../../modules/branches/branch-billing.util';
 
 @Injectable()
 export class CustomerBranchesService {
@@ -280,6 +281,7 @@ export class CustomerBranchesService {
         branchMemberships,
       );
     const orderConfig = await getBranchOrderConfig(sb, branch.id);
+    const billingConfig = await loadBrandBillingConfig(sb, branch.brand_id);
 
     return {
       id: branch.id,
@@ -291,7 +293,7 @@ export class CustomerBranchesService {
       coverImageUrl: branch.cover_image_url ?? null,
       thumbnailUrl: branch.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
@@ -367,9 +369,10 @@ export class CustomerBranchesService {
 
     this.logger.log(`Branch ${data.id} created successfully`);
 
+    const billingConfig = await loadBrandBillingConfig(sb, data.brand_id);
     await saveBranchOrderConfig(sb, data.id, {
       enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-      allowedPaymentMethods: dto.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: dto.transferAccount,
       pickupTimeConfig: dto.pickupTimeConfig,
       businessHours: dto.businessHours,
@@ -387,7 +390,7 @@ export class CustomerBranchesService {
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,
@@ -414,12 +417,13 @@ export class CustomerBranchesService {
     this.logger.log(`Updating branch ${branchId} by user ${userId}`);
 
     // 접근 권한 확인
-    const { branchMembership, brandMembership } = await this.checkBranchAccess(
-      branchId,
-      userId,
-      brandMemberships,
-      branchMemberships,
-    );
+    const { branchMembership, brandMembership, branch } =
+      await this.checkBranchAccess(
+        branchId,
+        userId,
+        brandMemberships,
+        branchMemberships,
+      );
 
     const role = branchMembership?.role || brandMembership?.role;
     if (!role) {
@@ -451,7 +455,6 @@ export class CustomerBranchesService {
       updateFields.kakao_channel_url = dto.kakaoChannelUrl;
     const hasOrderConfigUpdate =
       dto.enabledFulfillmentTypes !== undefined ||
-      dto.allowedPaymentMethods !== undefined ||
       dto.transferAccount !== undefined ||
       dto.pickupTimeConfig !== undefined ||
       dto.businessHours !== undefined ||
@@ -459,9 +462,10 @@ export class CustomerBranchesService {
 
     if (Object.keys(updateFields).length === 0) {
       if (hasOrderConfigUpdate) {
+        const billingConfig = await loadBrandBillingConfig(sb, branch.brand_id);
         await saveBranchOrderConfig(sb, branchId, {
           enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-          allowedPaymentMethods: dto.allowedPaymentMethods,
+          allowedPaymentMethods: billingConfig.allowedPaymentMethods,
           transferAccount: dto.transferAccount,
           pickupTimeConfig: dto.pickupTimeConfig,
           businessHours: dto.businessHours,
@@ -497,14 +501,17 @@ export class CustomerBranchesService {
 
     this.logger.log(`Branch ${branchId} updated successfully`);
 
-    await saveBranchOrderConfig(sb, branchId, {
-      enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
-      allowedPaymentMethods: dto.allowedPaymentMethods,
-      transferAccount: dto.transferAccount,
-      pickupTimeConfig: dto.pickupTimeConfig,
-      businessHours: dto.businessHours,
-      orderNotice: dto.orderNotice,
-    });
+    const billingConfig = await loadBrandBillingConfig(sb, data.brand_id);
+    if (hasOrderConfigUpdate) {
+      await saveBranchOrderConfig(sb, branchId, {
+        enabledFulfillmentTypes: dto.enabledFulfillmentTypes,
+        allowedPaymentMethods: billingConfig.allowedPaymentMethods,
+        transferAccount: dto.transferAccount,
+        pickupTimeConfig: dto.pickupTimeConfig,
+        businessHours: dto.businessHours,
+        orderNotice: dto.orderNotice,
+      });
+    }
     const orderConfig = await getBranchOrderConfig(sb, branchId);
 
     return {
@@ -517,7 +524,7 @@ export class CustomerBranchesService {
       coverImageUrl: data.cover_image_url ?? null,
       thumbnailUrl: data.thumbnail_url ?? null,
       enabledFulfillmentTypes: orderConfig.enabledFulfillmentTypes,
-      allowedPaymentMethods: orderConfig.allowedPaymentMethods,
+      allowedPaymentMethods: billingConfig.allowedPaymentMethods,
       transferAccount: orderConfig.transferAccount,
       pickupTimeConfig: orderConfig.pickupTimeConfig,
       businessHours: orderConfig.businessHours,

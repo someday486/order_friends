@@ -7,6 +7,10 @@ import { ExternalLink } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { HALF_HOUR_TIME_OF_DAY_OPTIONS } from "@/lib/pickup-time";
 import {
+  getBillingTierLabel,
+  isManualTransferTier,
+} from "@/lib/billing-tier";
+import {
   BUSINESS_HOUR_DAY_KEYS,
   BUSINESS_HOUR_DAY_LABELS,
   createBusinessHoursFormState,
@@ -16,8 +20,8 @@ import {
 import toast from "react-hot-toast";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import {
+  type BillingTier,
   type FulfillmentType as BranchFulfillmentType,
-  type StorePaymentMethod as BranchPaymentMethod,
 } from "@/types/common";
 
 
@@ -44,22 +48,12 @@ type Brand = {
   name: string;
   slug: string | null;
   myRole?: string | null;
-  shop_payment_methods?: string[] | null;
+  billing_tier?: BillingTier | null;
 };
 
 // ============================================================
 // Constants
 // ============================================================
-
-const SHOP_PAYMENT_METHOD_OPTIONS = [
-  { value: "CARD", label: "카드" },
-  { value: "TRANSFER", label: "계좌이체" },
-] as const;
-
-const BRANCH_PAYMENT_METHOD_OPTIONS: Array<{ value: BranchPaymentMethod; label: string }> = [
-  { value: "CARD", label: "카드" },
-  { value: "TRANSFER", label: "계좌이체" },
-];
 
 const BRANCH_FULFILLMENT_OPTIONS: Array<{
   value: BranchFulfillmentType;
@@ -74,23 +68,6 @@ const BRANCH_FULFILLMENT_OPTIONS: Array<{
 // ============================================================
 // Helpers
 // ============================================================
-
-function normalizeShopPaymentMethods(value: unknown): string[] {
-  const allowed = new Set(SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value));
-  if (!Array.isArray(value)) {
-    return SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value);
-  }
-  const unique = Array.from(
-    new Set(
-      value
-        .map((item) => (typeof item === "string" ? item.toUpperCase().trim() : ""))
-        .filter((item) => allowed.has(item as (typeof SHOP_PAYMENT_METHOD_OPTIONS)[number]["value"])),
-    ),
-  );
-  return unique.length > 0
-    ? unique
-    : SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value);
-}
 
 function canManageBrand(role: string | null | undefined): boolean {
   return role === "OWNER" || role === "ADMIN";
@@ -142,20 +119,12 @@ export default function CustomerBranchesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [shopPaymentMethods, setShopPaymentMethods] = useState<string[]>(
-    SHOP_PAYMENT_METHOD_OPTIONS.map((item) => item.value),
-  );
-  const [savingShopPaymentMethods, setSavingShopPaymentMethods] = useState(false);
   const selectedBrand = brands.find((brand) => brand.id === selectedBrandId) ?? null;
   const visibleBranches = branches.filter(
     (branch) => !isInternalOnlineShopBranch(branch, selectedBrand?.name),
   );
   const canManageBrandSettings =
     canManageBrand(selectedBrand?.myRole) || canManageBrand(branches[0]?.myRole);
-
-  useEffect(() => {
-    setShopPaymentMethods(normalizeShopPaymentMethods(selectedBrand?.shop_payment_methods));
-  }, [selectedBrand?.id, selectedBrand?.shop_payment_methods]);
 
   useEffect(() => {
     const loadBrands = async () => {
@@ -211,48 +180,6 @@ export default function CustomerBranchesPage() {
     ? branches[0]?.myRole === "OWNER" || branches[0]?.myRole === "ADMIN"
     : brands.find((brand) => brand.id === selectedBrandId) !== undefined;
 
-  const toggleShopPaymentMethod = (method: string) => {
-    setShopPaymentMethods((prev) => {
-      const next = new Set(prev);
-      if (next.has(method)) {
-        next.delete(method);
-      } else {
-        next.add(method);
-      }
-      return Array.from(next);
-    });
-  };
-
-  const handleSaveShopPaymentMethods = async () => {
-    if (!selectedBrandId) return;
-    if (shopPaymentMethods.length === 0) {
-      toast.error("온라인샵 결제수단은 1개 이상 선택해야 합니다.");
-      return;
-    }
-
-    try {
-      setSavingShopPaymentMethods(true);
-      const updated = await apiClient.patch<Brand>(`/customer/brands/${selectedBrandId}`, {
-        shop_payment_methods: shopPaymentMethods,
-      });
-      const normalized = normalizeShopPaymentMethods(updated.shop_payment_methods);
-      setBrands((prev) =>
-        prev.map((brand) =>
-          brand.id === selectedBrandId
-            ? { ...brand, shop_payment_methods: normalized }
-            : brand,
-        ),
-      );
-      setShopPaymentMethods(normalized);
-      toast.success("온라인샵 결제수단을 저장했습니다.");
-    } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "온라인샵 결제수단 저장에 실패했습니다.");
-    } finally {
-      setSavingShopPaymentMethods(false);
-    }
-  };
-
   if (brands.length === 0 && !loading) {
     return (
       <div>
@@ -288,14 +215,14 @@ export default function CustomerBranchesPage() {
         </select>
       </div>
 
-      {/* ── 3. 온라인샵 설정: BrandShopCard + 결제수단을 하나의 섹션으로 묶음 ── */}
+      {/* ── 3. 온라인샵 설정: BrandShopCard + 결제 운영 방식을 하나의 섹션으로 묶음 ── */}
       {selectedBrand && (
         <div className="mb-8">
           <div className="mb-3 rounded-xl border border-border bg-bg-secondary px-4 py-3">
             <div className="text-sm font-semibold text-foreground">온라인 판매 채널</div>
             <p className="mt-1 text-xs leading-5 text-text-secondary">
               온라인샵은 개별 지점과 분리된 브랜드 단위 주문 채널입니다.
-              아래에서 온라인샵 주소와 결제수단을 함께 관리할 수 있습니다.
+              아래에서 온라인샵 주소와 결제 운영 방식을 함께 확인할 수 있습니다.
             </p>
           </div>
           <div className="text-sm font-semibold text-foreground mb-3">온라인샵 설정</div>
@@ -304,39 +231,19 @@ export default function CustomerBranchesPage() {
             <ManagedBrandShopCard brand={selectedBrand} grouped />
             {canManageBrandSettings && (
               <div className="p-4 bg-bg-secondary text-foreground">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <h2 className="text-sm font-bold m-0">결제수단 노출</h2>
-                  <button
-                    type="button"
-                    onClick={handleSaveShopPaymentMethods}
-                    disabled={savingShopPaymentMethods}
-                    className="px-3 py-1.5 rounded-lg bg-primary-500 text-white text-xs font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
-                  >
-                    저장
-                  </button>
-                </div>
-                <p className="text-xs text-text-secondary mb-3">
-                  온라인샵 주문 화면에 노출할 결제수단을 선택하세요.
+                <h2 className="text-sm font-bold m-0">결제 운영 방식</h2>
+                <p className="mt-2 text-xs text-text-secondary">
+                  온라인샵 결제 방식은 브랜드의 billing tier로 자동 결정됩니다.
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {SHOP_PAYMENT_METHOD_OPTIONS.map((option) => {
-                    const checked = shopPaymentMethods.includes(option.value);
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => toggleShopPaymentMethod(option.value)}
-                        disabled={savingShopPaymentMethods}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                          checked
-                            ? "border-primary-500 bg-primary-500/10 text-primary-500"
-                            : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
+                <div className="mt-3 rounded-xl border border-border bg-bg-tertiary px-3 py-3 text-sm text-text-secondary">
+                  <div className="font-semibold text-foreground">
+                    {getBillingTierLabel(selectedBrand?.billing_tier)}
+                  </div>
+                  <div className="mt-1">
+                    {isManualTransferTier(selectedBrand?.billing_tier)
+                      ? "온라인샵 주문은 무통장 입금으로만 진행됩니다."
+                      : "온라인샵 주문은 토스페이먼츠 결제로만 진행됩니다."}
+                  </div>
                 </div>
               </div>
             )}
@@ -389,6 +296,7 @@ export default function CustomerBranchesPage() {
       {showAddModal && (
         <AddBranchModal
           brandId={selectedBrandId}
+          billingTier={selectedBrand?.billing_tier ?? "PG"}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
@@ -542,10 +450,12 @@ function ManagedBrandShopCard({ brand, grouped = false }: { brand: Brand; groupe
 
 function AddBranchModal({
   brandId,
+  billingTier,
   onClose,
   onSuccess,
 }: {
   brandId: string;
+  billingTier: BillingTier;
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -553,7 +463,6 @@ function AddBranchModal({
     name: string;
     slug: string;
     enabledFulfillmentTypes: BranchFulfillmentType[];
-    allowedPaymentMethods: BranchPaymentMethod[];
     transferBankName: string;
     transferAccountNumber: string;
     transferAccountHolder: string;
@@ -568,7 +477,6 @@ function AddBranchModal({
     name: "",
     slug: "",
     enabledFulfillmentTypes: ["PICKUP"],
-    allowedPaymentMethods: ["CARD", "TRANSFER"],
     transferBankName: "",
     transferAccountNumber: "",
     transferAccountHolder: "",
@@ -582,7 +490,7 @@ function AddBranchModal({
   }));
   const [saving, setSaving] = useState(false);
 
-  const isTransferEnabled = formData.allowedPaymentMethods.includes("TRANSFER");
+  const isTransferEnabled = isManualTransferTier(billingTier);
 
   const toggleFulfillmentType = (type: BranchFulfillmentType) => {
     setFormData((prev) => {
@@ -596,18 +504,6 @@ function AddBranchModal({
         ...prev,
         enabledFulfillmentTypes: Array.from(next) as BranchFulfillmentType[],
       };
-    });
-  };
-
-  const togglePaymentMethod = (method: BranchPaymentMethod) => {
-    setFormData((prev) => {
-      const next = new Set(prev.allowedPaymentMethods);
-      if (next.has(method)) {
-        next.delete(method);
-      } else {
-        next.add(method);
-      }
-      return { ...prev, allowedPaymentMethods: Array.from(next) as BranchPaymentMethod[] };
     });
   };
 
@@ -639,10 +535,6 @@ function AddBranchModal({
     }
     if (formData.enabledFulfillmentTypes.length === 0) {
       toast.error("주문방식을 1개 이상 선택해야 합니다.");
-      return;
-    }
-    if (formData.allowedPaymentMethods.length === 0) {
-      toast.error("결제수단은 1개 이상 선택해야 합니다.");
       return;
     }
     if (
@@ -693,7 +585,6 @@ function AddBranchModal({
         name: formData.name,
         slug: formData.slug,
         enabledFulfillmentTypes: formData.enabledFulfillmentTypes,
-        allowedPaymentMethods: formData.allowedPaymentMethods,
         transferAccount: {
           bankName: formData.transferBankName.trim(),
           accountNumber: formData.transferAccountNumber.trim(),
@@ -786,25 +677,14 @@ function AddBranchModal({
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">결제수단 노출</label>
-            <div className="flex flex-wrap gap-2">
-              {BRANCH_PAYMENT_METHOD_OPTIONS.map((option) => {
-                const checked = formData.allowedPaymentMethods.includes(option.value);
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => togglePaymentMethod(option.value)}
-                    className={`px-3 py-1.5 rounded-md border text-xs font-semibold transition-colors ${
-                      checked
-                        ? "border-primary-500 bg-primary-500/10 text-primary-500"
-                        : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">결제 운영 방식</label>
+            <div className="rounded-xl border border-border bg-bg-secondary px-3 py-3 text-sm text-text-secondary">
+              <div className="font-semibold text-foreground">{getBillingTierLabel(billingTier)}</div>
+              <div className="mt-1">
+                {isTransferEnabled
+                  ? "이 브랜드는 무통장 입금만 사용할 수 있어요."
+                  : "이 브랜드는 토스페이먼츠 결제만 사용할 수 있어요."}
+              </div>
             </div>
           </div>
 
@@ -895,46 +775,48 @@ function AddBranchModal({
             </p>
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">계좌이체 입금 정보</label>
-            <div className="grid gap-2">
-              <input
-                type="text"
-                value={formData.transferBankName}
-                onChange={(e) => setFormData({ ...formData, transferBankName: e.target.value })}
-                className="input-field"
-                placeholder="은행명"
-              />
-              <input
-                type="text"
-                value={formData.transferAccountNumber}
-                onChange={(e) => setFormData({ ...formData, transferAccountNumber: e.target.value })}
-                className="input-field"
-                placeholder="계좌번호"
-              />
-              <input
-                type="text"
-                value={formData.transferAccountHolder}
-                onChange={(e) => setFormData({ ...formData, transferAccountHolder: e.target.value })}
-                className="input-field"
-                placeholder="예금주"
-              />
-              <input
-                type="text"
-                value={formData.depositSheetName}
-                onChange={(e) => setFormData({ ...formData, depositSheetName: e.target.value })}
-                className="input-field"
-                placeholder="입금기록 시트명 (예: 시트1)"
-              />
-              <input
-                type="url"
-                value={formData.depositSheetUrl}
-                onChange={(e) => setFormData({ ...formData, depositSheetUrl: e.target.value })}
-                className="input-field"
-                placeholder="입금기록 링크 (Google Sheets URL)"
-              />
+          {isTransferEnabled && (
+            <div className="mb-6">
+              <label className="block text-sm text-text-secondary mb-2 font-semibold">계좌이체 입금 정보</label>
+              <div className="grid gap-2">
+                <input
+                  type="text"
+                  value={formData.transferBankName}
+                  onChange={(e) => setFormData({ ...formData, transferBankName: e.target.value })}
+                  className="input-field"
+                  placeholder="은행명"
+                />
+                <input
+                  type="text"
+                  value={formData.transferAccountNumber}
+                  onChange={(e) => setFormData({ ...formData, transferAccountNumber: e.target.value })}
+                  className="input-field"
+                  placeholder="계좌번호"
+                />
+                <input
+                  type="text"
+                  value={formData.transferAccountHolder}
+                  onChange={(e) => setFormData({ ...formData, transferAccountHolder: e.target.value })}
+                  className="input-field"
+                  placeholder="예금주"
+                />
+                <input
+                  type="text"
+                  value={formData.depositSheetName}
+                  onChange={(e) => setFormData({ ...formData, depositSheetName: e.target.value })}
+                  className="input-field"
+                  placeholder="입금기록 시트명 (예: 시트1)"
+                />
+                <input
+                  type="url"
+                  value={formData.depositSheetUrl}
+                  onChange={(e) => setFormData({ ...formData, depositSheetUrl: e.target.value })}
+                  className="input-field"
+                  placeholder="입금기록 링크 (Google Sheets URL)"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mb-6">
             <label className="block text-sm text-text-secondary mb-2 font-semibold">고객 문의 정보</label>

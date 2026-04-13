@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -88,7 +88,7 @@ function AccessState({
 export default function AdminLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -152,7 +152,7 @@ export default function AdminLayout({
         const destination = await resolveAuthenticatedDestination();
         if (cancelled) return;
 
-        router.replace(destination === '/admin' ? '/customer' : destination);
+        router.replace(destination);
       } catch {
         if (cancelled) return;
         router.replace('/approval-pending');
@@ -170,7 +170,7 @@ export default function AdminLayout({
     return (
       <AccessState
         title="관리자 권한을 확인하고 있습니다"
-        description="로그인 정보와 연결된 관리자 권한을 확인한 뒤 이동합니다."
+        description="로그인 정보와 연결된 관리자 권한을 확인한 뒤 화면을 준비하고 있습니다."
       />
     );
   }
@@ -179,7 +179,7 @@ export default function AdminLayout({
     return (
       <AccessState
         title="로그인 페이지로 이동하고 있습니다"
-        description="관리자 화면은 로그인이 필요해 로그인 페이지로 안내하고 있습니다."
+        description="관리자 화면은 로그인이 필요해서 로그인 페이지로 안내하고 있습니다."
       />
     );
   }
@@ -188,7 +188,7 @@ export default function AdminLayout({
     return (
       <AccessState
         title="권한을 확인하지 못했습니다"
-        description="관리자 권한 확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+        description="관리자 권한 확인 중 문제가 발생했습니다. 잠시 뒤 다시 시도해 주세요."
       />
     );
   }
@@ -197,7 +197,7 @@ export default function AdminLayout({
     return (
       <AccessState
         title="접근 가능한 화면으로 이동하고 있습니다"
-        description="현재 계정은 관리자 전용 화면을 사용할 수 없어 맞는 화면으로 이동합니다."
+        description="현재 계정은 관리자 전용 화면을 사용할 수 없어, 권한에 맞는 화면으로 이동합니다."
       />
     );
   }
@@ -256,6 +256,7 @@ export default function AdminLayout({
               alt="주문프렌즈 로고"
               width={170}
               height={50}
+              className="h-auto w-auto"
               priority
             />
           </Link>

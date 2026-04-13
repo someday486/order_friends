@@ -54,21 +54,23 @@ export default function LoginClient({
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-foreground">환영합니다</div>
+          <div className="text-2xl font-bold text-foreground">
+            다시 오신 걸 환영합니다
+          </div>
           <h1 className="text-2xl font-extrabold text-foreground">
             OrderFriends
           </h1>
           <p className="text-sm text-text-secondary mt-2">
             {isOrderLogin
-              ? '주문을 계속하려면 카카오 로그인이 필요해요'
-              : '계정으로 로그인해 주세요'}
+              ? '주문을 계속하려면 카카오 로그인 또는 계정 로그인이 필요해요.'
+              : '계정으로 로그인해 주세요.'}
           </p>
         </div>
 
         <div className="card p-6">
           {registered ? (
             <div className="mb-4 rounded-md bg-success-50 p-3 text-sm text-success-600">
-              회원가입이 완료되었어요. 이메일 확인 후 로그인해 주세요.
+              회원가입이 완료됐어요. 이메일을 확인한 뒤 로그인해 주세요.
             </div>
           ) : null}
           {isOrderLogin ? (
@@ -78,8 +80,7 @@ export default function LoginClient({
                   카카오 로그인으로 주문을 이어갈 수 있어요
                 </div>
                 <p className="mt-1 text-xs leading-5 text-text-secondary">
-                  잠시 뒤 카카오 로그인 화면으로 이동하고, 원하지 않으면 아래
-                  버튼으로 직접 진행할 수 있어요.
+                  카카오 로그인 화면으로 바로 이동하고, 원하지 않으면 아래 계정 로그인으로 직접 진행할 수 있어요.
                 </p>
               </div>
               <KakaoQuickLoginButton

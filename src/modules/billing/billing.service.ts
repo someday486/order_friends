@@ -505,7 +505,7 @@ export class BillingService {
       payment_method_token,
       scheduled_plan_id,
       scheduled_plan_effective_at,
-      plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+      plan:subscription_plans!brand_subscriptions_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders),
       scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
     `);
 
@@ -1231,7 +1231,7 @@ export class BillingService {
           payment_method_token,
           scheduled_plan_id,
           scheduled_plan_effective_at,
-          plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+          plan:subscription_plans!brand_subscriptions_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders),
           scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
         `,
         )
@@ -1265,7 +1265,7 @@ export class BillingService {
         payment_method_token,
         scheduled_plan_id,
         scheduled_plan_effective_at,
-        plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+        plan:subscription_plans!brand_subscriptions_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders),
         scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
       `,
       )
@@ -1450,7 +1450,7 @@ export class BillingService {
         payment_method_token,
         scheduled_plan_id,
         scheduled_plan_effective_at,
-        plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+        plan:subscription_plans!brand_subscriptions_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders),
         scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
       `,
       )
@@ -1486,7 +1486,7 @@ export class BillingService {
         payment_method_token,
         scheduled_plan_id,
         scheduled_plan_effective_at,
-        plan:subscription_plans(id, name, price, billing_interval, max_monthly_orders),
+        plan:subscription_plans!brand_subscriptions_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders),
         scheduled_plan:subscription_plans!brand_subscriptions_scheduled_plan_id_fkey(id, name, price, billing_interval, max_monthly_orders)
       `,
       )

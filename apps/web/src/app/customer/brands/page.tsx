@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import { CardSkeleton } from "@/components/ui/Skeleton";
-import { useSelectedBrand } from "@/hooks/useSelectedBrand";
-import { useUserRole } from "@/hooks/useUserRole";
-import { parseApiErrorMessage } from "@/lib/api-error";
-import { apiClient } from "@/lib/api-client";
-import { formatBusinessNumberInput } from "@/lib/format";
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { CardSkeleton } from '@/components/ui/Skeleton';
+import { useSelectedBrand } from '@/hooks/useSelectedBrand';
+import { useUserRole } from '@/hooks/useUserRole';
+import { parseApiErrorMessage } from '@/lib/api-error';
+import { apiClient } from '@/lib/api-client';
+import { formatBusinessNumberInput } from '@/lib/format';
 
-type BillingTier = "PG" | "NON_PG";
+type BillingTier = 'PG' | 'NON_PG';
 
 type Brand = {
   id: string;
@@ -47,18 +47,18 @@ function canCreateBrand(
 ) {
   if (loading || membershipsLoading) return false;
   if (canCreateBrandDirectly) return true;
-  if (role === "system_admin" || role === "brand_owner") return true;
+  if (role === 'system_admin' || role === 'brand_owner') return true;
 
-  return brands.some((brand) => brand.myRole === "OWNER" || brand.myRole === "ADMIN");
+  return brands.some((brand) => brand.myRole === 'OWNER' || brand.myRole === 'ADMIN');
 }
 
 function createInitialForm(): BrandCreateForm {
   return {
-    name: "",
-    slug: "",
-    biz_name: "",
-    biz_reg_no: "",
-    billingTier: "PG",
+    name: '',
+    slug: '',
+    biz_name: '',
+    biz_reg_no: '',
+    billingTier: 'PG',
   };
 }
 
@@ -77,12 +77,12 @@ export default function CustomerBrandsPage() {
       setLoading(true);
       setError(null);
 
-      const data = await apiClient.get<Brand[]>("/customer/brands");
+      const data = await apiClient.get<Brand[]>('/customer/brands');
       setBrands(data);
     } catch (error) {
       console.error(error);
       setError(
-        parseApiErrorMessage(error, "브랜드 목록을 불러오지 못했습니다."),
+        parseApiErrorMessage(error, '브랜드 목록을 불러오지 못했습니다.'),
       );
     } finally {
       setLoading(false);
@@ -104,7 +104,9 @@ export default function CustomerBrandsPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="mb-8 text-2xl font-extrabold text-foreground">브랜드 관리</h1>
+        <h1 className="mb-8 text-2xl font-extrabold text-foreground">
+          브랜드 관리
+        </h1>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {Array.from({ length: 2 }).map((_, index) => (
             <CardSkeleton key={index} />
@@ -117,7 +119,9 @@ export default function CustomerBrandsPage() {
   if (error) {
     return (
       <div>
-        <h1 className="mb-4 text-2xl font-extrabold text-foreground">브랜드 관리</h1>
+        <h1 className="mb-4 text-2xl font-extrabold text-foreground">
+          브랜드 관리
+        </h1>
         <div className="rounded-md border border-danger-500 bg-danger-500/10 p-4 text-danger-500">
           {error}
         </div>
@@ -128,7 +132,9 @@ export default function CustomerBrandsPage() {
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="m-0 text-2xl font-extrabold text-foreground">브랜드 관리</h1>
+        <h1 className="m-0 text-2xl font-extrabold text-foreground">
+          브랜드 관리
+        </h1>
         {allowAdd ? (
           <button
             onClick={() => setShowAddModal(true)}
@@ -165,7 +171,7 @@ export default function CustomerBrandsPage() {
               return [createdBrand, ...deduped];
             });
             loadBrands().catch(() => null);
-            if (createdBrand.billing_tier === "NON_PG") {
+            if (createdBrand.billing_tier === 'NON_PG') {
               router.push(
                 `/business/billing/setup?brandId=${encodeURIComponent(createdBrand.id)}`,
               );
@@ -183,7 +189,7 @@ export default function CustomerBrandsPage() {
 function BrandCard({ brand }: { brand: Brand }) {
   const brandShopUrl = getBrandShopUrl(brand.slug);
   const billingTierLabel =
-    brand.billing_tier === "NON_PG" ? "무통장 전용" : "PG 사용";
+    brand.billing_tier === 'NON_PG' ? '무통장 전용' : 'PG 이용';
 
   return (
     <Link
@@ -238,13 +244,13 @@ function AddBrandModal({
     event.preventDefault();
 
     if (!formData.name.trim()) {
-      toast.error("브랜드명은 필수입니다.");
+      toast.error('브랜드명은 필수입니다.');
       return;
     }
 
     try {
       setSaving(true);
-      const createdBrand = await apiClient.post<Brand>("/customer/brands", {
+      const createdBrand = await apiClient.post<Brand>('/customer/brands', {
         name: formData.name,
         slug: formData.slug || null,
         biz_name: formData.biz_name || null,
@@ -252,12 +258,12 @@ function AddBrandModal({
         billingTier: formData.billingTier,
       });
 
-      toast.success("브랜드를 등록했습니다.");
+      toast.success('브랜드를 등록했습니다.');
       onSuccess(createdBrand);
     } catch (error) {
       console.error(error);
       toast.error(
-        parseApiErrorMessage(error, "브랜드 등록에 실패했습니다."),
+        parseApiErrorMessage(error, '브랜드 등록에 실패했습니다.'),
       );
     } finally {
       setSaving(false);
@@ -299,28 +305,28 @@ function AddBrandModal({
               <button
                 type="button"
                 onClick={() =>
-                  setFormData((prev) => ({ ...prev, billingTier: "PG" }))
+                  setFormData((prev) => ({ ...prev, billingTier: 'PG' }))
                 }
                 className={`rounded-md border p-3 text-left transition-colors ${
-                  formData.billingTier === "PG"
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-bg-tertiary text-text-secondary"
+                  formData.billingTier === 'PG'
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border bg-bg-tertiary text-text-secondary'
                 }`}
               >
-                <div className="font-semibold">PG 사용</div>
+                <div className="font-semibold">PG 이용</div>
                 <div className="mt-1 text-xs leading-5">
-                  토스페이먼츠로 결제를 받고 판매 건당 수수료로 정산합니다.
+                  토스페이먼츠 결제로 주문을 받고 매출 건당 수수료로 정산합니다.
                 </div>
               </button>
               <button
                 type="button"
                 onClick={() =>
-                  setFormData((prev) => ({ ...prev, billingTier: "NON_PG" }))
+                  setFormData((prev) => ({ ...prev, billingTier: 'NON_PG' }))
                 }
                 className={`rounded-md border p-3 text-left transition-colors ${
-                  formData.billingTier === "NON_PG"
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-bg-tertiary text-text-secondary"
+                  formData.billingTier === 'NON_PG'
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border bg-bg-tertiary text-text-secondary'
                 }`}
               >
                 <div className="font-semibold">무통장 전용</div>
@@ -345,7 +351,7 @@ function AddBrandModal({
                 }))
               }
               className="input-field"
-              placeholder="사용하실 URL을 입력해 주세요."
+              placeholder="사용할 URL을 입력해 주세요."
             />
             <div className="mt-1 text-xs text-text-tertiary">
               영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다.
@@ -393,7 +399,7 @@ function AddBrandModal({
               disabled={saving}
               className="btn-primary flex-1 py-2.5"
             >
-              {saving ? "등록 중..." : "등록하기"}
+              {saving ? '등록 중...' : '등록하기'}
             </button>
             <button
               type="button"

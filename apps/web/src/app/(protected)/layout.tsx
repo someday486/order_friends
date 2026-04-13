@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -31,7 +31,7 @@ function AccessState({
 export default function ProtectedLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -85,8 +85,8 @@ export default function ProtectedLayout({
   if (status === 'loading' || (status === 'authenticated' && roleLoading)) {
     return (
       <AccessState
-        title="접근 권한을 확인하고 있습니다"
-        description="로그인 정보와 연결된 브랜드 또는 매장 권한을 확인한 뒤 이동합니다."
+        title="운영 권한을 확인하고 있습니다"
+        description="로그인 정보와 연결된 브랜드 또는 매장 권한을 확인한 뒤 화면을 준비하고 있습니다."
       />
     );
   }
@@ -104,7 +104,7 @@ export default function ProtectedLayout({
     return (
       <AccessState
         title="권한을 확인하지 못했습니다"
-        description="권한 확인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        description="권한 확인 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요."
       />
     );
   }
@@ -112,7 +112,7 @@ export default function ProtectedLayout({
   if (!hasOperationalAccess) {
     return (
       <AccessState
-        title="이동할 화면을 확인하고 있습니다"
+        title="이동 가능한 화면을 확인하고 있습니다"
         description="현재 계정에 맞는 운영 화면으로 자동 이동하고 있습니다."
       />
     );

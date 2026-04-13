@@ -574,6 +574,16 @@ export default function ShopBrandPageClient({
     () => cartItems.reduce((sum, item) => sum + getEffectivePrice(item) * item.qty, 0),
     [cartItems],
   );
+  const paymentSummary = useMemo(
+    () =>
+      (data?.paymentMethods ?? [])
+        .map((method) => PAYMENT_LABEL[method] ?? method)
+        .join(' · '),
+    [data?.paymentMethods],
+  );
+  const productCount = data?.products.length ?? 0;
+  const cartSummaryText =
+    totalQty > 0 ? `${totalQty}개 상품 · ${formatWon(totalAmount)}` : '상품을 고르면 여기에 요약됩니다.';
 
   const updateQty = (productId: string, nextQty: number) => {
     setCart((prev) => {
@@ -738,12 +748,12 @@ export default function ShopBrandPageClient({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto max-w-[1180px] px-4 py-6">
-          <div className="h-44 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:mx-auto lg:max-w-[1012px] lg:grid-cols-[680px_320px] lg:gap-3">
-            <div className="h-96 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
-            <div className="h-96 rounded-2xl border border-border bg-bg-secondary animate-pulse" />
+      <div className="min-h-screen bg-[linear-gradient(180deg,#f6f3ee_0%,#f3f0eb_32%,#f8f7f5_100%)] text-foreground">
+        <div className="mx-auto max-w-[1240px] px-4 py-6 md:px-6 md:py-8">
+          <div className="h-72 animate-pulse rounded-[32px] border border-black/6 bg-white/80 shadow-sm" />
+          <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="h-[720px] animate-pulse rounded-[32px] border border-black/6 bg-white/80 shadow-sm" />
+            <div className="h-[720px] animate-pulse rounded-[32px] border border-black/6 bg-white/80 shadow-sm" />
           </div>
         </div>
       </div>
@@ -784,11 +794,11 @@ export default function ShopBrandPageClient({
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-[1180px] px-4 py-6 pb-28 lg:pb-6">
-        {/* ── 브랜드 헤더 ── */}
-        <header className="overflow-hidden rounded-2xl border border-border bg-bg-secondary lg:mx-auto lg:max-w-[680px]">
-          <div className="relative h-36 md:h-44">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f3ee_0%,#f3f0eb_32%,#f8f7f5_100%)] text-foreground">
+      <div className="mx-auto max-w-[1240px] px-4 py-6 pb-28 md:px-6 md:py-8 xl:pb-8">
+        <header className="relative overflow-hidden rounded-[32px] border border-black/6 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.08)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.2),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.14),transparent_24%)]" />
+          <div className="relative h-[260px] md:h-[320px]">
             {data.coverImageUrl ? (
               <Image
                 src={data.coverImageUrl}
@@ -799,47 +809,84 @@ export default function ShopBrandPageClient({
                 unoptimized
               />
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-r from-primary-600/30 via-primary-400/20 to-bg-tertiary" />
+              <div className="absolute inset-0 bg-[linear-gradient(125deg,rgba(59,130,246,0.18),rgba(168,85,247,0.14),rgba(255,255,255,0.96))]" />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-          </div>
-          <div className="p-4 md:p-5 flex items-center gap-3">
-            {data.logoUrl ? (
-              <Image
-                src={data.logoUrl}
-                alt={data.brandName}
-                width={48}
-                height={48}
-                className="w-12 h-12 rounded-full border border-border object-cover"
-                unoptimized
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full border border-border bg-bg-tertiary flex items-center justify-center text-lg font-bold">
-                {data.brandName.slice(0, 1)}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/15 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+            <div className="relative flex h-full flex-col justify-between p-6 text-white md:p-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white/14 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-white/90 backdrop-blur">
+                  SHIPPING ORDER
+                </span>
+                <span className="rounded-full bg-black/25 px-3 py-1 text-xs text-white/85 backdrop-blur">
+                  상품 {productCount}개
+                </span>
+                <span className="rounded-full bg-black/25 px-3 py-1 text-xs text-white/85 backdrop-blur">
+                  {paymentSummary || '결제 방식 준비 중'}
+                </span>
               </div>
-            )}
-            <div>
-              <h1 className="text-xl font-extrabold">
-                {data.brandName} 온라인샵
-              </h1>
-              <p className="text-sm text-text-secondary">
-                온라인으로 간편하게 배송 주문하세요.
-              </p>
+
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+                <div className="max-w-2xl">
+                  <div className="flex items-center gap-4">
+                    {data.logoUrl ? (
+                      <Image
+                        src={data.logoUrl}
+                        alt={data.brandName}
+                        width={64}
+                        height={64}
+                        className="h-16 w-16 rounded-full border border-white/25 object-cover shadow-lg"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/25 bg-white/10 text-xl font-bold shadow-lg backdrop-blur">
+                        {data.brandName.slice(0, 1)}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-white/80">온라인 배송 주문</p>
+                      <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">
+                        {data.brandName}
+                      </h1>
+                    </div>
+                  </div>
+                  <p className="mt-4 max-w-xl text-sm leading-6 text-white/78 md:text-base">
+                    상품을 고르고 배송 정보를 입력하면 바로 주문할 수 있습니다.
+                    오른쪽 주문 패널에서 수량, 결제 방식, 입금 안내를 한 번에 확인하세요.
+                  </p>
+                </div>
+
+                <div className="rounded-[28px] border border-white/15 bg-black/25 p-4 text-white shadow-lg backdrop-blur-md">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+                    Quick Access
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/78">
+                    로그인하면 최근 주문 정보와 고객 정보가 자동으로 채워져 더 빠르게 주문할 수 있어요.
+                  </p>
+                  <div className="mt-4">
+                    <PublicAuthActions hideWhenLoggedOut className="w-full sm:max-w-sm" />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="px-4 pb-4 md:px-5 md:pb-5">
-            <PublicAuthActions hideWhenLoggedOut className="max-w-sm" />
           </div>
         </header>
 
-        <main className="mt-4 space-y-4 lg:mx-auto lg:max-w-[680px]">
-          {/* ── 상품 목록 ── */}
-          <section className="card p-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h2 className="text-base font-bold whitespace-nowrap">
-                상품 선택
-              </h2>
-              <div className="relative flex-1 max-w-[260px]">
+        <main className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
+          <section className="rounded-[32px] border border-black/6 bg-white p-5 shadow-[0_18px_60px_rgba(15,23,42,0.06)] md:p-6">
+            <div className="flex flex-col gap-4 border-b border-black/6 pb-5 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                  Catalog
+                </p>
+                <h2 className="mt-2 text-2xl font-black tracking-tight text-foreground">
+                  상품 선택
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">
+                  상품 이미지를 눌러 크게 보고, 수량을 바로 조절하면서 장바구니에 담을 수 있습니다.
+                </p>
+              </div>
+              <div className="relative w-full md:max-w-[300px]">
                 <svg
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
                   width="14"
@@ -856,18 +903,18 @@ export default function ShopBrandPageClient({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="상품 검색"
-                  className="input-field h-10 w-full pl-8"
+                  className="input-field h-12 w-full rounded-2xl border-black/8 bg-[#faf8f4] pl-9 shadow-none"
                   aria-label="상품 검색"
                 />
               </div>
             </div>
 
             {filteredProducts.length === 0 ? (
-              <div className="rounded-xl border border-border bg-bg-tertiary p-8 text-center text-sm text-text-secondary">
+              <div className="mt-6 rounded-3xl border border-dashed border-black/10 bg-[#faf8f4] p-10 text-center text-sm text-text-secondary">
                 표시할 상품이 없습니다.
               </div>
             ) : (
-              <div className="space-y-3 lg:max-w-[620px]">
+              <div className="mt-6 space-y-4">
                 {filteredProducts.map((product) => {
                   const qty = cart[product.id] ?? 0;
                   const hasDiscount = hasActiveUrgentDiscount(product);
@@ -882,93 +929,98 @@ export default function ShopBrandPageClient({
                   return (
                     <article
                       key={product.id}
-                      className="min-w-0 rounded-2xl border border-border bg-bg-secondary p-3 md:p-4 flex items-start gap-3 sm:gap-4"
+                      className="min-w-0 rounded-[28px] border border-black/8 bg-[#fcfbf8] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_22px_50px_rgba(15,23,42,0.06)] md:p-5"
                     >
-                      <ShopProductImageCarousel
-                        product={product}
-                        onOpenPreview={openProductPreview}
-                      />
+                      <div className="flex items-start gap-4 md:gap-5">
+                        <ShopProductImageCarousel
+                          product={product}
+                          onOpenPreview={openProductPreview}
+                        />
 
-                      <div className="flex min-h-28 min-w-0 flex-1 flex-col sm:min-h-32 md:min-h-44">
-                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <h3 className="text-base md:text-lg font-bold break-keep leading-snug">
-                              {product.name}
-                            </h3>
-                            {hasDiscount && (
-                              <div className="mt-1">
-                                <span className="inline-flex items-center rounded-full bg-danger-500 px-2 py-0.5 text-[10px] font-bold text-white animate-pulse-slow">
-                                  ⚡ 긴급할인{urgentLabel ? ` · ${urgentLabel}` : ''}
-                                </span>
-                              </div>
-                            )}
-                            {product.categoryName ? (
-                              <p className="text-xs text-text-tertiary mt-0.5">
-                                {product.categoryName}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="self-start text-left whitespace-nowrap sm:self-auto sm:text-right flex-shrink-0">
-                            {hasDiscount ? (
-                              <>
-                                <div className="text-[11px] md:text-xs text-text-tertiary line-through">
+                        <div className="flex min-h-28 min-w-0 flex-1 flex-col md:min-h-44">
+                          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              {product.categoryName ? (
+                                <p className="text-xs font-medium uppercase tracking-[0.14em] text-text-tertiary">
+                                  {product.categoryName}
+                                </p>
+                              ) : null}
+                              <h3 className="mt-1 text-lg font-bold leading-snug text-foreground md:text-xl">
+                                {product.name}
+                              </h3>
+                              {hasDiscount && (
+                                <div className="mt-3">
+                                  <span className="inline-flex items-center rounded-full bg-danger-500 px-3 py-1 text-[11px] font-bold text-white">
+                                    긴급 할인{urgentLabel ? ` · ${urgentLabel}` : ''}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="self-start whitespace-nowrap rounded-2xl bg-white px-4 py-3 text-left shadow-sm sm:text-right">
+                              {hasDiscount ? (
+                                <>
+                                  <div className="text-[11px] text-text-tertiary line-through">
+                                    {formatWon(product.price)}
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] font-bold text-danger-500">
+                                    {discountRate}% 할인
+                                  </div>
+                                  <div className="mt-1 text-lg font-extrabold text-danger-500">
+                                    {formatWon(product.discountPrice ?? product.price)}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-base font-extrabold text-foreground">
                                   {formatWon(product.price)}
                                 </div>
-                                <div className="text-[11px] md:text-xs font-bold text-danger-500">
-                                  {discountRate}% 할인
-                                </div>
-                                <div className="text-base md:text-lg font-extrabold text-danger-500">
-                                  {formatWon(product.discountPrice ?? product.price)}
-                                </div>
-                              </>
+                              )}
+                            </div>
+                          </div>
+                          {product.description ? (
+                            <p className="mt-3 text-sm leading-6 text-text-secondary line-clamp-3">
+                              {product.description}
+                            </p>
+                          ) : null}
+
+                          <div className="mt-auto flex items-center justify-between gap-3 pt-5">
+                            <div className="text-xs text-text-tertiary">
+                              {qty > 0
+                                ? `선택 수량 ${qty}개`
+                                : '상품을 담으면 오른쪽에서 주문 정보를 이어서 작성할 수 있어요.'}
+                            </div>
+                            {qty === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => updateQty(product.id, 1)}
+                                className="h-11 rounded-2xl bg-foreground px-5 text-sm font-semibold text-background transition-transform duration-200 hover:-translate-y-0.5"
+                                aria-label={`${product.name} 장바구니에 담기`}
+                              >
+                                장바구니에 담기
+                              </button>
                             ) : (
-                              <div className="text-sm md:text-base font-bold text-foreground">
-                                {formatWon(product.price)}
+                              <div className="flex items-center gap-1 rounded-2xl border border-black/8 bg-white p-1 shadow-sm">
+                                <button
+                                  type="button"
+                                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f1eb] text-lg font-bold transition-colors hover:bg-[#eee7dc]"
+                                  onClick={() => updateQty(product.id, qty - 1)}
+                                  aria-label={`${product.name} 수량 감소`}
+                                >
+                                  −
+                                </button>
+                                <span className="w-10 text-center text-sm font-bold">
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f1eb] text-lg font-bold transition-colors hover:bg-[#eee7dc]"
+                                  onClick={() => updateQty(product.id, qty + 1)}
+                                  aria-label={`${product.name} 수량 증가`}
+                                >
+                                  +
+                                </button>
                               </div>
                             )}
                           </div>
-                        </div>
-                        {product.description ? (
-                          <p className="mt-2 text-sm md:text-base text-text-secondary line-clamp-3">
-                            {product.description}
-                          </p>
-                        ) : null}
-
-                        <div className="mt-auto pt-4 flex items-center justify-end">
-                          {qty === 0 ? (
-                            /* qty=0: "담기" 버튼 */
-                            <button
-                              type="button"
-                              onClick={() => updateQty(product.id, 1)}
-                              className="h-10 px-5 rounded-xl border border-primary-500 text-primary-500 text-sm font-semibold bg-primary-500/5 hover:bg-primary-500/15 transition-colors"
-                              aria-label={`${product.name} 장바구니에 담기`}
-                            >
-                              담기
-                            </button>
-                          ) : (
-                            /* qty>0: 수량 조절 */
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                className="w-11 h-11 rounded-xl border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors text-lg font-bold"
-                                onClick={() => updateQty(product.id, qty - 1)}
-                                aria-label={`${product.name} 수량 감소`}
-                              >
-                                −
-                              </button>
-                              <span className="w-10 text-center text-sm font-bold">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                className="w-11 h-11 rounded-xl border border-border bg-bg-tertiary hover:bg-bg-primary transition-colors text-lg font-bold"
-                                onClick={() => updateQty(product.id, qty + 1)}
-                                aria-label={`${product.name} 수량 증가`}
-                              >
-                                +
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </article>
@@ -978,19 +1030,32 @@ export default function ShopBrandPageClient({
             )}
           </section>
 
-          {/* ── 주문 사이드바 ── */}
-          <aside ref={checkoutRef} className="card h-fit p-3 sm:p-4">
-            <h2 className="text-base font-bold">배송 주문</h2>
+          <aside
+            ref={checkoutRef}
+            className="rounded-[32px] border border-black/6 bg-white p-5 shadow-[0_18px_60px_rgba(15,23,42,0.06)] xl:sticky xl:top-6"
+          >
+            <div className="rounded-[28px] bg-[#171717] p-5 text-white shadow-[0_18px_50px_rgba(23,23,23,0.18)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+                Order Desk
+              </div>
+              <h2 className="mt-3 text-2xl font-black tracking-tight">배송 주문</h2>
+              <p className="mt-2 text-sm leading-6 text-white/78">
+                선택한 상품과 배송 정보를 이곳에서 정리하고 바로 주문하세요.
+              </p>
+              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm text-white/88 backdrop-blur">
+                {cartSummaryText}
+              </div>
+            </div>
 
             {status === 'authenticated' ? (
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     void handleLoadLastOrderInfo();
                   }}
                   disabled={loadingLastOrderInfo || loggingOut}
-                  className="h-10 rounded-xl border border-border bg-bg-tertiary text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="h-11 rounded-2xl border border-black/8 bg-[#faf8f4] text-xs font-medium transition-colors hover:bg-[#f2ede6] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loadingLastOrderInfo
                     ? '불러오는 중...'
@@ -1002,38 +1067,41 @@ export default function ShopBrandPageClient({
                     void handleLogout();
                   }}
                   disabled={loggingOut || loadingLastOrderInfo}
-                  className="h-10 rounded-xl border border-border bg-bg-tertiary text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="h-11 rounded-2xl border border-black/8 bg-[#faf8f4] text-xs font-medium transition-colors hover:bg-[#f2ede6] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loggingOut ? '로그아웃 중...' : '로그아웃'}
                 </button>
               </div>
             ) : null}
             {status === 'authenticated' && authInfoLoaded ? (
-              <p className="mt-1.5 text-xs text-text-secondary">
+              <p className="mt-2 text-xs leading-5 text-text-secondary">
                 로그인 정보 기반으로 고객 정보가 자동 입력되었습니다.
               </p>
             ) : null}
 
-            {/* 장바구니 요약 */}
-            <div className="mt-4 rounded-2xl border border-border bg-bg-tertiary overflow-hidden">
+            <div className="mt-5 rounded-[28px] border border-black/8 bg-[#faf8f4] overflow-hidden">
               {cartItems.length === 0 ? (
-                <div className="p-4 text-center">
-                  <p className="text-sm text-text-tertiary">
+                <div className="p-5 text-center">
+                  <p className="text-sm leading-6 text-text-tertiary">
                     상품을 선택하면 여기에 표시됩니다.
                   </p>
                 </div>
               ) : (
-                <div className="max-h-48 overflow-y-auto divide-y divide-border">
+                <div className="max-h-64 overflow-y-auto divide-y divide-black/6">
                   {cartItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between px-4 py-2.5 gap-3"
+                      className="flex items-center justify-between gap-3 px-4 py-3"
                     >
-                      <span className="text-sm truncate">{item.name}</span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-text-tertiary">
-                          ×{item.qty}
+                      <div className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {item.name}
                         </span>
+                        <span className="mt-0.5 block text-xs text-text-tertiary">
+                          {formatWon(getEffectivePrice(item))} × {item.qty}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold">
                           {formatWon(getEffectivePrice(item) * item.qty)}
                         </span>
@@ -1043,61 +1111,74 @@ export default function ShopBrandPageClient({
                 </div>
               )}
               {cartItems.length > 0 && (
-                <div className="flex justify-between items-center px-4 py-3 border-t border-border bg-bg-secondary">
-                  <span className="text-sm font-semibold">합계</span>
-                  <span className="text-base font-extrabold">
+                <div className="flex items-center justify-between border-t border-black/6 bg-white px-4 py-4">
+                  <span className="text-sm font-semibold text-foreground">총 결제 예상 금액</span>
+                  <span className="text-lg font-extrabold text-foreground">
                     {formatWon(totalAmount)}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* 주문자 정보 */}
-            <div className="mt-4 space-y-2.5">
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="input-field h-11 w-full"
-                placeholder="주문자 이름 *"
-                aria-label="주문자 이름"
-              />
-              <input
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                className="input-field h-11 w-full"
-                placeholder="연락처 *"
-                aria-label="연락처"
-                inputMode="tel"
-              />
-              <AddressSearchFields
-                addressLabel="배송 주소"
-                address1={customerAddress1}
-                address2={customerAddress2}
-                onAddress1Change={setCustomerAddress1}
-                onAddress2Change={setCustomerAddress2}
-                address1Placeholder="배송 주소 *"
-                address2Placeholder="상세 주소 (선택)"
-                className="space-y-0"
-              />
-              <textarea
-                value={customerMemo}
-                onChange={(e) => setCustomerMemo(e.target.value)}
-                className="input-field min-h-[72px] w-full"
-                placeholder="요청사항 (선택)"
-                aria-label="요청사항"
-              />
+            <div className="mt-6 space-y-5">
+              <section className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                    Recipient
+                  </p>
+                  <h3 className="mt-2 text-base font-bold text-foreground">받는 분 정보</h3>
+                </div>
+                <div className="space-y-2.5">
+                  <input
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="input-field h-12 w-full rounded-2xl border-black/8 bg-[#faf8f4]"
+                    placeholder="주문자 이름 *"
+                    aria-label="주문자 이름"
+                  />
+                  <input
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="input-field h-12 w-full rounded-2xl border-black/8 bg-[#faf8f4]"
+                    placeholder="연락처 *"
+                    aria-label="연락처"
+                    inputMode="tel"
+                  />
+                  <AddressSearchFields
+                    addressLabel="배송 주소"
+                    address1={customerAddress1}
+                    address2={customerAddress2}
+                    onAddress1Change={setCustomerAddress1}
+                    onAddress2Change={setCustomerAddress2}
+                    address1Placeholder="배송 주소 *"
+                    address2Placeholder="상세 주소 (선택)"
+                    className="space-y-0"
+                  />
+                  <textarea
+                    value={customerMemo}
+                    onChange={(e) => setCustomerMemo(e.target.value)}
+                    className="input-field min-h-[88px] w-full rounded-2xl border-black/8 bg-[#faf8f4]"
+                    placeholder="요청사항 (선택)"
+                    aria-label="요청사항"
+                  />
+                </div>
+              </section>
 
-              {/* 결제수단 */}
-              <div className="-mx-3 px-3 sm:mx-0 sm:px-0">
-                <div className="text-sm font-semibold mb-2">결제수단</div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              <section className="space-y-3 border-t border-black/6 pt-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                    Payment
+                  </p>
+                  <h3 className="mt-2 text-base font-bold text-foreground">결제 방식</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
                   {data.paymentMethods.map((method) => (
                     <label
                       key={method}
-                      className={`flex min-h-[52px] items-center rounded-xl border px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                      className={`flex min-h-[56px] items-center justify-between rounded-2xl border px-4 py-3 text-sm cursor-pointer transition-colors ${
                         paymentMethod === method
-                          ? 'border-primary-500 bg-primary-500/10 text-primary-500 font-semibold'
-                          : 'border-border bg-bg-tertiary'
+                          ? 'border-primary-500 bg-primary-500/10 text-primary-500 font-semibold shadow-[0_8px_24px_rgba(251,113,133,0.12)]'
+                          : 'border-black/8 bg-[#faf8f4]'
                       }`}
                     >
                       <input
@@ -1108,55 +1189,72 @@ export default function ShopBrandPageClient({
                         onChange={() => setPaymentMethod(method)}
                         className="sr-only"
                       />
-                      {PAYMENT_LABEL[method] ?? method}
+                      <span>{PAYMENT_LABEL[method] ?? method}</span>
+                      {paymentMethod === method ? (
+                        <span className="text-xs font-medium">선택됨</span>
+                      ) : null}
                     </label>
                   ))}
                 </div>
                 {paymentMethod === 'CARD' ? (
-                  <TossPaymentWidget
-                    amount={totalAmount}
-                    customerKey={tossCustomerKey}
-                    active
-                    onReadyChange={handleCardWidgetReadyChange}
-                    onErrorChange={setCardWidgetError}
-                  />
+                  <div className="rounded-[28px] border border-black/8 bg-[#faf8f4] p-4">
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-foreground">토스 결제</p>
+                      <p className="mt-1 text-xs text-text-secondary">
+                        카드 또는 간편결제를 바로 진행할 수 있어요.
+                      </p>
+                    </div>
+                    {totalAmount > 0 ? (
+                      <TossPaymentWidget
+                        amount={totalAmount}
+                        customerKey={tossCustomerKey}
+                        active
+                        onReadyChange={handleCardWidgetReadyChange}
+                        onErrorChange={setCardWidgetError}
+                      />
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-black/10 bg-white px-4 py-6 text-sm leading-6 text-text-secondary">
+                        상품을 먼저 담으면 여기에서 결제 위젯이 활성화됩니다.
+                      </div>
+                    )}
+                  </div>
                 ) : null}
                 {paymentMethod === 'TRANSFER' && data.transferAccount ? (
-                  <div className="mt-2 rounded-xl border border-warning-200 bg-warning-50 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="text-sm">🏦</span>
-                      <div className="text-xs font-bold text-foreground">
-                        입금 계좌 정보
+                  <div className="rounded-[28px] border border-warning-200 bg-[#fff8ef] p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🏦</span>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">입금 계좌 정보</p>
+                        <p className="mt-1 text-xs text-warning-700">
+                          계좌이체 후 입금 확인이 완료되면 주문이 처리됩니다.
+                        </p>
                       </div>
                     </div>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
+                    <div className="mt-4 space-y-2 rounded-2xl bg-white px-4 py-4 text-sm shadow-sm">
+                      <div className="flex justify-between gap-4">
                         <span className="text-text-tertiary">은행명</span>
-                        <span className="font-semibold">
+                        <span className="text-right font-semibold">
                           {data.transferAccount?.bankName?.trim() || '-'}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-4">
                         <span className="text-text-tertiary">계좌번호</span>
-                        <span className="font-semibold font-mono">
+                        <span className="text-right font-mono font-semibold">
                           {data.transferAccount?.accountNumber?.trim() || '-'}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-4">
                         <span className="text-text-tertiary">예금주</span>
-                        <span className="font-semibold">
+                        <span className="text-right font-semibold">
                           {data.transferAccount?.accountHolder?.trim() || '-'}
                         </span>
                       </div>
                     </div>
-                    <p className="mt-2 text-xs text-warning-600">
-                      입금 확인 후 주문이 처리됩니다.
-                    </p>
                   </div>
                 ) : null}
 
                 {canRequestReceipt ? (
-                  <div className="mt-3 rounded-xl border border-border bg-bg-secondary p-3">
+                  <div className="rounded-[28px] border border-black/8 bg-[#faf8f4] p-4">
                     <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
                       <input
                         type="checkbox"
@@ -1182,7 +1280,7 @@ export default function ShopBrandPageClient({
                           />
                           연락처와 동일
                         </label>
-                        <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-secondary">
+                        <div className="rounded-2xl border border-black/8 bg-white px-3 py-3 text-sm text-text-secondary">
                           {cashReceiptUseCustomerPhone ? (
                             <>발급 번호: {customerPhone.trim() || '휴대폰 번호를 먼저 입력해 주세요.'}</>
                           ) : (
@@ -1190,7 +1288,7 @@ export default function ShopBrandPageClient({
                               type="text"
                               value={cashReceiptPhone}
                               onChange={(e) => setCashReceiptPhone(e.target.value)}
-                              className="input-field h-11 w-full"
+                              className="input-field h-11 w-full rounded-2xl border-black/8 bg-[#faf8f4]"
                               placeholder="현금영수증 발급 휴대폰 번호"
                               inputMode="tel"
                             />
@@ -1200,26 +1298,26 @@ export default function ShopBrandPageClient({
                     ) : null}
                   </div>
                 ) : null}
-              </div>
+              </section>
 
               {submitError ? (
-                <p className="text-sm text-danger-500 bg-danger-500/5 rounded-xl px-3 py-2">
+                <p className="rounded-2xl bg-danger-500/8 px-4 py-3 text-sm text-danger-500">
                   {submitError}
                 </p>
               ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    void submitOrder();
-                  }}
-                  disabled={
-                    submitting ||
-                    cartItems.length === 0 ||
-                    (paymentMethod === 'CARD' && !cardWidgetReady)
-                  }
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border-none bg-foreground p-4 text-base font-bold text-background cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 lg:max-w-[280px]"
-                >
+              <button
+                type="button"
+                onClick={() => {
+                  void submitOrder();
+                }}
+                disabled={
+                  submitting ||
+                  cartItems.length === 0 ||
+                  (paymentMethod === 'CARD' && !cardWidgetReady)
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-[22px] border-none bg-foreground px-5 py-4 text-base font-bold text-background transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 {submitting ? (
                   <>
                     <svg
@@ -1247,14 +1345,16 @@ export default function ShopBrandPageClient({
                   `배송 주문하기${totalAmount > 0 ? ` (${formatWon(totalAmount)})` : ''}`
                 )}
               </button>
+              <p className="mt-3 text-center text-xs leading-5 text-text-tertiary">
+                주문 후 추적 페이지에서 배송 현황과 주문 상태를 확인할 수 있어요.
+              </p>
             </div>
           </aside>
         </main>
       </div>
 
-      {/* ── 모바일 전용 스티키 장바구니 바 ── */}
       {totalQty > 0 && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-4 pb-4 pt-2 bg-background/95 backdrop-blur-sm border-t border-border">
+        <div className="xl:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-black/8 bg-white/92 px-4 pb-4 pt-3 backdrop-blur-md">
           <button
             type="button"
             onClick={() =>
@@ -1263,10 +1363,10 @@ export default function ShopBrandPageClient({
                 block: 'start',
               })
             }
-            className="w-full p-4 rounded-2xl border-none bg-foreground text-background text-base font-bold cursor-pointer flex items-center justify-between"
+            className="flex w-full items-center justify-between rounded-[22px] border-none bg-foreground p-4 text-base font-bold text-background shadow-lg"
           >
             <span className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-xs font-bold text-white">
                 {totalQty}
               </span>
               장바구니 보기

@@ -9,7 +9,7 @@ function formatAccessError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
   if (message.includes('API Network Error: /me')) {
-    return '권한 확인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+    return '권한 확인 서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.';
   }
 
   return message || '로그인 상태를 확인하지 못했습니다.';
@@ -57,7 +57,7 @@ export default function AppPage() {
           계정 상태를 확인하고 있습니다
         </h1>
         <p className="mt-2 text-sm leading-6 text-text-secondary">
-          로그인 정보와 연결된 권한을 확인한 뒤 맞는 화면으로 자동 이동합니다.
+          로그인 정보와 연결된 권한을 확인한 뒤 알맞은 화면으로 자동 이동합니다.
         </p>
         {errorMsg ? (
           <>

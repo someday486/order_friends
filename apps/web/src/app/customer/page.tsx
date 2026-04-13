@@ -111,7 +111,7 @@ export default function CustomerDashboardPage() {
         setError(
           e instanceof Error
             ? e.message
-            : '대시보드 데이터를 불러오지 못했습니다',
+            : '대시보드 데이터를 불러오지 못했습니다.',
         );
       } finally {
         setLoading(false);
@@ -120,7 +120,7 @@ export default function CustomerDashboardPage() {
 
     loadStats().catch((fetchError) => {
       console.warn('dashboard stats fetch unhandled', fetchError);
-      setError('대시보드 데이터를 불러오지 못했습니다');
+      setError('대시보드 데이터를 불러오지 못했습니다.');
       setLoading(false);
     });
   }, [isBrandCreatorOnboarding, roleLoading, router]);
@@ -200,7 +200,7 @@ export default function CustomerDashboardPage() {
               운영 대시보드{user?.email ? ` · ${user.email.split('@')[0]}` : ''}
             </h1>
             <p className="mt-1 text-sm text-text-secondary">
-              주문/재고 중심 핵심 지표를 한 화면에서 확인합니다.
+              주문과 재고, 브랜드 현황을 한 화면에서 확인합니다.
             </p>
           </div>
           <div className="text-right">
@@ -264,7 +264,7 @@ export default function CustomerDashboardPage() {
                         주문 #{order.order_no || order.id.slice(0, 8)}
                       </div>
                       <div className="text-xs text-text-tertiary">
-                        {order.branch?.name || '매장 미상'} ·{' '}
+                        {order.branch?.name || '매장 미지정'} ·{' '}
                         {new Date(order.created_at).toLocaleString()}
                       </div>
                     </div>
@@ -287,9 +287,7 @@ export default function CustomerDashboardPage() {
         <Card className="p-5">
           <div className="mb-3 flex items-center gap-2">
             <InventoryIcon size={18} />
-            <h2 className="text-lg font-bold text-foreground">
-              재고 부족 알림
-            </h2>
+            <h2 className="text-lg font-bold text-foreground">재고 부족 알림</h2>
           </div>
           <div className="mb-3 text-sm text-text-secondary">
             현재{' '}

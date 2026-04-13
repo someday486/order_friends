@@ -273,6 +273,7 @@ export default function CustomerLayout({
                 alt="주문프렌즈 로고"
                 width={170}
                 height={50}
+                className="h-auto w-auto"
                 priority
               />
               {/* <div>

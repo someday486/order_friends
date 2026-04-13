@@ -6,10 +6,6 @@ import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSelectedBrand } from '@/hooks/useSelectedBrand';
 
-// ============================================================
-// Types
-// ============================================================
-
 type DashboardStats = {
   totalOrders: number;
   pendingOrders: number;
@@ -17,14 +13,6 @@ type DashboardStats = {
   totalProducts: number;
   totalBranches: number;
 };
-
-// ============================================================
-// Constants
-// ============================================================
-
-// ============================================================
-// Component
-// ============================================================
 
 export default function AdminHomePage() {
   const { brandId, ready } = useSelectedBrand();
@@ -83,17 +71,15 @@ export default function AdminHomePage() {
         </div>
       )}
 
-      {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-extrabold m-0 text-foreground">
-          안녕하세요{user?.email ? `, ${user.email.split('@')[0]}님` : ''}!
+          안녕하세요{user?.email ? `, ${user.email.split('@')[0]}` : ''}!
         </h1>
         <p className="text-text-secondary mt-2 text-sm">
           오더프렌즈 관리자 대시보드입니다.
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-8">
         <StatCard
           title="전체 주문"
@@ -118,56 +104,50 @@ export default function AdminHomePage() {
         />
       </div>
 
-      {/* Quick Links */}
       <div className="mb-8">
         <h2 className="text-base font-bold mb-4 text-foreground">빠른 이동</h2>
         <div className="flex gap-3 flex-wrap">
           <QuickLinkCard
             href="/admin/orders"
             title="주문 관리"
-            description="주문 목록 조회 및 처리"
+            description="주문 목록 조회와 처리를 진행합니다."
           />
           <QuickLinkCard
             href="/admin/products"
             title="상품 관리"
-            description="상품 등록 및 수정"
+            description="상품 등록과 수정을 진행합니다."
           />
           <QuickLinkCard
             href="/admin/stores"
-            title="가게 관리"
-            description="지점 추가 및 관리"
+            title="매장 관리"
+            description="브랜드별 매장을 추가하고 관리합니다."
           />
           <QuickLinkCard
             href="/admin/brand"
             title="브랜드 관리"
-            description="브랜드 정보 설정"
+            description="브랜드 정보와 설정을 관리합니다."
           />
           <QuickLinkCard
             href="/admin/members"
             title="권한 관리"
-            description="시스템 관리자가 멤버 권한 승인"
+            description="시스템 관리자 권한과 멤버 권한을 확인합니다."
           />
         </div>
       </div>
 
-      {/* Info */}
       <div className="card p-4">
         <div className="font-semibold mb-2 text-foreground">빠른 시작하기</div>
         <ol className="m-0 pl-5 text-text-secondary text-[13px] leading-[1.8]">
-          <li>브랜드 관리에서 브랜드를 생성하세요.</li>
-          <li>가게 관리에서 브랜드에 속한 가게를 추가하세요.</li>
-          <li>권한 관리에서 가입한 사용자를 브랜드/가게 멤버로 승인하세요.</li>
-          <li>상품 관리에서 가게별 상품을 등록하세요.</li>
-          <li>주문이 들어오면 주문 관리에서 처리하세요.</li>
+          <li>브랜드 관리에서 운영할 브랜드를 선택하거나 확인해 주세요.</li>
+          <li>매장 관리에서 브랜드에 속한 매장을 등록해 주세요.</li>
+          <li>권한 관리에서 운영할 멤버 권한을 확인해 주세요.</li>
+          <li>상품 관리에서 매장별 상품을 등록해 주세요.</li>
+          <li>주문이 들어오면 주문 관리에서 상태를 처리해 주세요.</li>
         </ol>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// Sub Components
-// ============================================================
 
 function StatCard({
   title,

@@ -60,7 +60,7 @@ const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
-  DINE_IN: "매장",
+  DINE_IN: "현장 이용",
   SHIPPING: "택배",
 };
 
@@ -228,7 +228,7 @@ export default function StoreDetailPage() {
         selectBranch(data.id);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "매장 정보를 불러오지 못했습니다.");
+        setError(err?.message ?? "스토어/출고지 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -266,7 +266,7 @@ export default function StoreDetailPage() {
         setMembers(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setMembersError(err?.message ?? "매장 멤버를 불러오지 못했습니다.");
+        setMembersError(err?.message ?? "스토어 멤버를 불러오지 못했습니다.");
       } finally {
         setMembersLoading(false);
       }
@@ -300,7 +300,7 @@ export default function StoreDetailPage() {
     if (!branch) return;
 
     if (!name.trim()) {
-      toast.error("매장명을 입력해 주세요.");
+      toast.error("스토어/출고지명을 입력해 주세요.");
       return;
     }
 
@@ -394,10 +394,10 @@ export default function StoreDetailPage() {
       setOrderNotice(updated.orderNotice ?? "");
       setContactPhone(updated.contactPhone ?? "");
       setKakaoChannelUrl(updated.kakaoChannelUrl ?? "");
-      toast.success("매장 설정을 저장했습니다.");
+      toast.success("스토어 설정을 저장했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 설정 저장에 실패했습니다.");
+      toast.error(err?.message ?? "스토어 설정 저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -406,7 +406,7 @@ export default function StoreDetailPage() {
   const handleDelete = async () => {
     if (!branch) return;
 
-    const confirmed = confirm(`"${branch.name}" 매장을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`);
+    const confirmed = confirm(`"${branch.name}" 스토어/출고지를 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`);
     if (!confirmed) return;
 
     try {
@@ -415,7 +415,7 @@ export default function StoreDetailPage() {
       router.replace("/admin/stores");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 삭제에 실패했습니다.");
+      toast.error(err?.message ?? "스토어/출고지 삭제에 실패했습니다.");
     } finally {
       setDeleting(false);
     }
@@ -429,9 +429,9 @@ export default function StoreDetailPage() {
     <div>
       <div className="mb-4">
         <Link href="/admin/stores" className="text-text-secondary text-xs hover:text-foreground transition-colors">
-          매장 목록으로 돌아가기
+          스토어 목록으로 돌아가기
         </Link>
-        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">{branch?.name ?? "매장 상세"}</h1>
+        <h1 className="text-[22px] font-extrabold mt-2 text-foreground">{branch?.name ?? "스토어 상세"}</h1>
         <p className="text-text-secondary mt-1 text-[13px]">
           {branch ? buildOrderUrl(brandSlug, branch.slug, branch.id) : "-"}
         </p>
@@ -446,15 +446,15 @@ export default function StoreDetailPage() {
       {!loading && branch ? (
         <div className="grid gap-3">
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">매장 기본 정보</div>
+            <div className="text-xs text-text-secondary">스토어 기본 정보</div>
             <div className="mt-2 grid gap-2.5">
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">매장명</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">스토어/출고지명</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input-field w-full"
-                  placeholder="매장명을 입력해 주세요."
+                  placeholder="스토어 또는 출고지명을 입력해 주세요."
                 />
               </div>
 
@@ -470,7 +470,7 @@ export default function StoreDetailPage() {
               </div>
 
               <div>
-                <label className="block mb-1.5 text-xs text-text-secondary">매장 ID</label>
+                <label className="block mb-1.5 text-xs text-text-secondary">스토어 ID</label>
                 <div className="text-[13px] text-foreground font-mono">{branch.id}</div>
               </div>
 
@@ -537,7 +537,7 @@ export default function StoreDetailPage() {
                 <div className="font-semibold text-foreground">{getBillingTierLabel(effectiveBillingTier)}</div>
                 <div className="mt-1">{getBillingTierCheckoutDescription(effectiveBillingTier)}</div>
                 <div className="mt-2 text-xs">
-                  결제 방식은 브랜드 정책에 따라 자동으로 결정되며, 매장 화면에서는 직접 변경하지 않습니다.
+                  결제 방식은 브랜드 정책에 따라 자동으로 결정되며, 스토어 화면에서는 직접 변경하지 않습니다.
                 </div>
               </div>
             </div>
@@ -605,7 +605,7 @@ export default function StoreDetailPage() {
                 />
               </div>
               <div className="mt-1.5 text-xs text-text-tertiary">
-                공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 정보입니다.
+                온라인샵 주문 링크와 주문 조회 페이지에 노출되는 문의 정보입니다.
               </div>
             </div>
 
@@ -660,13 +660,13 @@ export default function StoreDetailPage() {
                 onClick={handleDelete}
                 disabled={saving || deleting}
               >
-                {deleting ? "삭제 중..." : "매장 삭제"}
+                {deleting ? "삭제 중..." : "스토어 삭제"}
               </button>
             </div>
           </div>
 
           <div className="card p-4">
-            <div className="text-xs text-text-secondary">매장 멤버</div>
+            <div className="text-xs text-text-secondary">스토어 멤버</div>
             {membersLoading && <p className="text-text-tertiary mt-2">불러오는 중...</p>}
             {membersError && <p className="text-danger-500 mt-2">{membersError}</p>}
             {!membersLoading && !membersError && members.length === 0 ? (

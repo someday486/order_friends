@@ -29,6 +29,10 @@ describe('BillingService', () => {
     service = new BillingService(supabase, config);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('resolveRetrySchedule should use the configured retry cadence', () => {
     const now = new Date('2026-04-13T00:00:00.000Z');
     const next = (service as any).resolveRetrySchedule(1, now) as Date;
@@ -205,6 +209,9 @@ describe('BillingService', () => {
   });
 
   it('changePlan should charge immediately for upgrades', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-04-15T00:00:00.000Z'));
+
     jest.spyOn(service as any, 'getAccessibleNonPgBrand').mockResolvedValue({
       id: 'brand-1',
       owner_user_id: 'owner-1',

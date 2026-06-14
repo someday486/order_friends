@@ -76,7 +76,7 @@ const BRAND_ROLE_DESCRIPTIONS: Array<{
   {
     role: 'ADMIN',
     description:
-      '브랜드, 지점, 상품, 재고 같은 주요 운영 기능을 관리할 수 있으며 오너와 기능 권한이 같습니다.',
+      '브랜드, 스토어, 상품, 재고 같은 주요 운영 기능을 관리할 수 있으며 오너와 기능 권한이 같습니다.',
   },
   {
     role: 'MEMBER',
@@ -93,10 +93,10 @@ const BRANCH_ROLE_DESCRIPTIONS: Array<{
   role: BranchRole;
   description: string;
 }> = [
-  { role: 'BRANCH_OWNER', description: '매장 최고 권한입니다.' },
+  { role: 'BRANCH_OWNER', description: '스토어 최고 권한입니다.' },
   {
     role: 'BRANCH_ADMIN',
-    description: '매장 운영, 상품, 재고 관리를 담당할 수 있습니다.',
+    description: '스토어 운영, 상품, 재고 관리를 담당할 수 있습니다.',
   },
   {
     role: 'STAFF',
@@ -279,7 +279,7 @@ function MembersPageContent() {
       setBranchError(
         error instanceof Error
           ? error.message
-          : '매장 멤버를 불러오지 못했습니다.',
+          : '스토어 멤버를 불러오지 못했습니다.',
       );
     } finally {
       setBranchLoading(false);
@@ -386,12 +386,12 @@ function MembersPageContent() {
       await Promise.all([fetchBranchMembers(), fetchPending()]);
       setSelectedUserId('');
       setBranchRole('STAFF');
-      toast.success('매장 권한을 부여했습니다.');
+      toast.success('스토어 권한을 부여했습니다.');
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : '매장 권한 부여에 실패했습니다.',
+          : '스토어 권한 부여에 실패했습니다.',
       );
     } finally {
       setAddingBranch(false);
@@ -424,12 +424,12 @@ function MembersPageContent() {
 
   const quickApproveBranchMember = async (user: PendingUser) => {
     if (!branchId || !selectedBranchInfo) {
-      toast.error('먼저 승인할 매장을 선택해 주세요.');
+      toast.error('먼저 승인할 스토어를 선택해 주세요.');
       return;
     }
 
     const confirmed = window.confirm(
-      `${user.email ?? user.id} 계정을 ${selectedBranchInfo.name} 매장 멤버로 승인하시겠습니까?`,
+      `${user.email ?? user.id} 계정을 ${selectedBranchInfo.name} 스토어 멤버로 승인하시겠습니까?`,
     );
     if (!confirmed) return;
 
@@ -443,12 +443,12 @@ function MembersPageContent() {
       await Promise.all([fetchBranchMembers(), fetchPending()]);
       setSelectedUserId(user.id);
       setTab('branch');
-      toast.success('매장 권한을 바로 승인했습니다.');
+      toast.success('스토어 권한을 바로 승인했습니다.');
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : '매장 승인에 실패했습니다.',
+          : '스토어 승인에 실패했습니다.',
       );
     } finally {
       setQuickApprovingKey(null);
@@ -477,12 +477,12 @@ function MembersPageContent() {
         role,
       });
       await fetchBranchMembers();
-      toast.success('매장 역할을 변경했습니다.');
+      toast.success('스토어 역할을 변경했습니다.');
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : '매장 역할 변경에 실패했습니다.',
+          : '스토어 역할 변경에 실패했습니다.',
       );
     }
   };
@@ -503,23 +503,23 @@ function MembersPageContent() {
   };
 
   const removeBranchMember = async (userId: string) => {
-    if (!confirm('이 매장에서 해당 사용자를 제거하시겠습니까?')) return;
+    if (!confirm('이 스토어에서 해당 사용자를 제거하시겠습니까?')) return;
     try {
       await apiClient.delete(`/admin/members/branch/${branchId}/${userId}`);
       await Promise.all([fetchBranchMembers(), fetchPending()]);
-      toast.success('매장 멤버를 제거했습니다.');
+      toast.success('스토어 멤버를 제거했습니다.');
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : '매장 멤버 제거에 실패했습니다.',
+          : '스토어 멤버 제거에 실패했습니다.',
       );
     }
   };
 
   const transferBrandMemberToBranch = async (member: BrandMember) => {
     if (!brandId || !branchId) {
-      toast.error('먼저 이동할 매장을 선택해주세요.');
+      toast.error('먼저 이동할 스토어를 선택해주세요.');
       return;
     }
 
@@ -543,12 +543,12 @@ function MembersPageContent() {
         fetchBranchMembers(),
         fetchPending(),
       ]);
-      toast.success('매장 권한으로 전환했습니다.');
+      toast.success('스토어 권한으로 전환했습니다.');
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : '매장 권한 전환에 실패했습니다.',
+          : '스토어 권한 전환에 실패했습니다.',
       );
     } finally {
       setTransferringMemberKey(null);
@@ -557,7 +557,7 @@ function MembersPageContent() {
 
   const transferBranchMemberToBrand = async (member: BranchMember) => {
     if (!brandId || !branchId) {
-      toast.error('먼저 이동할 브랜드와 매장을 선택해주세요.');
+      toast.error('먼저 이동할 브랜드와 스토어를 선택해주세요.');
       return;
     }
 
@@ -643,7 +643,7 @@ function MembersPageContent() {
           가입 승인 및 권한 부여
         </h1>
         <p className="mt-2 text-sm leading-6 text-text-secondary">
-          대기 계정 선택, 브랜드 또는 매장 선택, 역할 지정 순서로 한 화면에서
+          대기 계정 선택, 브랜드 또는 스토어 선택, 역할 지정 순서로 한 화면에서
           처리할 수 있게 정리했습니다.
         </p>
       </section>
@@ -742,7 +742,7 @@ function MembersPageContent() {
                       }
                       className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-600"
                     >
-                      매장 승인
+                      스토어 승인
                     </button>
                   </div>
                 </div>
@@ -783,7 +783,7 @@ function MembersPageContent() {
                       : 'border border-border text-foreground hover:bg-bg-tertiary'
                   }`}
                 >
-                  매장
+                  스토어
                 </button>
               </div>
             </div>
@@ -818,7 +818,7 @@ function MembersPageContent() {
                     href="/admin/brand"
                     className="text-sm text-text-secondary hover:text-foreground"
                   >
-                    브랜드 관리
+                    브랜드/셀러 관리
                   </Link>
                 </div>
                 <select
@@ -844,24 +844,24 @@ function MembersPageContent() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-xs font-semibold text-text-secondary">
-                      선택된 매장
+                      선택된 스토어
                     </div>
                     <div className="mt-1 text-sm font-bold text-foreground">
-                      {selectedBranchInfo?.name ?? '선택된 매장 없음'}
+                      {selectedBranchInfo?.name ?? '선택된 스토어 없음'}
                     </div>
                     <div className="mt-1 text-[11px] text-text-tertiary">
-                      {branchId ?? '매장 ID 없음'}
+                      {branchId ?? '스토어 ID 없음'}
                     </div>
                   </div>
                   <Link
                     href="/admin/stores"
                     className="text-sm text-text-secondary hover:text-foreground"
                   >
-                    매장 관리
+                    스토어 관리
                   </Link>
                 </div>
                 <div className="mt-3">
-                  <BranchSelector label="권한을 부여할 매장" />
+                  <BranchSelector label="권한을 부여할 스토어" />
                 </div>
               </div>
             </div>
@@ -937,19 +937,19 @@ function MembersPageContent() {
             ) : (
               <>
                 <h2 className="text-base font-bold text-foreground">
-                  매장 권한 부여
+                  스토어 권한 부여
                 </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  실제 매장 운영 계정이면 매장 권한을 먼저 연결하세요.
+                  실제 스토어 운영 계정이면 스토어 권한을 먼저 연결하세요.
                 </p>
                 {!brandId ? (
                   <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-                    먼저 브랜드를 선택해야 매장을 고를 수 있습니다.
+                    먼저 브랜드를 선택해야 스토어를 고를 수 있습니다.
                   </div>
                 ) : null}
                 <div className="mt-4 rounded-xl border border-border bg-bg-secondary p-4">
                   <div className="text-xs font-semibold text-text-secondary">
-                    매장 역할 설명
+                    스토어 역할 설명
                   </div>
                   <div className="mt-3 space-y-2 text-sm text-text-secondary">
                     {BRANCH_ROLE_DESCRIPTIONS.map((item) => (
@@ -986,7 +986,7 @@ function MembersPageContent() {
                     disabled={!branchId || !selectedUserId || addingBranch}
                     className="btn-primary h-10 px-4 text-sm disabled:opacity-50"
                   >
-                    {addingBranch ? '권한 부여 중...' : '이 매장에 추가'}
+                    {addingBranch ? '권한 부여 중...' : '이 스토어에 추가'}
                   </button>
                 </div>
               </>
@@ -1125,7 +1125,7 @@ function MembersPageContent() {
                               {transferringMemberKey ===
                               `brand-${member.userId}`
                                 ? '전환 중...'
-                                : `매장 ${BRANCH_ROLE_LABELS[branchRole]}로 전환`}
+                                : `스토어 ${BRANCH_ROLE_LABELS[branchRole]}로 전환`}
                             </button>
                             <button
                               type="button"
@@ -1152,10 +1152,10 @@ function MembersPageContent() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-foreground">
-                매장 멤버 목록
+                스토어 멤버 목록
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                선택된 매장의 현재 권한 상태입니다.
+                선택된 스토어의 현재 권한 상태입니다.
               </p>
             </div>
             <button
@@ -1174,7 +1174,7 @@ function MembersPageContent() {
           ) : null}
           {!branchId ? (
             <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-tertiary">
-              매장을 선택하면 멤버 목록이 보입니다.
+              스토어를 선택하면 멤버 목록이 보입니다.
             </div>
           ) : (
             <div className="mt-4 overflow-x-auto">
@@ -1205,7 +1205,7 @@ function MembersPageContent() {
                         colSpan={5}
                         className="px-3 py-6 text-center text-sm text-text-tertiary"
                       >
-                        등록된 매장 멤버가 없습니다.
+                        등록된 스토어 멤버가 없습니다.
                       </td>
                     </tr>
                   ) : (

@@ -103,7 +103,7 @@ function ProductsPageContent() {
         }
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "매장 목록을 불러오지 못했습니다.");
+        setError(err?.message ?? "스토어 목록을 불러오지 못했습니다.");
         setBranches([]);
         setProducts([]);
       } finally {
@@ -226,7 +226,7 @@ function ProductsPageContent() {
                 aria-label="상품 조회조건 도움말"
               />
               <div className="pointer-events-none absolute left-6 top-1/2 z-50 w-72 -translate-y-1/2 rounded-md border border-border bg-bg-tertiary p-3 text-xs text-text-secondary opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                브랜드를 먼저 고른 뒤 특정 매장 또는 전체 매장을 선택하고, 상태와 검색어로
+                브랜드를 먼저 고른 뒤 특정 스토어 또는 전체 스토어를 선택하고, 상태와 검색어로
                 원하는 상품만 빠르게 찾을 수 있습니다.
               </div>
             </div>
@@ -275,7 +275,7 @@ function ProductsPageContent() {
           </div>
 
           <div className="min-w-0">
-            <label className="mb-2 block text-sm font-semibold text-text-secondary">매장</label>
+            <label className="mb-2 block text-sm font-semibold text-text-secondary">스토어</label>
             <select
               value={selectedBranchValue}
               onChange={(event) => selectBranch(event.target.value)}
@@ -283,7 +283,7 @@ function ProductsPageContent() {
               disabled={!brandId || loadingBranches}
             >
               <option value="">
-                {brandId ? "매장을 선택하세요" : "먼저 브랜드를 선택하세요"}
+                {brandId ? "스토어를 선택하세요" : "먼저 브랜드를 선택하세요"}
               </option>
               <option value={ALL_BRANCHES_VALUE}>전체</option>
               {branches.map((branch) => (
@@ -346,11 +346,11 @@ function ProductsPageContent() {
       )}
 
       {!brandId && (
-        <p className="mb-4 text-text-tertiary">브랜드를 선택하면 매장과 상품 목록이 표시됩니다.</p>
+        <p className="mb-4 text-text-tertiary">브랜드를 선택하면 스토어와 상품 목록이 표시됩니다.</p>
       )}
 
       {brandId && !branchId && (
-        <p className="mb-4 text-text-tertiary">매장을 선택하면 상품 목록이 표시됩니다.</p>
+        <p className="mb-4 text-text-tertiary">스토어를 선택하면 상품 목록이 표시됩니다.</p>
       )}
 
       <div className="overflow-hidden rounded-xl border border-border">

@@ -159,7 +159,7 @@ function getFulfillmentLabel(type: FulfillmentType) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
   if (type === 'SHIPPING') return '택배';
-  return '매장';
+  return '현장 이용';
 }
 
 function getFulfillmentIcon(type: FulfillmentType) {
@@ -679,7 +679,7 @@ export default function CheckoutPage() {
     }
 
     if (!branchId) {
-      setError('매장 정보가 올바르지 않습니다.');
+      setError('스토어 정보가 올바르지 않습니다.');
       return;
     }
 
@@ -1089,7 +1089,7 @@ export default function CheckoutPage() {
                       }
                       emptyMessage={
                         !hasScheduledPickupConfig
-                          ? '매장에서 픽업 가능 시간을 설정하지 않았습니다.'
+                          ? '스토어에서 픽업 가능 시간을 설정하지 않았습니다.'
                           : '선택 가능한 날짜가 없습니다.'
                       }
                     />
@@ -1105,7 +1105,7 @@ export default function CheckoutPage() {
                     >
                       {!hasScheduledPickupConfig ? (
                         <option value="">
-                          매장에서 픽업 가능 시간을 설정하지 않았습니다.
+                          스토어에서 픽업 가능 시간을 설정하지 않았습니다.
                         </option>
                       ) : pickupDateOptions.length === 0 ? (
                         <option value="">선택 가능한 날짜가 없습니다.</option>
@@ -1134,7 +1134,7 @@ export default function CheckoutPage() {
                   >
                     {!hasScheduledPickupConfig ? (
                       <option value="">
-                        매장에서 픽업 시간을 설정하지 않았습니다.
+                        스토어에서 픽업 시간을 설정하지 않았습니다.
                       </option>
                     ) : pickupTimeOptionsForSelectedDate.length === 0 ? (
                       <option value="">
@@ -1150,8 +1150,8 @@ export default function CheckoutPage() {
                   </select>
                   <p className="mt-2 text-xs text-text-tertiary">
                     {hasScheduledPickupConfig
-                      ? '매장에서 설정한 픽업 가능 시간만 30분 단위로 표시됩니다.'
-                      : '매장에서 픽업 가능 시간을 설정하면 이곳에서 선택할 수 있습니다.'}
+                      ? '스토어에서 설정한 픽업 가능 시간만 30분 단위로 표시됩니다.'
+                      : '스토어에서 픽업 가능 시간을 설정하면 이곳에서 선택할 수 있습니다.'}
                   </p>
                 </div>
               )}

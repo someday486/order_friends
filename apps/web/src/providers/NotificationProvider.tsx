@@ -99,7 +99,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           id: `low-stock-${item.branch_id}-${item.product_id}`,
           type: 'LOW_STOCK',
           title: '재고 부족',
-          message: `${item.product_name} (${item.branch_name || '매장 미상'}) - 현재 ${item.qty_available}개 (최소 ${item.low_stock_threshold}개)`,
+          message: `${item.product_name} (${item.branch_name || '스토어 미상'}) - 현재 ${item.qty_available}개 (최소 ${item.low_stock_threshold}개)`,
           isRead: false,
           createdAt: now.toISOString(),
           link: `/customer/inventory/${item.product_id}?branchId=${encodeURIComponent(item.branch_id)}`,

@@ -11,6 +11,7 @@ This file records the current status of the documentation set after the cleanup.
 | `foundation/02-architecture.md` | canonical | system architecture |
 | `foundation/03-db-schema.md` | canonical | core data model |
 | `foundation/04-user-flows.md` | canonical | major user flows |
+| `foundation/05-business-model.md` | canonical | product positioning and monetization model |
 | `foundation/auth-foundation.md` | canonical | app auth usage rules |
 | `guides/SECURITY.md` | canonical | security guidance |
 | `guides/SYSTEM_ADMIN_SETUP.md` | canonical | system-admin setup flow |

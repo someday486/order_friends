@@ -393,7 +393,7 @@ export default function CompletePage() {
             <div>
               <h1 className="text-2xl font-extrabold text-foreground mb-1">주문이 완료되었습니다</h1>
               <p className="text-text-secondary text-sm">
-                매장에서 주문을 확인하고 있습니다.<br />잠시만 기다려 주세요.
+                스토어에서 주문을 확인하고 있습니다.<br />잠시만 기다려 주세요.
               </p>
             </div>
           </div>

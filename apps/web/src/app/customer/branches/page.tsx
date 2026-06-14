@@ -61,7 +61,7 @@ const BRANCH_FULFILLMENT_OPTIONS: Array<{
 }> = [
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
-  { value: "DINE_IN", label: "매장" },
+  { value: "DINE_IN", label: "현장 이용" },
   { value: "SHIPPING", label: "택배" },
 ];
 
@@ -167,7 +167,7 @@ export default function CustomerBranchesPage() {
         );
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
+        setError(e instanceof Error ? e.message : "스토어/출고지 목록을 불러올 수 없습니다");
       } finally {
         setLoading(false);
       }
@@ -183,7 +183,7 @@ export default function CustomerBranchesPage() {
   if (brands.length === 0 && !loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">매장 관리</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">스토어 관리</h1>
         <div className="card p-12 text-center text-text-tertiary">
           <div className="text-base mb-2">등록된 브랜드가 없습니다</div>
           <div className="text-sm">먼저 브랜드 멤버십을 요청하세요</div>
@@ -196,7 +196,7 @@ export default function CustomerBranchesPage() {
     <div>
       {/* ── 1. 상단 헤더: 제목만, 버튼 제거 ── */}
       <div className="mb-8">
-        <h1 className="text-2xl font-extrabold m-0 text-foreground">매장 관리</h1>
+        <h1 className="text-2xl font-extrabold m-0 text-foreground">스토어 관리</h1>
       </div>
 
       {/* 브랜드 선택 */}
@@ -221,7 +221,7 @@ export default function CustomerBranchesPage() {
           <div className="mb-3 rounded-xl border border-border bg-bg-secondary px-4 py-3">
             <div className="text-sm font-semibold text-foreground">온라인 판매 채널</div>
             <p className="mt-1 text-xs leading-5 text-text-secondary">
-              온라인샵은 개별 지점과 분리된 브랜드 단위 주문 채널입니다.
+              온라인샵은 스토어/출고지와 함께 운영되는 브랜드 단위 주문 채널입니다.
               아래에서 온라인샵 주소와 결제 운영 방식을 함께 확인할 수 있습니다.
             </p>
           </div>
@@ -251,13 +251,13 @@ export default function CustomerBranchesPage() {
         </div>
       )}
 
-      {/* ── 2. 지점 목록 섹션 헤더: 제목 + 건수 + 추가 버튼 ── */}
+      {/* ── 2. 스토어/출고지 목록 섹션 헤더: 제목 + 건수 + 추가 버튼 ── */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="text-sm font-semibold text-foreground">오프라인 지점 목록</div>
+          <div className="text-sm font-semibold text-foreground">스토어/출고지 목록</div>
           {!loading && (
             <div className="text-xs text-text-tertiary mt-0.5">
-              총 {visibleBranches.length}개 지점
+              총 {visibleBranches.length}개
             </div>
           )}
         </div>
@@ -266,12 +266,12 @@ export default function CustomerBranchesPage() {
             onClick={() => setShowAddModal(true)}
             className="btn-primary px-4 py-2 text-sm"
           >
-            + 매장추가
+            + 스토어 추가
           </button>
         )}
       </div>
 
-      {/* 지점 목록 본문 */}
+      {/* 스토어/출고지 목록 본문 */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, index) => (
@@ -282,8 +282,8 @@ export default function CustomerBranchesPage() {
         <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">{error}</div>
       ) : visibleBranches.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base mb-2">등록된 지점이 없습니다</div>
-          <div className="text-sm">새로운 지점을 추가해보세요</div>
+          <div className="text-base mb-2">등록된 스토어/출고지가 없습니다</div>
+          <div className="text-sm">새로운 스토어 또는 출고지를 추가해보세요</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
@@ -317,7 +317,7 @@ function BranchCard({ branch }: { branch: Branch }) {
 
   return (
     <div className="p-5 rounded-xl border border-border bg-bg-secondary text-foreground">
-      {/* 상단: 아이콘 + 지점명/역할 + 외부링크 아이콘 */}
+      {/* 상단: 아이콘 + 스토어명/역할 + 외부링크 아이콘 */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {branch.logoUrl ? (
@@ -353,13 +353,13 @@ function BranchCard({ branch }: { branch: Branch }) {
           </div>
         </div>
 
-        {/* 외부링크: 고객 주문 페이지 (새 탭) */}
+        {/* 외부링크: 고객 주문 링크 (새 탭) */}
         <a
           href={orderUrl}
           target="_blank"
           rel="noopener noreferrer"
-          title="고객 주문 페이지 열기"
-          aria-label={`${branch.name} 고객 주문 페이지 열기`}
+          title="고객 주문 링크 열기"
+          aria-label={`${branch.name} 고객 주문 링크 열기`}
           className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
         >
           <ExternalLink className="w-4 h-4" />
@@ -604,11 +604,11 @@ function AddBranchModal({
         businessHours: serializeBusinessHoursForm(formData.businessHours),
       });
 
-      toast.success("지점이 추가되었습니다.");
+      toast.success("스토어/출고지가 추가되었습니다.");
       onSuccess();
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "지점 추가에 실패했습니다");
+      toast.error(e instanceof Error ? e.message : "스토어/출고지 추가에 실패했습니다");
     } finally {
       setSaving(false);
     }
@@ -623,16 +623,16 @@ function AddBranchModal({
         className="max-h-[calc(100vh-2rem)] w-full max-w-[500px] overflow-y-auto rounded-md border border-border bg-bg-secondary p-8 text-foreground shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-xl font-bold mb-6">지점 추가</h2>
+        <h2 className="text-xl font-bold mb-6">스토어/출고지 추가</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-5">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">지점명</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">스토어/출고지명</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="input-field"
-              placeholder="지점명을 입력하세요"
+              placeholder="스토어 또는 출고지명을 입력하세요"
               required
             />
           </div>
@@ -689,7 +689,7 @@ function AddBranchModal({
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">기본 픽업 시간</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">기본 수령 시간</label>
             <div className="grid gap-2 sm:grid-cols-2">
               <select
                 value={formData.pickupStartTime}
@@ -717,11 +717,11 @@ function AddBranchModal({
               </select>
             </div>
             <p className="mt-1 text-xs text-text-tertiary">
-              요일별 영업일을 따로 설정하지 않으면 이 시간대로 모든 날짜가 열립니다.
+              운영일을 따로 설정하지 않으면 이 시간대로 모든 날짜가 열립니다.
             </p>
           </div>
           <div className="mb-6">
-            <label className="block text-sm text-text-secondary mb-2 font-semibold">요일별 영업일 설정</label>
+            <label className="block text-sm text-text-secondary mb-2 font-semibold">요일별 운영일 설정</label>
             <div className="space-y-2">
               {BUSINESS_HOUR_DAY_KEYS.map((dayKey) => {
                 const day = formData.businessHours[dayKey];

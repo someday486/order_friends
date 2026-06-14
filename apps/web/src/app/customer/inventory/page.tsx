@@ -228,7 +228,7 @@ function InventoryHistoryModal({
           <div>
             <h2 className="text-lg font-bold text-foreground">재고 변경 이력</h2>
             <p className="mt-1 text-sm text-text-secondary">
-              현재 선택된 매장 기준의 재고 변동 내역을 확인합니다.
+              현재 선택된 스토어 기준의 재고 변동 내역을 확인합니다.
             </p>
           </div>
           <button
@@ -277,7 +277,7 @@ function InventoryHistoryModal({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="상품, 매장, 메모 검색"
+                  placeholder="상품, 스토어, 메모 검색"
                   className="input-field h-9 w-full pl-9 pr-9 text-sm"
                 />
                 {search && (
@@ -315,7 +315,7 @@ function InventoryHistoryModal({
           ) : groupedLogs.length === 0 ? (
             <div className="rounded-xl border border-border bg-bg-secondary p-12 text-center">
               <div className="text-base text-text-secondary">표시할 변경 이력이 없습니다</div>
-              <div className="mt-1 text-sm text-text-tertiary">선택된 매장을 조정하거나 재고를 변경한 뒤 다시 확인해보세요</div>
+              <div className="mt-1 text-sm text-text-tertiary">선택된 스토어를 조정하거나 재고를 변경한 뒤 다시 확인해보세요</div>
             </div>
           ) : (
             <div className="space-y-5">
@@ -579,7 +579,7 @@ export default function CustomerInventoryPage() {
         setSelectedBranchIds(new Set(branchRows.map((b) => b.id)));
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
+        setError(e instanceof Error ? e.message : "스토어 목록을 불러올 수 없습니다");
         setLoading(false);
       }
     };
@@ -806,7 +806,7 @@ export default function CustomerInventoryPage() {
     exportToExcel(
       historyItems.map((item) => ({
         일시: new Date(item.created_at).toLocaleString("ko-KR"),
-        매장: item.branch_name || "",
+        스토어: item.branch_name || "",
         상품: item.product_name || "",
         거래유형: getTransactionLabel(item.transaction_type),
         변경량: item.qty_change,
@@ -829,7 +829,7 @@ export default function CustomerInventoryPage() {
           <table className="w-full border-collapse min-w-[840px]">
             <thead className="bg-white">
               <tr>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">스토어</th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">가능재고</th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
@@ -940,7 +940,7 @@ export default function CustomerInventoryPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Escape") setSearchInput("");
                     }}
-                    placeholder="상품명/매장명 검색"
+                    placeholder="상품명/스토어명 검색"
                     className="input-field h-9 text-sm w-full pl-9 pr-9"
                     aria-label="재고 검색"
                   />
@@ -1001,9 +1001,9 @@ export default function CustomerInventoryPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setBranchSearch("");
                 }}
-                placeholder="매장 검색"
+                placeholder="스토어 검색"
                 className="input-field h-8 text-sm w-full pl-9 pr-9"
-                aria-label="매장 검색"
+                aria-label="스토어 검색"
               />
               {branchSearch && (
                 <button
@@ -1019,7 +1019,7 @@ export default function CustomerInventoryPage() {
             <div className="max-h-40 overflow-y-auto">
               {filteredBranches.length === 0 ? (
                 <div className="py-4 text-center text-sm text-text-tertiary">
-                  {branchSearch ? "검색 결과가 없습니다" : "등록된 매장이 없습니다"}
+                  {branchSearch ? "검색 결과가 없습니다" : "등록된 스토어가 없습니다"}
                 </div>
               ) : (
                 <div className="flex flex-col gap-0.5">
@@ -1118,7 +1118,7 @@ export default function CustomerInventoryPage() {
           <table className="w-full border-collapse min-w-[840px]">
             <thead className="bg-white">
               <tr>
-                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
+                <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">스토어</th>
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
                 <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>
@@ -1136,12 +1136,12 @@ export default function CustomerInventoryPage() {
         </div>
       ) : branches.length === 0 ? (
         <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">
-          <div className="text-base mb-2">등록된 매장이 없습니다</div>
-          <div className="text-[13px]">먼저 매장을 등록해주세요</div>
+          <div className="text-base mb-2">등록된 스토어가 없습니다</div>
+          <div className="text-[13px]">먼저 스토어를 등록해주세요</div>
         </div>
       ) : selectedBranchIds.size === 0 ? (
         <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">
-          <div className="text-base mb-2">매장을 1개 이상 선택하세요</div>
+          <div className="text-base mb-2">스토어를 1개 이상 선택하세요</div>
         </div>
       ) : inventory.length === 0 ? (
         <div className="border border-border rounded-xl p-12 bg-bg-secondary text-text-tertiary text-center">
@@ -1206,7 +1206,7 @@ export default function CustomerInventoryPage() {
                       />
                     </th>
                   )}
-                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">매장</th>
+                  <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">스토어</th>
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">상품</th>
                   <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">재고 가능</th>
                   <th className="text-right py-3 px-3.5 text-xs font-bold text-text-secondary">예약됨</th>

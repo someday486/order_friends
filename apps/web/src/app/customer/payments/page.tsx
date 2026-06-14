@@ -93,10 +93,10 @@ export default function CustomerPaymentsPage() {
             </div>
             <h1 className="mt-3 text-2xl font-black leading-tight tracking-tight text-foreground md:text-3xl">
               브랜드별 결제 운영 방식을
-              <br className="hidden md:block" /> 고객 운영 화면에서 확인하세요.
+              <br className="hidden md:block" /> 셀러 운영 화면에서 확인하세요.
             </h1>
             <p className="mt-4 max-w-2xl text-[13px] leading-6 text-text-secondary md:text-sm">
-              지금은 브랜드의 billing tier를 기준으로만 주문 결제가 동작합니다.
+              온라인샵 주문 결제는 브랜드의 billing tier를 기준으로 동작합니다.
               PG 이용 브랜드는 토스 결제 위젯만, 무통장 전용 브랜드는 계좌이체만
               노출됩니다.
             </p>
@@ -169,7 +169,7 @@ export default function CustomerPaymentsPage() {
             />
             <MetricCard
               label="관리 위치"
-              value="브랜드 / 지점 설정"
+              value="브랜드 / 스토어 설정"
               icon={Landmark}
             />
           </section>
@@ -191,7 +191,7 @@ export default function CustomerPaymentsPage() {
                 />
                 <div className="rounded-2xl border border-border bg-background px-4 py-4">
                   PG 이용 브랜드는 토스 결제 위젯만 노출하고, 무통장 전용
-                  브랜드는 브랜드나 지점에 등록된 입금 계좌를 기준으로 주문을
+                  브랜드는 브랜드나 스토어에 등록된 입금 계좌를 기준으로 주문을
                   받습니다.
                 </div>
               </CardContent>
@@ -203,7 +203,7 @@ export default function CustomerPaymentsPage() {
               </CardHeader>
               <CardContent className="space-y-3 text-[13px] leading-6 text-text-secondary">
                 <div className="rounded-2xl border border-border bg-background px-4 py-4">
-                  billing tier 변경이나 계좌 정보 수정은 브랜드 / 지점 설정에서
+                  billing tier 변경이나 계좌 정보 수정은 브랜드 / 스토어 설정에서
                   관리합니다. 구독 빌링과 PG 정산은 아래 링크에서 같은 고객
                   운영 영역 안에서 확인할 수 있습니다.
                 </div>

@@ -222,7 +222,7 @@ export default function BusinessOrderDetailPage() {
 
           <CardContent className="space-y-4 px-6 py-6">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryBox icon={Store} label="매장" value={summary.merchant} />
+              <SummaryBox icon={Store} label="스토어" value={summary.merchant} />
               <SummaryBox icon={Truck} label="공급처" value={summary.supplier} />
               <SummaryBox icon={PackageCheck} label="수량" value={`${summary.qty}개`} />
               <SummaryBox

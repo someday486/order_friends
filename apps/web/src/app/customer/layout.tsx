@@ -59,13 +59,13 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: '/customer/brands',
-        label: '브랜드관리',
+        label: '브랜드/셀러',
         icon: BrandIcon,
         allowedRoles: ['system_admin', 'brand_owner'],
       },
       {
         href: '/customer/branches',
-        label: '매장관리',
+        label: '스토어관리',
         icon: StoreIcon,
         allowedRoles: ['system_admin', 'brand_owner'],
       },
@@ -116,7 +116,7 @@ const menuSections: MenuSection[] = [
       },
       {
         href: '/customer/order',
-        label: '주문페이지',
+        label: '주문 링크',
         icon: OrderIcon,
         allowedRoles: [
           'system_admin',
@@ -200,7 +200,7 @@ export default function CustomerLayout({
       return null;
     }
 
-    return '브랜드와 매장을 먼저 등록하세요.';
+    return '브랜드와 스토어를 먼저 등록하세요.';
   }, []);
 
   const isOnboardingItemDisabled = useCallback(

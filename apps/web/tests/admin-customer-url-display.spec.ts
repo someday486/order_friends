@@ -23,6 +23,7 @@ test.describe('Admin/Customer URL display', () => {
             id: 'brand-1',
             name: 'Test Cafe Chain',
             slug: 'test-cafe-chain',
+            isActive: true,
             createdAt: '2026-02-16T00:00:00.000Z',
           },
         ]),
@@ -47,6 +48,7 @@ test.describe('Admin/Customer URL display', () => {
           {
             id: 'brand-1',
             slug: 'test-cafe-chain',
+            isActive: true,
           },
         ]),
       });
@@ -87,6 +89,7 @@ test.describe('Admin/Customer URL display', () => {
             slug: 'test-cafe-chain',
             biz_name: null,
             logo_url: null,
+            isActive: true,
             created_at: '2026-02-16T00:00:00.000Z',
             myRole: 'OWNER',
           },
@@ -96,7 +99,7 @@ test.describe('Admin/Customer URL display', () => {
 
     await page.goto('/customer/brands');
 
-    await expect(page.getByText('/order/test-cafe-chain')).toBeVisible();
+    await expect(page.getByText('/shop/test-cafe-chain')).toBeVisible();
   });
 
   test('customer branches list shows composed order URL text', async ({
@@ -111,6 +114,7 @@ test.describe('Admin/Customer URL display', () => {
             id: 'brand-1',
             name: 'Test Cafe Chain',
             slug: 'test-cafe-chain',
+            isActive: true,
           },
         ]),
       });
@@ -126,7 +130,8 @@ test.describe('Admin/Customer URL display', () => {
             brandId: 'brand-1',
             name: 'Gangnam Main',
             slug: 'gangnam-main',
-            logoUrl: '/branch-logo.png',
+            logoUrl: '/logo.png',
+            isActive: true,
             myRole: 'OWNER',
             createdAt: '2026-02-16T00:00:00.000Z',
           },
@@ -137,7 +142,7 @@ test.describe('Admin/Customer URL display', () => {
     await page.goto('/customer/branches');
 
     await expect(
-      page.getByText('/order/test-cafe-chain/gangnam-main'),
+      page.locator('a[href="/order/test-cafe-chain/gangnam-main"]'),
     ).toBeVisible();
     await expect(page.getByRole('img', { name: 'Gangnam Main' })).toBeVisible();
   });

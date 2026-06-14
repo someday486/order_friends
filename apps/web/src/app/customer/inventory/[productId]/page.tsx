@@ -208,7 +208,7 @@ function InventoryHistoryModal({
               재고 변경 이력
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
-              {productName || '상품'} · {branchName || '매장'} 기준 이력을
+              {productName || '상품'} · {branchName || '스토어'} 기준 이력을
               확인합니다.
             </p>
           </div>
@@ -280,7 +280,7 @@ function InventoryHistoryModal({
                 표시할 변경 이력이 없습니다
               </div>
               <div className="mt-1 text-sm text-text-tertiary">
-                필터를 조정하거나 다른 매장을 선택해보세요
+                필터를 조정하거나 다른 스토어를 선택해보세요
               </div>
             </div>
           ) : (
@@ -389,7 +389,7 @@ function InventoryDetailPageContent() {
       } catch (e) {
         console.error(e);
         setError(
-          e instanceof Error ? e.message : '매장 목록을 불러올 수 없습니다',
+          e instanceof Error ? e.message : '스토어 목록을 불러올 수 없습니다',
         );
       }
     };
@@ -628,14 +628,14 @@ function InventoryDetailPageContent() {
 
       <div className="mb-6">
         <label className="mb-2 block text-[13px] font-semibold text-text-secondary">
-          매장 선택
+          스토어 선택
         </label>
         <select
           value={selectedBranchId}
           onChange={(e) => setSelectedBranchId(e.target.value)}
           className="input-field w-full max-w-[400px]"
         >
-          <option value="">매장을 선택하세요</option>
+          <option value="">스토어를 선택하세요</option>
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>
               {branch.name}
@@ -871,7 +871,7 @@ function InventoryDetailPageContent() {
               재고 변경 이력
             </h3>
             <p className="text-sm text-text-secondary">
-              현재 매장 기준 최근 재고 변경 내역을 확인할 수 있습니다.
+              현재 스토어 기준 최근 재고 변경 내역을 확인할 수 있습니다.
             </p>
           </div>
           <div className="flex items-center gap-2">

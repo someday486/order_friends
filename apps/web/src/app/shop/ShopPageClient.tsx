@@ -160,7 +160,7 @@ export default function ShopPageClient({
                 주문 가능한 브랜드
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                브랜드별 온라인 배송 주문 페이지로 바로 이동할 수 있습니다.
+                브랜드별 온라인 배송 주문 링크로 바로 이동할 수 있습니다.
               </p>
             </div>
             <div className="text-sm text-text-secondary">
@@ -213,7 +213,7 @@ export default function ShopPageClient({
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
                     <span className="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-                      지점 {brand.branchCount}개
+                      스토어 {brand.branchCount}개
                     </span>
                     {shopPath && (
                       <span className="absolute bottom-3 left-3 rounded-full bg-white/92 px-3 py-1 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur-sm">

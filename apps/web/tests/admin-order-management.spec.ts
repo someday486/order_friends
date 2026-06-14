@@ -92,6 +92,7 @@ test.describe('Admin order management', () => {
             id: 'brand-1',
             name: '테스트 카페',
             slug: 'test-cafe',
+            isActive: true,
             createdAt: '2026-01-01T00:00:00.000Z',
           },
         ]),
@@ -109,7 +110,12 @@ test.describe('Admin order management', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { id: 'brand-1', slug: 'test-cafe', name: '테스트 카페' },
+          {
+            id: 'brand-1',
+            slug: 'test-cafe',
+            name: '테스트 카페',
+            isActive: true,
+          },
         ]),
       });
     });

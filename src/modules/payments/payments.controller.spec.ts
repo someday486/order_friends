@@ -4,7 +4,9 @@ import {
   PaymentsCustomerController,
 } from './payments.controller';
 import { PaymentsService } from './payments.service';
+import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 
 describe('PaymentsController', () => {
   const mockService = {
@@ -129,9 +131,12 @@ describe('PaymentsController', () => {
         controllers: [PaymentsCustomerController],
         providers: [
           { provide: PaymentsService, useValue: mockService },
+          { provide: AuthGuard, useValue: mockGuard },
           { provide: CustomerGuard, useValue: mockGuard },
         ],
       })
+        .overrideGuard(AuthGuard)
+        .useValue(mockGuard)
         .overrideGuard(CustomerGuard)
         .useValue(mockGuard)
         .compile();
@@ -139,6 +144,13 @@ describe('PaymentsController', () => {
       controller = module.get<PaymentsCustomerController>(
         PaymentsCustomerController,
       );
+    });
+
+    it('should authenticate before applying customer membership guard', () => {
+      const guards =
+        Reflect.getMetadata(GUARDS_METADATA, PaymentsCustomerController) ?? [];
+
+      expect(guards).toEqual([AuthGuard, CustomerGuard]);
     });
 
     it('getPayments should call service and return result', async () => {

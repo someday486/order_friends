@@ -54,7 +54,7 @@ const FULFILLMENT_OPTIONS: {
   { value: "ALL", label: "전체 방식" },
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
-  { value: "DINE_IN", label: "매장" },
+  { value: "DINE_IN", label: "현장 이용" },
   { value: "SHIPPING", label: "택배" },
 ];
 
@@ -214,7 +214,7 @@ function OrdersPageContent() {
         }
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "매장 목록을 불러오지 못했습니다.");
+        setError(err?.message ?? "스토어 목록을 불러오지 못했습니다.");
         setBranches([]);
         setOrders([]);
       } finally {
@@ -372,7 +372,7 @@ function OrdersPageContent() {
 
           <div className="min-w-0">
             <label className="mb-2 block text-sm font-semibold text-text-secondary">
-              매장
+              스토어
             </label>
             <select
               value={selectedBranchValue}
@@ -391,7 +391,7 @@ function OrdersPageContent() {
             >
               <option value="">
                 {brandId
-                  ? "매장을 선택하세요"
+                  ? "스토어를 선택하세요"
                   : "먼저 브랜드를 선택하세요"}
               </option>
               <option value={ALL_BRANCHES_VALUE}>전체</option>
@@ -455,19 +455,19 @@ function OrdersPageContent() {
 
       {!brandId && (
         <p className="mb-4 text-text-tertiary">
-          브랜드를 선택하면 해당 브랜드의 매장과 주문을 볼 수 있습니다.
+          브랜드를 선택하면 해당 브랜드의 스토어와 주문을 볼 수 있습니다.
         </p>
       )}
 
       {brandId && !branchId && (
         <p className="mb-4 text-text-tertiary">
-          매장을 선택하면 주문 목록이 표시됩니다.
+          스토어를 선택하면 주문 목록이 표시됩니다.
         </p>
       )}
 
       {brandId && isAllBranchesSelected && (
         <p className="mb-4 text-text-tertiary">
-          선택한 브랜드의 전체 매장 주문을 함께 표시하고 있습니다.
+          선택한 브랜드의 전체 스토어 주문을 함께 표시하고 있습니다.
         </p>
       )}
 

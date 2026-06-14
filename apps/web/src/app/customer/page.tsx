@@ -219,7 +219,7 @@ export default function CustomerDashboardPage() {
           icon={<BrandIcon size={18} />}
         />
         <MetricCard
-          title="내 매장"
+          title="내 스토어"
           value={myBranches}
           icon={<TrendIcon size={18} />}
         />
@@ -264,7 +264,7 @@ export default function CustomerDashboardPage() {
                         주문 #{order.order_no || order.id.slice(0, 8)}
                       </div>
                       <div className="text-xs text-text-tertiary">
-                        {order.branch?.name || '매장 미지정'} ·{' '}
+                        {order.branch?.name || '스토어 미지정'} ·{' '}
                         {new Date(order.created_at).toLocaleString()}
                       </div>
                     </div>

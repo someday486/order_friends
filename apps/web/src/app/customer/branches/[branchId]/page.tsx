@@ -64,7 +64,7 @@ const ALL_FULFILLMENT_TYPES: FulfillmentType[] = ["PICKUP", "DELIVERY", "DINE_IN
 const FULFILLMENT_LABEL: Record<FulfillmentType, string> = {
   PICKUP: "포장",
   DELIVERY: "배달",
-  DINE_IN: "매장",
+  DINE_IN: "현장 이용",
   SHIPPING: "택배",
 };
 
@@ -267,7 +267,7 @@ export default function BranchDetailPage() {
         resetForm(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "지점 정보를 불러오지 못했습니다.");
+        setError(err?.message ?? "스토어/출고지 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -347,7 +347,7 @@ export default function BranchDetailPage() {
     if (!branch) return;
 
     if (!name.trim()) {
-      toast.error("지점명을 입력하세요.");
+      toast.error("스토어/출고지명을 입력하세요.");
       return;
     }
 
@@ -443,10 +443,10 @@ export default function BranchDetailPage() {
       setBranch(updated);
       resetForm(updated);
       setIsEditing(false);
-      toast.success("지점을 수정했습니다.");
+      toast.success("스토어/출고지를 수정했습니다.");
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "지점 수정에 실패했습니다.");
+      toast.error(err?.message ?? "스토어/출고지 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -456,8 +456,8 @@ export default function BranchDetailPage() {
     if (!branch) return;
 
     const confirmed = confirm(
-      `"${branch.name}" 지점을 비활성화하시겠습니까?
-비활성화 후에는 주문 페이지에서 숨겨지며, 상세 화면에서 다시 활성화할 수 있습니다.`,
+      `"${branch.name}" 스토어/출고지를 비활성화하시겠습니까?
+비활성화 후에는 주문 링크에서 숨겨지며, 상세 화면에서 다시 활성화할 수 있습니다.`,
     );
     if (!confirmed) return;
 
@@ -490,7 +490,7 @@ export default function BranchDetailPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-extrabold mb-8 text-foreground">지점</h1>
+        <h1 className="text-2xl font-extrabold mb-8 text-foreground">스토어</h1>
         <div className="text-text-secondary">로딩 중...</div>
       </div>
     );
@@ -505,9 +505,9 @@ export default function BranchDetailPage() {
         >
           뒤로 가기
         </button>
-        <h1 className="text-2xl font-extrabold mb-4 text-foreground">지점</h1>
+        <h1 className="text-2xl font-extrabold mb-4 text-foreground">스토어</h1>
         <div className="border border-danger-500 rounded-xl p-4 bg-danger-500/10 text-danger-500">
-          {error || "지점을 찾을 수 없습니다."}
+          {error || "스토어/출고지를 찾을 수 없습니다."}
         </div>
       </div>
     );
@@ -568,13 +568,13 @@ export default function BranchDetailPage() {
               <SectionHeading>기본 정보</SectionHeading>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">지점명</label>
+                  <label className="block text-[13px] text-text-secondary mb-1.5 font-semibold">스토어/출고지명</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="input-field w-full"
-                    placeholder="지점명을 입력하세요"
+                    placeholder="스토어 또는 출고지명을 입력하세요"
                   />
                 </div>
                 <div>
@@ -643,7 +643,7 @@ export default function BranchDetailPage() {
                     </div>
                     <div className="mt-1">{getBillingTierCheckoutDescription(effectiveBillingTier)}</div>
                     <div className="mt-2 text-xs">
-                      결제 방식은 브랜드 정책에 따라 자동으로 정해지며, 지점 화면에서는 직접 변경하지 않습니다.
+                      결제 방식은 브랜드 정책에 따라 자동으로 정해지며, 스토어 화면에서는 직접 변경하지 않습니다.
                     </div>
                   </div>
                 </div>
@@ -780,7 +780,7 @@ export default function BranchDetailPage() {
                 />
               </div>
               <p className="text-xs text-text-tertiary mt-1.5">
-                공개 주문 페이지와 주문 조회 페이지에 노출되는 문의 수단입니다.
+                온라인샵 주문 링크와 주문 조회 페이지에 노출되는 문의 수단입니다.
               </p>
             </section>
 

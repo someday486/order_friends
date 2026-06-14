@@ -77,7 +77,7 @@ export default function BrandOrderPage() {
             className="card p-6 text-center text-text-secondary"
             data-testid="branch-selector-loading"
           >
-            지점 정보를 불러오는 중입니다.
+            스토어 정보를 불러오는 중입니다.
           </div>
         </div>
       </div>
@@ -144,7 +144,7 @@ export default function BrandOrderPage() {
                 {brandName}
               </h1>
               <p className="text-xs text-text-secondary mt-0.5">
-                주문할 지점을 선택해 주세요.
+                주문할 스토어를 선택해 주세요.
               </p>
             </div>
           </div>
@@ -160,7 +160,7 @@ export default function BrandOrderPage() {
               data-testid="branch-selector-empty"
             >
               <div className="text-base font-semibold text-foreground mb-1">
-                주문 가능한 지점이 없습니다.
+                주문 가능한 스토어가 없습니다.
               </div>
               <p className="text-sm text-text-secondary">
                 잠시 후 다시 시도하거나 관리자에게 문의해 주세요.

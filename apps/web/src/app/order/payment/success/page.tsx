@@ -125,7 +125,7 @@ export default function OrderPaymentSuccessPage() {
           href={fallbackHref}
           className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-2xl bg-foreground px-4 text-sm font-semibold text-background no-underline"
         >
-          주문 페이지로 이동
+          주문 링크로 이동
         </Link>
       </div>
     </div>

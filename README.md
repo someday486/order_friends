@@ -1,6 +1,6 @@
 # Order Friends
 
-Order Friends is a brand-and-branch based order operations platform. This repository contains both the backend API and the web app.
+Order Friends is an online-market operations platform for brands and sellers. It helps operators run storefronts, products, orders, payments, inventory, and settlement from one workspace. This repository contains both the backend API and the web app.
 
 ## Repository Layout
 - Backend API: `src/` (NestJS 11)

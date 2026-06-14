@@ -119,12 +119,12 @@ export default function AdminHomePage() {
           />
           <QuickLinkCard
             href="/admin/stores"
-            title="매장 관리"
-            description="브랜드별 매장을 추가하고 관리합니다."
+            title="스토어 관리"
+            description="브랜드별 스토어와 출고지를 추가하고 관리합니다."
           />
           <QuickLinkCard
             href="/admin/brand"
-            title="브랜드 관리"
+            title="브랜드/셀러 관리"
             description="브랜드 정보와 설정을 관리합니다."
           />
           <QuickLinkCard
@@ -138,10 +138,10 @@ export default function AdminHomePage() {
       <div className="card p-4">
         <div className="font-semibold mb-2 text-foreground">빠른 시작하기</div>
         <ol className="m-0 pl-5 text-text-secondary text-[13px] leading-[1.8]">
-          <li>브랜드 관리에서 운영할 브랜드를 선택하거나 확인해 주세요.</li>
-          <li>매장 관리에서 브랜드에 속한 매장을 등록해 주세요.</li>
+          <li>브랜드/셀러 관리에서 운영할 브랜드를 선택하거나 확인해 주세요.</li>
+          <li>스토어 관리에서 브랜드에 속한 스토어/출고지를 등록해 주세요.</li>
           <li>권한 관리에서 운영할 멤버 권한을 확인해 주세요.</li>
-          <li>상품 관리에서 매장별 상품을 등록해 주세요.</li>
+          <li>상품 관리에서 스토어별 상품 노출과 재고를 등록해 주세요.</li>
           <li>주문이 들어오면 주문 관리에서 상태를 처리해 주세요.</li>
         </ol>
       </div>

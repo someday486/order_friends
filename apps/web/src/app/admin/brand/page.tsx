@@ -28,7 +28,7 @@ function BrandSelectButton({ brandId }: { brandId: string }) {
       }}
       className="btn-primary whitespace-nowrap px-2.5 py-1.5 text-xs"
     >
-      매장관리
+      스토어 관리
     </button>
   );
 }
@@ -246,8 +246,8 @@ export default function BrandPage() {
     if (
       !confirm(
         nextIsActive
-          ? `"${brandName}" 브랜드를 다시 활성화하시겠습니까?\n활성화하면 고객 주문 페이지에 다시 노출됩니다.`
-          : `"${brandName}" 브랜드를 비활성화하시겠습니까?\n비활성화하면 고객 주문 페이지에서 숨겨지지만 기존 주문 이력은 유지됩니다.`,
+          ? `"${brandName}" 브랜드를 다시 활성화하시겠습니까?\n활성화하면 온라인샵 주문 링크에 다시 노출됩니다.`
+          : `"${brandName}" 브랜드를 비활성화하시겠습니까?\n비활성화하면 온라인샵 주문 링크에서 숨겨지지만 기존 주문 이력은 유지됩니다.`,
       )
     ) {
       return;
@@ -302,7 +302,7 @@ export default function BrandPage() {
                 aria-label="브랜드 URL 도움말"
               />
               <div className="absolute left-6 top-1/2 z-50 w-72 -translate-y-1/2 rounded-md border border-border bg-bg-tertiary p-3 text-xs text-text-secondary opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none">
-                브랜드 URL은 고객 주문 페이지 주소입니다. 브랜드명을 입력하면 자동 생성되고, 필요하면 직접 수정할 수 있습니다.
+                브랜드 URL은 온라인샵 주문 링크 주소입니다. 브랜드명을 입력하면 자동 생성되고, 필요하면 직접 수정할 수 있습니다.
               </div>
             </div>
           </div>
@@ -599,7 +599,7 @@ export default function BrandPage() {
 
                       {!brand.isActive && (
                         <div className="mt-2 text-[12px] text-text-secondary">
-                          비활성화된 브랜드는 고객 주문 페이지에 노출되지 않습니다.
+                          비활성화된 브랜드는 온라인샵 주문 링크에 노출되지 않습니다.
                         </div>
                       )}
 

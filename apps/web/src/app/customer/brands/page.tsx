@@ -105,7 +105,7 @@ export default function CustomerBrandsPage() {
     return (
       <div>
         <h1 className="mb-8 text-2xl font-extrabold text-foreground">
-          브랜드 관리
+          브랜드/셀러 관리
         </h1>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {Array.from({ length: 2 }).map((_, index) => (
@@ -120,7 +120,7 @@ export default function CustomerBrandsPage() {
     return (
       <div>
         <h1 className="mb-4 text-2xl font-extrabold text-foreground">
-          브랜드 관리
+          브랜드/셀러 관리
         </h1>
         <div className="rounded-md border border-danger-500 bg-danger-500/10 p-4 text-danger-500">
           {error}
@@ -133,23 +133,23 @@ export default function CustomerBrandsPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <h1 className="m-0 text-2xl font-extrabold text-foreground">
-          브랜드 관리
+          브랜드/셀러 관리
         </h1>
         {allowAdd ? (
           <button
             onClick={() => setShowAddModal(true)}
             className="btn-primary px-5 py-2.5 text-sm"
           >
-            + 브랜드 등록
+            + 브랜드/셀러 등록
           </button>
         ) : null}
       </div>
 
       {brands.length === 0 ? (
         <div className="card p-12 text-center text-text-tertiary">
-          <div className="mb-2 text-base">등록된 브랜드가 없습니다.</div>
+          <div className="mb-2 text-base">등록된 브랜드/셀러가 없습니다.</div>
           <div className="text-sm">
-            운영 권한이 필요하면 브랜드 멤버 초대를 요청하거나 새 브랜드를
+            운영 권한이 필요하면 브랜드 멤버 초대를 요청하거나 새 브랜드/셀러를
             만들어 주세요.
           </div>
         </div>
@@ -265,7 +265,7 @@ function AddBrandModal({
     } catch (saveError) {
       console.error(saveError);
       toast.error(
-        parseApiErrorMessage(saveError, '브랜드 등록에 실패했습니다.'),
+        parseApiErrorMessage(saveError, '브랜드/셀러 등록에 실패했습니다.'),
       );
     } finally {
       setSaving(false);
@@ -281,11 +281,11 @@ function AddBrandModal({
         className="w-[90%] max-w-[560px] rounded-md border border-border bg-bg-secondary p-8 text-foreground"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="mb-6 text-xl font-bold">브랜드 등록</h2>
+        <h2 className="mb-6 text-xl font-bold">브랜드/셀러 등록</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-5">
             <label className="mb-2 block text-sm font-semibold text-text-secondary">
-              브랜드명
+              브랜드/셀러명
             </label>
             <input
               type="text"
@@ -294,7 +294,7 @@ function AddBrandModal({
                 setFormData((prev) => ({ ...prev, name: event.target.value }))
               }
               className="input-field"
-              placeholder="브랜드명 또는 상호명을 입력해 주세요"
+              placeholder="브랜드명, 셀러명 또는 상호명을 입력해 주세요"
               required
             />
           </div>
@@ -317,7 +317,7 @@ function AddBrandModal({
               >
                 <div className="font-semibold">PG 이용</div>
                 <div className="mt-1 text-xs leading-5">
-                  토스페이먼츠 결제로 주문을 받고 매출 건당 수수료 기준으로
+                  온라인샵에서 토스페이먼츠 결제로 주문을 받고 매출 건당 수수료 기준으로
                   운영합니다.
                 </div>
               </button>
@@ -334,7 +334,7 @@ function AddBrandModal({
               >
                 <div className="font-semibold">무통장 전용</div>
                 <div className="mt-1 text-xs leading-5">
-                  고객은 계좌이체로 주문하고 브랜드는 월 이용료 기준으로
+                  고객은 온라인샵에서 계좌이체로 주문하고 브랜드/셀러는 월 이용료 기준으로
                   운영합니다.
                 </div>
               </button>

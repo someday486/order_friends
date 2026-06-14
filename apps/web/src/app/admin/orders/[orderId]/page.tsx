@@ -269,7 +269,7 @@ function OrderDetailPageContent() {
         <div className="mt-3">
           <BranchSelector />
         </div>
-        <p className="mt-3 text-text-secondary">지점을 선택해주세요.</p>
+        <p className="mt-3 text-text-secondary">스토어를 선택해주세요.</p>
       </div>
     );
   }

@@ -6,11 +6,9 @@ test.describe('Signup page', () => {
 
     await expect(page.getByText('관리자 회원가입')).toBeVisible();
     await expect(page.getByPlaceholder('manager@example.com')).toBeVisible();
+    await expect(page.getByPlaceholder('8자 이상 입력')).toBeVisible();
     await expect(
-      page.getByPlaceholder('영문/숫자 포함 8자 이상'),
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder('비밀번호를 다시 입력하세요'),
+      page.getByPlaceholder('비밀번호를 다시 입력해 주세요'),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: '회원가입' })).toBeVisible();
   });
@@ -29,9 +27,9 @@ test.describe('Signup page', () => {
     await page
       .getByPlaceholder('manager@example.com')
       .fill('manager@example.com');
-    await page.getByPlaceholder('영문/숫자 포함 8자 이상').fill('Password123');
+    await page.getByPlaceholder('8자 이상 입력').fill('Password123');
     await page
-      .getByPlaceholder('비밀번호를 다시 입력하세요')
+      .getByPlaceholder('비밀번호를 다시 입력해 주세요')
       .fill('Password999');
     await page.getByRole('button', { name: '회원가입' }).click();
 

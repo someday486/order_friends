@@ -177,7 +177,7 @@ function ProductDetailPageContent() {
     }
 
     if (isNew && !branchId.trim()) {
-      toast.error("매장을 선택해주세요.");
+      toast.error("스토어를 선택해주세요.");
       return;
     }
 
@@ -275,14 +275,14 @@ function ProductDetailPageContent() {
 
       {/* Form */}
       <div className="max-w-[600px]">
-        {/* 매장 선택 (등록 시에만) */}
+        {/* 스토어 선택 (등록 시에만) */}
         {isNew && (
           <div className="mb-4">
-            <label className="block text-text-secondary text-[13px] mb-1.5">매장 선택 *</label>
+            <label className="block text-text-secondary text-[13px] mb-1.5">스토어 선택 *</label>
             <BranchSelector />
             {!branchId && (
               <p className="text-text-tertiary mt-2 text-xs">
-                매장을 선택하면 해당 매장의 카테고리를 불러옵니다.
+                스토어를 선택하면 해당 스토어의 카테고리를 불러옵니다.
               </p>
             )}
           </div>

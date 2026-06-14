@@ -10,7 +10,7 @@ type SignupFormProps = {
 
 const signupSteps = [
   '이메일과 비밀번호로 계정을 만들고 이메일 인증을 완료합니다.',
-  '시스템 관리자가 브랜드 또는 매장 권한을 직접 부여합니다.',
+  '시스템 관리자가 브랜드 또는 스토어 권한을 직접 부여합니다.',
   '다시 로그인하면 권한에 맞는 운영 화면으로 이동합니다.',
 ];
 
@@ -165,7 +165,7 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
           ))}
         </ol>
         <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-[11px] leading-5 text-text-secondary">
-          브랜드 또는 매장 운영 권한은 자동으로 생기지 않습니다. 시스템 관리자가
+          브랜드 또는 스토어 운영 권한은 자동으로 생기지 않습니다. 시스템 관리자가
           <span className="px-1 font-semibold text-foreground">
             /admin/members
           </span>

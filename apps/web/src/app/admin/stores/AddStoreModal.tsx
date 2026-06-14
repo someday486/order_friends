@@ -43,7 +43,7 @@ type Props = {
 const FULFILLMENT_OPTIONS: Array<{ value: FulfillmentType; label: string }> = [
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
-  { value: "DINE_IN", label: "매장" },
+  { value: "DINE_IN", label: "현장 이용" },
   { value: "SHIPPING", label: "택배" },
 ];
 
@@ -128,7 +128,7 @@ export default function AddStoreModal({
   return (
     <Modal
       open={open}
-      title="매장 등록"
+      title="스토어/출고지 등록"
       onClose={adding ? () => {} : onClose}
       footer={
         <>
@@ -174,7 +174,7 @@ export default function AddStoreModal({
       <div className="card p-3.5">
         <div className="mb-3 text-[13px] font-extrabold text-foreground">기본 정보</div>
 
-        <label className="mb-1.5 block text-xs text-text-secondary">매장명</label>
+        <label className="mb-1.5 block text-xs text-text-secondary">스토어/출고지명</label>
         <input
           className="input-field w-full"
           placeholder="예: 강남 본점"
@@ -183,7 +183,7 @@ export default function AddStoreModal({
           autoFocus
         />
 
-        <label className="mb-1.5 mt-3 block text-xs text-text-secondary">매장 고유 주소(URL)</label>
+        <label className="mb-1.5 mt-3 block text-xs text-text-secondary">스토어 고유 주소(URL)</label>
         <div className="flex items-center overflow-hidden rounded-lg border border-border bg-bg-secondary">
           <div className="flex h-[38px] items-center whitespace-nowrap border-r border-border px-2.5 text-xs text-text-tertiary">
             openoda.com/store/

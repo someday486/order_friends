@@ -24,15 +24,15 @@ const routeTitleRules: RouteTitleRule[] = [
     match: (pathname) => pathname === '/admin/members',
   },
   {
-    title: '브랜드 관리',
+    title: '브랜드/셀러 관리',
     match: (pathname) => pathname === '/admin/brand',
   },
   {
-    title: '매장 관리',
+    title: '스토어 관리',
     match: (pathname) => pathname === '/admin/stores',
   },
   {
-    title: '매장 상세',
+    title: '스토어 상세',
     match: (pathname) => pathname.startsWith('/admin/stores/'),
   },
   {
@@ -52,7 +52,7 @@ const routeTitleRules: RouteTitleRule[] = [
     match: (pathname) => pathname.startsWith('/admin/orders/'),
   },
   {
-    title: '주문 페이지',
+    title: '주문 링크',
     match: (pathname) => pathname === '/admin/order',
   },
   { title: '고객 홈', match: (pathname) => pathname === '/customer' },
@@ -63,19 +63,19 @@ const routeTitleRules: RouteTitleRule[] = [
       pathname === '/customer/analytics/brand',
   },
   {
-    title: '브랜드 관리',
+    title: '브랜드/셀러 관리',
     match: (pathname) => pathname === '/customer/brands',
   },
   {
-    title: '브랜드 상세',
+    title: '브랜드/셀러 상세',
     match: (pathname) => pathname.startsWith('/customer/brands/'),
   },
   {
-    title: '매장 관리',
+    title: '스토어 관리',
     match: (pathname) => pathname === '/customer/branches',
   },
   {
-    title: '매장 상세',
+    title: '스토어 상세',
     match: (pathname) => pathname.startsWith('/customer/branches/'),
   },
   {
@@ -111,7 +111,7 @@ const routeTitleRules: RouteTitleRule[] = [
     match: (pathname) => pathname.startsWith('/customer/orders/'),
   },
   {
-    title: '주문 페이지',
+    title: '주문 링크',
     match: (pathname) => pathname === '/customer/order',
   },
   {
@@ -119,11 +119,11 @@ const routeTitleRules: RouteTitleRule[] = [
     match: (pathname) => pathname === '/customer/mypage',
   },
   {
-    title: '브랜드 둘러보기',
+    title: '온라인샵 둘러보기',
     match: (pathname) => pathname === '/shop',
   },
   {
-    title: '브랜드 주문',
+    title: '온라인샵 주문',
     match: (pathname) => pathname.startsWith('/shop/'),
   },
   {
@@ -131,7 +131,7 @@ const routeTitleRules: RouteTitleRule[] = [
     match: (pathname) => pathname.startsWith('/order/track/'),
   },
   {
-    title: '브랜드 주문',
+    title: '온라인샵 주문',
     match: (pathname) =>
       /^\/order\/[^/]+$/.test(pathname) && !pathname.startsWith('/order/track/'),
   },

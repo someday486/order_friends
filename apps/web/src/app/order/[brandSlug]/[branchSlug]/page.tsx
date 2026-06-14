@@ -95,7 +95,7 @@ export async function generateMetadata({
 
     return {
       title: branch.name,
-      description: `${branch.name} 주문 페이지`,
+      description: `${branch.name} 온라인 주문 링크`,
     };
   } catch {
     return {

@@ -108,7 +108,7 @@ function ProductDetailPageContent() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
+        setError(e instanceof Error ? e.message : "스토어 목록을 불러올 수 없습니다");
       }
     };
 
@@ -226,7 +226,7 @@ function ProductDetailPageContent() {
     }
 
     if (!formData.branchId) {
-      toast.error("매장을 선택해주세요");
+      toast.error("스토어를 선택해주세요");
       return;
     }
 
@@ -332,7 +332,7 @@ function ProductDetailPageContent() {
         <h1 className="text-2xl font-extrabold mb-4 text-foreground">상품 등록</h1>
         <div className="border border-border rounded-xl p-5 bg-bg-secondary">
           <p className="text-sm text-text-secondary mb-4">
-            상품은 상품 관리 화면에서 브랜드 단위로 등록하고, 매장별 체크로 노출 지점을 선택해주세요.
+            상품은 상품 관리 화면에서 브랜드 단위로 등록하고, 스토어별 체크로 노출 채널을 선택해주세요.
           </p>
           <Link href="/customer/products" className="no-underline">
             <button className="btn-primary px-5 py-2.5 text-sm">상품 관리로 이동</button>
@@ -428,7 +428,7 @@ function ProductDetailPageContent() {
             {/* Branch selection (only for new products) */}
             {isNew && (
               <div className="mb-5">
-                <label className="block text-[13px] text-text-secondary mb-2 font-semibold">매장 선택 *</label>
+                <label className="block text-[13px] text-text-secondary mb-2 font-semibold">스토어 선택 *</label>
                 <select
                   value={formData.branchId}
                   onChange={(e) => {
@@ -440,7 +440,7 @@ function ProductDetailPageContent() {
                   }}
                   className="input-field w-full"
                 >
-                  <option value="">매장을 선택하세요</option>
+                  <option value="">스토어를 선택하세요</option>
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.name}

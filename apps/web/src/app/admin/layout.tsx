@@ -46,8 +46,8 @@ const menuSections: MenuSection[] = [
   {
     title: '브랜드',
     items: [
-      { href: '/admin/brand', label: '브랜드관리', icon: BrandIcon },
-      { href: '/admin/stores', label: '매장관리', icon: StoreIcon },
+      { href: '/admin/brand', label: '브랜드/셀러', icon: BrandIcon },
+      { href: '/admin/stores', label: '스토어관리', icon: StoreIcon },
     ],
   },
   {
@@ -58,7 +58,7 @@ const menuSections: MenuSection[] = [
     title: '주문',
     items: [
       { href: '/admin/orders', label: '주문관리', icon: OrderIcon },
-      { href: '/admin/order', label: '주문페이지', icon: OrderIcon },
+      { href: '/admin/order', label: '주문 링크', icon: OrderIcon },
     ],
   },
 ];

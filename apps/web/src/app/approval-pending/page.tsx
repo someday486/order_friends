@@ -127,7 +127,7 @@ export default function ApprovalPendingPage() {
                 /admin/members
               </span>
               에서 이 계정을 브랜드 생성 가능 계정으로 승인하거나, 기존 브랜드
-              또는 매장 멤버로 추가해야 합니다.
+              또는 스토어 멤버로 추가해야 합니다.
             </div>
           </div>
 

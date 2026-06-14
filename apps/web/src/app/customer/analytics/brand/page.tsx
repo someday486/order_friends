@@ -426,19 +426,19 @@ export default function BrandAnalyticsPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-[22px] font-extrabold text-foreground">브랜드 분석</h1>
-          <p className="text-text-secondary text-[13px] mt-1">전체 지점 통합 분석</p>
+          <p className="text-text-secondary text-[13px] mt-1">전체 스토어 통합 분석</p>
         </div>
         {branchLinkId ? (
           <Link
             href={branchLink}
             className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-secondary px-3 py-2 text-xs font-semibold text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors"
           >
-            지점별 분석 보기
+            스토어별 분석 보기
             <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
           </Link>
         ) : (
           <span className="text-xs text-text-tertiary">
-            지점을 선택하면 지점별 분석으로 이동합니다.
+            스토어를 선택하면 스토어별 분석으로 이동합니다.
           </span>
         )}
       </div>
@@ -597,7 +597,7 @@ export default function BrandAnalyticsPage() {
           {/* Branch Breakdown */}
           {s.byBranch.length > 0 && (
             <div className="card p-4 mb-6">
-              <h2 className="text-sm font-bold text-foreground mb-3">지점별 매출 비교</h2>
+              <h2 className="text-sm font-bold text-foreground mb-3">스토어별 매출 비교</h2>
               <div className="space-y-2">
                 {s.byBranch.map((branch) => {
                   const pct =

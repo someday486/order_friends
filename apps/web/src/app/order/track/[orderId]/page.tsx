@@ -360,13 +360,13 @@ function legacyParseCancelErrorMessage(error: unknown): string {
   }
 
   if (message.includes('로그인 연동 이전 주문')) {
-    return '이 주문은 직접 취소를 지원하기 전 주문이에요. 매장에 문의해 주세요.';
+    return '이 주문은 직접 취소를 지원하기 전 주문이에요. 스토어에 문의해 주세요.';
   }
 
   if (
     message.includes('현재 상태에서는 구매자가 직접 주문을 취소할 수 없습니다')
   ) {
-    return '현재 상태에서는 구매자가 직접 주문을 취소할 수 없어요. 매장 문의로 도와드릴게요.';
+    return '현재 상태에서는 구매자가 직접 주문을 취소할 수 없어요. 스토어 문의로 도와드릴게요.';
   }
 
   return message;
@@ -386,13 +386,13 @@ function parseCancelErrorMessage(error: unknown): string {
     message.includes('로그인 연동 이전 주문') ||
     message.includes('직접 취소를 지원하기 전 주문')
   ) {
-    return '이 주문은 직접 취소를 지원하기 전 주문이에요. 매장에 문의해 주세요.';
+    return '이 주문은 직접 취소를 지원하기 전 주문이에요. 스토어에 문의해 주세요.';
   }
 
   if (
     message.includes('현재 상태에서는 구매자가 직접 주문을 취소할 수 없습니다')
   ) {
-    return '현재 상태에서는 직접 취소가 어려워요. 매장에 문의해 주세요.';
+    return '현재 상태에서는 직접 취소가 어려워요. 스토어에 문의해 주세요.';
   }
 
   return legacyParseCancelErrorMessage(error);
@@ -425,7 +425,7 @@ const DELIVERY_STATUS_LABEL: Record<DeliveryTrackingStatus, string> = {
 };
 
 const DELIVERY_STATUS_DESCRIPTION: Record<DeliveryTrackingStatus, string> = {
-  PENDING: '배송 주문이 접수되었어요. 매장에서 출고 준비 여부를 확인하고 있어요.',
+  PENDING: '배송 주문이 접수되었어요. 스토어에서 출고 준비 여부를 확인하고 있어요.',
   PREPARING_SHIPMENT: '상품 포장과 출고 준비가 진행 중이에요.',
   IN_TRANSIT: '배송이 시작되었어요. 기사님 또는 택배사 이동이 진행 중입니다.',
   DELIVERED: '배송이 완료되었어요. 수령하신 내용이 맞는지 확인해 주세요.',
@@ -437,7 +437,7 @@ function fulfillmentTypeLabel(type: FulfillmentType | null): string {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
   if (type === 'SHIPPING') return '택배';
-  if (type === 'DINE_IN') return '매장';
+  if (type === 'DINE_IN') return '현장 이용';
   return '-';
 }
 
@@ -445,13 +445,13 @@ function statusHint(status: OrderStatus): string {
   const displayStatus = getOrderStatusDisplay(status);
 
   if (displayStatus === 'RECEIVED')
-    return '주문이 접수됐어요. 매장에서 확인 중입니다 🕐';
+    return '주문이 접수됐어요. 스토어에서 확인 중입니다.';
   if (displayStatus === 'PREPARING')
     return '열심히 준비하고 있어요! 잠시만 기다려주세요 ☕';
   if (displayStatus === 'READY')
     return '준비가 완료됐어요! 지금 바로 수령하러 오세요 🎉';
 
-  return '주문이 취소됐습니다. 궁금하신 점은 매장으로 문의해 주세요.';
+  return '주문이 취소됐습니다. 궁금하신 점은 스토어로 문의해 주세요.';
 }
 
 function paymentGuide(method: PaymentMethod | null): {
@@ -476,13 +476,13 @@ function paymentGuide(method: PaymentMethod | null): {
     return {
       title: '현금 결제 안내',
       description:
-        '현장 결제 유형입니다. 수령 시 매장 안내에 따라 결제를 진행해 주세요.',
+        '현장 결제 유형입니다. 수령 시 스토어 안내에 따라 결제를 진행해 주세요.',
     };
   }
   return {
     title: '결제 안내',
     description:
-      '결제 유형을 확인할 수 없습니다. 결제 관련 문의는 매장으로 연락해 주세요.',
+      '결제 유형을 확인할 수 없습니다. 결제 관련 문의는 스토어로 연락해 주세요.',
   };
 }
 
@@ -506,16 +506,16 @@ function refundGuide(
     order.paymentMethod === 'CARD'
       ? '카드 결제 취소 후 실제 환불 반영까지는 카드사 사정에 따라 3~5영업일 정도 걸릴 수 있습니다.'
       : order.paymentMethod === 'TRANSFER'
-        ? '계좌이체 주문의 환불은 계좌 확인이 필요할 수 있어 매장 안내에 따라 처리됩니다.'
+        ? '계좌이체 주문의 환불은 계좌 확인이 필요할 수 있어 스토어 안내에 따라 처리됩니다.'
         : order.paymentMethod === 'CASH'
-          ? '현장결제 주문의 환불 방식은 매장 정책에 따라 달라질 수 있습니다.'
-          : '환불 반영 시점은 결제 수단과 매장 확인 결과에 따라 달라질 수 있습니다.';
+          ? '현장결제 주문의 환불 방식은 스토어 정책에 따라 달라질 수 있습니다.'
+          : '환불 반영 시점은 결제 수단과 스토어 확인 결과에 따라 달라질 수 있습니다.';
 
   if (order.status === 'CREATED') {
     return {
       title: '취소 및 환불 안내',
       summary:
-        '현재는 주문 접수 단계입니다. 매장 준비가 시작되기 전이면 취소와 환불이 비교적 빠르게 처리될 수 있습니다.',
+        '현재는 주문 접수 단계입니다. 스토어 준비가 시작되기 전이면 취소와 환불이 비교적 빠르게 처리될 수 있습니다.',
       items: [
         '준비 시작 전 주문은 자동 취소 또는 빠른 환불 대상이 될 수 있습니다.',
         settlementHint,
@@ -530,9 +530,9 @@ function refundGuide(
     return {
       title: '환불 가능 여부 확인 중',
       summary:
-        '현재 매장에서 주문을 확인했거나 준비 중일 수 있어 자동 취소가 제한될 수 있습니다.',
+        '현재 스토어에서 주문을 확인했거나 준비 중일 수 있어 자동 취소가 제한될 수 있습니다.',
       items: [
-        '준비가 시작된 주문은 매장 확인 후 취소 또는 환불 가능 여부가 결정될 수 있습니다.',
+        '준비가 시작된 주문은 스토어 확인 후 취소 또는 환불 가능 여부가 결정될 수 있습니다.',
         settlementHint,
         supportAvailable
           ? '빠른 확인이 필요하면 문의 연락처로 요청해 주세요.'
@@ -545,12 +545,12 @@ function refundGuide(
     return {
       title: '수령 직전 주문 안내',
       summary:
-        '준비 완료된 주문은 구매자 화면에서 바로 취소되지 않을 수 있으며 매장 확인이 우선됩니다.',
+        '준비 완료된 주문은 구매자 화면에서 바로 취소되지 않을 수 있으며 스토어 확인이 우선됩니다.',
       items: [
-        '준비 완료 이후에는 환불 가능 여부가 매장 정책과 진행 상황에 따라 달라집니다.',
+        '준비 완료 이후에는 환불 가능 여부가 스토어 정책과 진행 상황에 따라 달라집니다.',
         settlementHint,
         supportAvailable
-          ? '취소 또는 환불이 필요하면 바로 매장에 연락해 주세요.'
+          ? '취소 또는 환불이 필요하면 바로 스토어에 연락해 주세요.'
           : '취소 또는 환불이 필요하면 주문하신 온라인샵의 판매자 안내에 따라 요청해 주세요.',
       ],
     };
@@ -562,10 +562,10 @@ function refundGuide(
       summary:
         '완료된 주문은 단순 취소가 아니라 환불 검토가 필요한 상태입니다.',
       items: [
-        '상품 누락, 오배송, 결제 오류 등의 사유가 있으면 매장 확인 후 환불이 진행됩니다.',
+        '상품 누락, 오배송, 결제 오류 등의 사유가 있으면 스토어 확인 후 환불이 진행됩니다.',
         settlementHint,
         supportAvailable
-          ? '처리 기준은 매장 정책에 따라 달라질 수 있으니 문의 연락처를 이용해 주세요.'
+          ? '처리 기준은 스토어 정책에 따라 달라질 수 있으니 문의 연락처를 이용해 주세요.'
           : '처리 기준은 판매자 정책에 따라 달라질 수 있으니 주문하신 온라인샵의 안내를 확인해 주세요.',
       ],
     };
@@ -578,7 +578,7 @@ function refundGuide(
       items: [
         settlementHint,
         '카드사 또는 금융기관 반영 시점은 실제 입금 시점과 차이가 있을 수 있습니다.',
-        '반영 내역이 보이지 않으면 매장 또는 결제 수단 고객센터에 문의해 주세요.',
+        '반영 내역이 보이지 않으면 스토어 또는 결제 수단 고객센터에 문의해 주세요.',
       ],
     };
   }
@@ -589,7 +589,7 @@ function refundGuide(
     items: [
       settlementHint,
       '실제 환불 반영 시점은 결제 수단에 따라 차이가 있을 수 있습니다.',
-      '반영이 지연되면 매장으로 문의해 주세요.',
+      '반영이 지연되면 스토어로 문의해 주세요.',
     ],
   };
 }
@@ -600,7 +600,7 @@ function cancelConfirmationNotice(order: OrderInfo): string {
   }
 
   if (order.paymentMethod === 'CASH') {
-    return '현장결제 주문은 매장 확인 후 취소가 마무리될 수 있어요.';
+    return '현장결제 주문은 스토어 확인 후 취소가 마무리될 수 있어요.';
   }
 
   return '카드 결제 취소 후 실제 환불 반영까지는 카드사 사정에 따라 3~5영업일 정도 걸릴 수 있습니다.';
@@ -908,7 +908,7 @@ export default function TrackOrderPage() {
             tone: 'danger' as const,
             title: '주문이 취소되었어요.',
             description: supportAvailable
-              ? '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 매장에 연락해 주세요.'
+              ? '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 필요하면 아래 문의 정보로 스토어에 연락해 주세요.'
               : '이 주문은 취소 상태로 반영되었고 더 이상 진행되지 않아요. 문의가 필요하면 주문하신 온라인샵의 판매자 안내를 확인해 주세요.',
           }
         : null;
@@ -943,7 +943,7 @@ export default function TrackOrderPage() {
       return;
     }
 
-    toast('주문 취소는 매장 문의로 도와드리고 있어요.');
+    toast('주문 취소는 스토어 문의로 도와드리고 있어요.');
   };
 
   const confirmCancelOrder = async () => {
@@ -1207,7 +1207,7 @@ export default function TrackOrderPage() {
               <div className="mt-1 text-xs leading-5 text-text-secondary">
                 {isRefunded
                   ? '결제 수단에 따라 환불 반영까지 영업일 기준 며칠 더 걸릴 수 있어요.'
-                  : '해당 주문은 더 이상 진행되지 않으며, 필요하면 아래 문의 정보로 매장에 연락하실 수 있어요.'}
+                  : '해당 주문은 더 이상 진행되지 않으며, 필요하면 아래 문의 정보로 스토어에 연락하실 수 있어요.'}
               </div>
             </div>
           )}
@@ -1536,7 +1536,7 @@ export default function TrackOrderPage() {
             </div>
             <p className="mt-1 text-xs leading-5 text-text-secondary">
               {supportAvailable
-                ? '주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 매장 문의로 빠르게 도와드리고 있습니다.'
+                ? '주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 스토어 문의로 빠르게 도와드리고 있습니다.'
                 : '주문 접수 단계에서는 로그인 후 바로 취소할 수 있고, 그 이후 상태는 주문하신 온라인샵의 판매자 안내를 확인해 주세요.'}
             </p>
             <button

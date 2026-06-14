@@ -242,7 +242,7 @@ export default function BusinessOrderHistoryPage() {
                       구분
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
-                      매장
+                      스토어
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary">
                       공급처
@@ -381,7 +381,7 @@ export default function BusinessOrderHistoryPage() {
         <CardContent className="grid gap-3 md:grid-cols-3">
           <MemoCard
             title="작성중"
-            body="업로드 직후에는 초안으로 두고, 공급처나 매장 기준을 먼저 확인한 뒤 다음 단계로 넘기면 안전합니다."
+            body="업로드 직후에는 초안으로 두고, 공급처나 스토어 기준을 먼저 확인한 뒤 다음 단계로 넘기면 안전합니다."
           />
           <MemoCard
             title="부분출고"

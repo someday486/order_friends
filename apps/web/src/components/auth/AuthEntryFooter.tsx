@@ -24,7 +24,7 @@ export function AuthEntryFooter({
           로그인으로 돌아가기
         </Link>
         <p className="mt-3 text-xs leading-5 text-text-tertiary">
-          일반 소비자는 <code>/shop</code> 또는 주문 페이지에서 카카오
+          일반 소비자는 <code>/shop</code> 또는 온라인샵 주문 링크에서 카카오
           간편로그인을 이용해 주세요.
         </p>
       </div>
@@ -34,7 +34,7 @@ export function AuthEntryFooter({
   return (
     <div className="mt-6 border-t border-border pt-4 text-center">
       <p className="text-sm text-text-secondary">
-        브랜드 또는 매장 관리자 계정이 필요하신가요?
+        브랜드/셀러 운영 계정이 필요하신가요?
       </p>
       <Link
         href={signupHref}
@@ -43,7 +43,7 @@ export function AuthEntryFooter({
         회원가입
       </Link>
       <p className="mt-3 text-xs leading-5 text-text-tertiary">
-        일반 소비자는 <code>/shop</code> 또는 주문 페이지에서 카카오
+        일반 소비자는 <code>/shop</code> 또는 온라인샵 주문 링크에서 카카오
         간편로그인을 이용해 주세요.
       </p>
     </div>

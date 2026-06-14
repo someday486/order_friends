@@ -261,7 +261,7 @@ function AnalyticsContent() {
         }
       } catch (err) {
         setBranches([]);
-        setBranchError(err instanceof Error ? err.message : "지점 목록을 불러오지 못했습니다");
+        setBranchError(err instanceof Error ? err.message : "스토어 목록을 불러오지 못했습니다");
       } finally {
         setBranchLoading(false);
       }
@@ -583,10 +583,10 @@ function AnalyticsContent() {
   const orderCurrent = orderData?.current;
   const customerCurrent = customerData?.current;
   const branchPlaceholder = branchLoading
-    ? "지점 불러오는 중..."
+    ? "스토어 불러오는 중..."
     : branches.length === 0
-      ? "지점 없음"
-      : "지점 선택";
+      ? "스토어 없음"
+      : "스토어 선택";
   const paretoItems = abcData?.items?.slice(0, 15) ?? [];
   const paretoChartData = paretoItems.map((item) => ({
     name: item.productName,
@@ -779,7 +779,7 @@ function AnalyticsContent() {
     <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
       <div className="card p-4 sm:p-6 border border-primary-100 bg-gradient-to-b from-primary-50/50 to-bg-primary">
         <div className="flex flex-col gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">한눈에 보는 우리 매장</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">한눈에 보는 온라인 운영</h1>
           <p className="text-sm text-text-secondary">
             핵심 지표부터 확인하고, 필요한 경우에만 심화 분석을 펼쳐보세요.
           </p>
@@ -812,7 +812,7 @@ function AnalyticsContent() {
 
         <div className="mt-4 flex flex-wrap gap-4 items-end">
           <div className="w-full sm:w-auto">
-            <label className="block text-sm mb-1 text-text-secondary">지점</label>
+            <label className="block text-sm mb-1 text-text-secondary">스토어</label>
             <select
               value={effectiveBranchId ?? ""}
               onChange={(e) => {
@@ -919,7 +919,7 @@ function AnalyticsContent() {
 
       {!effectiveBranchId && (
         <div className="rounded-md border border-border bg-bg-secondary p-4 text-sm text-text-secondary">
-          지점을 선택하면 분석 데이터를 확인할 수 있습니다.
+          스토어를 선택하면 분석 데이터를 확인할 수 있습니다.
         </div>
       )}
 

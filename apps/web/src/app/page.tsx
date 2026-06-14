@@ -5,9 +5,9 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  BellRing,
   Boxes,
   ClipboardList,
+  CreditCard,
   Store,
 } from 'lucide-react';
 import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
@@ -15,57 +15,57 @@ import { useAuth } from '@/hooks/useAuth';
 
 const serviceHighlights = [
   {
-    title: '브랜드 소개와 주문 진입을 한 화면에서',
+    title: '브랜드 온라인샵을 빠르게 열기',
     description:
-      '고객이 브랜드를 이해하고 바로 주문 페이지로 이동할 수 있도록 첫 화면의 흐름을 정리합니다.',
+      '상품을 노출하고 주문 링크를 공유해 자체 고객을 바로 주문 흐름으로 연결합니다.',
   },
   {
-    title: '운영팀을 위한 한 번의 정리',
+    title: '셀러 운영을 한 곳에서 관리',
     description:
-      '브랜드, 매장, 상품, 주문 관리를 각각 흩어놓지 않고 운영자가 필요한 화면으로 곧바로 이어지게 만듭니다.',
+      '브랜드, 스토어/출고지, 상품, 주문, 결제, 정산을 흩어놓지 않고 한 워크스페이스에서 관리합니다.',
   },
   {
-    title: '실사용 동선이 드러나는 구조',
+    title: '테이블오더가 아닌 온라인 판매',
     description:
-      '서비스 소개, 주문 시작, 주문 확인까지 이어지는 흐름이 보여 카카오 비즈채널 심사 대응에도 유리합니다.',
+      '매장 내 테이블 주문이 아니라 링크 기반 온라인샵과 주문 운영에 초점을 둡니다.',
   },
 ];
 
 const workflowSteps = [
   {
     label: '01',
-    title: '브랜드 소개',
+    title: '온라인샵 개설',
     description:
-      '첫 화면에서 서비스 성격과 운영 브랜드의 결을 전달합니다.',
+      '브랜드 URL과 상품 노출 정책을 설정해 공개 판매 페이지를 준비합니다.',
     icon: Store,
   },
   {
     label: '02',
-    title: '주문 페이지 진입',
+    title: '상품 판매',
     description:
-      '고객은 브랜드 또는 매장별 주문 동선으로 자연스럽게 이동합니다.',
+      '고객은 온라인샵 또는 주문 링크에서 상품, 옵션, 수령/배송 방식을 선택합니다.',
     icon: Boxes,
   },
   {
     label: '03',
-    title: '주문 접수와 확인',
+    title: '주문 운영',
     description:
-      '운영자는 주문 내역, 상태, 수령 방식까지 한 흐름 안에서 관리합니다.',
+      '운영자는 주문 상태, 결제/입금, 재고, 고객 문의를 한 흐름 안에서 처리합니다.',
     icon: ClipboardList,
   },
   {
     label: '04',
-    title: '알림과 후속 운영',
+    title: '결제와 정산',
     description:
-      '주문 후속 안내와 운영 커뮤니케이션까지 연결되는 구조를 준비합니다.',
-    icon: BellRing,
+      'PG 결제, 무통장 입금, 구독 빌링, 판매 정산을 구분해 추적합니다.',
+    icon: CreditCard,
   },
 ];
 
 const operatingPoints = [
-  '브랜드별 공개 주문 페이지 운영',
-  '매장과 상품 구성을 한 곳에서 관리',
-  '주문 이력과 운영 대시보드 연결',
+  '브랜드별 온라인샵과 주문 링크 운영',
+  '스토어/출고지와 상품 구성을 한 곳에서 관리',
+  '주문, 결제, 재고, 정산 데이터를 연결',
 ];
 
 export default function HomePage() {
@@ -105,7 +105,7 @@ export default function HomePage() {
             OrderFriends
           </div>
           <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#1f1b16]">
-            브랜드 운영 화면을 준비하고 있습니다.
+            온라인마켓 운영 화면을 준비하고 있습니다.
           </p>
           <p className="mt-2 text-sm text-[#6f6558]">잠시만 기다려 주세요.</p>
         </div>
@@ -122,7 +122,7 @@ export default function HomePage() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 sm:px-8 lg:px-10">
           <Link href="/" className="flex flex-col">
             <span className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8b6f47]">
-              Brand order operations
+              Online market operations
             </span>
             <span className="mt-1 text-xl font-semibold tracking-[-0.04em] text-[#1f1b16]">
               오더프렌즈
@@ -133,7 +133,7 @@ export default function HomePage() {
               href="/shop"
               className="hidden rounded-full px-4 py-2 text-sm font-medium text-[#5b5245] transition hover:bg-white/70 sm:inline-flex"
             >
-              고객 주문 화면
+              온라인샵 보기
             </Link>
             <Link
               href="/login"
@@ -154,14 +154,14 @@ export default function HomePage() {
                 OrderFriends Project
               </p>
               <h1 className="mt-5 max-w-4xl text-[3.15rem] font-semibold leading-[0.95] tracking-[-0.07em] text-[#1f1b16] sm:text-[4.25rem] lg:text-[5.5rem]">
-                브랜드 소개부터 주문 접수,
+                온라인샵 개설부터 주문 접수,
                 <br />
-                운영 관리까지 하나의 흐름으로.
+                결제와 정산까지 하나의 흐름으로.
               </h1>
               <p className="mt-6 max-w-2xl text-base leading-7 text-[#5f574c] sm:text-lg">
-                오더프렌즈는 브랜드와 매장이 고객에게 보이는 첫 화면, 실제
-                주문이 일어나는 공개 페이지, 그리고 운영자가 매일 확인하는 관리
-                화면을 하나의 서비스 경험으로 연결합니다.
+                오더프렌즈는 브랜드와 셀러가 자체 온라인샵을 열고 상품 판매,
+                주문 처리, 결제/입금, 재고, 정산을 하나의 운영 경험으로 연결할 수
+                있게 돕는 온라인마켓 운영 플랫폼입니다.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -176,7 +176,7 @@ export default function HomePage() {
                   href="/shop"
                   className="inline-flex items-center justify-center rounded-full border border-[#cfc0ab] bg-white/70 px-6 py-3 text-sm font-semibold text-[#3b342c] transition hover:bg-white"
                 >
-                  고객 주문 화면 보기
+                  온라인샵 둘러보기
                 </Link>
               </div>
 
@@ -204,7 +204,7 @@ export default function HomePage() {
                       Today&apos;s operating flow
                     </p>
                     <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[#1f1b16]">
-                      메인에서 서비스 성격이
+                      온라인 판매 운영 흐름이
                       <br />
                       바로 드러나게 설계합니다.
                     </p>
@@ -251,7 +251,7 @@ export default function HomePage() {
                   <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
                     고객에게는 쉬운 진입을,
                     <br />
-                    운영팀에는 선명한 관리 동선을 제공합니다.
+                    셀러에게는 선명한 운영 동선을 제공합니다.
                   </p>
                   <ul className="mt-4 space-y-2 text-sm leading-6 text-white/78">
                     {operatingPoints.map((point) => (
@@ -273,12 +273,13 @@ export default function HomePage() {
               <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-[#1f1b16] sm:text-4xl">
                 심사자도, 고객도,
                 <br />
-                같은 화면에서 이해할 수 있는 동선.
+                같은 화면에서 이해할 수 있는 온라인 판매 동선.
               </h2>
               <p className="mt-5 max-w-xl text-base leading-7 text-[#5f574c]">
-                메인 소개 화면에서 서비스 정체성을 보여주고, 주문 시작부터 운영
-                확인까지 이어지는 단계를 구조적으로 정리합니다. 첫 화면만 봐도
-                무엇을 제공하는 서비스인지 설명이 되도록 구성했습니다.
+                첫 화면에서 서비스 정체성을 보여주고, 온라인샵 진입부터 주문,
+                결제, 정산까지 이어지는 단계를 구조적으로 정리합니다. 첫 화면만
+                봐도 테이블오더가 아닌 셀러용 온라인 주문 운영 플랫폼임을 알 수
+                있도록 구성했습니다.
               </p>
             </div>
 
@@ -321,26 +322,26 @@ export default function HomePage() {
                 For operators
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-[#1f1b16] sm:text-4xl">
-                여러 브랜드와 매장을 다루는 운영팀에 맞춘 시작 화면.
+                여러 브랜드와 스토어를 다루는 운영팀에 맞춘 시작 화면.
               </h2>
             </div>
             <div className="grid gap-8 text-sm leading-6 text-[#5f574c] sm:grid-cols-3">
               <div>
                 <h3 className="text-base font-semibold text-[#1f1b16]">
-                  브랜드 소개
+                  온라인샵
                 </h3>
                 <p className="mt-2">
-                  프로젝트와 브랜드의 성격을 첫 화면에서 정리해 고객 신뢰와
-                  심사 대응을 동시에 챙깁니다.
+                  브랜드의 상품과 주문 진입점을 한 화면에 정리해 고객 전환과
+                  운영 신뢰를 함께 챙깁니다.
                 </p>
               </div>
               <div>
                 <h3 className="text-base font-semibold text-[#1f1b16]">
-                  주문 전환
+                  주문 운영
                 </h3>
                 <p className="mt-2">
-                  소개에서 끝나지 않고 실제 주문 화면으로 넘어가는 행동 경로를
-                  분명하게 설계합니다.
+                  상품 판매에서 끝나지 않고 주문, 결제, 입금 확인, 상태 변경까지
+                  이어지는 운영 경로를 분명하게 설계합니다.
                 </p>
               </div>
               <div>
@@ -348,8 +349,8 @@ export default function HomePage() {
                   운영 일관성
                 </h3>
                 <p className="mt-2">
-                  관리자 로그인, 공개 주문, 후속 운영까지 제품의 톤과 구조가
-                  하나로 이어집니다.
+                  브랜드/셀러 관리, 온라인샵, 공개 주문, 후속 운영까지 제품의 톤과
+                  구조가 하나로 이어집니다.
                 </p>
               </div>
             </div>
@@ -363,11 +364,11 @@ export default function HomePage() {
                 Launch the first impression
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">
-                소개형 메인페이지로 프로젝트의 얼굴을 먼저 세웁니다.
+                온라인마켓 운영 플랫폼의 얼굴을 먼저 세웁니다.
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/72 sm:text-base">
-                브랜드 운영 서비스인지, 고객이 어디서 주문을 시작하는지, 운영자는
-                어디로 들어가야 하는지를 첫 화면에서 바로 이해할 수 있도록
+                셀러용 온라인 주문 운영 서비스인지, 고객이 어디서 주문을 시작하는지,
+                운영자는 어디로 들어가야 하는지를 첫 화면에서 바로 이해할 수 있도록
                 구성했습니다.
               </p>
             </div>

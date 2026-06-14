@@ -79,7 +79,7 @@ const PRODUCT_COPY_BY_ID: Record<string, Partial<BusinessProduct>> = {
 
 const CATALOG_VARIANTS = [
   '행사특가',
-  '매장기본',
+  '스토어기본',
   '카페납품',
   '주간추천',
   '당일출고',

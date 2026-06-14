@@ -151,7 +151,7 @@ export default function CustomerCategoriesPage() {
         }
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : "지점 목록을 불러올 수 없습니다");
+        setError(e instanceof Error ? e.message : "스토어 목록을 불러올 수 없습니다");
       }
     };
     loadBranches();
@@ -196,7 +196,7 @@ export default function CustomerCategoriesPage() {
       setCategories(merged);
 
       if (failedBranchIds.length > 0) {
-        setLoadError(`일부 매장(${failedBranchIds.length}개)의 카테고리를 불러오지 못했습니다.`);
+        setLoadError(`일부 스토어(${failedBranchIds.length}개)의 카테고리를 불러오지 못했습니다.`);
       }
 
       if (branchIds.length === 1) {
@@ -289,10 +289,10 @@ export default function CustomerCategoriesPage() {
         await loadSelectedBranchCategories();
         if (result.skipped > 0) {
           toast.success(
-            `${result.created}개 매장에 생성, ${result.skipped}개 매장은 같은 이름이 있어 건너뛰었습니다.`,
+            `${result.created}개 스토어에 생성, ${result.skipped}개 스토어는 같은 이름이 있어 건너뛰었습니다.`,
           );
         } else {
-          toast.success(`${result.created}개 매장에 카테고리를 생성했습니다.`);
+          toast.success(`${result.created}개 스토어에 카테고리를 생성했습니다.`);
         }
       }
 
@@ -308,7 +308,7 @@ export default function CustomerCategoriesPage() {
 
   const handleUpdate = async (categoryId: string) => {
     if (!isSingleBranchMode) {
-      toast.error("이름 수정은 단일 매장 선택에서만 가능합니다.");
+      toast.error("이름 수정은 단일 스토어 선택에서만 가능합니다.");
       return;
     }
     if (!editName.trim()) return;
@@ -329,7 +329,7 @@ export default function CustomerCategoriesPage() {
 
   const handleToggleActive = async (category: Category) => {
     if (!isSingleBranchMode) {
-      toast.error("활성/비활성 변경은 단일 매장 선택에서만 가능합니다.");
+      toast.error("활성/비활성 변경은 단일 스토어 선택에서만 가능합니다.");
       return;
     }
     try {
@@ -441,7 +441,7 @@ export default function CustomerCategoriesPage() {
 
   const handleBulkToggle = async (active: boolean) => {
     if (!canBulkStatus) {
-      toast.error("일괄 활성/비활성은 단일 매장 선택에서만 가능합니다.");
+      toast.error("일괄 활성/비활성은 단일 스토어 선택에서만 가능합니다.");
       return;
     }
     const targetBranchId = selectedBranchId || Array.from(selectedBranchIds)[0];
@@ -510,9 +510,9 @@ export default function CustomerCategoriesPage() {
 
     const skippedCount = branchIds.length - perBranch.size;
     const parts: string[] = [];
-    if (successCount > 0) parts.push(`${active ? "활성화" : "비활성화"} 완료: ${successCount}개 매장`);
-    if (skippedCount > 0) parts.push(`스킵: ${skippedCount}개 매장`);
-    if (failCount > 0) parts.push(`실패: ${failCount}개 매장`);
+    if (successCount > 0) parts.push(`${active ? "활성화" : "비활성화"} 완료: ${successCount}개 스토어`);
+    if (skippedCount > 0) parts.push(`스킵: ${skippedCount}개 스토어`);
+    if (failCount > 0) parts.push(`실패: ${failCount}개 스토어`);
 
     if (failCount > 0) {
       toast.error(parts.join(", "));
@@ -901,9 +901,9 @@ export default function CustomerCategoriesPage() {
               <div className="relative group" tabIndex={0}>
                 <span
                   className="inline-flex items-center h-5 px-2 rounded-full text-2xs font-medium bg-bg-tertiary text-text-tertiary border border-border"
-                  aria-label={`포함 지점: ${tooltipText}`}
+                  aria-label={`포함 스토어: ${tooltipText}`}
                 >
-                  {group.branchNames.length}개 매장
+                  {group.branchNames.length}개 스토어
                 </span>
                 <div className="absolute left-0 top-full mt-2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg max-h-48 overflow-y-auto">
                   {group.branchNames.map((line) => (
@@ -969,7 +969,7 @@ export default function CustomerCategoriesPage() {
               selectedBranchIds.size > 0 ? "bg-success/20 text-success" : "bg-bg-tertiary text-text-secondary"
             }`}>
               {selectedBranchIds.size === 0
-                ? "매장 선택 필요"
+                ? "스토어 선택 필요"
                 : isSingleBranchMode
                   ? "단일 모드"
                   : "다중 모드"}
@@ -978,7 +978,7 @@ export default function CustomerCategoriesPage() {
               <HelpCircle size={15} className="text-text-tertiary hover:text-text-secondary transition-colors" />
               <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
                 {selectedBranchIds.size === 0
-                  ? "매장을 1개 이상 선택하면 카테고리를 관리할 수 있습니다."
+                  ? "스토어를 1개 이상 선택하면 카테고리를 관리할 수 있습니다."
                   : isSingleBranchMode
                     ? "정렬 · 일괄 상태 변경 · 이름 수정/삭제 가능"
                     : "정렬 · 추가 · 그룹 일괄 상태 변경 가능 (이름 수정/삭제는 그룹 단위)"}
@@ -986,22 +986,22 @@ export default function CustomerCategoriesPage() {
             </div>
           </div>
           <p className="text-text-secondary text-sm mt-1">
-            선택 매장 {selectedBranchIds.size}개 · 카테고리 {displayCategoryCount}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
+            선택 스토어 {selectedBranchIds.size}개 · 카테고리 {displayCategoryCount}개 · 활성 {activeCategoryCount}개 · 비활성 {inactiveCategoryCount}개
           </p>
           <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg-secondary px-3 py-2 text-xs text-text-secondary">
             <span className="font-semibold text-foreground">
               {selectedBranchIds.size === 0
                 ? "관리 모드 안내"
                 : isSingleBranchMode
-                  ? "단일 매장 관리"
-                  : "여러 매장 일괄 관리"}
+                  ? "단일 스토어 관리"
+                  : "여러 스토어 일괄 관리"}
             </span>
             <span className="text-text-tertiary">
               {selectedBranchIds.size === 0
-                ? "매장을 선택하면 수정 가능한 작업이 표시됩니다."
+                ? "스토어를 선택하면 수정 가능한 작업이 표시됩니다."
                 : isSingleBranchMode
                   ? "이름 수정, 삭제, 활성화 변경을 개별 카테고리 단위로 처리할 수 있습니다."
-                  : "추가, 정렬, 그룹 이름 변경, 그룹 삭제, 그룹 상태 변경을 선택한 매장 전체에 반영합니다."}
+                  : "추가, 정렬, 그룹 이름 변경, 그룹 삭제, 그룹 상태 변경을 선택한 스토어 전체에 반영합니다."}
             </span>
           </div>
         </div>
@@ -1020,7 +1020,7 @@ export default function CustomerCategoriesPage() {
         <div className="rounded-xl border border-border bg-bg-secondary p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <label className="text-sm text-text-secondary font-semibold">매장 선택 (다중선택가능)</label>
+              <label className="text-sm text-text-secondary font-semibold">스토어 선택 (다중선택 가능)</label>
 
               <div className="relative group cursor-pointer" tabIndex={0}>
                 <HelpCircle
@@ -1029,8 +1029,8 @@ export default function CustomerCategoriesPage() {
                 />
 
                 <div className="absolute left-6 top-1/2 -translate-y-1/2 w-72 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                  여러 매장을 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다.<br/>
-                  정렬 변경은 선택한 매장 전체에 동일 순서로 반영됩니다.
+                  여러 스토어를 동시에 선택하면 카테고리를 한 번에 등록할 수 있습니다.<br/>
+                  정렬 변경은 선택한 스토어 전체에 동일 순서로 반영됩니다.
                 </div>
               </div>
             </div>
@@ -1039,14 +1039,14 @@ export default function CustomerCategoriesPage() {
               <button
                 onClick={() => {
                   if (allFilteredBranchSelected) {
-                    // 현재 보이는(필터된) 매장들만 해제
+                    // 현재 보이는(필터된) 스토어들만 해제
                     setSelectedBranchIds((prev) => {
                       const next = new Set(prev);
                       for (const b of filteredBranches) next.delete(b.id);
                       return next;
                     });
                   } else {
-                    // 현재 보이는(필터된) 매장들만 전체 선택
+                    // 현재 보이는(필터된) 스토어들만 전체 선택
                     setSelectedBranchIds((prev) => {
                       const next = new Set(prev);
                       for (const b of filteredBranches) next.add(b.id);
@@ -1067,7 +1067,7 @@ export default function CustomerCategoriesPage() {
               type="text"
               value={branchSearch}
               onChange={(e) => setBranchSearch(e.target.value)}
-              placeholder="매장 검색..."
+              placeholder="스토어 검색..."
               className="input-field w-full"
             />
 
@@ -1112,8 +1112,8 @@ export default function CustomerCategoriesPage() {
               <div className="text-sm font-semibold text-foreground mb-1">새 카테고리</div>
               <div className="text-xs text-text-secondary mb-3">
                 {selectedBranchIds.size > 1
-                  ? `선택한 ${selectedBranchIds.size}개 매장에 동일한 카테고리를 등록합니다.`
-                  : "선택한 매장에 카테고리를 등록합니다."}
+                  ? `선택한 ${selectedBranchIds.size}개 스토어에 동일한 카테고리를 등록합니다.`
+                  : "선택한 스토어에 카테고리를 등록합니다."}
               </div>
               <div className="flex gap-2">
                 <input
@@ -1145,7 +1145,7 @@ export default function CustomerCategoriesPage() {
           {/* Category Table */}
           {selectedBranchIds.size === 0 ? (
             <div className="card p-12 text-center text-text-tertiary">
-              <div className="text-base mb-2">매장을 1개 이상 선택하세요</div>
+              <div className="text-base mb-2">스토어를 1개 이상 선택하세요</div>
             </div>
           ) : loading ? (
             <div className="card p-6">
@@ -1322,7 +1322,7 @@ export default function CustomerCategoriesPage() {
         title={deleteTarget?.type === "group" ? "카테고리 그룹 삭제" : "카테고리 삭제"}
         description={
           deleteTarget?.type === "group"
-            ? `"${deleteTarget.group.name}" 그룹을 선택한 매장 전체에서 삭제합니다. 연결된 상품은 "카테고리 없음" 상태가 됩니다.`
+            ? `"${deleteTarget.group.name}" 그룹을 선택한 스토어 전체에서 삭제합니다. 연결된 상품은 "카테고리 없음" 상태가 됩니다.`
             : deleteTarget?.type === "category"
               ? `"${deleteTarget.category.name}" 카테고리를 삭제합니다. 연결된 상품은 "카테고리 없음" 상태가 됩니다.`
               : ""
@@ -1365,7 +1365,7 @@ function GroupEditModal({
         <div className="border-b border-border px-5 py-4">
           <h2 className="text-lg font-bold text-foreground">카테고리 그룹 이름 변경</h2>
           <p className="mt-1 text-sm text-text-secondary">
-            선택한 매장 전체에 같은 이름으로 반영됩니다.
+            선택한 스토어 전체에 같은 이름으로 반영됩니다.
           </p>
         </div>
         <div className="px-5 py-4">

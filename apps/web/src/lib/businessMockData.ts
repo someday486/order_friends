@@ -90,7 +90,7 @@ export const businessProducts: BusinessProduct[] = [
     stockLabel: '재고 여유',
     accentClass: 'from-orange-300/70 to-red-400/60',
     emoji: '🍊',
-    note: '매장 POP 제공 / 시즌용 구성',
+    note: '스토어 POP 제공 / 시즌용 구성',
   },
   {
     id: 'prod-3',

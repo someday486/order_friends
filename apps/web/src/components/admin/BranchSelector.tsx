@@ -23,11 +23,11 @@ type BranchSelectorProps = {
 };
 
 export default function BranchSelector({
-  label = '매장 선택',
+  label = '스토어 선택',
   compact = false,
   showInlineLabel = true,
   showManageLink = true,
-  placeholder = '매장을 선택하세요',
+  placeholder = '스토어를 선택하세요',
 }: BranchSelectorProps) {
   const { brandId, ready } = useSelectedBrand();
   const { branchId, selectBranch } = useSelectedBranch();
@@ -56,7 +56,7 @@ export default function BranchSelector({
         setBranches(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? '매장 목록을 불러오지 못했습니다.');
+        setError(err?.message ?? '스토어 목록을 불러오지 못했습니다.');
       } finally {
         setLoading(false);
       }

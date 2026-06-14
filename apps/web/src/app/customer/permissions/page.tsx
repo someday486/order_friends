@@ -139,7 +139,7 @@ const BRAND_INVITE_ROLE_OPTIONS: Array<{ value: InviteRole; label: string }> = [
 
 const BRANCH_INVITE_ROLE_OPTIONS: Array<{ value: InviteRole; label: string }> =
   [
-    { value: 'BRANCH_OWNER', label: '매장 오너' },
+    { value: 'BRANCH_OWNER', label: '스토어 오너' },
     { value: 'BRANCH_ADMIN', label: '매니저' },
     { value: 'STAFF', label: '직원' },
     { value: 'VIEWER', label: '조회 전용' },
@@ -658,7 +658,7 @@ export default function PermissionsPage() {
             권한관리
           </h1>
           <p className="mt-1 text-sm text-text-secondary">
-            브랜드 및 매장의 멤버와 역할을 관리합니다.
+            브랜드 및 스토어의 멤버와 역할을 관리합니다.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -705,18 +705,18 @@ export default function PermissionsPage() {
             {loading ? '-' : totalManagers}
           </div>
           <div className="text-xs text-text-tertiary mt-1">
-            매장 담당 매니저
+            스토어 담당 매니저
           </div>
         </div>
         <div className="card p-5">
           <div className="text-xs text-text-secondary font-semibold mb-1.5">
-            운영 매장
+            운영 스토어
           </div>
           <div className="text-3xl font-extrabold text-foreground">
             {loading ? '-' : totalBranches}
           </div>
           <div className="text-xs text-text-tertiary mt-1">
-            현재 운영 중인 매장
+            현재 운영 중인 스토어
           </div>
         </div>
       </div>
@@ -744,7 +744,7 @@ export default function PermissionsPage() {
 
         <div className="w-full min-w-0 sm:flex-1 sm:min-w-[140px]">
           <label className="block text-xs text-text-secondary mb-1.5 font-semibold">
-            매장
+            스토어
           </label>
           <select
             value={selectedBranchId}
@@ -752,7 +752,7 @@ export default function PermissionsPage() {
             className="input-field h-9 text-sm w-full"
             disabled={availableBranches.length === 0}
           >
-            <option value="">전체 매장</option>
+            <option value="">전체 스토어</option>
             {availableBranches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -853,7 +853,7 @@ export default function PermissionsPage() {
                       소속 브랜드
                     </th>
                     <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                      소속 매장
+                      소속 스토어
                     </th>
                     <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
                       역할
@@ -943,7 +943,7 @@ export default function PermissionsPage() {
                   브랜드 오너
                 </span>
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  브랜드와 모든 매장을 관리하고 멤버 초대 및 권한 변경이
+                  브랜드와 모든 스토어를 관리하고 멤버 초대 및 권한 변경이
                   가능합니다.
                 </p>
               </div>
@@ -954,7 +954,7 @@ export default function PermissionsPage() {
                   매니저
                 </span>
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  담당 매장의 주문, 상품, 재고 관리가 가능합니다.
+                  담당 스토어의 주문, 상품, 재고 관리가 가능합니다.
                 </p>
               </div>
               <div className="border-t border-border pt-3">
@@ -1066,7 +1066,7 @@ function InviteModal({
   if (!open) return null;
 
   const roleOptions = getInviteRoleOptions(branchId);
-  const targetLabel = branchId ? '매장 초대' : '브랜드 초대';
+  const targetLabel = branchId ? '스토어 초대' : '브랜드 초대';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
@@ -1385,7 +1385,7 @@ function HistoryModal({
             <p className="mt-1 text-sm text-text-secondary">
               {branchId && branchName
                 ? `${branchName} 멤버 이력을 확인합니다.`
-                : '브랜드와 매장 멤버 변경 이력을 확인합니다.'}
+                : '브랜드와 스토어 멤버 변경 이력을 확인합니다.'}
             </p>
           </div>
           <button
@@ -1480,7 +1480,7 @@ function HistoryModal({
                             </span>
                             <span className="text-xs text-text-tertiary">
                               {item.scopeType === 'BRANCH'
-                                ? '매장 권한'
+                                ? '스토어 권한'
                                 : '브랜드 권한'}
                             </span>
                           </div>

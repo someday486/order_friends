@@ -98,7 +98,7 @@ export default function StoresPage() {
         setBranches(data);
       } catch (e: unknown) {
         const err = e as Error;
-        setError(err?.message ?? "매장 목록을 불러오지 못했습니다.");
+        setError(err?.message ?? "스토어/출고지 목록을 불러오지 못했습니다.");
         setBranches([]);
       } finally {
         setLoadingBranches(false);
@@ -119,7 +119,7 @@ export default function StoresPage() {
   const handleDelete = async (branchIdToDelete: string, branchName: string) => {
     if (
       !confirm(
-        `"${branchName}" 매장을 삭제하시겠습니까?\n관련된 데이터가 모두 삭제되며 복구할 수 없습니다.`,
+        `"${branchName}" 스토어/출고지를 삭제하시겠습니까?\n관련된 데이터가 모두 삭제되며 복구할 수 없습니다.`,
       )
     ) {
       return;
@@ -131,7 +131,7 @@ export default function StoresPage() {
       setBranches((prev) => prev.filter((branch) => branch.id !== branchIdToDelete));
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message ?? "매장 삭제에 실패했습니다.");
+      toast.error(err?.message ?? "스토어/출고지 삭제에 실패했습니다.");
     }
   };
 
@@ -141,11 +141,11 @@ export default function StoresPage() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="m-0 text-[22px] font-extrabold text-foreground">매장관리</h1>
+          <h1 className="m-0 text-[22px] font-extrabold text-foreground">스토어 관리</h1>
           <p className="mt-1 text-[13px] text-text-secondary">
             {brandId
-              ? `총 ${filteredBranches.length}개 / 전체 ${branches.length}개 매장`
-              : "브랜드를 선택하면 매장 목록이 표시됩니다."}
+              ? `총 ${filteredBranches.length}개 / 전체 ${branches.length}개 스토어`
+              : "브랜드를 선택하면 스토어/출고지 목록이 표시됩니다."}
           </p>
         </div>
 
@@ -164,7 +164,7 @@ export default function StoresPage() {
             onClick={() => setShowAddForm(true)}
             disabled={!brandId}
           >
-            + 매장 추가
+            + 스토어 추가
           </button>
         </div>
       </div>
@@ -210,8 +210,8 @@ export default function StoresPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setSearchInput("");
                 }}
-                placeholder="매장명, 슬러그, ID 검색"
-                aria-label="매장 검색"
+                placeholder="스토어명, 슬러그, ID 검색"
+                aria-label="스토어 검색"
                 className="input-field h-10 w-full pl-10 pr-10 text-sm"
                 disabled={!brandId}
               />
@@ -237,7 +237,7 @@ export default function StoresPage() {
         <div className="mt-3 text-xs text-text-secondary">
           {selectedBrand
             ? `현재 선택한 브랜드: ${selectedBrand.name}`
-            : "브랜드를 먼저 선택하면 매장을 검색하고 관리할 수 있습니다."}
+            : "브랜드를 먼저 선택하면 스토어/출고지를 검색하고 관리할 수 있습니다."}
         </div>
       </div>
 
@@ -284,7 +284,7 @@ export default function StoresPage() {
               setShowAddForm(false);
             } catch (e: unknown) {
               const err = e as Error;
-              toast.error(err?.message ?? "매장 추가에 실패했습니다.");
+              toast.error(err?.message ?? "스토어/출고지 추가에 실패했습니다.");
             } finally {
               setAdding(false);
             }
@@ -304,10 +304,10 @@ export default function StoresPage() {
             <thead className="bg-bg-tertiary">
               <tr>
                 <th className="px-3.5 py-3 text-left text-xs font-bold text-text-secondary">
-                  매장명
+                  스토어명
                 </th>
                 <th className="px-3.5 py-3 text-left text-xs font-bold text-text-secondary">
-                  매장 URL
+                  스토어 URL
                 </th>
                 <th className="px-3.5 py-3 text-left text-xs font-bold text-text-secondary">
                   생성일
@@ -335,7 +335,7 @@ export default function StoresPage() {
                     colSpan={4}
                     className="px-3.5 py-3 text-center text-[13px] text-text-tertiary"
                   >
-                    {searchInput.trim() ? "검색 결과가 없습니다." : "매장이 없습니다."}
+                    {searchInput.trim() ? "검색 결과가 없습니다." : "스토어/출고지가 없습니다."}
                   </td>
                 </tr>
               )}

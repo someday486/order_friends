@@ -16,11 +16,14 @@ function isProtectedPath(pathname: string) {
 function shouldBypassAuth(request: NextRequest) {
   const cookieBypass = request.cookies.get(E2E_AUTH_COOKIE)?.value === '1';
   const headerBypass = request.headers.get(E2E_AUTH_HEADER) === '1';
-  if (!cookieBypass || !headerBypass) return false;
-  if (E2E_BYPASS_AUTH) return true;
 
   const host = request.nextUrl.hostname;
-  return host === '127.0.0.1' || host === 'localhost';
+  const isLocalHost = host === '127.0.0.1' || host === 'localhost';
+  if (!isLocalHost) return false;
+
+  if (E2E_BYPASS_AUTH) return cookieBypass || headerBypass;
+
+  return cookieBypass && headerBypass;
 }
 
 export async function middleware(request: NextRequest) {

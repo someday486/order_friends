@@ -9,7 +9,7 @@
 
 ### Tenant Hierarchy
 - **Brand**: 최상위 테넌트 단위 (사업자 / 브랜드)
-- **Branch**: Brand 하위 운영 단위 (매장 / 지점)
+- **Branch**: Brand 하위 운영 단위. 제품 언어에서는 스토어, 출고지, 판매 채널로 표현한다.
 
 ### Identity & Membership
 - **Auth User**: 인증 주체 (외부 Auth Provider)

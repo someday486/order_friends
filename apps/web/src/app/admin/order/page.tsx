@@ -109,7 +109,7 @@ export default function AdminOrderLauncherPage() {
       setError(
         e instanceof Error
           ? e.message
-          : '주문 페이지 정보를 불러오지 못했습니다.',
+          : '주문 링크 정보를 불러오지 못했습니다.',
       );
     } finally {
       setLoading(false);
@@ -282,10 +282,10 @@ export default function AdminOrderLauncherPage() {
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-extrabold text-foreground">
-            주문 페이지 바로가기
+            주문 링크 바로가기
           </h1>
           <p className="mt-2 text-text-secondary">
-            원하는 브랜드와 매장을 선택해 공개 주문 페이지를 빠르게 열어보세요.
+            원하는 브랜드와 스토어/출고지를 선택해 온라인샵 주문 링크를 빠르게 열어보세요.
           </p>
         </div>
       </div>
@@ -298,7 +298,7 @@ export default function AdminOrderLauncherPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="브랜드나 매장 검색"
+              placeholder="브랜드나 스토어 검색"
               className="input-field w-full pl-9 pr-8"
             />
             {searchQuery && (
@@ -319,7 +319,7 @@ export default function AdminOrderLauncherPage() {
               onChange={(e) => setHideEmptyBrands(e.target.checked)}
               className="h-4 w-4 rounded accent-primary"
             />
-            매장 없는 브랜드 숨기기
+            스토어 없는 브랜드 숨기기
           </label>
         </div>
       )}
@@ -377,7 +377,7 @@ export default function AdminOrderLauncherPage() {
 
       {showContent && sections.length === 0 && (
         <div className="card p-12 text-center text-text-tertiary">
-          <div className="text-base">현재 등록된 매장이 없습니다.</div>
+          <div className="text-base">현재 등록된 스토어/출고지가 없습니다.</div>
         </div>
       )}
 
@@ -403,7 +403,7 @@ export default function AdminOrderLauncherPage() {
                       {section.brand.name}
                     </span>
                     <span className="flex-shrink-0 rounded border border-border bg-bg-tertiary px-2 py-0.5 text-xs text-text-secondary">
-                      매장 {section.branches.length}개
+                      스토어 {section.branches.length}개
                     </span>
                   </div>
                 </div>
@@ -428,7 +428,7 @@ export default function AdminOrderLauncherPage() {
                 <div className="p-3 transition-all duration-200">
                   {section.branches.length === 0 ? (
                     <div className="py-3 text-center text-sm text-text-tertiary">
-                      등록된 매장이 없습니다.
+                      등록된 스토어/출고지가 없습니다.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
@@ -562,7 +562,7 @@ export default function AdminOrderLauncherPage() {
             (sum, section) => sum + section.branches.length,
             0,
           )}
-          개 매장
+          개 스토어
         </div>
       )}
     </div>

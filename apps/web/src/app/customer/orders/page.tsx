@@ -124,7 +124,7 @@ const FULFILLMENT_FILTERS: { value: FulfillmentType | 'ALL'; label: string }[] =
     { value: 'ALL', label: '전체 방식' },
     { value: 'PICKUP', label: '포장' },
     { value: 'DELIVERY', label: '배달' },
-    { value: 'DINE_IN', label: '매장' },
+    { value: 'DINE_IN', label: '현장 이용' },
     { value: 'SHIPPING', label: '택배' },
   ];
 
@@ -1043,7 +1043,7 @@ export default function CustomerOrdersPage() {
                   }}
                   className="input-field h-9 text-sm w-full sm:w-auto sm:min-w-[150px] sm:max-w-[200px]"
                 >
-                  <option value="ALL">모든 지점</option>
+                  <option value="ALL">모든 스토어</option>
                   {validBranches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.name}
@@ -1258,7 +1258,7 @@ export default function CustomerOrdersPage() {
                 </th>
                 {showMultiBranch && (
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                    지점
+                    스토어
                   </th>
                 )}
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
@@ -1303,7 +1303,7 @@ export default function CustomerOrdersPage() {
                 </th>
                 {showMultiBranch && (
                   <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
-                    지점
+                    스토어
                   </th>
                 )}
                 <th className="text-left py-3 px-3.5 text-xs font-bold text-text-secondary">
@@ -1490,7 +1490,7 @@ export default function CustomerOrdersPage() {
                     </td>                    
 
 
-                    {/* 지점 (multi-branch only) */}
+                    {/* 스토어 (multi-branch only) */}
                     {showMultiBranch && (
                       <td className="py-3 px-3.5 text-[13px] text-foreground whitespace-nowrap">
                         {branchName}

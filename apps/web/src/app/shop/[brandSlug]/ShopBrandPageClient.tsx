@@ -773,10 +773,10 @@ export default function ShopBrandPageClient({
               {error ?? '잠시 후 다시 시도해주세요.'}
             </p>
             {error?.includes(
-              '온라인샵 주문을 처리할 지점이 설정되지 않았습니다.',
+              '온라인샵 주문을 처리할 스토어/출고지가 설정되지 않았습니다.',
             ) ? (
               <div className="mt-3 text-xs text-text-tertiary">
-                브랜드 관리자에서 지점을 1개 이상 등록하고 주문 설정에서 배송
+                브랜드 관리자에서 스토어/출고지를 1개 이상 등록하고 주문 설정에서 배송
                 주문을 활성화해주세요.
               </div>
             ) : (

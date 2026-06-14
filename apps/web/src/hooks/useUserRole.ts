@@ -35,12 +35,36 @@ let inFlightUserId: string | null = null;
 let inFlightUserRolePromise: Promise<UserData | null> | null = null;
 const USER_ROLE_CACHE_KEY = 'orderfriends:user-role-cache';
 const USER_ROLE_CACHE_TTL_MS = 60_000;
+const E2E_BYPASS_AUTH = process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === 'true';
 
 type StoredUserRoleCache = {
   userId: string;
   userData: UserData;
   expiresAt: number;
 };
+
+const E2E_USER_DATA: UserData = {
+  user: {
+    id: 'e2e-user',
+    email: 'e2e@example.com',
+    role: 'system_admin',
+  },
+  memberships: [{ brandId: 'brand-1', role: 'OWNER' }],
+  ownedBrands: [{ id: 'brand-1', name: 'E2E Brand' }],
+  canCreateBrand: true,
+};
+
+function shouldBypassAuthForE2E() {
+  if (!E2E_BYPASS_AUTH || typeof window === 'undefined') return false;
+
+  const host = window.location.hostname;
+  const isLocalHost = host === '127.0.0.1' || host === 'localhost';
+  if (!isLocalHost) return false;
+
+  return document.cookie
+    .split(';')
+    .some((cookie) => cookie.trim() === 'of_e2e_auth=1');
+}
 
 function readStoredUserRoleCache(userId: string | null): UserData | null {
   if (!userId || typeof window === 'undefined') return null;
@@ -143,10 +167,12 @@ async function fetchUserRoleData(userId: string): Promise<UserData | null> {
 
 export function useUserRole() {
   const { user, status } = useAuth();
+  const e2eBypass = shouldBypassAuthForE2E();
   const userId = user?.id ?? null;
-  const initialUserData = getCachedUserRole(userId);
+  const initialUserData = e2eBypass ? E2E_USER_DATA : getCachedUserRole(userId);
   const [userData, setUserData] = useState<UserData | null>(initialUserData);
   const [loading, setLoading] = useState(() => {
+    if (e2eBypass) return false;
     if (status === 'loading') return true;
     if (status === 'unauthenticated' || !userId) return false;
     return initialUserData === null;
@@ -155,6 +181,14 @@ export function useUserRole() {
   const hasFetchedRef = useRef(Boolean(initialUserData));
 
   useEffect(() => {
+    if (e2eBypass) {
+      setUserData(E2E_USER_DATA);
+      setLoading(false);
+      setError(null);
+      hasFetchedRef.current = true;
+      return;
+    }
+
     if (status === 'loading') {
       return;
     }
@@ -194,7 +228,7 @@ export function useUserRole() {
     };
 
     void fetchUserRole();
-  }, [userId, status]);
+  }, [e2eBypass, userId, status]);
 
   return {
     userData,

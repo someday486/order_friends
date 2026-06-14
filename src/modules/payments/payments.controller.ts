@@ -21,6 +21,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { AuthGuard } from '../../common/guards/auth.guard';
 import { CustomerGuard } from '../../common/guards/customer.guard';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { Permission } from '../../modules/auth/authorization/permissions';
@@ -120,7 +121,7 @@ export class PaymentsPublicController {
 
 @ApiTags('payments-customer')
 @ApiBearerAuth()
-@UseGuards(CustomerGuard)
+@UseGuards(AuthGuard, CustomerGuard)
 @Controller('customer/payments')
 export class PaymentsCustomerController {
   constructor(private readonly paymentsService: PaymentsService) {}

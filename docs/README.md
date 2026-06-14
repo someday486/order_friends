@@ -16,6 +16,7 @@ Core product and system design documents. These are the highest-value reference 
 - `foundation/02-architecture.md`
 - `foundation/03-db-schema.md`
 - `foundation/04-user-flows.md`
+- `foundation/05-business-model.md`
 - `foundation/auth-foundation.md`
 
 ### `guides/`

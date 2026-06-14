@@ -86,7 +86,7 @@ export default function ProtectedLayout({
     return (
       <AccessState
         title="운영 권한을 확인하고 있습니다"
-        description="로그인 정보와 연결된 브랜드 또는 매장 권한을 확인한 뒤 화면을 준비하고 있습니다."
+        description="로그인 정보와 연결된 브랜드 또는 스토어 권한을 확인한 뒤 화면을 준비하고 있습니다."
       />
     );
   }

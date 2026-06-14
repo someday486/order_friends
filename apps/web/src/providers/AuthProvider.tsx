@@ -30,6 +30,34 @@ type AuthContextValue = AuthState & {
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
+const E2E_BYPASS_AUTH = process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === 'true';
+
+const E2E_USER = {
+  id: 'e2e-user',
+  email: 'e2e@example.com',
+  user_metadata: {},
+} as unknown as User;
+
+const E2E_SESSION = {
+  access_token: 'e2e-test-token',
+  refresh_token: 'e2e-refresh-token',
+  expires_at: 4102444800,
+  expires_in: 3600,
+  token_type: 'bearer',
+  user: E2E_USER,
+} as unknown as Session;
+
+function shouldBypassAuthForE2E() {
+  if (!E2E_BYPASS_AUTH || typeof window === 'undefined') return false;
+
+  const host = window.location.hostname;
+  const isLocalHost = host === '127.0.0.1' || host === 'localhost';
+  if (!isLocalHost) return false;
+
+  return document.cookie
+    .split(';')
+    .some((cookie) => cookie.trim() === 'of_e2e_auth=1');
+}
 
 function derive(
   session: AuthState['session'],
@@ -50,6 +78,10 @@ function getInitialState(
   session: Session | null,
   user: User | null,
 ): AuthState {
+  if (shouldBypassAuthForE2E()) {
+    return derive(E2E_SESSION, E2E_USER);
+  }
+
   if (!session && !user) {
     return { status: 'loading', session: null, user: null };
   }
@@ -83,6 +115,11 @@ export function AuthProvider({
 
   const syncAuthState = useCallback(
     async (sessionOverride?: Session | null) => {
+      if (shouldBypassAuthForE2E()) {
+        setState(derive(E2E_SESSION, E2E_USER));
+        return;
+      }
+
       const syncId = ++syncIdRef.current;
       const session =
         sessionOverride === undefined

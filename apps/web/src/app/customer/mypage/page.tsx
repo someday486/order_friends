@@ -496,7 +496,7 @@ export default function CustomerMyPage() {
     {
       key: 'kakao',
       label: '카카오톡 알림',
-      description: '주문/매장 상태 알림을 카카오톡으로 받습니다.',
+      description: '주문/스토어 상태 알림을 카카오톡으로 받습니다.',
     },
   ];
 
@@ -600,18 +600,18 @@ export default function CustomerMyPage() {
         </form>
       </section>
 
-      {/* ── 2. 매장 목록 ── */}
+      {/* ── 2. 스토어 목록 ── */}
       <section className="card p-5">
         <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="text-lg font-bold text-foreground">매장 목록</h2>
+          <h2 className="text-lg font-bold text-foreground">스토어 목록</h2>
           <span className="text-xs text-text-tertiary">
-            {storeGroups.length}개 브랜드 · {totalBranches}개 매장
+            {storeGroups.length}개 브랜드 · {totalBranches}개 스토어
           </span>
         </div>
 
         {storeGroups.length === 0 ? (
           <div className="text-sm text-text-tertiary">
-            연결된 브랜드 또는 매장이 없습니다.
+            연결된 브랜드 또는 스토어가 없습니다.
           </div>
         ) : (
           <div className="space-y-3">
@@ -636,14 +636,14 @@ export default function CustomerMyPage() {
                     href={`/customer/brands/${group.id}`}
                     className="text-xs text-text-secondary hover:text-foreground underline underline-offset-2 transition-colors"
                   >
-                    브랜드 관리
+                    브랜드/셀러 관리
                   </Link>
                 </div>
 
                 {/* 매장 목록 */}
                 {group.branches.length === 0 ? (
                   <p className="text-xs text-text-tertiary">
-                    이 브랜드에 매장이 없습니다.
+                    이 브랜드에 스토어/출고지가 없습니다.
                   </p>
                 ) : (
                   <div className="space-y-2 ml-1 pl-3 border-l border-border">
@@ -665,13 +665,13 @@ export default function CustomerMyPage() {
                             rel="noopener noreferrer"
                             className="inline-flex items-center h-7 px-3 rounded-lg border border-border bg-bg-secondary text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
                           >
-                            주문 페이지 열기
+                            주문 링크 열기
                           </Link>
                           <Link
                             href={`/customer/branches/${branch.id}`}
                             className="text-xs text-text-secondary hover:text-foreground underline underline-offset-2 transition-colors"
                           >
-                            매장 관리
+                            스토어 관리
                           </Link>
                         </div>
                       </div>

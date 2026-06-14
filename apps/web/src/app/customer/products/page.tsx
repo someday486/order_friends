@@ -356,7 +356,7 @@ function BranchChecklistTable({
           type="text"
           value={branchSearch}
           onChange={(e) => setBranchSearch(e.target.value)}
-          placeholder="매장명 검색"
+          placeholder="스토어명 검색"
           className="input-field w-full text-xs"
         />
       </div>
@@ -372,7 +372,7 @@ function BranchChecklistTable({
                 className="w-4 h-4 rounded accent-primary"
               />
             </th>
-            <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">매장명</th>
+            <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">스토어명</th>
             {/* <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">채널 URL</th> */}
             {onChangeCategory && (
               <th className="py-2.5 px-3 text-left text-xs font-bold text-text-secondary">
@@ -397,15 +397,15 @@ function BranchChecklistTable({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate">{branch.name}</div>
-                    <div className="text-xs text-text-secondary">지점 주문</div>
+                    <div className="text-xs text-text-secondary">스토어 주문</div>
                   </div>
 
                   <a
                     href={getOrderUrl(branch, brandSlug)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="고객 주문 페이지 열기"
-                    aria-label={`${branch.name} 고객 주문 페이지 열기`}
+                    title="온라인샵 주문 링크 열기"
+                    aria-label={`${branch.name} 온라인샵 주문 링크 열기`}
                     className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-border bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-foreground transition-colors flex-shrink-0"
                   >
                     <ExternalLink className="w-4 h-4" />
@@ -500,7 +500,7 @@ function BranchChecklistTable({
                 colSpan={onChangeCategory ? 3 : 2}
                 className="py-4 px-3 text-sm text-text-secondary text-center"
               >
-                등록된 매장이 없습니다.
+                등록된 스토어/출고지가 없습니다.
               </td>
             </tr>
           )}
@@ -1698,12 +1698,12 @@ export default function CustomerProductsPage() {
           await apiClient.post(`/customer/products/brand-templates/${template.id}/unapply`, {
             branchId: selectedFilterBranchId,
           });
-          toast.success(`${selectedFilterBranchName ?? "지점"}에서 숨겼습니다.`);
+          toast.success(`${selectedFilterBranchName ?? "스토어"}에서 숨겼습니다.`);
         } else {
           await apiClient.post(`/customer/products/brand-templates/${template.id}/apply`, {
             branchId: selectedFilterBranchId,
           });
-          toast.success(`${selectedFilterBranchName ?? "지점"}에 노출했습니다.`);
+          toast.success(`${selectedFilterBranchName ?? "스토어"}에 노출했습니다.`);
         }
       }
 
@@ -1854,7 +1854,7 @@ export default function CustomerProductsPage() {
               <HelpCircle className="w-4 h-4 text-text-secondary hover:text-foreground transition-colors" />
 
               <div className="absolute left-6 top-1/2 -translate-y-1/2 w-72 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                상품은 브랜드 단위로 등록하며, 매장별 노출과 재고관리 전반적인 상품관련 설정을 할 수 있습니다.
+                상품은 브랜드 단위로 등록하며, 스토어별 노출과 재고관리 전반의 상품 관련 설정을 할 수 있습니다.
               </div>
             </div>
           </div>
@@ -1993,7 +1993,7 @@ export default function CustomerProductsPage() {
                 <option value="ONLINE_SHOP">온라인샵</option>
                 {branches.map((branch) => (
                   <option key={branch.id} value={toBranchSalesChannelFilter(branch.id)}>
-                    지점 주문 - {branch.name}
+                    스토어 주문 - {branch.name}
                   </option>
                 ))}
               </select>
@@ -2082,7 +2082,7 @@ export default function CustomerProductsPage() {
                     <div>
                       <h3 className="text-sm font-bold text-foreground">상품 순서 편집</h3>
                       <p className="mt-1 text-xs text-text-secondary">
-                        항목을 드래그해서 순서를 바꾼 뒤 저장하면 연결된 모든 지점에 같은 순서로 반영됩니다.
+                        항목을 드래그해서 순서를 바꾼 뒤 저장하면 연결된 모든 스토어에 같은 순서로 반영됩니다.
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -2220,7 +2220,7 @@ export default function CustomerProductsPage() {
                       disabled={saving || !hasSelectedTemplates}
                       className="w-4 h-4 rounded accent-primary"
                     />
-                    판매 채널 (매장/온라인샵)
+                    판매 채널 (스토어/온라인샵)
                   </label>
                 </div>
 
@@ -2262,7 +2262,7 @@ export default function CustomerProductsPage() {
                       )}
                       {bulkChangeChannels && (
                         <div>
-                          • 판매 채널: {bulkBranchIds.size}개 지점 + {bulkOnlineShopChecked ? "온라인샵 노출" : "온라인샵 미노출"}
+                          • 판매 채널: {bulkBranchIds.size}개 스토어 + {bulkOnlineShopChecked ? "온라인샵 노출" : "온라인샵 미노출"}
                         </div>
                       )}
                       {bulkChangeStatus && bulkStatus === "keep" && (
@@ -2342,7 +2342,7 @@ export default function CustomerProductsPage() {
                                   </span>
                                 )}
                                 <span>
-                                  매장 {appliedCount}/{totalCount}
+                                  스토어 {appliedCount}/{totalCount}
                                 </span>
                                 <span>
                                   {template.isOnlineShopVisible === false
@@ -2459,7 +2459,7 @@ export default function CustomerProductsPage() {
                             <td className="py-2 px-3 text-sm text-foreground">
                               {salesChannelFilter === "ALL" ? (
                               <span className="text-xs text-text-secondary">
-                                매장 {appliedCount}/{totalCount} · {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
+                                스토어 {appliedCount}/{totalCount} · {isOnlineShopVisible ? "온라인샵 노출" : "온라인샵 미노출"}
                               </span>
                               ) : salesChannelFilter === "ONLINE_SHOP" ? (
                                 <span
@@ -2480,8 +2480,8 @@ export default function CustomerProductsPage() {
                                   }`}
                                 >
                                   {selectedBranchApplied
-                                    ? `${selectedFilterBranchName ?? "선택 지점"}`
-                                    : `${selectedFilterBranchName ?? "선택 지점"}`}
+                                    ? `${selectedFilterBranchName ?? "선택 스토어"}`
+                                    : `${selectedFilterBranchName ?? "선택 스토어"}`}
                                 </span>
                               )}
                             </td>
@@ -2500,11 +2500,11 @@ export default function CustomerProductsPage() {
                               {template.inventoryMode === "MIXED" ? (
                                 <div className="relative group inline-flex items-center">
                                   <span className="inline-flex items-center h-6 px-2.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-500">
-                                    지점별
+                                    스토어별
                                   </span>
 
                                   <div className="absolute left-0 top-full mt-2 whitespace-nowrap rounded-md border border-border bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                                    지점마다 재고관리 사용 여부가 다릅니다
+                                    스토어마다 재고관리 사용 여부가 다릅니다
                                   </div>
                                 </div>
                               ) : (
@@ -2530,8 +2530,8 @@ export default function CustomerProductsPage() {
                                         ? "온라인샵 숨김"
                                         : "온라인샵 노출"
                                       : selectedBranchApplied
-                                        ? "지점 숨김"
-                                        : "지점 노출"}
+                                        ? "스토어 숨김"
+                                        : "스토어 노출"}
                                   </button>
                                 )}
                                 <div className="relative group">
@@ -3074,7 +3074,7 @@ export default function CustomerProductsPage() {
         </div>
       )}
 
-      {/* 적용 매장 드로어 */}
+      {/* 적용 스토어 드로어 */}
       {appliedDrawerTemplateId && (() => {
         const drawerTemplate = templates.find((t) => t.id === appliedDrawerTemplateId);
         if (!drawerTemplate) return null;
@@ -3096,7 +3096,7 @@ export default function CustomerProductsPage() {
             <div className="relative w-full max-w-sm bg-background border-l border-border shadow-xl flex flex-col h-full">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <div>
-                  <h3 className="text-base font-bold text-foreground">적용 매장</h3>
+                  <h3 className="text-base font-bold text-foreground">적용 스토어</h3>
                   <p className="text-xs text-text-secondary mt-0.5 truncate max-w-[240px]">
                     {drawerTemplate.name}
                   </p>
@@ -3120,7 +3120,7 @@ export default function CustomerProductsPage() {
                     type="text"
                     value={drawerBranchSearch}
                     onChange={(e) => setDrawerBranchSearch(e.target.value)}
-                    placeholder="매장 검색..."
+                    placeholder="스토어 검색..."
                     className="input-field w-full pl-9 text-sm"
                     autoFocus
                   />
@@ -3410,7 +3410,7 @@ export default function CustomerProductsPage() {
                     <div className="relative group">
                       <HelpCircle className="w-4 h-4 text-text-secondary hover:text-foreground transition-colors" />
                       <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 rounded-md bg-bg-tertiary border border-border text-xs text-text-secondary opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
-                        체크한 채널(지점 주문/온라인샵)에만 메뉴가 노출됩니다.
+                        체크한 채널(스토어 주문/온라인샵)에만 메뉴가 노출됩니다.
                       </div>
                     </div>
                   </div>

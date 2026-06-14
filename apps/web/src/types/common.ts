@@ -96,7 +96,7 @@ export type PaymentMethod = StorePaymentMethod | 'CASH';
 export const FULFILLMENT_TYPE_LABEL: Record<FulfillmentType, string> = {
   PICKUP: '포장',
   DELIVERY: '배달',
-  DINE_IN: '현장 이용',
+  DINE_IN: '직접 수령',
   SHIPPING: '배송',
 };
 

@@ -816,7 +816,7 @@ export default function ShopBrandPageClient({
             <div className="relative flex h-full flex-col justify-between p-6 text-white md:p-8">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-white/14 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-white/90 backdrop-blur">
-                  SHIPPING ORDER
+                  ONLINE ORDER
                 </span>
                 <span className="rounded-full bg-black/25 px-3 py-1 text-xs text-white/85 backdrop-blur">
                   상품 {productCount}개
@@ -844,14 +844,14 @@ export default function ShopBrandPageClient({
                       </div>
                     )}
                     <div>
-                      <p className="text-sm font-medium text-white/80">온라인 배송 주문</p>
+                      <p className="text-sm font-medium text-white/80">온라인 주문</p>
                       <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">
                         {data.brandName}
                       </h1>
                     </div>
                   </div>
                   <p className="mt-4 max-w-xl text-sm leading-6 text-white/78 md:text-base">
-                    상품을 고르고 배송 정보를 입력하면 바로 주문할 수 있습니다.
+                    상품을 고르고 주문 정보를 입력하면 바로 주문할 수 있습니다.
                     오른쪽 주문 패널에서 수량, 결제 방식, 입금 안내를 한 번에 확인하세요.
                   </p>
                 </div>
@@ -1038,7 +1038,7 @@ export default function ShopBrandPageClient({
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
                 Order Desk
               </div>
-              <h2 className="mt-3 text-2xl font-black tracking-tight">배송 주문</h2>
+              <h2 className="mt-3 text-2xl font-black tracking-tight">온라인 주문</h2>
               <p className="mt-2 text-sm leading-6 text-white/78">
                 선택한 상품과 배송 정보를 이곳에서 정리하고 바로 주문하세요.
               </p>
@@ -1253,10 +1253,10 @@ export default function ShopBrandPageClient({
                           setCashReceiptRequested(e.target.checked)
                         }
                       />
-                      현금영수증 발급 요청
+                      현금영수증 발급 정보 전달
                     </label>
                     <p className="mt-2 text-xs text-text-secondary">
-                      주문자 휴대폰 번호로 소득공제용 현금영수증을 발급합니다.
+                      판매자가 발급 가능 여부를 확인할 수 있도록 요청 정보를 전달합니다.
                     </p>
                     {cashReceiptRequested ? (
                       <div className="mt-3 space-y-3">
@@ -1279,7 +1279,7 @@ export default function ShopBrandPageClient({
                               value={cashReceiptPhone}
                               onChange={(e) => setCashReceiptPhone(e.target.value)}
                               className="input-field h-11 w-full rounded-2xl border-black/8 bg-[#faf8f4]"
-                              placeholder="현금영수증 발급 휴대폰 번호"
+                              placeholder="현금영수증 요청 휴대폰 번호"
                               inputMode="tel"
                             />
                           )}
@@ -1332,7 +1332,7 @@ export default function ShopBrandPageClient({
                     주문 처리 중...
                   </>
                 ) : (
-                  `배송 주문하기${totalAmount > 0 ? ` (${formatWon(totalAmount)})` : ''}`
+                  `온라인 주문하기${totalAmount > 0 ? ` (${formatWon(totalAmount)})` : ''}`
                 )}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-text-tertiary">

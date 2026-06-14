@@ -81,7 +81,7 @@ function getFulfillmentLabel(type: string) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
   if (type === 'SHIPPING') return '택배';
-  if (type === 'DINE_IN') return '현장 이용';
+  if (type === 'DINE_IN') return '직접 수령';
   return type;
 }
 

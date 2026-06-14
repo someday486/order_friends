@@ -159,7 +159,7 @@ function getFulfillmentLabel(type: FulfillmentType) {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
   if (type === 'SHIPPING') return '택배';
-  return '현장 이용';
+  return '직접 수령';
 }
 
 function getFulfillmentIcon(type: FulfillmentType) {
@@ -1264,10 +1264,10 @@ export default function CheckoutPage() {
                     checked={cashReceiptRequested}
                     onChange={(e) => setCashReceiptRequested(e.target.checked)}
                   />
-                  현금영수증 발급 요청
+                  현금영수증 발급 정보 전달
                 </label>
                 <p className="mt-2 text-xs text-text-secondary">
-                  주문자 휴대폰 번호로 소득공제용 현금영수증을 발급합니다.
+                  판매자가 발급 가능 여부를 확인할 수 있도록 요청 정보를 전달합니다.
                 </p>
                 {cashReceiptRequested && (
                   <div className="mt-3 space-y-3">
@@ -1294,7 +1294,7 @@ export default function CheckoutPage() {
                           value={cashReceiptPhone}
                           onChange={(e) => setCashReceiptPhone(e.target.value)}
                           inputMode="tel"
-                          placeholder="현금영수증 발급 휴대폰 번호"
+                          placeholder="현금영수증 요청 휴대폰 번호"
                           className="input-field h-12 w-full"
                         />
                       )}

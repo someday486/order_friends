@@ -43,7 +43,7 @@ type Props = {
 const FULFILLMENT_OPTIONS: Array<{ value: FulfillmentType; label: string }> = [
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
-  { value: "DINE_IN", label: "현장 이용" },
+  { value: "DINE_IN", label: "직접 수령" },
   { value: "SHIPPING", label: "택배" },
 ];
 

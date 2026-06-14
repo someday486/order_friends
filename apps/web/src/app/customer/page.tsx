@@ -54,6 +54,13 @@ type LowStockAlert = {
   is_low_stock: boolean;
 };
 
+type SetupStep = {
+  title: string;
+  description: string;
+  href: string;
+  done: boolean;
+};
+
 const NON_REVENUE_ORDER_STATUSES = new Set(['CANCELLED', 'REFUNDED']);
 
 function getStatusVariant(
@@ -160,6 +167,35 @@ export default function CustomerDashboardPage() {
       ),
     [stats?.recentOrders],
   );
+  const setupSteps = useMemo<SetupStep[]>(
+    () => [
+      {
+        title: '브랜드/셀러 등록',
+        description: '온라인샵 이름과 공개 URL을 준비합니다.',
+        href: '/customer/brands',
+        done: myBrands > 0,
+      },
+      {
+        title: '스토어/출고지 등록',
+        description: '주문을 처리할 운영 단위와 문의 정보를 연결합니다.',
+        href: '/customer/branches',
+        done: myBranches > 0,
+      },
+      {
+        title: '상품 1개 이상 등록',
+        description: '온라인샵에 노출할 상품과 판매 채널을 선택합니다.',
+        href: '/customer/products',
+        done: (stats?.totalProducts ?? 0) > 0,
+      },
+      {
+        title: '주문 링크 확인',
+        description: '고객에게 공유할 온라인샵 주소를 열어 테스트합니다.',
+        href: '/customer/order',
+        done: myBrands > 0 && myBranches > 0 && (stats?.totalProducts ?? 0) > 0,
+      },
+    ],
+    [myBranches, myBrands, stats?.totalProducts],
+  );
 
   if (roleLoading || isBrandCreatorOnboarding || loading) {
     return (
@@ -211,6 +247,8 @@ export default function CustomerDashboardPage() {
           </div>
         </div>
       </section>
+
+      <SetupChecklist steps={setupSteps} />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
@@ -320,6 +358,75 @@ export default function CustomerDashboardPage() {
         </Card>
       </section>
     </div>
+  );
+}
+
+function SetupChecklist({ steps }: { steps: SetupStep[] }) {
+  const completedCount = steps.filter((step) => step.done).length;
+  const nextStep = steps.find((step) => !step.done) ?? null;
+
+  return (
+    <section className="rounded-2xl border border-border bg-bg-secondary p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+            Start Checklist
+          </div>
+          <h2 className="mt-2 text-lg font-bold text-foreground">
+            온라인 주문 운영 시작 순서
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-text-secondary">
+            브랜드를 만들고, 스토어/출고지와 상품을 연결한 뒤 주문 링크를
+            확인하면 고객 주문을 받을 준비가 끝납니다.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-text-secondary">
+          <span className="font-bold text-foreground">{completedCount}</span> /{' '}
+          {steps.length} 완료
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {steps.map((step, index) => (
+          <Link
+            key={step.title}
+            href={step.href}
+            className={`rounded-xl border p-4 no-underline transition-colors ${
+              step.done
+                ? 'border-success/30 bg-success/10 text-foreground'
+                : nextStep?.title === step.title
+                  ? 'border-primary-500/40 bg-primary-500/10 text-foreground hover:bg-primary-500/15'
+                  : 'border-border bg-background text-foreground hover:bg-bg-tertiary'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-text-tertiary">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  step.done
+                    ? 'bg-success/15 text-success'
+                    : nextStep?.title === step.title
+                      ? 'bg-primary-500/15 text-primary-500'
+                      : 'bg-bg-tertiary text-text-secondary'
+                }`}
+              >
+                {step.done
+                  ? '완료'
+                  : nextStep?.title === step.title
+                    ? '다음 단계'
+                    : '대기'}
+              </span>
+            </div>
+            <div className="mt-3 text-sm font-bold">{step.title}</div>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              {step.description}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -342,10 +342,10 @@ export default function CustomerBillingPage() {
             className="inline-flex items-center gap-2 text-[13px] font-semibold text-text-secondary no-underline transition-colors hover:text-foreground"
           >
             <ArrowLeft size={16} />
-            결제 운영 화면으로 돌아가기
+            주문 결제 화면으로 돌아가기
           </Link>
           <h1 className="mt-3 text-2xl font-black text-foreground">
-            무통장 전용 브랜드 빌링
+            무통장 전용 브랜드 이용료/구독
           </h1>
           <p className="mt-2 text-[13px] leading-6 text-text-secondary">
             무료 체험, 등록 카드, 월 구독 상태와 청구 이력을 한 화면에서 확인할
@@ -441,7 +441,7 @@ export default function CustomerBillingPage() {
                   </div>
                   <div className="mt-1 leading-6">
                     카드 등록을 끝내야 무료 체험과 월 자동 결제가 정상적으로
-                    이어집니다.
+                    이어지고, 무통장 전용 온라인샵이 공개됩니다.
                   </div>
                 </div>
                 <Link

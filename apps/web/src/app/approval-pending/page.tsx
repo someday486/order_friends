@@ -12,7 +12,7 @@ import { resolveAuthenticatedDestination } from '@/lib/auth/redirect';
 
 const nextSteps = [
   '이메일 인증을 완료했는지 먼저 확인합니다.',
-  '브랜드 승인을 받은 경우 승인 상태를 다시 확인합니다.',
+  '브랜드 생성 승인이나 기존 멤버 연결을 받은 경우 승인 상태를 다시 확인합니다.',
   '여전히 접근이 안 되면 로그아웃 후 다시 로그인합니다.',
 ];
 
@@ -105,12 +105,12 @@ export default function ApprovalPendingPage() {
           APPROVAL PENDING
         </div>
         <h1 className="mt-2 text-2xl font-extrabold text-foreground">
-          아직 운영 권한 부여가 완료되지 않았습니다
+          운영 권한 또는 브랜드 생성 승인이 필요합니다
         </h1>
         <p className="mt-3 text-sm leading-6 text-text-secondary">
           계정 생성은 완료되었지만 아직 사용할 수 있는 운영 권한이 연결되지
-          않았습니다. 새 사업자 계정으로 브랜드 승인을 받은 경우 아래 버튼으로
-          승인 상태를 다시 확인해 주세요.
+          않았습니다. 새 브랜드를 만들 계정이라면 브랜드 생성 가능 승인이,
+          기존 브랜드를 운영할 계정이라면 멤버 연결이 필요합니다.
         </p>
 
         <div className="mt-5 grid gap-4 md:grid-cols-[1.2fr_0.8fr]">

@@ -254,8 +254,8 @@ export default function CustomerBillingSetupPage() {
         </Link>
         <h1 className="mt-3 text-2xl font-black text-foreground">결제 수단 등록</h1>
         <p className="mt-2 text-[14px] leading-6 text-text-secondary">
-          14일 무료 체험 후 월 ₩33,000부터 자동 결제됩니다. 카드 등록이
-          끝나면 바로 브랜드 운영을 시작할 수 있어요.
+          카드 등록이 끝나면 14일 무료 체험이 시작되고, 체험 이후 Starter
+          플랜 기준으로 자동 결제됩니다.
         </p>
       </div>
 
@@ -281,6 +281,11 @@ export default function CustomerBillingSetupPage() {
           바로 확인할 수 있습니다.
         </div>
 
+        <div className="mt-3 rounded-2xl border border-warning-500/35 bg-warning-500/10 px-4 py-4 text-[13px] leading-6 text-warning-600">
+          카드 등록 전에는 무료 체험이 시작되지 않으며, 무통장 전용 브랜드의
+          온라인샵은 공개 주문 화면에 노출되지 않습니다.
+        </div>
+
         {error ? (
           <div className="mt-4 rounded-2xl border border-danger-500/40 bg-danger-500/10 px-4 py-3 text-[13px] text-danger-500">
             {error}
@@ -301,7 +306,7 @@ export default function CustomerBillingSetupPage() {
             href="/customer/payments"
             className="inline-flex items-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-bg-tertiary"
           >
-            나중에 할게요
+            나중에 등록하기
           </Link>
         </div>
       </section>

@@ -89,16 +89,16 @@ export default function CustomerPaymentsPage() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.22em] text-text-tertiary">
-              Payment Operations
+              Order Payments
             </div>
             <h1 className="mt-3 text-2xl font-black leading-tight tracking-tight text-foreground md:text-3xl">
-              브랜드별 결제 운영 방식을
+              주문자가 사용하는 결제 방식을
               <br className="hidden md:block" /> 셀러 운영 화면에서 확인하세요.
             </h1>
             <p className="mt-4 max-w-2xl text-[13px] leading-6 text-text-secondary md:text-sm">
-              온라인샵 주문 결제는 브랜드의 billing tier를 기준으로 동작합니다.
+              온라인샵 주문 결제는 브랜드의 결제 정책을 기준으로 동작합니다.
               PG 이용 브랜드는 토스 결제 위젯만, 무통장 전용 브랜드는 계좌이체만
-              노출됩니다.
+              노출됩니다. 셀러의 월 이용료와 정산 내역은 별도 화면에서 관리합니다.
             </p>
           </div>
 
@@ -126,7 +126,7 @@ export default function CustomerPaymentsPage() {
                 ))}
               </select>
               <div className="rounded-2xl border border-border bg-bg-secondary px-4 py-3 text-[13px] leading-6 text-text-secondary">
-                결제 운영 기준은 이 화면에서 확인하고, 구독 빌링과 PG 정산은
+                주문자가 보는 결제 방식은 이 화면에서 확인하고, 셀러 이용료와 PG 정산은
                 아래 바로가기에서 같은 고객 운영 영역 안에서 이어서 확인할 수
                 있습니다.
               </div>
@@ -182,7 +182,7 @@ export default function CustomerPaymentsPage() {
               <CardContent className="space-y-3 text-[13px] leading-6 text-text-secondary">
                 <InfoRow label="브랜드" value={selectedBrand.name} />
                 <InfoRow
-                  label="billing tier"
+                  label="결제 정책"
                   value={getBillingTierLabel(selectedBrand.billing_tier)}
                 />
                 <InfoRow
@@ -203,8 +203,8 @@ export default function CustomerPaymentsPage() {
               </CardHeader>
               <CardContent className="space-y-3 text-[13px] leading-6 text-text-secondary">
                 <div className="rounded-2xl border border-border bg-background px-4 py-4">
-                  billing tier 변경이나 계좌 정보 수정은 브랜드 / 스토어 설정에서
-                  관리합니다. 구독 빌링과 PG 정산은 아래 링크에서 같은 고객
+                  결제 정책 변경이나 계좌 정보 수정은 브랜드 / 스토어 설정에서
+                  관리합니다. 셀러 이용료와 PG 정산은 아래 링크에서 같은 고객
                   운영 영역 안에서 확인할 수 있습니다.
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -218,7 +218,7 @@ export default function CustomerPaymentsPage() {
                     href="/customer/billing"
                     className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-bg-tertiary"
                   >
-                    월 구독 빌링
+                    이용료/구독
                   </Link>
                   <Link
                     href="/customer/settlement"

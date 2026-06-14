@@ -257,7 +257,7 @@ export default function CustomerSettlementPage() {
             className="inline-flex items-center gap-2 text-[13px] font-semibold text-text-secondary no-underline transition-colors hover:text-foreground"
           >
             <ArrowLeft size={16} />
-            결제 운영 화면으로 돌아가기
+            주문 결제 화면으로 돌아가기
           </Link>
           <h1 className="mt-3 text-2xl font-black text-foreground">
             PG 정산 현황

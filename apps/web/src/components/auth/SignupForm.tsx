@@ -10,8 +10,8 @@ type SignupFormProps = {
 
 const signupSteps = [
   '이메일과 비밀번호로 계정을 만들고 이메일 인증을 완료합니다.',
-  '시스템 관리자가 브랜드 또는 스토어 권한을 직접 부여합니다.',
-  '다시 로그인하면 권한에 맞는 운영 화면으로 이동합니다.',
+  '시스템 관리자가 브랜드 생성 가능 계정으로 승인하거나 기존 브랜드/스토어 멤버로 연결합니다.',
+  '승인 후 다시 로그인하면 브랜드 생성 또는 운영 화면으로 이동합니다.',
 ];
 
 export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
@@ -62,7 +62,7 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
       }
 
       setSuccessMsg(
-        '가입 요청이 접수되었습니다. 이메일 인증 후 로그인해 주세요. 운영 권한은 시스템 관리자가 별도로 부여합니다.',
+        '가입 요청이 접수되었습니다. 이메일 인증 후 로그인해 주세요. 브랜드 생성 승인이나 운영 권한 연결은 시스템 관리자가 별도로 처리합니다.',
       );
       setEmail('');
       setPassword('');
@@ -165,11 +165,12 @@ export function SignupForm({ loginHref = '/login' }: SignupFormProps) {
           ))}
         </ol>
         <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-[11px] leading-5 text-text-secondary">
-          브랜드 또는 스토어 운영 권한은 자동으로 생기지 않습니다. 시스템 관리자가
+          브랜드 생성 권한이나 기존 브랜드/스토어 운영 권한은 자동으로 생기지
+          않습니다. 시스템 관리자가
           <span className="px-1 font-semibold text-foreground">
             /admin/members
           </span>
-          에서 승인해야 운영 화면을 사용할 수 있습니다.
+          에서 승인하거나 멤버로 연결하면 운영 화면을 사용할 수 있습니다.
         </div>
       </div>
 

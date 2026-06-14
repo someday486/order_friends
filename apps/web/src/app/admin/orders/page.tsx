@@ -54,7 +54,7 @@ const FULFILLMENT_OPTIONS: {
   { value: "ALL", label: "전체 방식" },
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
-  { value: "DINE_IN", label: "현장 이용" },
+  { value: "DINE_IN", label: "직접 수령" },
   { value: "SHIPPING", label: "택배" },
 ];
 

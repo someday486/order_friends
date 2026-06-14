@@ -26,6 +26,28 @@ function shouldBypassAuth(request: NextRequest) {
   return cookieBypass && headerBypass;
 }
 
+function resolveAuthPageRedirectPath(request: NextRequest) {
+  const next = request.nextUrl.searchParams.get('next')?.trim();
+  if (
+    !next ||
+    next === '/app' ||
+    !next.startsWith('/') ||
+    next.startsWith('//')
+  ) {
+    return '/';
+  }
+
+  const target = new URL(next, request.nextUrl.origin);
+  if (
+    target.origin !== request.nextUrl.origin ||
+    AUTH_PAGES.has(target.pathname)
+  ) {
+    return '/';
+  }
+
+  return `${target.pathname}${target.search}${target.hash}`;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -73,10 +95,9 @@ export async function middleware(request: NextRequest) {
     return redirect;
   }
 
-  // 2) /login 접근: 로그인 -> / (역할 기반 라우팅)
+  // 2) /login 접근: 로그인 -> next 또는 / (루트에서 역할 기반 라우팅)
   if (AUTH_PAGES.has(pathname) && isAuthed) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
+    const url = new URL(resolveAuthPageRedirectPath(request), request.url);
 
     const redirect = NextResponse.redirect(url);
     response.cookies.getAll().forEach((c) => {

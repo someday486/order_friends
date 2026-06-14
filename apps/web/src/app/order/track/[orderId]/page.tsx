@@ -437,7 +437,7 @@ function fulfillmentTypeLabel(type: FulfillmentType | null): string {
   if (type === 'PICKUP') return '포장';
   if (type === 'DELIVERY') return '배달';
   if (type === 'SHIPPING') return '택배';
-  if (type === 'DINE_IN') return '현장 이용';
+  if (type === 'DINE_IN') return '직접 수령';
   return '-';
 }
 
@@ -476,7 +476,7 @@ function paymentGuide(method: PaymentMethod | null): {
     return {
       title: '현금 결제 안내',
       description:
-        '현장 결제 유형입니다. 수령 시 스토어 안내에 따라 결제를 진행해 주세요.',
+        '수령 시 결제 유형입니다. 상품 수령 시 스토어 안내에 따라 결제를 진행해 주세요.',
     };
   }
   return {
@@ -508,7 +508,7 @@ function refundGuide(
       : order.paymentMethod === 'TRANSFER'
         ? '계좌이체 주문의 환불은 계좌 확인이 필요할 수 있어 스토어 안내에 따라 처리됩니다.'
         : order.paymentMethod === 'CASH'
-          ? '현장결제 주문의 환불 방식은 스토어 정책에 따라 달라질 수 있습니다.'
+          ? '수령 시 결제 주문의 환불 방식은 스토어 정책에 따라 달라질 수 있습니다.'
           : '환불 반영 시점은 결제 수단과 스토어 확인 결과에 따라 달라질 수 있습니다.';
 
   if (order.status === 'CREATED') {
@@ -600,7 +600,7 @@ function cancelConfirmationNotice(order: OrderInfo): string {
   }
 
   if (order.paymentMethod === 'CASH') {
-    return '현장결제 주문은 스토어 확인 후 취소가 마무리될 수 있어요.';
+    return '수령 시 결제 주문은 스토어 확인 후 취소가 마무리될 수 있어요.';
   }
 
   return '카드 결제 취소 후 실제 환불 반영까지는 카드사 사정에 따라 3~5영업일 정도 걸릴 수 있습니다.';

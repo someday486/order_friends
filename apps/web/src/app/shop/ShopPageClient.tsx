@@ -93,7 +93,7 @@ export default function ShopPageClient({
                 브랜드 온라인샵
               </h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-text-secondary md:text-base">
-                공연 굿즈, 한정 상품, 배송 주문을 한 화면에서 차분하게 고를 수
+                공연 굿즈, 한정 상품, 온라인 주문을 한 화면에서 차분하게 고를 수
                 있게 정리했습니다. 브랜드를 고르고 바로 주문을 시작해보세요.
               </p>
 
@@ -102,7 +102,7 @@ export default function ShopPageClient({
                   주문 가능한 브랜드 <span className="font-semibold text-foreground">{totalCount}개</span>
                 </div>
                 <div className="rounded-full border border-black/10 bg-white/85 px-4 py-2 text-xs font-medium text-text-secondary">
-                  배송 주문 전용
+                  온라인 주문 전용
                 </div>
                 <div className="rounded-full border border-black/10 bg-white/85 px-4 py-2 text-xs font-medium text-text-secondary">
                   로그인 시 주문 정보 자동 입력
@@ -160,7 +160,7 @@ export default function ShopPageClient({
                 주문 가능한 브랜드
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                브랜드별 온라인 배송 주문 링크로 바로 이동할 수 있습니다.
+                브랜드별 온라인 주문 링크로 바로 이동할 수 있습니다.
               </p>
             </div>
             <div className="text-sm text-text-secondary">
@@ -217,7 +217,7 @@ export default function ShopPageClient({
                     </span>
                     {shopPath && (
                       <span className="absolute bottom-3 left-3 rounded-full bg-white/92 px-3 py-1 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur-sm">
-                        온라인 배송 주문
+                        온라인 주문
                       </span>
                     )}
                   </div>
@@ -243,7 +243,7 @@ export default function ShopPageClient({
                         </h2>
                         <p className="mt-1 text-sm text-text-secondary">
                           {shopPath
-                            ? '온라인 배송 주문이 열려 있습니다.'
+                            ? '온라인 주문이 열려 있습니다.'
                             : '온라인샵 준비 중'}
                         </p>
                       </div>

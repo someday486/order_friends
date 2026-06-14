@@ -61,7 +61,7 @@ const BRANCH_FULFILLMENT_OPTIONS: Array<{
 }> = [
   { value: "PICKUP", label: "포장" },
   { value: "DELIVERY", label: "배달" },
-  { value: "DINE_IN", label: "현장 이용" },
+  { value: "DINE_IN", label: "직접 수령" },
   { value: "SHIPPING", label: "택배" },
 ];
 
@@ -119,6 +119,7 @@ export default function CustomerBranchesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const selectedBrand = brands.find((brand) => brand.id === selectedBrandId) ?? null;
   const visibleBranches = branches.filter(
     (branch) => !isInternalOnlineShopBranch(branch, selectedBrand?.name),
@@ -174,7 +175,7 @@ export default function CustomerBranchesPage() {
     };
 
     loadBranches();
-  }, [selectedBrandId, brands]);
+  }, [selectedBrandId, brands, refreshKey]);
 
   const canAddBranch = branches.length > 0
     ? branches[0]?.myRole === "OWNER" || branches[0]?.myRole === "ADMIN"
@@ -233,7 +234,7 @@ export default function CustomerBranchesPage() {
               <div className="p-4 bg-bg-secondary text-foreground">
                 <h2 className="text-sm font-bold m-0">결제 운영 방식</h2>
                 <p className="mt-2 text-xs text-text-secondary">
-                  온라인샵 결제 방식은 브랜드의 billing tier로 자동 결정됩니다.
+                  온라인샵 결제 방식은 브랜드의 결제 정책으로 자동 결정됩니다.
                 </p>
                 <div className="mt-3 rounded-xl border border-border bg-bg-tertiary px-3 py-3 text-sm text-text-secondary">
                   <div className="font-semibold text-foreground">
@@ -241,7 +242,7 @@ export default function CustomerBranchesPage() {
                   </div>
                   <div className="mt-1">
                     {isManualTransferTier(selectedBrand?.billing_tier)
-                      ? "온라인샵 주문은 무통장 입금으로만 진행됩니다."
+                      ? "온라인샵 주문은 무통장 입금으로만 진행되며, 결제 수단 등록 후 공개됩니다."
                       : "온라인샵 주문은 토스페이먼츠 결제로만 진행됩니다."}
                   </div>
                 </div>
@@ -300,7 +301,7 @@ export default function CustomerBranchesPage() {
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
-            window.location.reload();
+            setRefreshKey((current) => current + 1);
           }}
         />
       )}

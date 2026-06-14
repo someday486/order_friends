@@ -132,19 +132,19 @@ const menuSections: MenuSection[] = [
     items: [
       {
         href: '/customer/payments',
-        label: '결제운영',
+        label: '주문 결제',
         icon: OrderIcon,
         allowedRoles: ['system_admin', 'brand_owner'],
       },
       {
         href: '/customer/billing',
-        label: '월 구독 빌링',
+        label: '이용료/구독',
         icon: OrderIcon,
         allowedRoles: ['system_admin', 'brand_owner'],
       },
       {
         href: '/customer/settlement',
-        label: 'PG 정산',
+        label: '정산',
         icon: OrderIcon,
         allowedRoles: ['system_admin', 'brand_owner'],
       },
@@ -200,7 +200,7 @@ export default function CustomerLayout({
       return null;
     }
 
-    return '브랜드와 스토어를 먼저 등록하세요.';
+    return '브랜드/셀러와 스토어/출고지를 먼저 등록하세요.';
   }, []);
 
   const isOnboardingItemDisabled = useCallback(

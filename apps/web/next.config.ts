@@ -42,6 +42,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns,
+    qualities: [75, 100],
   },
   turbopack: {
     root: __dirname,

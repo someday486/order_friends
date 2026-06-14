@@ -56,9 +56,9 @@ type BrandFormData = {
   cash_receipt_contact_phone: string;
 };
 
-function getBrandOrderUrl(slug: string | null): string | null {
+function getBrandShopUrl(slug: string | null): string | null {
   if (!slug) return null;
-  return `/order/${encodeURIComponent(slug)}`;
+  return `/shop/${encodeURIComponent(slug)}`;
 }
 
 function getCashReceiptIssueTimingLabel(value: string | null): string {
@@ -145,7 +145,7 @@ const emptyFormData: BrandFormData = {
 };
 
 const CASH_RECEIPT_PREPARING_MESSAGE =
-  "현금영수증 기능은 현재 준비중입니다.";
+  "현금영수증 자동 발행 설정은 현재 준비 중입니다.";
 
 export default function BrandDetailPage() {
   const params = useParams();
@@ -200,8 +200,8 @@ export default function BrandDetailPage() {
 
   const canEdit = brand && (brand.myRole === "OWNER" || brand.myRole === "ADMIN");
   const isNonPgBrand = brand?.billing_tier === "NON_PG";
-  const brandOrderUrl = useMemo(
-    () => getBrandOrderUrl(brand?.slug ?? null),
+  const brandShopUrl = useMemo(
+    () => getBrandShopUrl(brand?.slug ?? null),
     [brand?.slug],
   );
 
@@ -233,7 +233,7 @@ export default function BrandDetailPage() {
         setBizCertUploadError(
           e instanceof Error
             ? e.message
-            : "?ъ뾽?먮벑濡앹쬆 ?낅줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎.",
+            : "사업자등록증 업로드에 실패했습니다.",
         );
       } finally {
         setBizCertUploading(false);
@@ -498,6 +498,7 @@ export default function BrandDetailPage() {
               </div>
               <div className="mt-2 text-xs text-text-secondary">
                 기능 오픈 전까지는 현금영수증 관련 설정을 변경할 수 없습니다.
+                구매자 주문 화면에서는 발급 요청 정보만 접수됩니다.
               </div>
 
               <label className="mb-4 mt-4 flex items-center gap-3 text-sm text-foreground">
@@ -795,10 +796,21 @@ export default function BrandDetailPage() {
 
             <div className="mb-5">
               <div className="mb-2 text-[13px] text-text-secondary">
-                브랜드 URL
+                온라인샵 URL
               </div>
               <div className="text-[15px] text-foreground">
-                {brandOrderUrl ?? "-"}
+                {brandShopUrl ? (
+                  <a
+                    href={brandShopUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-500 underline-offset-4 hover:underline"
+                  >
+                    {brandShopUrl}
+                  </a>
+                ) : (
+                  "-"
+                )}
               </div>
             </div>
 

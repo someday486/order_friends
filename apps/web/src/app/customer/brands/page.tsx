@@ -335,7 +335,7 @@ function AddBrandModal({
                 <div className="font-semibold">무통장 전용</div>
                 <div className="mt-1 text-xs leading-5">
                   고객은 온라인샵에서 계좌이체로 주문하고 브랜드/셀러는 월 이용료 기준으로
-                  운영합니다.
+                  운영합니다. 카드 등록 후 무료 체험이 시작되어야 온라인샵이 공개됩니다.
                 </div>
               </button>
             </div>

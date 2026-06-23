@@ -2216,7 +2216,18 @@ export default function CustomerProductsPage() {
                     <input
                       type="checkbox"
                       checked={bulkChangeChannels}
-                      onChange={(event) => setBulkChangeChannels(event.target.checked)}
+                      onChange={(event) => {
+                        const isChecked = event.target.checked;
+                        setBulkChangeChannels(isChecked);
+                        if (
+                          isChecked &&
+                          hasSelectedTemplates &&
+                          !isBulkOpen &&
+                          !bulkAutoOpenDisabled
+                        ) {
+                          setIsBulkOpen(true);
+                        }
+                      }}
                       disabled={saving || !hasSelectedTemplates}
                       className="w-4 h-4 rounded accent-primary"
                     />
